@@ -1,0 +1,263 @@
+@media (max-width: 750px) {
+    .button-atalho {
+        flex-direction: column;
+    }
+    
+    .atalhos {
+        flex-direction: column;
+    }
+    
+    .header-track {
+        padding: 20px;
+    }
+}
+
+.container-login .login-content [page-name="LoginForm"] .login-medium-logo {
+    margin-top: 15%;
+}
+
+.container-login .login-content [page-name="LoginForm"] .card-header.panel-heading {
+    display: none;
+}
+
+.container-login .login-content [page-name="LoginForm"] .btn {
+    background: #145484;
+}
+
+.container-login .login-content [page-name="LoginForm"] .form-line {
+    margin-bottom:10px;
+}
+
+.container-login .login-content [page-name="LoginForm"] .card-body {
+    padding-bottom:0px;
+}
+
+
+
+.container-login .login-content [page-name="LoginForm"] .btn span {
+    color: white;
+}
+
+.foto_perfil[src="app/images/"] { display: none; }
+
+.foto_perfil {
+    position: absolute;
+    top: 0;
+    height: calc( 46.5px * 3);
+    width: calc( 46.5px * 4);
+    display: flex;
+    border-radius: 10px;
+    background-size: cover;
+    object-fit: cover;
+    border: 1px solid #dddddd;
+    justify-content: center;
+    align-items: center;
+    left: calc( 50% - (46.5px * 2) );
+}
+
+@media (max-width: 578px) {
+    .foto_perfil {
+        position: unset;
+    }
+}
+
+.builder-template-login {
+    height: unset !important;
+}
+
+.container-login #adianti_div_content>div:not(
+    [page-name="LoginForm"],
+    [page-name="SystemRegistrationForm"],
+    [page-name="SystemPasswordResetForm"],
+    [page-name="SystemRequestPasswordResetForm"]
+) {
+    position: unset !important;
+}
+
+span.estado_agendamento {
+    width: 16px;
+    height: 16px;
+    display: inline-block;
+    border-radius: 50%;
+    border: 1px solid;
+}
+
+.fc-time-grid .fc-slats td {
+    height: 4em;
+}
+
+.fc .fc-timegrid-slot{
+    height: 3em;
+}
+
+.column-space-between {
+    justify-content: space-between;
+}
+
+.column-space-between:after {
+    display: none;
+}
+
+div[page-name="ValidarDocumentoForm"] {
+    max-width: 50%;
+    margin: auto;
+    margin-top: 100px;
+}
+
+.atalhos {
+    padding: 20px;
+    display: flex;
+    gap: 25px;
+    width: 80%;
+    justify-content: center;
+}
+
+.button-atalho {
+    height: 150px;
+    margin: auto;
+    border: 3px solid var(--main-color);
+    width: 100%;
+    text-align: center;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+    padding: 25px;
+    font-size: 17px;
+    border-radius: 9px;
+    transition: .3s;
+    cursor: pointer;
+}
+
+.button-atalho:hover {
+    background: var(--main-color);
+    color: white;
+    transition: .3s;
+}
+
+.logo-public {
+    background-image: url(../../../../logo3d.png);
+    width: 100%;
+    height: 150px;
+    background-position: center;
+    background-size: contain;
+    background-repeat: no-repeat;
+}
+
+.container-public {
+    /*height: calc(100vh - (var(--header-height) * 1.5) );*/
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+}
+
+.title-lancamentos:before {
+    content: '';
+    position: absolute;
+    width: 14px;
+    height: 5px;
+    background: #e0e4ed;
+    bottom: -3px;
+    left: 0px;
+    border-radius: 4px;
+}
+.title-lancamentos {
+    margin-top: 12px;
+    border-bottom: 1px solid #e0e4ed;
+    margin-bottom: 10px;
+    line-height: 1.5;
+    position: relative;
+    width: 450px;
+    color: var(--text-color-strong);
+}
+
+.card-lancamento {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 4px 10px;
+    margin: 0px;
+}
+
+.card-lancamento small {
+    font-size: 65%;
+}
+
+.card-lancamento span {
+    font-size: 80%;
+}
+
+
+.agenda {
+    display: flex;
+    flex-direction: row;
+    position: relative;
+}
+
+.agenda .imagem-profissional[data-img=""] {
+    display: none;
+}
+
+.agenda > div:nth-child(1) {
+    justify-content: center;
+    align-items: flex-start;
+    display: flex;
+}
+
+.agenda > div:nth-child(2) > div:nth-child(3) {
+    flex-direction: column;
+    justify-content: flex-start;
+    align-items: flex-start;
+}
+
+.title-especialidade {
+    opacity: 0.8;
+    font-size: 75%;
+}
+
+.imagem-profissional {
+    width: 50px;
+    height: 50px;
+    background-size: contain;
+    background-repeat: no-repeat;
+    margin-right: 10px;
+    border-radius: 50%;
+}
+
+.agenda > div:nth-child(2) {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    width: 100%;
+    justify-content: flex-start;
+    align-items: flex-start;
+}
+
+.agenda > div:nth-child(2) > div {
+    display: flex;
+    gap: 4px;
+    font-size: 18px;
+    justify-content: center;
+    align-items: center;
+}
+
+.agenda .aceita-atendimento-online {
+    position: absolute;
+    top: 0px;
+    right: 5px;
+}
+
+#qrcode {
+    background-repeat: no-repeat;
+    height: 250px !important;
+    background-size: contain;
+    justify-content: center;
+    text-align: center;
+    background-position: center;
+}
+
+.fc-event, .fc-event-dot {
+    background: #fdfdfd;
+}

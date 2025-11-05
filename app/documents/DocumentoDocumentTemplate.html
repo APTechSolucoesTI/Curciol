@@ -1,0 +1,74 @@
+<html>
+<head>
+
+    <style>
+        .header {   
+            position: fixed;
+            left: 0px;
+            margin-top: 0px;
+            top:0px;
+            right: 0px;
+            height: auto;
+            width: 100%;
+        }
+
+        @page {
+            margin-top: 50px;
+            margin-left: 25px;
+            margin-right: 25px;
+            margin-bottom: 25px;
+        }
+
+        body {
+            margin-top: 150px;
+            margin-bottom: 120px;
+        }
+    </style>
+
+    <style>
+        .footer {   
+            position: fixed;
+            left: 0px;
+            bottom: 0px;
+            right: 0px;
+            height: auto;
+            width: 100%;
+        }
+        .footer .page:after{
+            content: counter(page)
+        }
+    </style>
+</head>
+<body>
+<div class="header">
+<table style="border-collapse: collapse; width: 98%; height: 103px;" border="0">
+<tbody>
+<tr style="height: 103px;">
+<td style="height: 103px;"><span style="font-size: 8pt;"><img src="{$atendimento->agendamento->agenda->escritorio->logo_documento}" alt="Logo" width="100%" height="" /></span></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p style="margin: 1px 0;"> </p>
+<p style="margin: 1px 0px; text-align: center;"><span style="font-size: 8pt;">{$texto_formatado}</span></p>
+<p style="margin: 1px 0;"> </p>
+<p style="margin: 1px 0;"> </p>
+<p style="margin: 1px 0;"> </p>
+<div class="footer"> </div>
+<div class="footer">
+<table style="border-collapse: collapse; width: 100%;" border="0">
+<tbody>
+<tr>
+<td>
+<div class="MsoFooter" style="text-align: center;" align="center">
+<p style="margin: 1px 0px; text-align: left;"><span style="font-size: 8pt;">Código autenticador: <span style="color: #7f7f7f; font-family: 'Trebuchet MS', sans-serif; text-align: right;">{$autenticador}</span></span></p>
+<hr style="color: gray;" align="center" noshade size="3" width="100%" /></div>
+<p class="MsoFooter" style="text-align: center;" align="center"><span style="font-family: 'Trebuchet MS', sans-serif; color: #7f7f7f; font-size: 8pt;">Rua Luiza Meneghel Mancini, 165  -  Jardim Paulista  -  Americana/SP  -  CEP 13468-274</span></p>
+<p class="MsoFooter" style="text-align: center;" align="center"><span style="font-size: 8pt;"><span style="font-family: 'Trebuchet MS',sans-serif; color: #7f7f7f;">(19) 3621-3770  -  </span><a href="mailto:contato@curciol.com.br"><span style="font-family: 'Trebuchet MS',sans-serif; color: #7f7f7f;">contato@curciol.com.br</span></a><span style="font-family: 'Trebuchet MS',sans-serif; color: #7f7f7f;">  -  www.curciol.com.br</span></span></p>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</body>
+</html>

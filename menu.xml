@@ -1,0 +1,473 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu>
+    <menuitem label="Agendamentos">
+    <icon>far:calendar-alt fa-fw </icon>
+    <menu>
+        <menuitem label="Agendamentos">
+        <icon>fas:calendar-day fa-fw </icon>
+        <action>AgendamentosFilterForm#method=onShow</action>
+        </menuitem>
+        <menuitem label="Listagem">
+        <icon>fas:list fa-fw </icon>
+        <action>AgendaAgendamentoList#method=onShow</action>
+        </menuitem>
+        <menuitem label="Atendimento">
+        <icon>far:clipboard fa-fw </icon>
+        <action>TodosAgendamentoList#method=onShow</action>
+        </menuitem>
+    </menu>
+    </menuitem>
+    <menuitem label="Pessoas">
+    <icon>fas:users fa-fw </icon>
+    <menu>
+        <menuitem label="Clientes">
+        <icon>fas:address-book fa-fw </icon>
+        <action>ClienteList#method=onShow</action>
+        </menuitem>
+        <menuitem label="Representantes Legais">
+        <icon>fas:user-tie fa-fw </icon>
+        <action>RepresentantesLegaisList#method=onShow</action>
+        </menuitem>
+        <menuitem label="Parte Contraria">
+        <icon>fas:exchange-alt fa-fw </icon>
+        <action>ContraparteList#method=onShow</action>
+        </menuitem>
+        <menuitem label="Profissionais">
+        <icon>fas:briefcase fa-fw </icon>
+        <action>ProfissionalList#method=onShow</action>
+        </menuitem>
+        <menuitem label="Fornecedores">
+        <icon>fas:truck fa-fw </icon>
+        <action>FornecedorList#method=onShow</action>
+        </menuitem>
+    </menu>
+    </menuitem>
+    <menuitem label="Documentos">
+    <icon>far:file-alt fa-fw</icon>
+    <menu>
+        <menuitem label="Gerar">
+        <icon>far:file-alt fa-fw</icon>
+        <action>DocumentoAvulsoForm#method=onShow</action>
+        </menuitem>
+    </menu>
+    </menuitem>
+    <menuitem label="Processos">
+    <icon>fas:gavel fa-fw </icon>
+    <menu>
+        <menuitem label="Processos">
+        <icon>fas:gavel fa-fw </icon>
+        <action>ProcessoList#method=onShow</action>
+        </menuitem>
+        <menuitem label="Publicações">
+        <icon>fas:list fa-fw </icon>
+        <action>PublicacaoHeaderList#method=onShow</action>
+        </menuitem>
+        <menuitem label="Tarefas">
+        <icon>fas:list-ul fa-fw </icon>
+        <menu>
+            <menuitem label="Lista">
+            <icon>fas:list-ul fa-fw </icon>
+            <action>TarefaList#method=onShow</action>
+            </menuitem>
+            <menuitem label="Kanban">
+            <icon>fas:columns fa-fw </icon>
+            <action>TarefaKanbanHeader#method=onShow</action>
+            </menuitem>
+            <menuitem label="Gantt">
+            <icon>fas:th-list fa-fw </icon>
+            <action>TarefaGanttFormView#method=onShow</action>
+            </menuitem>
+        </menu>
+        </menuitem>
+    </menu>
+    </menuitem>
+    <menuitem label="Contratos">
+    <icon>fas:file-alt fa-fw </icon>
+    <menu>
+        <menuitem label="Gerar Contrato">
+        <icon>fas:file-alt fa-fw </icon>
+        <action>GerarContratoForm#method=onShow</action>
+        </menuitem>
+        <menuitem label="Contratos">
+        <icon>fas:file-alt fa-fw </icon>
+        <action>ContratoList#method=onShow</action>
+        </menuitem>
+    </menu>
+    </menuitem>
+    <menuitem label="Financeiro">
+    <icon>fas:dollar-sign fa-fw </icon>
+    <menu>
+        <menuitem label="Fluxo de caixa">
+        <icon>fas:exchange-alt fa-fw </icon>
+        <action>FluxoCaixaView#method=onShow</action>
+        </menuitem>
+        <menuitem label="Extrato">
+        <icon>fas:clipboard-list fa-fw </icon>
+        <action>ModalFiltroExtrato#method=onShow</action>
+        </menuitem>
+        <menuitem label="Contas">
+        <icon>far:money-bill-alt fa-fw</icon>
+        <menu>
+            <menuitem label="Contas a receber">
+            <icon>far:money-bill-alt fa-fw #4CAF50</icon>
+            <action>ContaReceberList#method=onShow</action>
+            </menuitem>
+            <menuitem label="Contas a pagar">
+            <icon>far:money-bill-alt fa-fw #F44336</icon>
+            <action>ContaPagarList#method=onShow</action>
+            </menuitem>
+        </menu>
+        </menuitem>
+    </menu>
+    </menuitem>
+    <menuitem label="Dashboard">
+    <icon>fas:chart-pie fa-fw </icon>
+    <menu>
+        <menuitem label="Agendamento">
+        <icon>fas:chart-pie fa-fw </icon>
+        <action>DashboardAgendamentoGeral#method=onShow</action>
+        </menuitem>
+        <menuitem label="Atendimento">
+        <icon>fas:chart-pie fa-fw </icon>
+        <action>DashboardAtendimentoGeral#method=onShow</action>
+        </menuitem>
+        <menuitem label="Contas Caixa">
+        <icon>fas:chart-pie fa-fw </icon>
+        <action>DashboardContasCaixa#method=onShow</action>
+        </menuitem>
+        <menuitem label="Contas a receber">
+        <icon>fas:chart-pie fa-fw #4CAF50</icon>
+        <action>DashboardContasReceberGeral#method=onShow</action>
+        </menuitem>
+        <menuitem label="Contas a pagar">
+        <icon>fas:chart-pie fa-fw #F44336</icon>
+        <action>DashboardContasPagarGeral#method=onShow</action>
+        </menuitem>
+        <menuitem label="Contas recebidas">
+        <icon>fas:chart-pie fa-fw #4CAF50</icon>
+        <action>DashboardExtratoRecebidas#method=onShow</action>
+        </menuitem>
+        <menuitem label="Contas pagas">
+        <icon>fas:chart-pie fa-fw #F44336</icon>
+        <action>DashboardExtratoPagas#method=onShow</action>
+        </menuitem>
+    </menu>
+    </menuitem>
+    <menuitem label="Configurações">
+    <icon>fas:cogs fa-fw </icon>
+    <menu>
+        <menuitem label="Geral">
+        <icon>fas:cogs fa-fw </icon>
+        <menu>
+            <menuitem label="Escritórios">
+            <icon>far:building fa-fw </icon>
+            <action>EscritoriosList#method=onShow</action>
+            </menuitem>
+            <menuitem label="Tipos de profissional">
+            <icon>fas:users fa-fw </icon>
+            <action>TipoProfissionalList#method=onShow</action>
+            </menuitem>
+            <menuitem label="Agendas">
+            <icon>far:address-book fa-fw </icon>
+            <action>AgendaList#method=onShow</action>
+            </menuitem>
+            <menuitem label="Especialidades">
+            <icon>fas:binoculars fa-fw </icon>
+            <action>EspecialidadeHeaderList#method=onShow</action>
+            </menuitem>
+            <menuitem label="Tipos de compromisso">
+            <icon>fas:calendar-times fa-fw </icon>
+            <action>TipoCompromissoList#method=onShow</action>
+            </menuitem>
+            <menuitem label="Classificação Parte Contrária">
+            <icon>fas:dot-circle fa-fw </icon>
+            <action>ClassificacoesContraparteDadosHeaderList#method=onShow</action>
+            </menuitem>
+            <menuitem label="Classificação Clientes">
+            <icon>fas:dot-circle fa-fw </icon>
+            <action>ClassificacaoClienteHeaderList#method=onShow</action>
+            </menuitem>
+            <menuitem label="Estados de agendamento">
+            <icon>fas:traffic-light fa-fw </icon>
+            <action>EstadoAgendaHeaderList#method=onShow</action>
+            </menuitem>
+            <menuitem label="Parceiros">
+            <icon>fas:id-card fa-fw </icon>
+            <action>ParceirosHeaderList#method=onShow</action>
+            </menuitem>
+            <menuitem label="Template">
+            <icon>fab:html5 fa-fw </icon>
+            <action>TemplateEscritorioHeaderList#method=onShow</action>
+            </menuitem>
+            <menuitem label="Cidades">
+            <icon>fas:map-signs fa-fw </icon>
+            <action>CidadeHeaderList#method=onShow</action>
+            </menuitem>
+            <menuitem label="Estados">
+            <icon>far:map fa-fw </icon>
+            <action>EstadoHeaderList#method=onShow</action>
+            </menuitem>
+            <menuitem label="CEPs">
+            <icon>fas:map-pin fa-fw </icon>
+            <action>CepCacheHeaderList#method=onShow</action>
+            </menuitem>
+        </menu>
+        </menuitem>
+        <menuitem label="Atendimento">
+        <icon>far:clipboard fa-fw </icon>
+        <menu>
+            <menuitem label="Formulários">
+            <icon>fas:angle-right fa-fw </icon>
+            <action>FormularioHeaderList#method=onShow</action>
+            </menuitem>
+            <menuitem label="Procedimentos">
+            <icon>fas:angle-right fa-fw </icon>
+            <action>ProcedimentosList#method=onShow</action>
+            </menuitem>
+            <menuitem label="Documento padrão">
+            <icon>fas:angle-right fa-fw </icon>
+            <action>PadraoAtendimentoDocumentoList#method=onShow</action>
+            </menuitem>
+        </menu>
+        </menuitem>
+        <menuitem label="Documentos">
+        <icon>far:file-alt fa-fw</icon>
+        <menu>
+            <menuitem label="Tipos de modelo">
+            <icon>fas:angle-right fa-fw </icon>
+            <action>TipoModeloDocumentoList#method=onShow</action>
+            </menuitem>
+            <menuitem label="Modelos de documento">
+            <icon>fas:angle-right fa-fw </icon>
+            <action>ModeloDocumentoHeaderList#method=onShow</action>
+            </menuitem>
+        </menu>
+        </menuitem>
+        <menuitem label="Processos">
+        <icon>fas:gavel fa-fw </icon>
+        <menu>
+            <menuitem label="Tribunais">
+            <icon>fas:angle-right fa-fw </icon>
+            <action>TribunalList#method=onShow</action>
+            </menuitem>
+            <menuitem label="Foros">
+            <icon>fas:angle-right fa-fw </icon>
+            <action>ForoList#method=onShow</action>
+            </menuitem>
+            <menuitem label="Comarcas">
+            <icon>fas:angle-right fa-fw </icon>
+            <action>ComarcaList#method=onShow</action>
+            </menuitem>
+            <menuitem label="Varas">
+            <icon>fas:angle-right fa-fw </icon>
+            <action>VaraList#method=onShow</action>
+            </menuitem>
+            <menuitem label="Orgãos">
+            <icon>fas:angle-right fa-fw </icon>
+            <action>OrgaoList#method=onShow</action>
+            </menuitem>
+            <menuitem label="Envolvimentos">
+            <icon>fas:angle-right fa-fw </icon>
+            <action>EnvolvimentoList#method=onShow</action>
+            </menuitem>
+            <menuitem label="Áreas de processo">
+            <icon>fas:angle-right fa-fw </icon>
+            <action>AreaProcessoList#method=onShow</action>
+            </menuitem>
+            <menuitem label="Assuntos do processo">
+            <icon>fas:angle-right fa-fw </icon>
+            <action>AssuntoProcessoList#method=onShow</action>
+            </menuitem>
+            <menuitem label="Status processuais">
+            <icon>fas:angle-right fa-fw </icon>
+            <action>StatusProcessualList#method=onShow</action>
+            </menuitem>
+            <menuitem label="Tipos de andamento">
+            <icon>fas:angle-right fa-fw </icon>
+            <action>TipoAndamentoList#method=onShow</action>
+            </menuitem>
+            <menuitem label="Prazos">
+            <icon>fas:angle-right fa-fw </icon>
+            <menu>
+                <menuitem label="Prazos padrões">
+                <icon>fas:angle-right fa-fw </icon>
+                <action>ConfigBuscaPrazoHeaderList#method=onShow</action>
+                </menuitem>
+                <menuitem label="Contagem de prazo">
+                <icon>fas:angle-right fa-fw </icon>
+                <action>ConfigBuscaAPartirHeaderList#method=onShow</action>
+                </menuitem>
+            </menu>
+            </menuitem>
+        </menu>
+        </menuitem>
+        <menuitem label="Tarefas">
+        <icon>fas:list-ul fa-fw </icon>
+        <menu>
+            <menuitem label="Configuração">
+            <icon>fas:angle-right fa-fw </icon>
+            <action>TarefaConfiguracaoForm#method=onEdit#key=1</action>
+            </menuitem>
+            <menuitem label="Status de tarefas">
+            <icon>fas:angle-right fa-fw </icon>
+            <action>TarefaStatusList#method=onShow</action>
+            </menuitem>
+        </menu>
+        </menuitem>
+        <menuitem label="Contratos">
+        <icon>fas:file-alt fa-fw </icon>
+        <menu>
+            <menuitem label="Configuração de Contrato">
+            <icon>fas:angle-right fa-fw </icon>
+            <action>ContratoConfiguracaoForm#method=onEdit#key=1</action>
+            </menuitem>
+
+            <menuitem label="Configuração de Clones">
+            <icon>fas:angle-right fa-fw </icon>
+            <action>ClonesHeaderList#method=onShow</action>
+            </menuitem>
+
+            <menuitem label="Status de Contrato">
+            <icon>fas:angle-right fa-fw </icon>
+            <action>ContratoStatusHeaderList#method=onShow</action>
+            </menuitem>
+            <menuitem label="Opções de pagamento">
+            <icon>fas:angle-right fa-fw </icon>
+            <action>ContratoPagamentoOpcaoList#method=onShow</action>
+            </menuitem>
+            <menuitem label="Eventos">
+            <icon>fas:angle-right fa-fw </icon>
+            <action>ContratoPagamentoEventoList#method=onShow</action>
+            </menuitem>
+            <menuitem label="Indexadores">
+            <icon>fas:angle-right fa-fw </icon>
+            <action>ContratoPagamentoIndexadorList#method=onShow</action>
+            </menuitem>
+        </menu>
+        </menuitem>
+        <menuitem label="Financeiro">
+        <icon>fas:dollar-sign fa-fw </icon>
+        <menu>
+            <menuitem label="Bancos">
+            <icon>fas:university fa-fw </icon>
+            <action>BancoList#method=onShow</action>
+            </menuitem>
+            <menuitem label="Contas Caixa">
+            <icon>fas:dollar-sign fa-fw </icon>
+            <action>ContaCaixaList#method=onShow</action>
+            </menuitem>
+            <menuitem label="Categoria contas">
+            <icon>fas:angle-right fa-fw </icon>
+            <action>CategoriaContaHeaderList#method=onShow</action>
+            </menuitem>
+            <menuitem label="Tipos de pagamento">
+            <icon>fas:angle-right fa-fw </icon>
+            <action>TipoPagamentoHeaderList#method=onShow</action>
+            </menuitem>
+            <menuitem label="Documentos financeiros">
+            <icon>fas:angle-right fa-fw </icon>
+            <action>TipoDocumentoFinanceiroList#method=onShow</action>
+            </menuitem>
+        </menu>
+        </menuitem>
+    </menu>
+    </menuitem>
+    <menuitem label="_t{Administration}">
+    <icon>fas:home fa-fw</icon>
+    <menu>
+        <menuitem label="Grupos">
+        <icon>fas:users fa-fw </icon>
+        <action>GrupoHeaderList#method=onShow</action>
+        </menuitem>
+        <menuitem label="Dashboard">
+        <icon>fas:tachometer-alt fa-fw</icon>
+        <action>SystemAdministrationDashboard</action>
+        </menuitem>
+        <menuitem label="_t{Programs}">
+        <icon>far:file-code fa-fw</icon>
+        <action>SystemProgramList</action>
+        </menuitem>
+        <menuitem label="_t{Groups}">
+        <icon>fas:users fa-fw</icon>
+        <action>SystemGroupList</action>
+        </menuitem>
+        <menuitem label="_t{Units}">
+        <icon>fas:university fa-fw</icon>
+        <action>SystemUnitList</action>
+        </menuitem>
+        <menuitem label="_t{Users}">
+        <icon>fas:user fa-fw</icon>
+        <action>SystemUserList</action>
+        </menuitem>
+        <menuitem label="_t{Database explorer}">
+        <icon>fas:database fa-fw</icon>
+        <action>SystemDatabaseExplorer</action>
+        </menuitem>
+        <menuitem label="_t{SQL Panel}">
+        <icon>fas:table fa-fw</icon>
+        <action>SystemSQLPanel</action>
+        </menuitem>
+        <menuitem label="_t{Menu editor}">
+        <icon>far:edit fa-fw</icon>
+        <action>SystemMenuEditor</action>
+        </menuitem>
+        <menuitem label="_t{Files diff}">
+        <icon>fas:file-medical-alt fa-fw</icon>
+        <action>SystemFilesDiff</action>
+        </menuitem>
+        <menuitem label="PHP Info">
+        <icon>fas:info-circle fa-fw</icon>
+        <action>SystemPHPInfoView</action>
+        </menuitem>
+        <menuitem label="System Information">
+        <icon>fas:desktop fa-fw</icon>
+        <action>SystemInformationView</action>
+        </menuitem>
+        <menuitem label="_t{Preferences}">
+        <icon>fas:cog fa-fw</icon>
+        <action>SystemPreferenceForm#method=onEdit</action>
+        </menuitem>
+    </menu>
+    </menuitem>
+    <menuitem label="Logs">
+    <icon>fas:desktop fa-fw</icon>
+    <menu>
+        <menuitem label="Dashboard">
+        <icon>fas:tachometer-alt fa-fw</icon>
+        <action>SystemLogDashboard</action>
+        </menuitem>
+        <menuitem label="_t{Access Log}">
+        <icon>fas:key fa-fw</icon>
+        <action>SystemAccessLogList</action>
+        </menuitem>
+        <menuitem label="_t{Change Log}">
+        <icon>fas:film fa-fw</icon>
+        <action>SystemChangeLogView</action>
+        </menuitem>
+        <menuitem label="_t{SQL Log}">
+        <icon>fas:database fa-fw</icon>
+        <action>SystemSqlLogList</action>
+        </menuitem>
+        <menuitem label="_t{Request Log}">
+        <icon>fas:globe fa-fw</icon>
+        <action>SystemRequestLogList</action>
+        </menuitem>
+        <menuitem label="_t{PHP Log}">
+        <icon>fas:exclamation-triangle fa-fw</icon>
+        <action>SystemPHPErrorLogView</action>
+        </menuitem>
+        <menuitem label="Session dump">
+        <icon>fas:code fa-fw</icon>
+        <action>SystemSessionDumpView</action>
+        </menuitem>
+    </menu>
+    </menuitem>
+    <menuitem label="Preferências">
+    <icon>fas:eye-dropper fa-fw</icon>
+    <action>PreferenciaSistemaForm#method=onEdit</action>
+    </menuitem>
+    <menuitem label="Logout">
+    <icon>fas:sign-out-alt fa-fw</icon>
+    <action>LoginForm#method=onLogout#static=1</action>
+    </menuitem>
+</menu>
