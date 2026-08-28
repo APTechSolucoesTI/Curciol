@@ -22,8 +22,12 @@ class Lancamento extends TRecord
         parent::addAttribute('conta_id');
         parent::addAttribute('tipo_pagamento_id');
         parent::addAttribute('parcela');
-        parent::addAttribute('dt_vencimento');
         parent::addAttribute('valor');
+        parent::addAttribute('saldo');
+        parent::addAttribute('acrescimo');
+        parent::addAttribute('desconto');
+        parent::addAttribute('valor_total');
+        parent::addAttribute('dt_vencimento');
         parent::addAttribute('dt_pagamento');
         parent::addAttribute('ano_pagamento');
         parent::addAttribute('mes_pagamento');
@@ -179,6 +183,15 @@ class Lancamento extends TRecord
         $criteria = new TCriteria;
         $criteria->add(new TFilter('lancamento_id', '=', $this->id));
         return Extrato::getObjects( $criteria );
+    }
+    /**
+     * Method getLancamentoProfissionals
+     */
+    public function getLancamentoProfissionals()
+    {
+        $criteria = new TCriteria;
+        $criteria->add(new TFilter('lancamento_id', '=', $this->id));
+        return LancamentoProfissional::getObjects( $criteria );
     }
 
     public function set_extrato_escritorio_to_string($extrato_escritorio_to_string)
@@ -386,6 +399,58 @@ class Lancamento extends TRecord
         }
     
         $values = Extrato::where('lancamento_id', '=', $this->id)->getIndexedArray('modificacao_user_id','{modificacao_user->name}');
+        return implode(', ', $values);
+    }
+
+    public function set_lancamento_profissional_lancamento_to_string($lancamento_profissional_lancamento_to_string)
+    {
+        if(is_array($lancamento_profissional_lancamento_to_string))
+        {
+            $values = Lancamento::where('id', 'in', $lancamento_profissional_lancamento_to_string)->getIndexedArray('id', 'id');
+            $this->lancamento_profissional_lancamento_to_string = implode(', ', $values);
+        }
+        else
+        {
+            $this->lancamento_profissional_lancamento_to_string = $lancamento_profissional_lancamento_to_string;
+        }
+
+        $this->vdata['lancamento_profissional_lancamento_to_string'] = $this->lancamento_profissional_lancamento_to_string;
+    }
+
+    public function get_lancamento_profissional_lancamento_to_string()
+    {
+        if(!empty($this->lancamento_profissional_lancamento_to_string))
+        {
+            return $this->lancamento_profissional_lancamento_to_string;
+        }
+    
+        $values = LancamentoProfissional::where('lancamento_id', '=', $this->id)->getIndexedArray('lancamento_id','{lancamento->id}');
+        return implode(', ', $values);
+    }
+
+    public function set_lancamento_profissional_pessoa_to_string($lancamento_profissional_pessoa_to_string)
+    {
+        if(is_array($lancamento_profissional_pessoa_to_string))
+        {
+            $values = Pessoa::where('id', 'in', $lancamento_profissional_pessoa_to_string)->getIndexedArray('nome', 'nome');
+            $this->lancamento_profissional_pessoa_to_string = implode(', ', $values);
+        }
+        else
+        {
+            $this->lancamento_profissional_pessoa_to_string = $lancamento_profissional_pessoa_to_string;
+        }
+
+        $this->vdata['lancamento_profissional_pessoa_to_string'] = $this->lancamento_profissional_pessoa_to_string;
+    }
+
+    public function get_lancamento_profissional_pessoa_to_string()
+    {
+        if(!empty($this->lancamento_profissional_pessoa_to_string))
+        {
+            return $this->lancamento_profissional_pessoa_to_string;
+        }
+    
+        $values = LancamentoProfissional::where('lancamento_id', '=', $this->id)->getIndexedArray('pessoa_id','{pessoa->nome}');
         return implode(', ', $values);
     }
 

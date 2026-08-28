@@ -82,6 +82,7 @@ class ContraparteForm extends TPage
         $criacao_user_name = new TEntry('criacao_user_name');
         $data_modificacao = new TDateTime('data_modificacao');
         $modificacao_user_name = new TEntry('modificacao_user_name');
+        $processos = new BPageContainer();
 
         $tipo_pessoa_id->setChangeAction(new TAction([$this,'onLoadDocuments']));
 
@@ -101,6 +102,8 @@ class ContraparteForm extends TPage
         $classificacoes_contraparte_id->setBreakItems(4);
         $pessoa_endereco_pessoa_cidade_id->setMinLength(3);
         $pessoa_endereco_pessoa_principal->setInactiveIndexValue("N");
+        $processos->setId('b6a7f5671771f9');
+        $processos->hide();
         $pessoa_endereco_pessoa_principal->setUseSwitch(true, 'blue');
         $aceita_receber_mensagen_whatsapp->setUseSwitch(true, 'green');
 
@@ -114,6 +117,7 @@ class ContraparteForm extends TPage
         $pessoa_contato_pessoa_descricao->forceUpperCase();
 
         $email->forceLowerCase();
+        $profissao->forceLowerCase();
         $pessoa_contato_pessoa_email->forceLowerCase();
 
         $dt_falecimento->setDatabaseMask('yyyy-mm-dd');
@@ -133,12 +137,6 @@ class ContraparteForm extends TPage
         $nacionalidade_id->enableSearch();
         $situacao_profissional_id->enableSearch();
 
-        $btnVerificarNome->setAction(new TAction([$this, 'onChangeNome'],['static' => 1]), "");
-        $button_buscar_pessoa_endereco_pessoa->setAction(new TAction([$this, 'onSearchCep'],['static' => 1]), "Buscar");
-        $button_adicionar_pessoa_contato_pessoa->setAction(new TAction([$this, 'onAddDetailPessoaContatoPessoa'],['static' => 1]), "Adicionar");
-        $button_adicionar_pessoa_endereco_pessoa->setAction(new TAction([$this, 'onAddDetailPessoaEnderecoPessoa'],['static' => 1]), "Adicionar");
-        $btnBuscarCNPJ->setAction(new TAction(['ModalBuscarCNPJ', 'onShow'],['campo' => '["nome", "telefone" ,"cpf_cnpj", "pessoa_endereco_pessoa_cep" ,"pessoa_endereco_pessoa_cidade_id", "pessoa_endereco_pessoa_id", "pessoa_endereco_pessoa_bairro", "pessoa_endereco_pessoa_rua" ,"pessoa_endereco_pessoa_numero" ,"pessoa_endereco_pessoa_complemento"]',"form" => self::$formName,"page" => "ContraparteForm.php"]), "Buscar");
-
         $btnBuscarCNPJ->addStyleClass('btn-default');
         $btnVerificarNome->addStyleClass('btn-success');
         $button_buscar_pessoa_endereco_pessoa->addStyleClass('btn-default');
@@ -150,6 +148,13 @@ class ContraparteForm extends TPage
         $button_buscar_pessoa_endereco_pessoa->setImage('fas:search #2196F3');
         $button_adicionar_pessoa_contato_pessoa->setImage('fas:plus #2ecc71');
         $button_adicionar_pessoa_endereco_pessoa->setImage('fas:plus #2ecc71');
+
+        $processos->setAction(new TAction(['ProcessoSimpleList', 'onShow']));
+        $btnVerificarNome->setAction(new TAction([$this, 'onChangeNome'],['static' => 1]), "");
+        $button_buscar_pessoa_endereco_pessoa->setAction(new TAction([$this, 'onSearchCep'],['static' => 1]), "Buscar");
+        $button_adicionar_pessoa_contato_pessoa->setAction(new TAction([$this, 'onAddDetailPessoaContatoPessoa'],['static' => 1]), "Adicionar");
+        $button_adicionar_pessoa_endereco_pessoa->setAction(new TAction([$this, 'onAddDetailPessoaEnderecoPessoa'],['static' => 1]), "Adicionar");
+        $btnBuscarCNPJ->setAction(new TAction(['ModalBuscarCNPJ', 'onShow'],['campo' => '["nome", "telefone" ,"cpf_cnpj", "pessoa_endereco_pessoa_cep" ,"pessoa_endereco_pessoa_cidade_id", "pessoa_endereco_pessoa_id", "pessoa_endereco_pessoa_bairro", "pessoa_endereco_pessoa_rua" ,"pessoa_endereco_pessoa_numero" ,"pessoa_endereco_pessoa_complemento"]',"form" => self::$formName,"page" => "ContraparteForm.php"]), "Buscar");
 
         $dt_falecimento->setMask('dd/mm/yyyy');
         $data_criacao->setMask('dd/mm/yyyy hh:ii');
@@ -183,6 +188,7 @@ class ContraparteForm extends TPage
         $telefone->setSize('100%');
         $cpf_cnpj->setSize('100%');
         $profissao->setSize('100%');
+        $processos->setSize('100%');
         $data_criacao->setSize('100%');
         $orgao_emissor->setSize('100%');
         $dt_falecimento->setSize('100%');
@@ -212,6 +218,19 @@ class ContraparteForm extends TPage
         $tipo_pessoa_id->autofocus = 'autofocus';
         $button_adicionar_pessoa_contato_pessoa->id = '64be92cf7046f';
         $button_adicionar_pessoa_endereco_pessoa->id = '60f6c58143f89';
+
+        $loadingContainer = new TElement('div');
+        $loadingContainer->style = 'text-align:center; padding:50px';
+
+        $icon = new TElement('i');
+        $icon->class = 'fas fa-spinner fa-spin fa-3x';
+
+        $loadingContainer->add($icon);
+        $loadingContainer->add('<br>Carregando');
+
+        $processos->add($loadingContainer);
+
+        $this->processos = $processos;
 
         $btnVerificarNome->{'title'} = "Verificar homônimo";
 
@@ -436,6 +455,10 @@ class ContraparteForm extends TPage
         $this->form->appendPage("Informações de cadastro");
         $row24 = $this->form->addFields([new TLabel("Criado em:", null, '12px', null, '100%'),$data_criacao],[new TLabel("Criado por:", null, '12px', null, '100%'),$criacao_user_name],[new TLabel("Atualizado em:", null, '12px', null, '100%'),$data_modificacao],[new TLabel("Atualizado por:", null, '12px', null, '100%'),$modificacao_user_name]);
         $row24->layout = ['col-sm-3','col-sm-3',' col-sm-3',' col-sm-3'];
+
+        $this->form->appendPage("Processos");
+        $row25 = $this->form->addFields([$processos]);
+        $row25->layout = [' col-sm-12'];
 
         // create the form actions
         $btnSave = $this->form->addAction("Salvar", new TAction([$this, 'onSave'],['static' => 1]), 'fas:save #ffffff');
@@ -1174,6 +1197,8 @@ class ContraparteForm extends TPage
                 ClienteForm::getTipoPessoaSelected($param);
                                 $object->criacao_user_name = $object->criacao_user->name;
                 $object->modificacao_user_name = $object->modificacao_user->name;
+                $this->processos->unhide();
+                $this->processos->setParameter('chave', $object->id);
 
                 $object->classificacoes_contraparte_id = ClassificacoesContraparte::where('pessoa_id', '=', $object->id)->getIndexedArray('classificacoes_contraparte_dados_id', 'classificacoes_contraparte_dados_id');
 

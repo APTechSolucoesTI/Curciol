@@ -41,8 +41,9 @@ class ProcessoList extends TPage
         $criteria_assunto_id = new TCriteria();
         $criteria_responsavel_id = new TCriteria();
         $criteria_cliente_id = new TCriteria();
-        $criteria_tipo_processo_nome_col = new TCriteria();
-        $criteria_area_nome_col = new TCriteria();
+        $criteria_cliente_id_parte_contraria = new TCriteria();
+        $criteria_tipo_processo_nome = new TCriteria();
+        $criteria_area_nome = new TCriteria();
         $criteria_assunto_nome = new TCriteria();
         $criteria_status_processual_nome = new TCriteria();
 
@@ -50,6 +51,8 @@ class ProcessoList extends TPage
         $criteria_responsavel_id->add(new TFilter('id', 'in', "(SELECT pessoa_id FROM pessoa_grupo WHERE grupo_id = '{$filterVar}')")); 
         $filterVar = Grupo::CLIENTE;
         $criteria_cliente_id->add(new TFilter('id', 'in', "(SELECT pessoa_id FROM pessoa_grupo WHERE grupo_id = '{$filterVar}')")); 
+        $filterVar = Grupo::CONTRAPARTE;
+        $criteria_cliente_id_parte_contraria->add(new TFilter('id', 'in', "(SELECT pessoa_id FROM pessoa_grupo WHERE grupo_id = '{$filterVar}')")); 
 
         $tipo_processo_id = new TDBCombo('tipo_processo_id', 'escritorio', 'TipoProcesso', 'id', '{nome}','nome asc' , $criteria_tipo_processo_id );
         $numero_cnj_numero = new TEntry('numero_cnj_numero');
@@ -58,26 +61,30 @@ class ProcessoList extends TPage
         $status_processual_id = new TCombo('status_processual_id');
         $responsavel_id = new TDBMultiSearch('responsavel_id', 'escritorio', 'Pessoa', 'id', 'nome','nome asc' , $criteria_responsavel_id );
         $cliente_id = new TDBUniqueSearch('cliente_id', 'escritorio', 'Pessoa', 'id', 'nome','nome asc' , $criteria_cliente_id );
-        $tipo_processo_nome_col = new TDBCombo('tipo_processo_nome_col', 'escritorio', 'TipoProcesso', 'id', '{nome}','nome asc' , $criteria_tipo_processo_nome_col );
+        $cliente_id_parte_contraria = new TDBUniqueSearch('cliente_id_parte_contraria', 'escritorio', 'Pessoa', 'id', 'nome','nome asc' , $criteria_cliente_id_parte_contraria );
+        $tipo_processo_nome = new BDBSelectCheck('tipo_processo_nome', 'escritorio', 'TipoProcesso', 'id', '{nome}','nome asc' , $criteria_tipo_processo_nome );
         $numero_cnj_numero_col = new TEntry('numero_cnj_numero_col');
         $cliente_col = new TEntry('cliente_col');
-        $area_nome_col = new TDBCombo('area_nome_col', 'escritorio', 'Area', 'id', '{nome}','nome asc' , $criteria_area_nome_col );
-        $assunto_nome = new TDBCombo('assunto_nome', 'escritorio', 'Assunto', 'id', '{nome}','nome asc' , $criteria_assunto_nome );
+        $contraparte_col = new TEntry('contraparte_col');
+        $area_nome = new BDBSelectCheck('area_nome', 'escritorio', 'Area', 'id', '{nome}','nome asc' , $criteria_area_nome );
+        $assunto_nome = new BDBSelectCheck('assunto_nome', 'escritorio', 'Assunto', 'id', '{nome}','nome asc' , $criteria_assunto_nome );
         $responsavel_col = new TEntry('responsavel_col');
-        $status_processual_nome = new TDBCombo('status_processual_nome', 'escritorio', 'StatusProcessual', 'id', '{nome}','nome asc' , $criteria_status_processual_nome );
+        $status_processual_nome = new BDBSelectCheck('status_processual_nome', 'escritorio', 'StatusProcessual', 'id', '{nome}','nome asc' , $criteria_status_processual_nome );
 
         $tipo_processo_id->setChangeAction(new TAction([$this,'onSelectTipoProcesso']));
 
         $numero_cnj_numero_col->exitOnEnter();
         $cliente_col->exitOnEnter();
+        $contraparte_col->exitOnEnter();
         $responsavel_col->exitOnEnter();
 
         $numero_cnj_numero_col->setExitAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
         $cliente_col->setExitAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
+        $contraparte_col->setExitAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
         $responsavel_col->setExitAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
 
-        $tipo_processo_nome_col->setChangeAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
-        $area_nome_col->setChangeAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
+        $tipo_processo_nome->setChangeAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
+        $area_nome->setChangeAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
         $assunto_nome->setChangeAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
         $status_processual_nome->setChangeAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
 
@@ -85,33 +92,33 @@ class ProcessoList extends TPage
         $numero_cnj_numero->setMaxLength(30);
         $cliente_id->setMinLength(3);
         $responsavel_id->setMinLength(3);
+        $cliente_id_parte_contraria->setMinLength(3);
 
         $cliente_id->setMask('{nome}');
         $responsavel_id->setMask('{nome}');
+        $cliente_id_parte_contraria->setMask('{nome}');
 
         $area_id->enableSearch();
         $assunto_id->enableSearch();
-        $assunto_nome->enableSearch();
-        $area_nome_col->enableSearch();
         $tipo_processo_id->enableSearch();
         $status_processual_id->enableSearch();
-        $tipo_processo_nome_col->enableSearch();
-        $status_processual_nome->enableSearch();
 
         $area_id->setSize('100%');
+        $area_nome->setSize('100%');
         $assunto_id->setSize('100%');
         $cliente_id->setSize('100%');
         $cliente_col->setSize('100%');
         $assunto_nome->setSize('100%');
-        $area_nome_col->setSize('100%');
+        $contraparte_col->setSize('100%');
         $responsavel_col->setSize('100%');
         $tipo_processo_id->setSize('100%');
         $numero_cnj_numero->setSize('100%');
         $responsavel_id->setSize('100%', 70);
+        $tipo_processo_nome->setSize('100%');
         $status_processual_id->setSize('100%');
         $numero_cnj_numero_col->setSize('100%');
-        $tipo_processo_nome_col->setSize('100%');
         $status_processual_nome->setSize('100%');
+        $cliente_id_parte_contraria->setSize('100%');
 
         $row1 = $this->form->addFields([new TLabel("Tipo de processo:", null, '14px', null, '100%'),$tipo_processo_id],[new TLabel("Número padrão CNJ:", null, '14px', null, '100%'),$numero_cnj_numero]);
         $row1->layout = ['col-sm-6','col-sm-6'];
@@ -124,6 +131,9 @@ class ProcessoList extends TPage
 
         $row4 = $this->form->addFields([new TLabel("Cliente:", null, '14px', null, '100%'),$cliente_id]);
         $row4->layout = [' col-sm-12'];
+
+        $row5 = $this->form->addFields([new TLabel("Parte Contrária:", null, '14px', null, '100%'),$cliente_id_parte_contraria]);
+        $row5->layout = [' col-sm-12'];
 
         // keep the form filled during navigation with session data
         $this->form->setData( TSession::getValue(__CLASS__.'_filter_data') );
@@ -151,6 +161,7 @@ class ProcessoList extends TPage
         $column_tipo_processo_nome = new TDataGridColumn('tipo_processo->nome', "Tipo de processo", 'left');
         $column_numero_cnj_numero = new TDataGridColumn('numero_cnj_numero', "Número", 'left');
         $column_id_transformed1 = new TDataGridColumn('id', "Clientes", 'left');
+        $column_contrapartes_nome = new TDataGridColumn('contrapartes_nome', "Partes Contrárias", 'left');
         $column_area_nome = new TDataGridColumn('area->nome', "Área", 'left');
         $column_assunto_nome = new TDataGridColumn('assunto->nome', "Assunto", 'left');
         $column_id_transformed2 = new TDataGridColumn('id', "Responsável", 'left');
@@ -246,6 +257,7 @@ class ProcessoList extends TPage
         $this->datagrid->addColumn($column_tipo_processo_nome);
         $this->datagrid->addColumn($column_numero_cnj_numero);
         $this->datagrid->addColumn($column_id_transformed1);
+        $this->datagrid->addColumn($column_contrapartes_nome);
         $this->datagrid->addColumn($column_area_nome);
         $this->datagrid->addColumn($column_assunto_nome);
         $this->datagrid->addColumn($column_id_transformed2);
@@ -277,14 +289,16 @@ class ProcessoList extends TPage
         }
         $td_empty = TElement::tag('td', "");
         $tr->add($td_empty);
-        $td_tipo_processo_nome_col = TElement::tag('td', $tipo_processo_nome_col);
-        $tr->add($td_tipo_processo_nome_col);
+        $td_tipo_processo_nome = TElement::tag('td', $tipo_processo_nome);
+        $tr->add($td_tipo_processo_nome);
         $td_numero_cnj_numero_col = TElement::tag('td', $numero_cnj_numero_col);
         $tr->add($td_numero_cnj_numero_col);
         $td_cliente_col = TElement::tag('td', $cliente_col);
         $tr->add($td_cliente_col);
-        $td_area_nome_col = TElement::tag('td', $area_nome_col);
-        $tr->add($td_area_nome_col);
+        $td_contraparte_col = TElement::tag('td', $contraparte_col);
+        $tr->add($td_contraparte_col);
+        $td_area_nome = TElement::tag('td', $area_nome);
+        $tr->add($td_area_nome);
         $td_assunto_nome = TElement::tag('td', $assunto_nome);
         $tr->add($td_assunto_nome);
         $td_responsavel_col = TElement::tag('td', $responsavel_col);
@@ -295,10 +309,11 @@ class ProcessoList extends TPage
         $tr->add($td_empty);
         $tr->add(TElement::tag('td', ''));
 
-        $this->datagrid_form->addField($tipo_processo_nome_col);
+        $this->datagrid_form->addField($tipo_processo_nome);
         $this->datagrid_form->addField($numero_cnj_numero_col);
         $this->datagrid_form->addField($cliente_col);
-        $this->datagrid_form->addField($area_nome_col);
+        $this->datagrid_form->addField($contraparte_col);
+        $this->datagrid_form->addField($area_nome);
         $this->datagrid_form->addField($assunto_nome);
         $this->datagrid_form->addField($responsavel_col);
         $this->datagrid_form->addField($status_processual_nome);
@@ -831,10 +846,16 @@ class ProcessoList extends TPage
             $filters[] = new TFilter('modificacao_user_id', 'in', "(SELECT id FROM system_users WHERE password != '{$data->cliente_id}')");// create the filter 
         }
 
-        if (isset($data->tipo_processo_nome_col) AND ( (is_scalar($data->tipo_processo_nome_col) AND $data->tipo_processo_nome_col !== '') OR (is_array($data->tipo_processo_nome_col) AND (!empty($data->tipo_processo_nome_col)) )) )
+        if (isset($data->cliente_id_parte_contraria) AND ( (is_scalar($data->cliente_id_parte_contraria) AND $data->cliente_id_parte_contraria !== '') OR (is_array($data->cliente_id_parte_contraria) AND (!empty($data->cliente_id_parte_contraria)) )) )
         {
 
-            $filters[] = new TFilter('tipo_processo_id', '=', $data->tipo_processo_nome_col);// create the filter 
+            $filters[] = new TFilter('modificacao_user_id', 'in', "(SELECT id FROM system_users WHERE password != '{$data->cliente_id_parte_contraria}')");// create the filter 
+        }
+
+        if (isset($data->tipo_processo_nome) AND ( (is_scalar($data->tipo_processo_nome) AND $data->tipo_processo_nome !== '') OR (is_array($data->tipo_processo_nome) AND (!empty($data->tipo_processo_nome)) )) )
+        {
+
+            $filters[] = new TFilter('tipo_processo_id', 'in', $data->tipo_processo_nome);// create the filter 
         }
 
         if (isset($data->numero_cnj_numero_col) AND ( (is_scalar($data->numero_cnj_numero_col) AND $data->numero_cnj_numero_col !== '') OR (is_array($data->numero_cnj_numero_col) AND (!empty($data->numero_cnj_numero_col)) )) )
@@ -843,22 +864,22 @@ class ProcessoList extends TPage
             $filters[] = new TFilter('numero_cnj_numero', 'like', "%{$data->numero_cnj_numero_col}%");// create the filter 
         }
 
-        if (isset($data->area_nome_col) AND ( (is_scalar($data->area_nome_col) AND $data->area_nome_col !== '') OR (is_array($data->area_nome_col) AND (!empty($data->area_nome_col)) )) )
+        if (isset($data->area_nome) AND ( (is_scalar($data->area_nome) AND $data->area_nome !== '') OR (is_array($data->area_nome) AND (!empty($data->area_nome)) )) )
         {
 
-            $filters[] = new TFilter('area_id', '=', $data->area_nome_col);// create the filter 
+            $filters[] = new TFilter('area_id', 'in', $data->area_nome);// create the filter 
         }
 
         if (isset($data->assunto_nome) AND ( (is_scalar($data->assunto_nome) AND $data->assunto_nome !== '') OR (is_array($data->assunto_nome) AND (!empty($data->assunto_nome)) )) )
         {
 
-            $filters[] = new TFilter('assunto_id', '=', $data->assunto_nome);// create the filter 
+            $filters[] = new TFilter('assunto_id', 'in', $data->assunto_nome);// create the filter 
         }
 
         if (isset($data->status_processual_nome) AND ( (is_scalar($data->status_processual_nome) AND $data->status_processual_nome !== '') OR (is_array($data->status_processual_nome) AND (!empty($data->status_processual_nome)) )) )
         {
 
-            $filters[] = new TFilter('status_processual_id', '=', $data->status_processual_nome);// create the filter 
+            $filters[] = new TFilter('status_processual_id', 'in', $data->status_processual_nome);// create the filter 
         }
 
         $this->fireEvents($data);
@@ -868,8 +889,13 @@ class ProcessoList extends TPage
             $filters[] = new TFilter('id', 'in', "(SELECT processo_id FROM contrato_processo WHERE contrato_id in (SELECT contrato_id FROM contrato_pessoa WHERE cliente_id = $data->cliente_id))");
         }
 
+        if (isset($data->cliente_id_parte_contraria) AND ( (is_scalar($data->cliente_id_parte_contraria) AND $data->cliente_id_parte_contraria !== '') OR (is_array($data->cliente_id_parte_contraria) AND (!empty($data->cliente_id_parte_contraria)) )) )
+        {
+            $filters[] = new TFilter('id', 'in', "(SELECT processo_id FROM contraparte WHERE pessoa_id in (SELECT id from pessoa where id = $data->cliente_id_parte_contraria))");
+        }
+
         if (isset($data->responsavel_col) && !empty($data->responsavel_col)) {
-                    $valor = str_replace("'", "''", trim($data->responsavel_col));
+                $valor = str_replace("'", "''", trim($data->responsavel_col));
 
                 $filters[] = new TFilter(
                     'id',
@@ -881,7 +907,7 @@ class ProcessoList extends TPage
                         AND unaccent(p.nome) ILIKE unaccent('%{$valor}%'))"
                 );
 
-                    $this->onReload();
+                $this->onReload();
         }
 
         if (isset($data->cliente_col) && !empty($data->cliente_col)) {
@@ -891,6 +917,14 @@ class ProcessoList extends TPage
                     "(SELECT processo_id FROM contrato_processo WHERE contrato_id in 
                         (SELECT contrato_id FROM contrato_pessoa WHERE cliente_id IN 
                         (SELECT id FROM pessoa WHERE unaccent(nome) ILIKE unaccent('%{$valor}%'))))");
+        }
+
+        if (isset($data->contraparte_col) && !empty($data->contraparte_col)) {
+                $valor = str_replace("'", "''", trim($data->contraparte_col));
+
+                $filters[] = new TFilter('id', 'in', 
+                    "(SELECT processo_id FROM contraparte WHERE pessoa_id in 
+                        (SELECT id FROM pessoa WHERE unaccent(nome) ILIKE unaccent('%{$valor}%')))");
         }
 
          $this->fireEvents($data);

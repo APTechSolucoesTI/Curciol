@@ -24,6 +24,8 @@ class ViewAndamentos extends TRecord
         parent::addAttribute('origem');
         parent::addAttribute('key_jornal_tipo');
         parent::addAttribute('jornal_tipo');
+        parent::addAttribute('publicacao_etapa_id');
+        parent::addAttribute('etapa_verificada');
     
     }
 

@@ -217,12 +217,12 @@ class ContratoList extends TPage
 
         $this->datagrid_form->add($headerActions);
 
-        $button_cadastrar = new TButton('button_button_cadastrar');
-        $button_cadastrar->setAction(new TAction(['ContratoForm', 'onShow']), "Cadastrar");
-        $button_cadastrar->addStyleClass('btn-default');
-        $button_cadastrar->setImage('fas:plus #69aa46');
+        $botaoCadastrar = new TButton('button_botaoCadastrar');
+        $botaoCadastrar->setAction(new TAction(['ContratoForm', 'onShow']), "Cadastrar");
+        $botaoCadastrar->addStyleClass('btn-default');
+        $botaoCadastrar->setImage('fas:plus #69aa46');
 
-        $this->datagrid_form->addField($button_cadastrar);
+        $this->datagrid_form->addField($botaoCadastrar);
 
         $btnShowCurtainFilters = new TButton('button_btnShowCurtainFilters');
         $btnShowCurtainFilters->setAction(new TAction(['ContratoList', 'onShowCurtainFilters']), "Filtros");
@@ -260,7 +260,7 @@ class ContratoList extends TPage
         $dropdown_button_exportar->addPostAction( "PDF", new TAction(['ContratoList', 'onExportPdf'],['static' => 1]), 'datagrid_'.self::$formName, 'far:file-pdf #e74c3c' );
         $dropdown_button_exportar->addPostAction( "XML", new TAction(['ContratoList', 'onExportXml'],['static' => 1]), 'datagrid_'.self::$formName, 'far:file-code #95a5a6' );
 
-        $head_left_actions->add($button_cadastrar);
+        $head_left_actions->add($botaoCadastrar);
         $head_left_actions->add($btnShowCurtainFilters);
         $head_left_actions->add($button_limpar_filtros);
         $head_left_actions->add($button_atualizar);
@@ -270,6 +270,13 @@ class ContratoList extends TPage
         $this->datagrid_form->add($this->datagrid);
 
         $this->btnShowCurtainFilters = $btnShowCurtainFilters;
+
+        $usuariosPermitidosCadastrar = [1, 3, 4, 5, 17];
+        $usuarioAtual = (int) TSession::getValue('userid');
+
+        if (!in_array($usuarioAtual, $usuariosPermitidosCadastrar)) {
+            $botaoCadastrar->style = 'display: none !important;';
+        }
 
         // vertical box container
         $container = new TVBox;
@@ -881,7 +888,7 @@ class ContratoList extends TPage
     public function onShow($param = null)
     {
 
-    $permitidos = [1, 3, 4, 5]; // IDs de SystemUsers que veem tudo
+    $permitidos = [1, 3, 4, 5, 17]; // IDs de SystemUsers que veem tudo
     $userid = (int) TSession::getValue('userid');
 
     // NUNCA limpar filtros aqui, senão apaga o que você setar abaixo

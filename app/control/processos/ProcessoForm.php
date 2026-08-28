@@ -49,6 +49,7 @@ class ProcessoForm extends TPage
         $publicacao = new THidden('publicacao');
         $vinculo = new THidden('vinculo');
         $principal_id = new THidden('principal_id');
+        $exibir_cliente = new TCheckButton('exibir_cliente');
         $tipo_processo_id = new TDBCombo('tipo_processo_id', 'escritorio', 'TipoProcesso', 'id', '{nome}','nome asc' , $criteria_tipo_processo_id );
         $envolvimento_id = new TCombo('envolvimento_id');
         $numero_cnj_numero = new TEntry('numero_cnj_numero');
@@ -105,6 +106,9 @@ class ProcessoForm extends TPage
         $tipo_processo_id->addValidation("Tipo de processo", new TRequiredValidator()); 
         $numero_cnj_numero->addValidation("Número", new TRequiredValidator()); 
 
+        $exibir_cliente->setUseSwitch(true, 'blue');
+        $exibir_cliente->setIndexValue("S");
+        $exibir_cliente->setInactiveIndexValue("N");
         $tipo_processo_id->setDefaultOption(false);
         $gratuidade_processual->addItems(["T"=>"Sim","F"=>"Não"]);
         $gratuidade_processual->setLayout('horizontal');
@@ -143,6 +147,7 @@ class ProcessoForm extends TPage
         $tipo_processo_id->enableSearch();
         $status_processual_id->enableSearch();
 
+        $exibir_cliente->setValue('N');
         $gratuidade_processual->setValue('F');
         $vinculo->setValue($param['vinculo'] ?? null);
         $foro_id->setValue($param['foro_id'] ?? null);
@@ -210,8 +215,8 @@ class ProcessoForm extends TPage
         $this->form->addFields([new THidden('current_tab')]);
         $this->form->setTabFunction("$('[name=current_tab]').val($(this).attr('data-current_page'));");
 
-        $row1 = $this->form->addFields([new TLabel("Id:", null, '14px', null, '100%'),$id,$publicacao,$vinculo,$principal_id]);
-        $row1->layout = ['col-sm-6'];
+        $row1 = $this->form->addFields([new TLabel("Id:", null, '14px', null, '100%'),$id,$publicacao,$vinculo,$principal_id],[new TLabel("Exibir processo para o cliente:", null, '14px', null, '100%'),$exibir_cliente]);
+        $row1->layout = ['col-sm-6',' col-sm-6'];
 
         $row2 = $this->form->addFields([new TLabel("Tipo de processo:", '#FF0000', '14px', null, '100%'),$tipo_processo_id],[new TLabel("Envolvimento:", null, '14px', null, '100%'),$envolvimento_id]);
         $row2->layout = ['col-sm-6',' col-sm-6'];

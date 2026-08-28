@@ -56,15 +56,15 @@ class ContaPagarForm extends TPage
         $filterVar = "S";
         $criteria_lancamento_conta_tipo_pagamento_id->add(new TFilter('ativo', '=', $filterVar)); 
 
-        if (! empty($param['key']))
-        {
+        if (!empty($param['key']))
+        {                        
             $id = (int) $param['key'];
             $criteria_categoria_conta_id->add(new TFilter("tipo_conta_id", '=', "(SELECT tipo_conta_id FROM conta WHERE id = {$id})"));
         }
         else if ($param['method'] == 'onAddReceber')
         {
             $criteria_categoria_conta_id->add(new TFilter("tipo_conta_id", '=', TipoConta::RECEBER));
-        }
+        }                                                                                                                                                                             
         else if ($param['method'] == 'onAddPagar')
         {
             $criteria_categoria_conta_id->add(new TFilter("tipo_conta_id", '=', TipoConta::PAGAR));
@@ -86,6 +86,7 @@ class ContaPagarForm extends TPage
         $data_vencimento = new TDate('data_vencimento');
         $repetir_ate_final_ano = new TCheckButton('repetir_ate_final_ano');
         $total_conta = new TNumeric('total_conta', '2', ',', '.', true, true );
+        $dataVencPadrao = new TDate('dataVencPadrao');
         $total_parcelas = new TSpinner('total_parcelas');
         $btnGerarParcelas = new TButton('btnGerarParcelas');
         $btnEditarParcelas = new TButton('btnEditarParcelas');
@@ -94,7 +95,7 @@ class ContaPagarForm extends TPage
         $lancamento_conta___row__id = new THidden('lancamento_conta___row__id[]');
         $lancamento_conta___row__data = new THidden('lancamento_conta___row__data[]');
         $lancamento_conta_parcela = new TEntry('lancamento_conta_parcela[]');
-        $lancamento_conta_valor = new TNumeric('lancamento_conta_valor[]', '2', ',', '.', true, true );
+        $lancamento_conta_valor_total = new TNumeric('lancamento_conta_valor_total[]', '2', ',', '.', true, true );
         $lancamento_conta_dt_vencimento = new TDate('lancamento_conta_dt_vencimento[]');
         $lancamento_conta_tipo_pagamento_id = new TDBCombo('lancamento_conta_tipo_pagamento_id[]', 'escritorio', 'TipoPagamento', 'id', '{nome}','nome asc' , $criteria_lancamento_conta_tipo_pagamento_id );
         $lancamento_conta_dt_pagamento = new TDate('lancamento_conta_dt_pagamento[]');
@@ -110,7 +111,7 @@ class ContaPagarForm extends TPage
         $this->parcelas->addField(null, $lancamento_conta___row__data, []);
         $this->parcelas->addField(new TLabel("", null, '12px', null), $lancamento_conta_id, ['width' => '10%']);
         $this->parcelas->addField(new TLabel("Parcela", null, '12px', null), $lancamento_conta_parcela, ['width' => '10%']);
-        $this->parcelas->addField(new TLabel("Valor", null, '12px', null), $lancamento_conta_valor, ['width' => '22%']);
+        $this->parcelas->addField(new TLabel("Valor", null, '12px', null), $lancamento_conta_valor_total, ['width' => '22%']);
         $this->parcelas->addField(new TLabel("Data vencimento", null, '12px', null), $lancamento_conta_dt_vencimento, ['width' => '22%']);
         $this->parcelas->addField(new TLabel("Tipo de pagamento", null, '12px', null), $lancamento_conta_tipo_pagamento_id, ['width' => '22%']);
         $this->parcelas->addField(new TLabel("Data de pagamento", null, '12px', null), $lancamento_conta_dt_pagamento, ['width' => '100%']);
@@ -127,7 +128,7 @@ class ContaPagarForm extends TPage
         $this->form->addField($lancamento_conta___row__data);
         $this->form->addField($lancamento_conta_id);
         $this->form->addField($lancamento_conta_parcela);
-        $this->form->addField($lancamento_conta_valor);
+        $this->form->addField($lancamento_conta_valor_total);
         $this->form->addField($lancamento_conta_dt_vencimento);
         $this->form->addField($lancamento_conta_tipo_pagamento_id);
         $this->form->addField($lancamento_conta_dt_pagamento);
@@ -137,14 +138,14 @@ class ContaPagarForm extends TPage
         $tipo_documento_financeiro_id->setChangeAction(new TAction([$this,'onSelectTipoDoc']));
         $tipo->setChangeAction(new TAction([$this,'onChange']));
 
-        $lancamento_conta_valor->setExitAction(new TAction([$this,'onChangeValor']));
+        $lancamento_conta_valor_total->setExitAction(new TAction([$this,'onChangeValor']));
 
         $categoria_conta_id->addValidation("Categoria", new TRequiredValidator()); 
         $descricao->addValidation("Descrição", new TRequiredValidator()); 
         $total_parcelas->addValidation("Total de parcelas", new TRequiredValidator()); 
 
         $descricao->forceUpperCase();
-        $tipo->addItems(["S"=>"Simples","P"=>"Parcelada"]);
+        $tipo->addItems(["S"=>"Simples","P"=>"Parcelada","R"=>"Recorrente"]);
         $tipo->setLayout('horizontal');
         $tipo->setUseButton();
         $repetir_ate_final_ano->setUseSwitch(true, 'blue');
@@ -177,6 +178,7 @@ class ContaPagarForm extends TPage
         $btnAddNewFornecedor->setImage('fas:plus #000000');
         $btnCancelarParcelas->setImage('fas:times-circle #000000');
 
+        $dataVencPadrao->setDatabaseMask('yyyy-mm-dd');
         $data_vencimento->setDatabaseMask('yyyy-mm-dd');
         $data_criacao->setDatabaseMask('yyyy-mm-dd hh:ii');
         $data_modificacao->setDatabaseMask('yyyy-mm-dd hh:ii');
@@ -184,6 +186,7 @@ class ContaPagarForm extends TPage
         $lancamento_conta_dt_vencimento->setDatabaseMask('yyyy-mm-dd');
 
         $cliente_id->setMask('{nome}');
+        $dataVencPadrao->setMask('dd/mm/yyyy');
         $pessoa_id->setMask('{nome_formatado}');
         $data_vencimento->setMask('dd/mm/yyyy');
         $data_criacao->setMask('dd/mm/yyyy hh:ii');
@@ -198,11 +201,8 @@ class ContaPagarForm extends TPage
         $lancamento_conta_id->setEditable(false);
         $total_valor_parcelas->setEditable(false);
         $modificacao_user_name->setEditable(false);
-        $lancamento_conta_valor->setEditable(false);
         $lancamento_conta_parcela->setEditable(false);
-        $lancamento_conta_dt_pagamento->setEditable(false);
-        $lancamento_conta_dt_vencimento->setEditable(false);
-        $lancamento_conta_tipo_pagamento_id->setEditable(false);
+        $lancamento_conta_valor_total->setEditable(false);
 
         $id->setSize('100%');
         $tipo->setSize('100%');
@@ -211,6 +211,7 @@ class ContaPagarForm extends TPage
         $tipo_conta_id->setSize(200);
         $cliente_id->setSize('100%');
         $total_conta->setSize('100%');
+        $dataVencPadrao->setSize(210);
         $data_vencimento->setSize(150);
         $data_criacao->setSize('100%');
         $escritorio_id->setSize('100%');
@@ -223,10 +224,10 @@ class ContaPagarForm extends TPage
         $total_valor_parcelas->setSize('100%');
         $modificacao_user_name->setSize('100%');
         $pessoa_id->setSize('calc(100% - 50px)');
-        $lancamento_conta_valor->setSize('100%');
         $lancamento_conta_parcela->setSize('100%');
         $tipo_documento_financeiro_id->setSize('100%');
         $total_parcelas->setSize('calc(100% - 150px)');
+        $lancamento_conta_valor_total->setSize('100%');
         $lancamento_conta_dt_pagamento->setSize('100%');
         $lancamento_conta_dt_vencimento->setSize('100%');
         $lancamento_conta_tipo_pagamento_id->setSize('100%');
@@ -234,10 +235,17 @@ class ContaPagarForm extends TPage
 
         $this->parcelas->class = ' tfieldlist';
 
-        $lancamento_conta_valor->setEditable(false);
-        $lancamento_conta_dt_vencimento->setEditable(false);
-        $lancamento_conta_tipo_pagamento_id->setEditable(false);
+        $lancamento_conta_valor_total->setEditable(true);
+        $lancamento_conta_parcela->setEditable(false);
+
+        // Deixa editável no PHP, porque o JS trava só a linha vazia
+        $lancamento_conta_dt_vencimento->setEditable(true);
+        $lancamento_conta_tipo_pagamento_id->setEditable(true);
+
         $total_parcelas->style = 'text-align: right';
+
+        // O mesmo botão decide se atualiza parcelas ou recorrências
+        $btnGerarParcelas->setAction(new TAction([$this, 'onAtualizarParcelasOuRecorrencias']), "Atualizar");
 
         $row1 = $this->form->addFields([new TLabel("Código:", null, '12px', null, '100%'),$id,$tipo_conta_id],[new TLabel("Tipo de documento:", '#FF0000', '12px', null, '100%'),$tipo_documento_financeiro_id],[new TLabel("Número do documento:", '#FF0000', '12px', null, '100%'),$numero_documento],[new TLabel("Escritório:", null, '12px', null, '100%'),$escritorio_id]);
         $row1->layout = [' col-sm-3',' col-sm-3',' col-sm-3',' col-sm-3'];
@@ -257,8 +265,8 @@ class ContaPagarForm extends TPage
         $row6 = $this->form->addFields([new TLabel("Valor:", '#FF0000', '12px', null, '100%'),$valor],[new TLabel("Tipo de pagamento:", '#FF0000', '12px', null, '100%'),$tipo_pagamento],[new TLabel("Data de vencimento:", '#FF0000', '12px', null, '100%'),$data_vencimento,new TLabel("Repetir até o final do ano:", null, '12px', null),$repetir_ate_final_ano]);
         $row6->layout = ['col-sm-3',' col-sm-3',' col-sm-6'];
 
-        $row7 = $this->form->addFields([new TLabel("Total:", '#ff0000', '12px', null, '100%'),$total_conta],[new TLabel("Total de parcelas:", '#ff0000', '12px', null, '100%'),$total_parcelas,$btnGerarParcelas],[new TLabel(" ", null, '12px', null, '100%'),$btnEditarParcelas,$btnCancelarParcelas]);
-        $row7->layout = ['col-sm-3','col-sm-3',' col-sm-3'];
+        $row7 = $this->form->addFields([new TLabel("Total:", '#ff0000', '12px', null, '100%'),$total_conta],[new TLabel("Data de Vencimento", null, '14px', null, '100%'),$dataVencPadrao],[new TLabel("Total de parcelas:", '#ff0000', '12px', null, '100%'),$total_parcelas,$btnGerarParcelas],[new TLabel(" ", null, '12px', null, '100%'),$btnEditarParcelas,$btnCancelarParcelas]);
+        $row7->layout = ['col-sm-3','col-sm-2','col-sm-3','col-sm-3'];
 
         $bcontainer_62cf238b6bca9 = new BContainer('bcontainer_62cf238b6bca9');
         $this->bcontainer_62cf238b6bca9 = $bcontainer_62cf238b6bca9;
@@ -275,6 +283,7 @@ class ContaPagarForm extends TPage
         $row10 = $this->form->addContent([new TFormSeparator("", '#333', '18', '#797979')]);
         $row11 = $this->form->addFields([new TLabel("Criado em:", null, '12px', null, '100%'),$data_criacao],[new TLabel("Criado por:", null, '12px', null, '100%'),$criacao_user_name],[new TLabel("Atualizado em:", null, '12px', null, '100%'),$data_modificacao],[new TLabel("Atualizado por:", null, '12px', null, '100%'),$modificacao_user_name]);
         $row11->layout = ['col-sm-3','col-sm-3',' col-sm-3',' col-sm-3'];
+
 
         // create the form actions
         $btn_onsave = $this->form->addAction("Salvar", new TAction([$this, 'onSave'],['static' => 1]), 'fas:save #ffffff');
@@ -306,6 +315,447 @@ class ContaPagarForm extends TPage
 
         TScript::create("$(\"[name='cliente_id']\").closest('.fb-inline-field-container').hide()");
         TScript::create("$('label:contains(\"Cliente:\")').hide();");
+
+       TScript::create("
+        window.contaPagarSetTextoBotaoAtualizar = function(texto) {
+            var btn = $('[name=\"btnGerarParcelas\"]');
+
+            if (!btn.length) {
+                return;
+            }
+
+            var icon = btn.find('i').first().clone();
+
+            btn.empty();
+
+            if (icon.length) {
+                btn.append(icon).append(' ');
+            }
+
+            btn.append(texto);
+        };
+
+            window.contaPagarValorTelaParaNumero = function(valor) {
+            valor = valor || '0';
+            valor = valor.toString();
+
+            valor = valor.replace(/R\$/g, '');
+            valor = valor.replace(/\s/g, '');
+            valor = valor.replace(/\./g, '');
+            valor = valor.replace(',', '.');
+
+            var numero = parseFloat(valor);
+
+            if (isNaN(numero)) {
+                return 0;
+            }
+
+            return numero;
+        };
+
+        window.contaPagarNumeroParaValorTela = function(numero) {
+            numero = parseFloat(numero || 0);
+
+            return numero.toLocaleString('pt-BR', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            });
+        };
+
+        window.contaPagarAtualizarTotalRecorrenteTela = function() {
+            var tipo = $('[name=\"tipo\"]:checked').val();
+
+            if (tipo != 'R' || window.contaPagarModoEdicao !== true) {
+                return;
+            }
+
+            var total = 0;
+
+            $('[name=\"lancamento_conta_valor_total[]\"]').each(function() {
+                total += window.contaPagarValorTelaParaNumero($(this).val());
+            });
+
+            var totalFormatado = window.contaPagarNumeroParaValorTela(total);
+
+            $('[name=total_conta]').val(totalFormatado);
+            $('[name=total_valor_parcelas]').val(totalFormatado);
+        };
+
+        $(document).off('keyup.totalRecorrentePagar change.totalRecorrentePagar blur.totalRecorrentePagar');
+
+        $(document).on(
+            'keyup.totalRecorrentePagar change.totalRecorrentePagar blur.totalRecorrentePagar',
+            '[name=\"lancamento_conta_valor_total[]\"]',
+            function() {
+                setTimeout(function() {
+                    if (typeof window.contaPagarAtualizarTotalRecorrenteTela === 'function') {
+                        window.contaPagarAtualizarTotalRecorrenteTela();
+                    }
+                }, 80);
+            }
+        );
+
+        window.contaPagarAjustarTextosGrid = function(tipo) {
+            var rowGrid = $('[name=\"lancamento_conta_valor_total[]\"]').closest('.bContainer-fieldset').closest('.tformrow');
+            var fieldset = $('[name=\"lancamento_conta_valor_total[]\"]').closest('.bContainer-fieldset');
+
+            if (tipo == 'R') {
+                fieldset.find('legend').first().text('Recorrência');
+
+                rowGrid.find('label, th, span').each(function() {
+                    var txt = $.trim($(this).text());
+
+                    if (txt == 'Parcela') {
+                        $(this).text('Conta');
+                    }
+                });
+            } else {
+                fieldset.find('legend').first().text('Parcelas');
+
+                rowGrid.find('label, th, span').each(function() {
+                    var txt = $.trim($(this).text());
+
+                    if (txt == 'Conta') {
+                        $(this).text('Parcela');
+                    }
+                });
+            }
+        };
+
+        window.ajustarTelaTipoContaPagar = function(tipo) {
+            if (!tipo) {
+                tipo = $('[name=\"tipo\"]:checked').val();
+            }
+
+            var rowSimples = $('[name=\"valor\"]').closest('.tformrow');
+            var rowParcelada = $('[name=\"total_conta\"]').closest('.tformrow');
+            var rowGrid = $('[name=\"lancamento_conta_valor_total[]\"]').closest('.bContainer-fieldset').closest('.tformrow');
+            var rowTotalGrid = $('[name=\"total_valor_parcelas\"]').closest('.tformrow');
+
+            var repetirBox = $('[name=\"repetir_ate_final_ano\"]').closest('.fb-inline-field-container');
+
+            var repetirLabel = $('label, span').filter(function() {
+                var txt = $.trim($(this).text());
+                return txt == 'Repetir até o final do ano:';
+            });
+
+            var colTotalConta = $('[name=\"total_conta\"]').closest('div[class*=\"col-\"]');
+            var colDataPadrao = $('[name=\"dataVencPadrao\"]').closest('div[class*=\"col-\"]');
+            var colTotalParcelas = $('[name=\"total_parcelas\"]').closest('div[class*=\"col-\"]');
+            var colBotoesExtras = $('[name=\"btnEditarParcelas\"]').closest('div[class*=\"col-\"]');
+
+            var boxBotaoAtualizar = $('[name=\"btnGerarParcelas\"]').closest('.fb-inline-field-container');
+            var boxTotalParcelas = $('[name=\"total_parcelas\"]').closest('.fb-inline-field-container');
+            var boxTotalValorParcelas = $('[name=\"total_valor_parcelas\"]').closest('.fb-inline-field-container');
+
+            boxTotalValorParcelas.hide();
+
+            if (window.contaPagarMostrarBotoesEdicao !== true) {
+                colBotoesExtras.hide();
+            }
+
+            if (tipo == 'S') {
+                rowSimples.show();
+                rowParcelada.hide();
+                rowGrid.hide();
+                rowTotalGrid.hide();
+
+                repetirBox.show();
+                repetirLabel.show();
+                boxBotaoAtualizar.hide();
+
+                window.contaPagarAjustarTextosGrid('S');
+                window.contaPagarSetTextoBotaoAtualizar('Atualizar parcelas');
+            }
+
+            if (tipo == 'P') {
+                rowSimples.hide();
+                rowParcelada.show();
+                rowGrid.show();
+                rowTotalGrid.show();
+
+                repetirBox.hide();
+                repetirLabel.hide();
+
+                colTotalConta.show();
+                colDataPadrao.show();
+                colTotalParcelas.show();
+
+                boxBotaoAtualizar.show();
+
+                if (colDataPadrao.length && colTotalParcelas.length) {
+                    colDataPadrao.insertAfter(colTotalParcelas);
+                }
+
+                if (boxTotalParcelas.length && boxBotaoAtualizar.length) {
+                    boxBotaoAtualizar.insertAfter(boxTotalParcelas);
+                }
+
+                colTotalParcelas.find('label').first().text('Total de parcelas:');
+
+                window.contaPagarAjustarTextosGrid('P');
+                window.contaPagarSetTextoBotaoAtualizar('Atualizar parcelas');
+            }
+
+            if (tipo == 'R') {
+                rowSimples.show();
+                rowParcelada.show();
+                rowGrid.show();
+                rowTotalGrid.show();
+
+                repetirBox.hide();
+                repetirLabel.hide();
+
+               if (window.contaPagarModoEdicao === true) {
+                colTotalConta.show();
+
+                $('[name=valor]')
+                    .closest('.fb-inline-field-container')
+                    .find('label')
+                    .first()
+                    .text('Valor único:');
+
+                $('[name=total_conta]')
+                    .closest('.fb-inline-field-container')
+                    .find('label')
+                    .first()
+                    .text('Valor total:');
+
+                $('[name=btnEditarParcelas]').closest('.fb-inline-field-container').hide();
+
+                setTimeout(function() {
+                    if (typeof window.contaPagarAtualizarTotalRecorrenteTela === 'function') {
+                        window.contaPagarAtualizarTotalRecorrenteTela();
+                    }
+                }, 150);
+            } else {
+                colTotalConta.hide();
+
+                $('[name=valor]')
+                    .closest('.fb-inline-field-container')
+                    .find('label')
+                    .first()
+                    .text('Valor:');
+
+                $('[name=total_conta]')
+                    .closest('.fb-inline-field-container')
+                    .find('label')
+                    .first()
+                    .text('Total:');
+            }
+
+            colDataPadrao.hide();
+            colTotalParcelas.show();
+
+                boxBotaoAtualizar.show();
+
+                if (boxTotalParcelas.length && boxBotaoAtualizar.length) {
+                    boxBotaoAtualizar.insertAfter(boxTotalParcelas);
+                }
+
+                colTotalParcelas.find('label').first().text('Total de repetições:');
+
+                window.contaPagarAjustarTextosGrid('R');
+                window.contaPagarSetTextoBotaoAtualizar('Atualizar recorrência');
+            }
+        };
+
+        $(document).off('change.tipoContaPagarVisual');
+        $(document).on('change.tipoContaPagarVisual', '[name=\"tipo\"]', function() {
+            var tipoSelecionado = $(this).val();
+
+            setTimeout(function() {
+                window.ajustarTelaTipoContaPagar(tipoSelecionado);
+            }, 300);
+
+            setTimeout(function() {
+                window.ajustarTelaTipoContaPagar(tipoSelecionado);
+            }, 900);
+        });
+
+        setTimeout(function() {
+            window.ajustarTelaTipoContaPagar();
+        }, 500);
+
+    ");
+
+        TScript::create("
+            window.ajustarEdicaoParcelasContaPagar = function() {
+                setTimeout(function() {
+                    $('[name=\"lancamento_conta_dt_vencimento[]\"]').each(function() {
+                        var row = $(this).closest('tr');
+
+                        var id = row.find('[name=\"lancamento_conta_id[]\"]').val();
+                        var parcela = row.find('[name=\"lancamento_conta_parcela[]\"]').val();
+                        var valor = row.find('[name=\"lancamento_conta_valor_total[]\"]').val();
+
+                        var dtPagamento = row.find('[name=\"lancamento_conta_dt_pagamento[]\"]').val();
+                        var linhaQuitada = dtPagamento && $.trim(dtPagamento) !== '';
+
+                        var idsQuitados = window.contaPagarLancamentosQuitados || [];
+                        var idNumerico = parseInt(id, 10);
+
+                        if (!isNaN(idNumerico) && idsQuitados.indexOf(idNumerico) !== -1) {
+                            linhaQuitada = true;
+                        }
+
+                        var linhaReal = false;
+
+                        if (id || parcela || valor) {
+                            linhaReal = true;
+                        }
+
+                        var campoVencimento = row.find('[name=\"lancamento_conta_dt_vencimento[]\"]');
+                        var campoTipo = row.find('[name=\"lancamento_conta_tipo_pagamento_id[]\"]');
+                        var campoValor = row.find('[name=\"lancamento_conta_valor_total[]\"]');
+
+                        var grupoVencimento = campoVencimento.closest('.input-group');
+                        var botaoCalendario = grupoVencimento.find('button, .input-group-addon, .input-group-text');
+
+                        var containerSelect2 = campoTipo.next('.select2-container');
+
+                        if (linhaReal && !linhaQuitada) {
+                         campoValor
+                                .prop('readonly', false)
+                                .prop('disabled', false)
+                                .removeAttr('readonly')
+                                .removeAttr('disabled')
+                                .css({
+                                    'background-color': '',
+                                    'pointer-events': '',
+                                    'cursor': ''
+                                });
+                            campoVencimento
+                                .prop('readonly', false)
+                                .prop('disabled', false)
+                                .removeAttr('readonly')
+                                .removeAttr('disabled')
+                                .css({
+                                    'background-color': '',
+                                    'pointer-events': '',
+                                    'cursor': ''
+                                });
+
+                            botaoCalendario.css({
+                                'pointer-events': 'auto',
+                                'opacity': '1',
+                                'cursor': 'pointer'
+                            });
+
+                            campoTipo
+                                .prop('disabled', false)
+                                .removeAttr('disabled')
+                                .trigger('change');
+
+                            containerSelect2
+                                .removeClass('select2-container--disabled')
+                                .css({
+                                    'pointer-events': 'auto',
+                                    'opacity': '1',
+                                    'cursor': ''
+                                });
+
+                            containerSelect2.find('.select2-selection').css({
+                                'background-color': '',
+                                'cursor': ''
+                            });
+                        } else {
+                            campoValor
+                                .prop('readonly', true)
+                                .css({
+                                    'background-color': '#f5f5f5',
+                                    'pointer-events': 'none',
+                                    'cursor': 'not-allowed'
+                                });
+                            campoVencimento
+                                .prop('readonly', true)
+                                .css({
+                                    'background-color': '#f5f5f5',
+                                    'pointer-events': 'none',
+                                    'cursor': 'not-allowed'
+                                });
+
+                            botaoCalendario.css({
+                                'pointer-events': 'none',
+                                'opacity': '0.6',
+                                'cursor': 'not-allowed'
+                            });
+
+                            campoTipo
+                                .prop('disabled', false)
+                                .removeAttr('disabled')
+                                .trigger('change');
+
+                            containerSelect2
+                                .addClass('select2-container--disabled')
+                                .css({
+                                    'pointer-events': 'none',
+                                    'opacity': '0.8',
+                                    'cursor': 'not-allowed'
+                                });
+
+                            containerSelect2.find('.select2-selection').css({
+                                'background-color': '#f5f5f5',
+                                'cursor': 'not-allowed'
+                            });
+                        }
+                    });
+                }, 300);
+            };
+
+            ajustarEdicaoParcelasContaPagar();
+        ");
+
+        TScript::create("
+            window.contaPagarPrepararRecorrenteParaSalvar = function(e) {
+                var tipo = $('[name=\"tipo\"]:checked').val();
+
+                if (tipo != 'R') {
+                    return true;
+                }
+
+                var temLinhaReal = false;
+
+                $('[name=\"lancamento_conta_parcela[]\"]').each(function() {
+                    if ($(this).val()) {
+                        temLinhaReal = true;
+                    }
+                });
+
+                if (!temLinhaReal) {
+                    alert('Clique em Atualizar recorrência antes de salvar.');
+                    if (e) {
+                        e.preventDefault();
+                        e.stopImmediatePropagation();
+                    }
+                    return false;
+                }
+
+                return true;
+            };
+
+            document.addEventListener('click', function(e) {
+                var el = e.target.closest('button, a, input[type=\"button\"], input[type=\"submit\"]');
+
+                if (!el) {
+                    return true;
+                }
+
+                var texto = '';
+
+                if (el.innerText) {
+                    texto = el.innerText.trim();
+                } else if (el.value) {
+                    texto = el.value.trim();
+                }
+
+                if (texto == 'Salvar') {
+                    return window.contaPagarPrepararRecorrenteParaSalvar(e);
+                }
+
+                return true;
+            }, true);
+        ");
 
         parent::add($this->form);
 
@@ -420,145 +870,199 @@ class ContaPagarForm extends TPage
 
     public static function onGerarParcelas($param = null) 
     {
-        try 
-        {
-            TTransaction::open(self::$database);
-            $cancelado = false;
+    try 
+    {
+        TTransaction::open(self::$database);
 
-            $id = (int) $param['id'];
+        $id = (int) ($param['id'] ?? 0);
 
-            $search = Lancamento::where('conta_id','=',$id)
-                                ->load();
-            foreach($search as $lancamento){
-                if($lancamento->cancelado=='S'){
-                    $cancelado = true;
-                }
-            }
-
-            if($cancelado){
+        if (!empty($id)) {
+            if (self::existeLancamentoCancelado($id)) {
                 TToast::show("error", "Lançamento cancelado, não é possível editar.", "topRight", "fas:info-circle");
+                TTransaction::close();
                 return;
             }
 
-            if(empty($param['total_parcelas']) || empty($param['total_conta']))
-            {
-                return;
+            if (self::contaEstaQuitada($id)) {
+                throw new Exception('Conta quitada, não é possível editar.');
             }
+        }
 
-            $parcelas = [];
-            $valores = [];
-            $tipos = [];
-            $dt_pagamentos = [];
-            $quitada = [];
-            $ids = [];
-            $parcelas = [];
+        if (empty($param['total_parcelas']) || empty($param['total_conta'])) {
+            throw new Exception('Total da conta e total de parcelas são obrigatórios.');
+        }
 
-            $parcCount = 0;
+        $totalInformado = self::valorBrParaFloat($param['total_conta']);
+        $totalParcelasInformado = (int) $param['total_parcelas'];
 
-            if(count($search)>0){
-                foreach($search as $objeto){
-                    if($objeto->dt_pagamento==''){
-                        $objeto->delete();
-                    }
+        if ($totalInformado <= 0) {
+            throw new Exception('Total da conta deve ser maior que zero.');
+        }
+
+        if ($totalParcelasInformado <= 0) {
+            throw new Exception('Total de parcelas deve ser maior que zero.');
+        }
+
+        $ids = [];
+        $parcelas = [];
+        $valores = [];
+        $vencimentos = [];
+        $tipos = [];
+        $dtPagamentos = [];
+
+        $totalQuitado = 0;
+        $quantidadeQuitada = 0;
+
+        if (!empty($id)) {
+            $lancamentos = Lancamento::where('conta_id', '=', $id)
+                ->orderBy('parcela')
+                ->load();
+
+            foreach ($lancamentos as $lancamento) {
+                if ($lancamento->cancelado == 'S') {
+                    continue;
                 }
-            }
 
-            $lancamentos = Lancamento::where('conta_id','=',$id)->load();
+                if(!empty($lancamento->dt_pagamento)){
+                    $quantidadeQuitada++;
+                    $totalQuitado += self::valorBrParaFloat($lancamento->valor_total);
 
-            foreach($lancamentos as $lancamento){
-                $parcCount++;
-                if($lancamento->dt_pagamento){
-                    $quitada[] = $lancamento->id;
                     $ids[] = $lancamento->id;
-
-                    $data = new DateTime($lancamento->dt_vencimento);
-                    $data = $data->format('d/m/Y');
-                    $vencimentos[] = $data;
-
-                    $parcelas[] = $parcCount;
-
-                    $valores[] = $lancamento->valor;
+                    $parcelas[] = $lancamento->parcela;
+                    $valores[] = number_format(self::valorBrParaFloat($lancamento->valor_total), 2, ',', '.');
+                    $vencimentos[] = self::dataParaTela($lancamento->dt_vencimento);
                     $tipos[] = $lancamento->tipo_pagamento_id;
-
-                    $data = new DateTime($lancamento->dt_pagamento);
-                    $data = $data->format('d/m/Y');
-                    $dt_pagamentos[] = $data;
-                }else{
-                    $ids[] = $lancamento->id;
-                    $parcelas[] = $parcCount;
+                    $dtPagamentos[] = self::dataParaTela($lancamento->dt_pagamento);
+                } else {
+                    $lancamento->delete();
                 }
             }
+        }
 
-            $total = (float) str_replace(',', '.', str_replace('.', '', $param['total_conta']));
+        $totalAberto = $totalInformado - $totalQuitado;
 
-            for($i=0;$i<count($quitada);$i++){
-                $total = $total - $valores[$i];
-                $valores[$i] = number_format($valores[$i], 2, ',', '.');
+        if ($totalAberto < 0) {
+            throw new Exception('O total informado é menor que o valor das parcelas já quitadas.');
+        }
+
+        $parcelasAbertas = $totalParcelasInformado - $quantidadeQuitada;
+
+        if ($parcelasAbertas <= 0) {
+            throw new Exception('Não é possível alterar parcelas quitadas. Aumente o número de parcelas.');
+        }
+
+        if (!empty($param['dataVencPadrao'])) {
+            $dataBaseVencimento = DateTime::createFromFormat('d/m/Y', $param['dataVencPadrao']);
+
+            if (!$dataBaseVencimento) {
+                $dataBaseVencimento = DateTime::createFromFormat('Y-m-d', $param['dataVencPadrao']);
             }
 
-            $total_parcelas = $param['total_parcelas']-count($quitada);
-            if($total_parcelas<=0){
-                throw new Exception("Não é possivel alterar o valor de parcelas quitadas. Aumente o número de parcelas.");
+            if (!$dataBaseVencimento) {
+                throw new Exception('Data de vencimento padrão inválida.');
             }
-            $valorParcela = round(($total / $total_parcelas), 2);
+        } else {
+            $dataBaseVencimento = new DateTime();
+        }
 
-            for ($i = 1; $i <= $total_parcelas; $i++) {
-                if(empty($quitada)){
-                    $vencimentos[] = date('d/m/Y', strtotime("now +{$i} month"));
-                    $tipos[] = TipoPagamento::DINHEIRO;
+        $valorParcela = round(($totalAberto / $parcelasAbertas), 2);
+        $proximaParcela = empty($parcelas) ? 1 : (max($parcelas) + 1);
 
-                    $dt_pagamentos[] = "";
-                    $parcelas[] = end($parcelas) +1;
-                }else{
-                    $data = new DateTime(end($vencimentos));
-                    $data = $data->format('d/m/Y');
-                    $vencimentos[] = date('d/m/Y', strtotime("+1 months", strtotime($data)));
+        $tipoPagamentoPadrao = $param['tipo_pagamento'] ?? null;
 
-                    $parcelas[] = end($parcelas) +1;
+        if (empty($tipoPagamentoPadrao)) {
+            $tipoPagamentoPadrao = TipoPagamento::BOLETO;
+        }
 
-                    $tipos[] = end($tipos) ?? TipoPagamento::DINHEIRO;
+        for ($i = 1; $i <= $parcelasAbertas; $i++) {
+            $dataParcela = clone $dataBaseVencimento;
+            $dataParcela->modify('+' . ($i - 1) . ' month');
+
+            $valorAtual = ($i == $parcelasAbertas)
+                ? ($totalAberto - ($valorParcela * ($i - 1)))
+                : $valorParcela;
+
+            $ids[] = '';
+            $parcelas[] = $proximaParcela++;
+            $valores[] = number_format($valorAtual, 2, ',', '.');
+            $vencimentos[] = $dataParcela->format('d/m/Y');
+            $tipos[] = $tipoPagamentoPadrao;
+            $dtPagamentos[] = '';
+        }
+
+        if (!empty($id)) {
+            $totalItens = count($parcelas);
+
+            for ($i = 0; $i < $totalItens; $i++) {
+                if (empty($vencimentos[$i]) || empty($valores[$i]) || empty($tipos[$i])) {
+                    continue;
                 }
-                $valores[] = ($i == $param['total_parcelas']) ? number_format(($total - ($valorParcela * ($i-1))), 2, ',', '.') : number_format($valorParcela, 2, ',', '.');
-            }
 
-            $valoresSoma = str_replace(',', '.', str_replace('.', '', $valores));
-
-            for ($i = 0; $i < count($valores); $i++) {
-                if(empty($ids[$i]) || $ids[$i]==''){
-                    if($id){
-                        $object = new Lancamento();
-                        $object->conta_id = $id;
-                        $object->parcela = $i+1;
-                        $object->dt_vencimento = implode('-', array_reverse(explode('/', $vencimentos[$i])));
-                        $object->valor = str_replace(',', '.', str_replace('.', '', $valores[$i]));
-                        $object->tipo_pagamento_id = $tipos[$i];
-                        $object->store();
-                        $ids[$i]=$object->id;
-                    }
-                }else{
+                if (!empty($ids[$i])) {
                     $object = Lancamento::find($ids[$i]);
-                    $object->dt_vencimento = implode('-', array_reverse(explode('/', $vencimentos[$i])));
-                    $object->valor = str_replace(',', '.', str_replace('.', '', $valores[$i]));
-                    $object->tipo_pagamento_id = $tipos[$i];
-                    $object->store();
+
+                    if ($object && !empty($object->dt_pagamento)) {
+                        continue;
+                    }
                 }
+
+                $object = new Lancamento();
+                $object->conta_id = $id;
+                $object->parcela = $parcelas[$i];
+                $object->dt_vencimento = self::dataParaBanco($vencimentos[$i]);
+                $object->valor = self::valorBrParaFloat($valores[$i]);
+                $object->valor_total = $object->valor;
+                $object->tipo_pagamento_id = $tipos[$i];
+                $object->store();
+
+                $ids[$i] = $object->id;
             }
 
-            $data = new stdClass;
-            $data->lancamento_conta_id = $ids;
-            $data->lancamento_conta_parcela = $parcelas;
-            $data->lancamento_conta_dt_vencimento = $vencimentos;
-            $data->lancamento_conta_valor = $valores;
-            $data->lancamento_conta_tipo_pagamento_id = $tipos;
-            $data->lancamento_conta_dt_pagamento = $dt_pagamentos;
-            $data->total_valor_parcelas = array_sum($valoresSoma);
+            $totaisConta = self::recalcularContaPelosLancamentos($id);
 
-            TFieldList::clearRows('parcelas');
-            TFieldList::addRows('parcelas', $param['total_parcelas'] - 1);
+            $totalTela = $totaisConta['total'];
+            $totalParcelasTela = $totaisConta['quantidade'];
+        } else {
+            $totalTela = $totalInformado;
+            $totalParcelasTela = $totalParcelasInformado;
+        }
 
-            TForm::sendData(self::$formName, $data, false, false, 50*$total_parcelas);
+        $data = new stdClass;
+        $data->tipo = 'P';
+        $data->lancamento_conta_id = $ids;
+        $data->lancamento_conta_parcela = $parcelas;
+        $data->lancamento_conta_dt_vencimento = $vencimentos;
+        $data->lancamento_conta_valor_total = $valores;
+        $data->lancamento_conta_tipo_pagamento_id = $tipos;
+        $data->lancamento_conta_dt_pagamento = $dtPagamentos;
+        $data->total_conta = number_format($totalTela, 2, ',', '.');
+        $data->total_parcelas = $totalParcelasTela;
+        $data->total_valor_parcelas = number_format($totalTela, 2, ',', '.');
+        $data->dataVencPadrao = $dataBaseVencimento->format('d/m/Y');
 
-            TTransaction::close();
+        TFieldList::clearRows('parcelas');
+
+        if (count($parcelas) > 1) {
+            TFieldList::addRows('parcelas', count($parcelas) - 1);
+        }
+
+        TForm::sendData(self::$formName, $data, false, false, 50 * count($parcelas));
+
+        TScript::create("
+            setTimeout(function() {
+                $('[name=\"tipo\"][value=\"P\"]').prop('checked', true);
+
+                if (typeof ajustarTelaTipoContaPagar === 'function') {
+                    ajustarTelaTipoContaPagar('P');
+                }
+
+                if (typeof ajustarEdicaoParcelasContaPagar === 'function') {
+                    ajustarEdicaoParcelasContaPagar();
+                }
+            }, " . ((50 * count($parcelas)) + 700) . ");
+        ");
+
+        TTransaction::close();
 
         }
         catch (Exception $e) 
@@ -586,6 +1090,10 @@ class ContaPagarForm extends TPage
                 $data->pessoa_id = $data->cliente_id;
             }
 
+            if (!empty($data->id) && self::contaEstaQuitada($data->id)) {
+                throw new Exception('Conta quitada, não é possível editar.');
+            }
+
             $object->fromArray( (array) $data); // load the object with data
 
             if(!$object->id)
@@ -610,6 +1118,8 @@ class ContaPagarForm extends TPage
                 }
 
             }else{
+                $contaOriginal = new Conta($object->id);
+
                 $lancamentos = Lancamento::where('conta_id','=',$object->id)->load();
                 foreach($lancamentos as $lancamento){
                     if($lancamento->cancelado=='S'){
@@ -624,15 +1134,15 @@ class ContaPagarForm extends TPage
                 $object->contrato_id = $objeto->contrato_id;
                 $object->pessoa_id = $objeto->pessoa_id;*/
                 if($cancelado){
-                    $object->total_conta = $objeto->total_conta;
-                    $object->total_parcelas = $objeto->total_parcelas;
+                    $object->total_conta = $contaOriginal->total_conta;
+                    $object->total_parcelas = $contaOriginal->total_parcelas;
                 }
             }
 
             if ($data->tipo == 'S' && !$cancelado)
             {
                 $object->total_conta = $data->valor;
-
+                $object->total_parcelas = 1;
             }
 
             if (empty($object->total_conta))
@@ -640,14 +1150,29 @@ class ContaPagarForm extends TPage
                 throw new Exception('Valor não foi preenchido');
             }
 
-            if(!$data->id){
-                if ($data->tipo != 'P' && !$cancelado){
+           if(!$data->id){
+                if (($data->tipo == 'S' || $data->tipo == 'R') && !$cancelado){
                     $object->proximo_vencimento_lancamento = $data->data_vencimento;
                 }else if ($data->tipo == 'P'){
-                    $object->proximo_vencimento_lancamento = date('Y-m-d', strtotime("now +1 month"));
+                    if (!empty($data->dataVencPadrao)) {
+                        $dataBase = DateTime::createFromFormat('d/m/Y', $data->dataVencPadrao);
+
+                        if (!$dataBase) {
+                            $dataBase = DateTime::createFromFormat('Y-m-d', $data->dataVencPadrao);
+                        }
+
+                        if ($dataBase) {
+                            $object->proximo_vencimento_lancamento = $dataBase->format('Y-m-d');
+                        } else {
+                            $object->proximo_vencimento_lancamento = date('Y-m-d');
+                        }
+                    } else {
+                        $object->proximo_vencimento_lancamento = date('Y-m-d');
+                    }
                 }
             }else{
                 $lancamentosConta = Lancamento::where('conta_id','=',$data->id)->orderBy('dt_vencimento')->load();
+
                 foreach($lancamentosConta as $lancamentoConta){
                     if(empty($lancamentoConta->dt_pagamento)){
                         $object->proximo_vencimento_lancamento = $lancamentoConta->dt_vencimento;
@@ -661,6 +1186,11 @@ class ContaPagarForm extends TPage
             }else{
                 $object->modificacao_user_id = TSession::getValue('userid');
             }
+
+            if (!empty($data->tipo) && in_array($data->tipo, ['S', 'P', 'R'])) {
+                $object->tipo_lancamento = $data->tipo;
+            }
+
             $object->store(); // save the object 
 
             $loadPageParam = [];
@@ -680,18 +1210,48 @@ class ContaPagarForm extends TPage
                 }
             }
 
-            if($data->tipo=='P' && !$cancelado){
+           if (($data->tipo == 'P' || $data->tipo == 'R') && !$cancelado) {
 //<generatedAutoCode>
             $this->criteria_parcelas->setProperty('order', 'parcela asc');
 //</generatedAutoCode>
             $lancamento_conta_items = $this->storeItems('Lancamento', 'conta_id', $object, $this->parcelas, function($masterObject, $detailObject){ 
+
+                if (!empty($detailObject->id)) {
+                    $lancamentoBanco = Lancamento::find($detailObject->id);
+
+                    if($lancamentoBanco && ($lancamentoBanco->cancelado == 'S' || !empty($lancamentoBanco->dt_pagamento))){
+                        $detailObject->parcela = $lancamentoBanco->parcela;
+                        $detailObject->valor = $lancamentoBanco->valor;
+                        $detailObject->valor_total = $lancamentoBanco->valor_total;
+                        $detailObject->dt_vencimento = $lancamentoBanco->dt_vencimento;
+                        $detailObject->tipo_pagamento_id = $lancamentoBanco->tipo_pagamento_id;
+                        $detailObject->dt_pagamento = $lancamentoBanco->dt_pagamento;
+                        $detailObject->cancelado = $lancamentoBanco->cancelado;
+                        return;
+                    }
+                }
+
+               if(isset($detailObject->valor_total)){
+                    $detailObject->valor_total = self::valorBrParaFloat($detailObject->valor_total);
+
+                    // parcela aberta ainda nao teve desconto nem acrescimo
+                    $detailObject->valor = $detailObject->valor_total;
+                }
+
+                if (isset($detailObject->dt_vencimento)) {
+                    $detailObject->dt_vencimento = self::dataParaBanco($detailObject->dt_vencimento);
+                }
+
+                if (isset($detailObject->dt_pagamento)) {
+                    $detailObject->dt_pagamento = self::dataParaBanco($detailObject->dt_pagamento);
+                }
 
             }, $this->criteria_parcelas); 
             }
             $this->total_valor_parcelas = 0;
             $this->count_parcelas = 1;
 
-            if ($data->tipo != 'P' && !$cancelado)
+            if ($data->tipo == 'S' && !$cancelado)
             {
                 if ($data->id)
                 {
@@ -708,7 +1268,8 @@ class ContaPagarForm extends TPage
 
                 $lancamento = new Lancamento();
                 $lancamento->dt_vencimento = $data->data_vencimento;
-                $lancamento->valor = $data->valor;
+                $lancamento->valor = self::valorBrParaFloat($data->valor);
+                $lancamento->valor_total = $lancamento->valor;
                 $lancamento->tipo_pagamento_id = $data->tipo_pagamento;
                 $lancamento->conta_id = $object->id;
                 $lancamento->store();
@@ -734,6 +1295,9 @@ class ContaPagarForm extends TPage
                 }
             }
 
+            if (!$cancelado) {
+                self::recalcularContaPelosLancamentos($object->id);
+            }
             // get the generated {PRIMARY_KEY}
             $data->id = $object->id; 
 
@@ -789,8 +1353,17 @@ class ContaPagarForm extends TPage
                 }, $this->criteria_parcelas); 
                 if($object->em_aberto){
                     if(!$object->cancelado){
-                        TScript::create("$(\"[name='btnEditarParcelas']\").closest('.fb-inline-field-container').show()");
-                        TScript::create("$(\"[name='btnCancelarParcelas']\").closest('.fb-inline-field-container').show()");
+                        TScript::create("
+                            window.contaPagarMostrarBotoesEdicao = true;
+
+                            setTimeout(function() {
+                                $('[name=\"btnEditarParcelas\"]').closest('div[class*=\"col-\"]').show();
+                                $('[name=\"btnEditarParcelas\"]').closest('.fb-inline-field-container').show();
+
+                                $('[name=\"btnCancelarParcelas\"]').closest('div[class*=\"col-\"]').show();
+                                $('[name=\"btnCancelarParcelas\"]').closest('.fb-inline-field-container').show();
+                            }, 700);
+                        ");
                     }else{
                         TScript::create("$('label:contains(\"Motivo do cancelamento das parcelas:\")').show();");
                         TScript::create("$('label:contains(\"MOTIVO CANCELAMENTO\")').show();");
@@ -799,12 +1372,127 @@ class ContaPagarForm extends TPage
                 }
 
                 $object->total_valor_parcelas = 0;
-                $object->tipo = 'P';
+
+                $tipoAoEditar = !empty($object->tipo_lancamento) ? $object->tipo_lancamento : 'P';
+
+                $lancamentosEdicao = Lancamento::where('conta_id', '=', $object->id)
+                    ->orderBy('dt_vencimento')
+                    ->load();
+
+                $idsLancamentosQuitados = [];
+
+                foreach ($lancamentosEdicao as $lancamentoEdicao) {
+                    if ($lancamentoEdicao->cancelado != 'S' && !empty($lancamentoEdicao->dt_pagamento)) {
+                        $idsLancamentosQuitados[] = (int) $lancamentoEdicao->id;
+                    }
+                }
+
+                TScript::create("
+                    window.contaPagarLancamentosQuitados = " . json_encode($idsLancamentosQuitados) . ";
+                ");
+
+               if (!empty($lancamentosEdicao)) {
+                    $primeiroLancamentoValido = null;
+
+                    foreach ($lancamentosEdicao as $lancamentoEdicao) {
+                        if ($lancamentoEdicao->cancelado != 'S') {
+                            $primeiroLancamentoValido = $lancamentoEdicao;
+                            break;
+                        }
+                    }
+
+                    if ($primeiroLancamentoValido) {
+                        if ($tipoAoEditar == 'S' || $tipoAoEditar == 'R') {
+                            $object->valor = $primeiroLancamentoValido->valor;
+                            $object->data_vencimento = $primeiroLancamentoValido->dt_vencimento;
+                            $object->tipo_pagamento = $primeiroLancamentoValido->tipo_pagamento_id;
+                        }
+
+                        if ($tipoAoEditar == 'R') {
+                            $totaisConta = self::recalcularContaPelosLancamentos($object->id);
+
+                            $object->total_parcelas = $totaisConta['quantidade'];
+                            $object->total_conta = $totaisConta['total'];
+                            $object->total_valor_parcelas = $totaisConta['total'];
+                            $object->dataVencPadrao = date('d/m/Y', strtotime($primeiroLancamentoValido->dt_vencimento));
+                        }
+                    }
+                }
+
+                $object->tipo = $tipoAoEditar;
+
                 $this->form->setData($object); // fill the form 
+
+                if ($tipoAoEditar == 'R') {
+                    TScript::create("
+                        setTimeout(function() {
+                            if (typeof window.contaPagarAtualizarTotalRecorrenteTela === 'function') {
+                                window.contaPagarAtualizarTotalRecorrenteTela();
+                            }
+                        }, 900);
+
+                        setTimeout(function() {
+                            if (typeof window.contaPagarAtualizarTotalRecorrenteTela === 'function') {
+                                window.contaPagarAtualizarTotalRecorrenteTela();
+                            }
+                        }, 1400);
+                    ");
+                }
 
                 $this->parcelas->getFoot()->style = 'display: none';
 
-                self::onChange(['tipo' => 'P']);
+                self::onChange(['tipo' => $tipoAoEditar]);
+
+                TScript::create("
+                    window.contaPagarModoEdicao = true;
+                ");
+
+                TScript::create("
+                    setTimeout(function() {
+                        window.contaPagarModoEdicao = true;
+
+                        $('[name=\"tipo\"][value=\"{$tipoAoEditar}\"]').prop('checked', true).trigger('change');
+
+                        if (typeof ajustarTelaTipoContaPagar === 'function') {
+                            ajustarTelaTipoContaPagar('{$tipoAoEditar}');
+                        }
+
+                        if (typeof ajustarEdicaoParcelasContaPagar === 'function') {
+                            ajustarEdicaoParcelasContaPagar();
+                        }
+
+                        if (window.contaPagarMostrarBotoesEdicao === true && '{$tipoAoEditar}' == 'P') {
+                            $('[name=\"btnEditarParcelas\"]').closest('div[class*=\"col-\"]').show();
+                            $('[name=\"btnEditarParcelas\"]').closest('.fb-inline-field-container').show();
+
+                            $('[name=\"btnCancelarParcelas\"]').closest('div[class*=\"col-\"]').show();
+                            $('[name=\"btnCancelarParcelas\"]').closest('.fb-inline-field-container').show();
+                        }
+
+                        if (window.contaPagarMostrarBotoesEdicao === true && '{$tipoAoEditar}' == 'R') {
+                            $('[name=\"btnEditarParcelas\"]').closest('.fb-inline-field-container').hide();
+
+                            $('[name=\"btnCancelarParcelas\"]').closest('div[class*=\"col-\"]').show();
+                            $('[name=\"btnCancelarParcelas\"]').closest('.fb-inline-field-container').show();
+
+                            $('[name=\"valor\"]')
+                                .closest('.fb-inline-field-container')
+                                .find('label')
+                                .first()
+                                .text('Valor único:');
+
+                            $('[name=\"total_conta\"]')
+                                .closest('.fb-inline-field-container')
+                                .find('label')
+                                .first()
+                                .text('Valor total:');
+
+                            if (typeof window.contaPagarAtualizarTotalRecorrenteTela === 'function') {
+                                window.contaPagarAtualizarTotalRecorrenteTela();
+                            }
+                        }
+                    }, 500);
+                ");
 
                 TTransaction::close(); // close the transaction 
             }
@@ -924,6 +1612,345 @@ class ContaPagarForm extends TPage
         catch (Exception $e) 
         {
             new TMessage('error', $e->getMessage());    
+        }
+    }
+
+    private static function valorBrParaFloat($valor)
+    {
+        if ($valor === null || $valor === '') {
+            return 0;
+        }
+
+        if (is_numeric($valor)) {
+            return (float) $valor;
+        }
+
+        $valor = trim((string) $valor);
+        $valor = str_replace('R$', '', $valor);
+        $valor = str_replace(' ', '', $valor);
+
+        return (float) str_replace(',', '.', str_replace('.', '', $valor));
+    }
+
+    private static function dataParaBanco($valor)
+    {
+        if (empty($valor)) {
+            return null;
+        }
+
+        $valor = trim((string) $valor);
+
+        $data = DateTime::createFromFormat('d/m/Y', $valor);
+
+        if (!$data) {
+            $data = DateTime::createFromFormat('Y-m-d', $valor);
+        }
+
+        if (!$data) {
+            return $valor;
+        }
+
+        return $data->format('Y-m-d');
+    }
+
+    private static function dataParaTela($valor)
+    {
+        if (empty($valor)) {
+            return '';
+        }
+
+        try {
+            $data = new DateTime($valor);
+            return $data->format('d/m/Y');
+        } catch (Exception $e) {
+            return $valor;
+        }
+    }
+
+    private static function existeLancamentoCancelado($contaId)
+    {
+        if (empty($contaId)) {
+            return false;
+        }
+
+        $lancamentos = Lancamento::where('conta_id', '=', $contaId)->load();
+
+        foreach ($lancamentos as $lancamento) {
+            if ($lancamento->cancelado == 'S') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static function contaEstaQuitada($contaId)
+    {
+        if (empty($contaId)) {
+            return false;
+        }
+
+        $lancamentos = Lancamento::where('conta_id', '=', $contaId)->load();
+
+        $temLancamentoValido = false;
+
+        foreach ($lancamentos as $lancamento) {
+            if ($lancamento->cancelado == 'S') {
+                continue;
+            }
+
+            $temLancamentoValido = true;
+
+            if (empty($lancamento->dt_pagamento)) {
+                return false;
+            }
+        }
+
+        return $temLancamentoValido;
+    }
+
+    private static function recalcularContaPelosLancamentos($contaId)
+    {
+        $retorno = [
+            'total' => 0,
+            'quantidade' => 0,
+            'proximo_vencimento' => null
+        ];
+
+        if (empty($contaId)) {
+            return $retorno;
+        }
+
+        $conta = new Conta($contaId);
+
+        $lancamentos = Lancamento::where('conta_id', '=', $contaId)
+            ->orderBy('dt_vencimento')
+            ->load();
+
+        foreach ($lancamentos as $lancamento) {
+            if ($lancamento->cancelado == 'S') {
+                continue;
+            }
+
+            $retorno['quantidade']++;
+            $retorno['total'] += self::valorBrParaFloat($lancamento->valor_total);
+
+            if (empty($lancamento->dt_pagamento) && empty($retorno['proximo_vencimento'])) {
+                $retorno['proximo_vencimento'] = $lancamento->dt_vencimento;
+            }
+        }
+
+        $conta->total_conta = $retorno['total'];
+        $conta->total_parcelas = $retorno['quantidade'];
+        $conta->proximo_vencimento_lancamento = $retorno['proximo_vencimento'];
+        $conta->store();
+
+        return $retorno;
+    }
+    public static function onAtualizarParcelasOuRecorrencias($param = null)
+    {
+        if (($param['tipo'] ?? null) == 'R') {
+            self::onGerarRecorrencias($param);
+            return;
+        }
+
+        self::onGerarParcelas($param);
+    }
+
+    public static function onGerarRecorrencias($param = null)
+    {
+        try
+        {
+            TTransaction::open(self::$database);
+
+            $id = (int) ($param['id'] ?? 0);
+
+            if (!empty($id)) {
+                if (self::existeLancamentoCancelado($id)) {
+                    TToast::show("error", "Lançamento cancelado, não é possível editar.", "topRight", "fas:info-circle");
+                    TTransaction::close();
+                    return;
+                }
+
+                if (self::contaEstaQuitada($id)) {
+                    throw new Exception('Conta quitada, não é possível editar.');
+                }
+            }
+
+            if (empty($param['valor']) || empty($param['data_vencimento']) || empty($param['tipo_pagamento'])) {
+                throw new Exception('Valor, data de vencimento e tipo de pagamento são obrigatórios para gerar recorrências.');
+            }
+
+            if (empty($param['total_parcelas']) || (int) $param['total_parcelas'] <= 0) {
+                throw new Exception('Informe o total de repetições.');
+            }
+
+            $totalRepeticoes = (int) $param['total_parcelas'];
+
+            $dataBase = DateTime::createFromFormat('d/m/Y', $param['data_vencimento']);
+
+            if (!$dataBase) {
+                $dataBase = DateTime::createFromFormat('Y-m-d', $param['data_vencimento']);
+            }
+
+            if (!$dataBase) {
+                throw new Exception('Data de vencimento inválida.');
+            }
+
+            $valorNumerico = self::valorBrParaFloat($param['valor']);
+            $valorFormatado = number_format($valorNumerico, 2, ',', '.');
+
+            $ids = [];
+            $parcelas = [];
+            $valores = [];
+            $vencimentos = [];
+            $tipos = [];
+            $dtPagamentos = [];
+
+            $quantidadeQuitada = 0;
+
+            if (!empty($id)) {
+                $lancamentos = Lancamento::where('conta_id', '=', $id)
+                    ->orderBy('parcela')
+                    ->load();
+
+                foreach ($lancamentos as $lancamento) {
+                    if ($lancamento->cancelado == 'S') {
+                        continue;
+                    }
+
+                    if (!empty($lancamento->dt_pagamento)) {
+                        $quantidadeQuitada++;
+
+                        $ids[] = $lancamento->id;
+                        $parcelas[] = $lancamento->parcela;
+                        $valores[] = number_format(self::valorBrParaFloat($lancamento->valor_total), 2, ',', '.');
+                        $vencimentos[] = self::dataParaTela($lancamento->dt_vencimento);
+                        $tipos[] = $lancamento->tipo_pagamento_id;
+                        $dtPagamentos[] = self::dataParaTela($lancamento->dt_pagamento);
+                    } else {
+                        $lancamento->delete();
+                    }
+                }
+            }
+
+            $repeticoesAbertas = $totalRepeticoes - $quantidadeQuitada;
+
+            if ($repeticoesAbertas <= 0) {
+                throw new Exception('Não é possível alterar recorrências já quitadas.');
+            }
+
+            $dataAtual = clone $dataBase;
+
+            if ($quantidadeQuitada > 0) {
+                $dataAtual->modify('+' . $quantidadeQuitada . ' month');
+            }
+
+            $proximaParcela = empty($parcelas) ? 1 : (max($parcelas) + 1);
+
+            for ($i = 1; $i <= $repeticoesAbertas; $i++) {
+                $ids[] = '';
+                $parcelas[] = $proximaParcela++;
+                $valores[] = $valorFormatado;
+                $vencimentos[] = $dataAtual->format('d/m/Y');
+                $tipos[] = $param['tipo_pagamento'];
+                $dtPagamentos[] = '';
+
+                $dataAtual->modify('+1 month');
+            }
+
+            if (!empty($id)) {
+                $totalItens = count($parcelas);
+
+                for ($i = 0; $i < $totalItens; $i++) {
+                    if (empty($vencimentos[$i]) || empty($valores[$i]) || empty($tipos[$i])) {
+                        continue;
+                    }
+
+                    if (!empty($ids[$i])) {
+                        $object = Lancamento::find($ids[$i]);
+
+                        if ($object && !empty($object->dt_pagamento)) {
+                            continue;
+                        }
+                    }
+
+                    $object = new Lancamento();
+                    $object->conta_id = $id;
+                    $object->parcela = $parcelas[$i];
+                    $object->dt_vencimento = self::dataParaBanco($vencimentos[$i]);
+                    $object->valor = self::valorBrParaFloat($valores[$i]);
+                    $object->valor_total = $object->valor;
+                    $object->tipo_pagamento_id = $tipos[$i];
+                    $object->store();
+
+                    $ids[$i] = $object->id;
+                }
+
+                $totaisConta = self::recalcularContaPelosLancamentos($id);
+                $totalTela = $totaisConta['total'];
+                $totalParcelasTela = $totaisConta['quantidade'];
+            } else {
+                $totalTela = 0;
+
+                foreach ($valores as $valor) {
+                    $totalTela += self::valorBrParaFloat($valor);
+                }
+
+                $totalParcelasTela = count($parcelas);
+            }
+
+            $data = new stdClass;
+            $data->tipo = 'R';
+
+            $data->valor = $param['valor'];
+            $data->tipo_pagamento = $param['tipo_pagamento'];
+            $data->data_vencimento = $param['data_vencimento'];
+            $data->dataVencPadrao = $dataBase->format('d/m/Y');
+
+            $data->lancamento_conta_id = $ids;
+            $data->lancamento_conta_parcela = $parcelas;
+            $data->lancamento_conta_valor_total = $valores;
+            $data->lancamento_conta_dt_vencimento = $vencimentos;
+            $data->lancamento_conta_tipo_pagamento_id = $tipos;
+            $data->lancamento_conta_dt_pagamento = $dtPagamentos;
+
+            $data->total_parcelas = $totalParcelasTela;
+            $data->total_conta = number_format($totalTela, 2, ',', '.');
+            $data->total_valor_parcelas = number_format($totalTela, 2, ',', '.');
+
+            TFieldList::clearRows('parcelas');
+
+            if (count($parcelas) > 1) {
+                TFieldList::addRows('parcelas', count($parcelas) - 1);
+            }
+
+            TForm::sendData(self::$formName, $data, false, false, 50 * count($parcelas));
+
+            TScript::create("
+                setTimeout(function() {
+                    $('[name=\"tipo\"][value=\"R\"]').prop('checked', true);
+
+                    if (typeof ajustarTelaTipoContaPagar === 'function') {
+                        ajustarTelaTipoContaPagar('R');
+                    }
+
+                    if (typeof ajustarEdicaoParcelasContaPagar === 'function') {
+                        ajustarEdicaoParcelasContaPagar();
+                    }
+
+                    if (typeof window.contaPagarAtualizarTotalRecorrenteTela === 'function') {
+                        window.contaPagarAtualizarTotalRecorrenteTela();
+                    }
+                }, " . ((50 * count($parcelas)) + 700) . ");
+            ");
+
+            TTransaction::close();
+        }
+        catch (Exception $e)
+        {
+            TTransaction::rollback();
+            new TMessage('error', $e->getMessage());
         }
     }
 

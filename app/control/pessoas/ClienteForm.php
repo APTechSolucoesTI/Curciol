@@ -50,6 +50,8 @@ class ClienteForm extends TPage
         $btnVerificarNome = new TButton('btnVerificarNome');
         $telefone = new TEntry('telefone');
         $email = new TEntry('email');
+        $usuario = new TEntry('usuario');
+        $senha = new TEntry('senha');
         $foto = new TImageCapture('foto');
         $dt_nascimento_abertura = new TDate('dt_nascimento_abertura');
         $cpf_cnpj = new TEntry('cpf_cnpj');
@@ -110,9 +112,6 @@ class ClienteForm extends TPage
         $classificacoes_cliente_id->setLayout('horizontal');
         $classificacoes_cliente_id->setUseButton();
         $classificacoes_cliente_id->setBreakItems(4);
-        $email->forceLowerCase();
-        $pessoa_contato_pessoa_email->forceLowerCase();
-
         $dt_falecimento->setDatabaseMask('yyyy-mm-dd');
         $dt_nascimento_abertura->setDatabaseMask('yyyy-mm-dd');
 
@@ -140,6 +139,10 @@ class ClienteForm extends TPage
         $nome->forceUpperCase();
         $pessoa_contato_pessoa_descricao->forceUpperCase();
         $pessoa_representantes_legais_pessoa_juridica_descricao->forceUpperCase();
+
+        $email->forceLowerCase();
+        $profissao->forceLowerCase();
+        $pessoa_contato_pessoa_email->forceLowerCase();
 
         $processos->setId('b65ce0c8b211e9');
         $tarefas_cliente->setId('b66bba646654e9');
@@ -203,9 +206,11 @@ class ClienteForm extends TPage
         $nit->setSize('100%');
         $ctps->setSize('100%');
         $email->setSize('100%');
+        $senha->setSize('100%');
         $rg_ie->setSize('100%');
         $orgao->setSize('100%');
         $foto->setSize(150, 150);
+        $usuario->setSize('100%');
         $sexo_id->setSize('100%');
         $unidade->setSize('100%');
         $telefone->setSize('100%');
@@ -319,29 +324,32 @@ class ClienteForm extends TPage
         $row3 = $bcontainer_654b89b1308c8->addFields([new TLabel("Telefone:", null, '12px', null, '100%'),$telefone],[new TLabel("Email:", null, '12px', null, '100%'),$email]);
         $row3->layout = [' col-sm-6',' col-sm-6'];
 
-        $row4 = $this->form->addFields([$bcontainer_654b89b1308c8],[$foto]);
-        $row4->layout = [' col-sm-8',' col-sm-4'];
+        $row4 = $bcontainer_654b89b1308c8->addFields([new TLabel("Usuário:", null, '14px', null),$usuario],[new TLabel("Senha:", null, '14px', null),$senha]);
+        $row4->layout = [' col-sm-6',' col-sm-6'];
 
-        $row5 = $this->form->addContent([new TFormSeparator("", '#333', '12', '#eee')]);
-        $row6 = $this->form->addFields([new TLabel("Data de nascimento:", '#000000', '12px', null, '100%'),$dt_nascimento_abertura],[new TLabel("CPF:", null, '12px', null, '100%'),$cpf_cnpj],[new TLabel("RG:", null, '12px', null, '100%'),$rg_ie],[new TLabel("Órgão emissor:", '#000000', '12px', null, '100%'),$orgao_emissor]);
-        $row6->layout = [' col-sm-3',' col-sm-3',' col-sm-3',' col-sm-3'];
+        $row5 = $this->form->addFields([$bcontainer_654b89b1308c8],[$foto]);
+        $row5->layout = [' col-sm-8',' col-sm-4'];
 
-        $row7 = $this->form->addFields([new TLabel("Data de falecimento:", '#000000', '12px', null, '100%'),$dt_falecimento],[new TLabel("Nacionalidade:", '#000000', '12px', null, '100%'),$nacionalidade_id],[new TLabel("Sexo:", '#000000', '12px', null, '100%'),$sexo_id],[new TLabel("Estado civil:", '#000000', '12px', null, '100%'),$estado_civil_id]);
-        $row7->layout = ['col-sm-3','col-sm-3',' col-sm-3',' col-sm-3'];
+        $row6 = $this->form->addContent([new TFormSeparator("", '#333', '12', '#eee')]);
+        $row7 = $this->form->addFields([new TLabel("Data de nascimento:", '#000000', '12px', null, '100%'),$dt_nascimento_abertura],[new TLabel("CPF:", null, '12px', null, '100%'),$cpf_cnpj],[new TLabel("RG:", null, '12px', null, '100%'),$rg_ie],[new TLabel("Órgão emissor:", '#000000', '12px', null, '100%'),$orgao_emissor]);
+        $row7->layout = [' col-sm-3',' col-sm-3',' col-sm-3',' col-sm-3'];
 
-        $row8 = $this->form->addContent([new TFormSeparator("", '#333', '12', '#eee')]);
-        $row9 = $this->form->addFields([new TLabel("Profissão:", '#000000', '12px', null, '100%'),$profissao],[new TLabel("NIT:", '#000000', '12px', null, '100%'),$nit],[new TLabel("CTPS:", '#000000', '12px', null, '100%'),$ctps]);
-        $row9->layout = [' col-sm-4',' col-sm-4',' col-sm-4'];
+        $row8 = $this->form->addFields([new TLabel("Data de falecimento:", '#000000', '12px', null, '100%'),$dt_falecimento],[new TLabel("Nacionalidade:", '#000000', '12px', null, '100%'),$nacionalidade_id],[new TLabel("Sexo:", '#000000', '12px', null, '100%'),$sexo_id],[new TLabel("Estado civil:", '#000000', '12px', null, '100%'),$estado_civil_id]);
+        $row8->layout = ['col-sm-3','col-sm-3',' col-sm-3',' col-sm-3'];
 
-        $row10 = $this->form->addFields([new TLabel("Situação:", '#000000', '12px', null, '100%'),$situacao_profissional_id],[new TLabel("Orgão:", '#000000', '12px', null, '100%'),$orgao],[new TLabel("Unidade:", '#000000', '12px', null, '100%'),$unidade]);
+        $row9 = $this->form->addContent([new TFormSeparator("", '#333', '12', '#eee')]);
+        $row10 = $this->form->addFields([new TLabel("Profissão:", '#000000', '12px', null, '100%'),$profissao],[new TLabel("NIT:", '#000000', '12px', null, '100%'),$nit],[new TLabel("CTPS:", '#000000', '12px', null, '100%'),$ctps]);
         $row10->layout = [' col-sm-4',' col-sm-4',' col-sm-4'];
 
-        $row11 = $this->form->addContent([new TFormSeparator("", '#333', '12', '#eee')]);
-        $row12 = $this->form->addFields([new TLabel("Selecione as classificações do cliente:", null, '12px', null, '100%'),$classificacoes_cliente_id]);
-        $row12->layout = [' col-sm-12'];
+        $row11 = $this->form->addFields([new TLabel("Situação:", '#000000', '12px', null, '100%'),$situacao_profissional_id],[new TLabel("Orgão:", '#000000', '12px', null, '100%'),$orgao],[new TLabel("Unidade:", '#000000', '12px', null, '100%'),$unidade]);
+        $row11->layout = [' col-sm-4',' col-sm-4',' col-sm-4'];
 
-        $row13 = $this->form->addFields([new TLabel("Observação:", null, '12px', null, '100%'),$observacao]);
+        $row12 = $this->form->addContent([new TFormSeparator("", '#333', '12', '#eee')]);
+        $row13 = $this->form->addFields([new TLabel("Selecione as classificações do cliente:", null, '12px', null, '100%'),$classificacoes_cliente_id]);
         $row13->layout = [' col-sm-12'];
+
+        $row14 = $this->form->addFields([new TLabel("Observação:", null, '12px', null, '100%'),$observacao]);
+        $row14->layout = [' col-sm-12'];
 
         $this->form->appendPage("Endereços");
 
@@ -350,19 +358,19 @@ class ClienteForm extends TPage
 
         $this->detailFormPessoaEnderecoPessoa->setProperty('class', 'form-horizontal builder-detail-form');
 
-        $row14 = $this->detailFormPessoaEnderecoPessoa->addFields([new TLabel("CEP:", '#ff0000', '12px', null, '100%'),$pessoa_endereco_pessoa_cep,$button_buscar_pessoa_endereco_pessoa],[new TLabel("Cidade:", '#ff0000', '12px', null, '100%'),$pessoa_endereco_pessoa_cidade_id,$pessoa_endereco_pessoa_id]);
-        $row14->layout = [' col-sm-4',' col-sm-8'];
-
-        $row15 = $this->detailFormPessoaEnderecoPessoa->addFields([new TLabel("Bairro:", '#ff0000', '12px', null, '100%'),$pessoa_endereco_pessoa_bairro],[new TLabel("Rua:", '#ff0000', '12px', null, '100%'),$pessoa_endereco_pessoa_rua]);
+        $row15 = $this->detailFormPessoaEnderecoPessoa->addFields([new TLabel("CEP:", '#ff0000', '12px', null, '100%'),$pessoa_endereco_pessoa_cep,$button_buscar_pessoa_endereco_pessoa],[new TLabel("Cidade:", '#ff0000', '12px', null, '100%'),$pessoa_endereco_pessoa_cidade_id,$pessoa_endereco_pessoa_id]);
         $row15->layout = [' col-sm-4',' col-sm-8'];
 
-        $row16 = $this->detailFormPessoaEnderecoPessoa->addFields([new TLabel("Número:", '#ff0000', '12px', null, '100%'),$pessoa_endereco_pessoa_numero],[new TLabel("Complemento:", null, '12px', null, '100%'),$pessoa_endereco_pessoa_complemento],[new TLabel("Principal:", null, '12px', null, '100%'),$pessoa_endereco_pessoa_principal]);
-        $row16->layout = ['col-sm-4',' col-sm-5',' col-sm-3'];
+        $row16 = $this->detailFormPessoaEnderecoPessoa->addFields([new TLabel("Bairro:", '#ff0000', '12px', null, '100%'),$pessoa_endereco_pessoa_bairro],[new TLabel("Rua:", '#ff0000', '12px', null, '100%'),$pessoa_endereco_pessoa_rua]);
+        $row16->layout = [' col-sm-4',' col-sm-8'];
 
-        $row17 = $this->detailFormPessoaEnderecoPessoa->addFields([$button_adicionar_pessoa_endereco_pessoa]);
-        $row17->layout = [' col-sm-12'];
+        $row17 = $this->detailFormPessoaEnderecoPessoa->addFields([new TLabel("Número:", '#ff0000', '12px', null, '100%'),$pessoa_endereco_pessoa_numero],[new TLabel("Complemento:", null, '12px', null, '100%'),$pessoa_endereco_pessoa_complemento],[new TLabel("Principal:", null, '12px', null, '100%'),$pessoa_endereco_pessoa_principal]);
+        $row17->layout = ['col-sm-4',' col-sm-5',' col-sm-3'];
 
-        $row18 = $this->detailFormPessoaEnderecoPessoa->addFields([new THidden('pessoa_endereco_pessoa__row__id')]);
+        $row18 = $this->detailFormPessoaEnderecoPessoa->addFields([$button_adicionar_pessoa_endereco_pessoa]);
+        $row18->layout = [' col-sm-12'];
+
+        $row19 = $this->detailFormPessoaEnderecoPessoa->addFields([new THidden('pessoa_endereco_pessoa__row__id')]);
         $this->pessoa_endereco_pessoa_criteria = new TCriteria();
 
         $this->pessoa_endereco_pessoa_list = new BootstrapDatagridWrapper(new TDataGrid);
@@ -434,8 +442,8 @@ class ClienteForm extends TPage
 
             return $value;
 
-        });        $row19 = $this->form->addFields([$this->detailFormPessoaEnderecoPessoa]);
-        $row19->layout = [' col-sm-12'];
+        });        $row20 = $this->form->addFields([$this->detailFormPessoaEnderecoPessoa]);
+        $row20->layout = [' col-sm-12'];
 
         $this->form->appendPage("Contatos");
 
@@ -444,16 +452,16 @@ class ClienteForm extends TPage
 
         $this->detailFormPessoaContatoPessoa->setProperty('class', 'form-horizontal builder-detail-form');
 
-        $row20 = $this->detailFormPessoaContatoPessoa->addFields([new TLabel("Descrição:", '#ff0000', '12px', null, '100%'),$pessoa_contato_pessoa_descricao,$pessoa_contato_pessoa_id]);
-        $row20->layout = [' col-sm-12'];
+        $row21 = $this->detailFormPessoaContatoPessoa->addFields([new TLabel("Descrição:", '#ff0000', '12px', null, '100%'),$pessoa_contato_pessoa_descricao,$pessoa_contato_pessoa_id]);
+        $row21->layout = [' col-sm-12'];
 
-        $row21 = $this->detailFormPessoaContatoPessoa->addFields([new TLabel("Telefone:", null, '12px', null, '100%'),$pessoa_contato_pessoa_telefone],[new TLabel("Email:", null, '12px', null, '100%'),$pessoa_contato_pessoa_email]);
-        $row21->layout = ['col-sm-6','col-sm-6'];
+        $row22 = $this->detailFormPessoaContatoPessoa->addFields([new TLabel("Telefone:", null, '12px', null, '100%'),$pessoa_contato_pessoa_telefone],[new TLabel("Email:", null, '12px', null, '100%'),$pessoa_contato_pessoa_email]);
+        $row22->layout = ['col-sm-6','col-sm-6'];
 
-        $row22 = $this->detailFormPessoaContatoPessoa->addFields([$button_adicionar_pessoa_contato_pessoa]);
-        $row22->layout = [' col-sm-12'];
+        $row23 = $this->detailFormPessoaContatoPessoa->addFields([$button_adicionar_pessoa_contato_pessoa]);
+        $row23->layout = [' col-sm-12'];
 
-        $row23 = $this->detailFormPessoaContatoPessoa->addFields([new THidden('pessoa_contato_pessoa__row__id')]);
+        $row24 = $this->detailFormPessoaContatoPessoa->addFields([new THidden('pessoa_contato_pessoa__row__id')]);
         $this->pessoa_contato_pessoa_criteria = new TCriteria();
 
         $this->pessoa_contato_pessoa_list = new BootstrapDatagridWrapper(new TDataGrid);
@@ -498,8 +506,8 @@ class ClienteForm extends TPage
         $tableResponsiveDiv->class = 'table-responsive';
         $tableResponsiveDiv->add($this->pessoa_contato_pessoa_list);
         $this->detailFormPessoaContatoPessoa->addContent([$tableResponsiveDiv]);
-        $row24 = $this->form->addFields([$this->detailFormPessoaContatoPessoa]);
-        $row24->layout = [' col-sm-12'];
+        $row25 = $this->form->addFields([$this->detailFormPessoaContatoPessoa]);
+        $row25->layout = [' col-sm-12'];
 
         $this->form->appendPage("Representantes legais");
 
@@ -508,13 +516,13 @@ class ClienteForm extends TPage
 
         $this->detailFormPessoaRepresentantesLegaisPessoaJuridica->setProperty('class', 'form-horizontal builder-detail-form');
 
-        $row25 = $this->detailFormPessoaRepresentantesLegaisPessoaJuridica->addFields([new TLabel("Descrição:", '#ff0000', '12px', null, '100%'),$pessoa_representantes_legais_pessoa_juridica_descricao,$pessoa_representantes_legais_pessoa_juridica_id],[new TLabel("Representante:", '#FF0000', '12px', null, '100%'),$pessoa_representantes_legais_pessoa_juridica_representante_id,$button_novo_pessoa_representantes_legais_pessoa_juridica],[new TLabel("Principal:", null, '14px', null, '100%'),$pessoa_representantes_legais_pessoa_juridica_principal]);
-        $row25->layout = [' col-sm-4',' col-sm-6','col-sm-2'];
+        $row26 = $this->detailFormPessoaRepresentantesLegaisPessoaJuridica->addFields([new TLabel("Descrição:", '#ff0000', '12px', null, '100%'),$pessoa_representantes_legais_pessoa_juridica_descricao,$pessoa_representantes_legais_pessoa_juridica_id],[new TLabel("Representante:", '#FF0000', '12px', null, '100%'),$pessoa_representantes_legais_pessoa_juridica_representante_id,$button_novo_pessoa_representantes_legais_pessoa_juridica],[new TLabel("Principal:", null, '14px', null, '100%'),$pessoa_representantes_legais_pessoa_juridica_principal]);
+        $row26->layout = [' col-sm-4',' col-sm-6','col-sm-2'];
 
-        $row26 = $this->detailFormPessoaRepresentantesLegaisPessoaJuridica->addFields([$btnRepresentanteAdicionar_pessoa_representantes_legais_pessoa_juridica]);
-        $row26->layout = [' col-sm-12'];
+        $row27 = $this->detailFormPessoaRepresentantesLegaisPessoaJuridica->addFields([$btnRepresentanteAdicionar_pessoa_representantes_legais_pessoa_juridica]);
+        $row27->layout = [' col-sm-12'];
 
-        $row27 = $this->detailFormPessoaRepresentantesLegaisPessoaJuridica->addFields([new THidden('pessoa_representantes_legais_pessoa_juridica__row__id')]);
+        $row28 = $this->detailFormPessoaRepresentantesLegaisPessoaJuridica->addFields([new THidden('pessoa_representantes_legais_pessoa_juridica__row__id')]);
         $this->pessoa_representantes_legais_pessoa_juridica_criteria = new TCriteria();
 
         $this->pessoa_representantes_legais_pessoa_juridica_list = new BootstrapDatagridWrapper(new TDataGrid);
@@ -526,7 +534,7 @@ class ClienteForm extends TPage
 
         $column_pessoa_representantes_legais_pessoa_juridica_descricao = new TDataGridColumn('descricao', "Descrição", 'left');
         $column_pessoa_representantes_legais_pessoa_juridica_representante_nome = new TDataGridColumn('representante->nome', "Representante legal", 'left');
-        $column_pessoa_representantes_legais_pessoa_juridica_created_at_transformed = new TDataGridColumn('created_at', "Principal", 'left');
+        $column_pessoa_representantes_legais_pessoa_juridica_principal_transformed = new TDataGridColumn('principal', "Principal", 'left');
 
         $column_pessoa_representantes_legais_pessoa_juridica__row__data = new TDataGridColumn('__row__data', '', 'center');
         $column_pessoa_representantes_legais_pessoa_juridica__row__data->setVisibility(false);
@@ -550,7 +558,7 @@ class ClienteForm extends TPage
 
         $this->pessoa_representantes_legais_pessoa_juridica_list->addColumn($column_pessoa_representantes_legais_pessoa_juridica_descricao);
         $this->pessoa_representantes_legais_pessoa_juridica_list->addColumn($column_pessoa_representantes_legais_pessoa_juridica_representante_nome);
-        $this->pessoa_representantes_legais_pessoa_juridica_list->addColumn($column_pessoa_representantes_legais_pessoa_juridica_created_at_transformed);
+        $this->pessoa_representantes_legais_pessoa_juridica_list->addColumn($column_pessoa_representantes_legais_pessoa_juridica_principal_transformed);
 
         $this->pessoa_representantes_legais_pessoa_juridica_list->addColumn($column_pessoa_representantes_legais_pessoa_juridica__row__data);
 
@@ -560,7 +568,7 @@ class ClienteForm extends TPage
         $tableResponsiveDiv->add($this->pessoa_representantes_legais_pessoa_juridica_list);
         $this->detailFormPessoaRepresentantesLegaisPessoaJuridica->addContent([$tableResponsiveDiv]);
 
-        $column_pessoa_representantes_legais_pessoa_juridica_created_at_transformed->setTransformer(function($value, $object, $row, $cell = null, $last_row = null)
+        $column_pessoa_representantes_legais_pessoa_juridica_principal_transformed->setTransformer(function($value, $object, $row, $cell = null, $last_row = null)
         {
             if($value === true || $value == 't' || $value === 1 || $value == '1' || $value == 's' || $value == 'S' || $value == 'T')
             {
@@ -573,24 +581,24 @@ class ClienteForm extends TPage
 
             return $value;
 
-        });        $row28 = $this->form->addFields([$this->detailFormPessoaRepresentantesLegaisPessoaJuridica]);
-        $row28->layout = [' col-sm-12'];
-
-        $this->form->appendPage("Contratos");
-        $row29 = $this->form->addFields([$contrato_cliente_list]);
+        });        $row29 = $this->form->addFields([$this->detailFormPessoaRepresentantesLegaisPessoaJuridica]);
         $row29->layout = [' col-sm-12'];
 
-        $this->form->appendPage("Atendimentos");
-        $row30 = $this->form->addFields([$atendimento_historico]);
+        $this->form->appendPage("Contratos");
+        $row30 = $this->form->addFields([$contrato_cliente_list]);
         $row30->layout = [' col-sm-12'];
 
-        $this->form->appendPage("Processos");
-        $row31 = $this->form->addFields([$processos]);
+        $this->form->appendPage("Atendimentos");
+        $row31 = $this->form->addFields([$atendimento_historico]);
         $row31->layout = [' col-sm-12'];
 
-        $this->form->appendPage("Tarefas");
-        $row32 = $this->form->addFields([$tarefas_cliente]);
+        $this->form->appendPage("Processos");
+        $row32 = $this->form->addFields([$processos]);
         $row32->layout = [' col-sm-12'];
+
+        $this->form->appendPage("Tarefas");
+        $row33 = $this->form->addFields([$tarefas_cliente]);
+        $row33->layout = [' col-sm-12'];
 
         // create the form actions
         $btnSave = $this->form->addAction("Salvar", new TAction([$this, 'onSave'],['static' => 1]), 'fas:save #ffffff');

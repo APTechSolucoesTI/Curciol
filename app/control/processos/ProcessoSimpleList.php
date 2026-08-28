@@ -21,7 +21,7 @@ class ProcessoSimpleList extends TPage
             $this->adianti_target_container = $param['target_container'];
         }
 
-        $this->limit = 0;
+        $this->limit = 100;
 
         // creates a Datagrid
         $this->datagrid = new TDataGrid;
@@ -61,6 +61,11 @@ class ProcessoSimpleList extends TPage
         // create the datagrid model
         $this->datagrid->createModel();
 
+        // creates the page navigation
+        $this->pageNavigation = new TPageNavigation;
+        $this->pageNavigation->setAction(new TAction(array($this, 'onReload')));
+        $this->pageNavigation->setWidth($this->datagrid->getWidth());
+
         $panel = new TPanelGroup();
         $panel->datagrid = 'datagrid-container';
         $this->datagridPanel = $panel;
@@ -68,6 +73,8 @@ class ProcessoSimpleList extends TPage
         $panel->add($this->datagrid_form);
 
         $panel->getBody()->class .= ' table-responsive';
+
+        $panel->addFooter($this->pageNavigation);
 
         $headerActions = new TElement('div');
         $headerActions->class = ' datagrid-header-actions ';
@@ -98,7 +105,7 @@ class ProcessoSimpleList extends TPage
         $container->style = 'width: 100%';
         if(empty($param['target_container']))
         {
-            $container->add(TBreadCrumb::create(["Processos","Exibir processo por cliente"]));
+            $container->add(TBreadCrumb::create(["Processos","Exibir processo"]));
         }
 
         $container->add($panel);
@@ -184,9 +191,16 @@ class ProcessoSimpleList extends TPage
                 }
             }
 
-            $cliente_id = $param['key'];
+            if (!empty($param['key'])) {                
+                $cliente_id = $param['key'];
 
-            $criteria->add(new TFilter('id', 'in', "(SELECT processo_id FROM contrato_processo WHERE contrato_id in (SELECT contrato_id FROM contrato_pessoa WHERE cliente_id = $cliente_id))"));
+                $criteria->add(new TFilter('id', 'in', "(SELECT processo_id FROM contrato_processo WHERE contrato_id in (SELECT contrato_id FROM contrato_pessoa WHERE cliente_id = $cliente_id))"));
+            }
+            if (!empty($param['chave'])) {                
+                $contra_id = $param['chave'];
+
+                $criteria->add(new TFilter('id', 'in', "(SELECT processo_id FROM contraparte WHERE pessoa_id in (SELECT id FROM pessoa WHERE id = $contra_id))"));
+            }
 
             if($filters = TSession::getValue(__CLASS__.'_filters'))
             {
@@ -215,6 +229,10 @@ class ProcessoSimpleList extends TPage
             // reset the criteria for record count
             $criteria->resetProperties();
             $count= $repository->count($criteria);
+
+            $this->pageNavigation->setCount($count); // count of records
+            $this->pageNavigation->setProperties($param); // order, page
+            $this->pageNavigation->setLimit($this->limit); // limit
 
             // close the transaction
             TTransaction::close();

@@ -1,8 +1,25 @@
 <?xml version="1.0" encoding="utf-8"?>
 <menu>
+  <menuitem label="Básico">
+    <icon> fa-fw </icon>
+    <menu>
+      <menuitem label="Processos">
+        <icon>far:circle fa-fw </icon>
+        <action>ProcessosFormViewInterno#method=onShow</action>
+      </menuitem>
+      <menuitem label="Meus processos">
+        <icon>far:circle fa-fw </icon>
+        <action>ProcessoViewHeaderList#method=onShow</action>
+      </menuitem>
+    </menu>
+  </menuitem>
   <menuitem label="Processos">
     <icon>fas:gavel fa-fw </icon>
     <menu>
+      <menuitem label="ProcessoPublicacoesTimeLine">
+        <icon>far:circle fa-fw </icon>
+        <action>ProcessoPublicacoesTimeLine#method=onShow</action>
+      </menuitem>
       <menuitem label="Publicações">
         <icon>fas:plug fa-fw </icon>
         <menu>

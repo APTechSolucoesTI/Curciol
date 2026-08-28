@@ -46,9 +46,9 @@ class ExtratoEntradaForm extends TPage
 
         $entrada_valor->addValidation("Valor", new TRequiredValidator()); 
 
+        $escritorio_id->setValue('1');
         $entrada_valor->setAllowNegative(false);
         $historico->setMaxLength(3000);
-        $historico->setValue('Entrada manual.');
         $historico->forceUpperCase();
         $compensado->setUseSwitch(true, 'blue');
         $compensado->setIndexValue("S");

@@ -34,43 +34,64 @@ class PessoaList extends TPage
         $this->form->setFormTitle("Listagem de pessoas");
         $this->limit = 20;
 
-        $criteria_tipo_pessoa_id = new TCriteria();
+        $criteria_tipo_pessoa_nome = new TCriteria();
 
         $nome = new TEntry('nome');
-        $tipo_pessoa_id = new TDBCombo('tipo_pessoa_id', 'escritorio', 'TipoPessoa', 'id', '{nome}','nome asc' , $criteria_tipo_pessoa_id );
+        $search_cadastro = new TCombo('search_cadastro');
         $cpf_cnpj = new TEntry('cpf_cnpj');
-        $email = new TEntry('email');
         $telefone = new TEntry('telefone');
+        $email = new TEntry('email');
         $nome_col = new TEntry('nome_col');
         $cpf_cnpj_col = new TEntry('cpf_cnpj_col');
+        $telefone_col = new TEntry('telefone_col');
+        $email_col = new TEntry('email_col');
+        $tipo_pessoa_nome = new TDBCombo('tipo_pessoa_nome', 'escritorio', 'TipoPessoa', 'id', '{nome}','nome asc' , $criteria_tipo_pessoa_nome );
+        $select_cadastro = new TCombo('select_cadastro');
 
         $nome_col->exitOnEnter();
         $cpf_cnpj_col->exitOnEnter();
+        $telefone_col->exitOnEnter();
+        $email_col->exitOnEnter();
 
         $nome_col->setExitAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
         $cpf_cnpj_col->setExitAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
+        $telefone_col->setExitAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
+        $email_col->setExitAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
 
-        $tipo_pessoa_id->setValue(TipoPessoa::FISICA);
-        $tipo_pessoa_id->enableSearch();
+        $tipo_pessoa_nome->setChangeAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
+        $select_cadastro->setChangeAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
+
         $cpf_cnpj->setMaxLength(18);
         $email->forceLowerCase();
+        $search_cadastro->addItems(["1"=>"Profissional","2"=>"Cliente","3"=>"Fornecedor","4"=>"Representante Legal","5"=>"Parte Contraria"]);
+        $select_cadastro->addItems(["1"=>"Profissional","2"=>"Cliente","3"=>"Fornecedor","4"=>"Representante Legal","5"=>"Parte Contraria"]);
+
+        $search_cadastro->enableSearch();
+        $select_cadastro->enableSearch();
+        $tipo_pessoa_nome->enableSearch();
+
         $nome->forceUpperCase();
         $nome_col->forceUpperCase();
         $cpf_cnpj_col->forceUpperCase();
+        $telefone_col->forceUpperCase();
 
         $nome->setSize('100%');
         $email->setSize('100%');
         $cpf_cnpj->setSize('100%');
         $telefone->setSize('100%');
         $nome_col->setSize('100%');
+        $email_col->setSize('100%');
         $cpf_cnpj_col->setSize('100%');
-        $tipo_pessoa_id->setSize('100%');
+        $telefone_col->setSize('100%');
+        $search_cadastro->setSize('100%');
+        $select_cadastro->setSize('100%');
+        $tipo_pessoa_nome->setSize('100%');
 
-        $row1 = $this->form->addFields([new TLabel("Nome:", null, '14px', null, '100%'),$nome],[new TLabel("Tipo de pessoa:", null, '14px', null),$tipo_pessoa_id]);
+        $row1 = $this->form->addFields([new TLabel("Nome:", null, '14px', null, '100%'),$nome],[new TLabel("Tipo de Cadastro:", null, '14px', null),$search_cadastro]);
         $row1->layout = [' col-sm-7',' col-sm-5'];
 
-        $row2 = $this->form->addFields([new TLabel("Documento (CPF ou CNPJ):", null, '14px', null),$cpf_cnpj],[new TLabel("Email:", null, '14px', null),$email],[new TLabel("Telefone:", null, '14px', null, '100%'),$telefone]);
-        $row2->layout = [' col-sm-4',' col-sm-4',' col-sm-4'];
+        $row2 = $this->form->addFields([new TLabel("Documento (CPF ou CNPJ):", null, '14px', null),$cpf_cnpj],[new TLabel("Telefone:", null, '14px', null, '100%'),$telefone],[new TLabel("Email:", null, '14px', null),$email]);
+        $row2->layout = ['col-sm-4','col-sm-4','col-sm-4'];
 
         // keep the form filled during navigation with session data
         $this->form->setData( TSession::getValue(__CLASS__.'_filter_data') );
@@ -95,6 +116,10 @@ class PessoaList extends TPage
         $column_id = new TDataGridColumn('id', "Código", 'center' , '70px');
         $column_nome = new TDataGridColumn('nome', "Nome", 'left');
         $column_cpf_cnpj_transformed = new TDataGridColumn('cpf_cnpj', "CPF ou CNPJ", 'left');
+        $column_telefone_transformed = new TDataGridColumn('telefone', "Telefone", 'left');
+        $column_email = new TDataGridColumn('email', "Email", 'left');
+        $column_tipo_pessoa_nome = new TDataGridColumn('tipo_pessoa->nome', "Tipo de pessoa", 'left');
+        $column__transformed = new TDataGridColumn('', "Cadastros", 'left');
 
         $column_cpf_cnpj_transformed->setTransformer(function($value, $object, $row, $cell = null, $last_row = null)
         {
@@ -104,6 +129,65 @@ class PessoaList extends TPage
 
             return preg_replace("/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/", "\$1.\$2.\$3/\$4-\$5", $value);
 
+        });
+
+        $column_telefone_transformed->setTransformer(function($value, $object, $row, $cell = null, $last_row = null)
+        {
+            if($value!=NULL && $value!="" && isset($value) && !empty($value)){
+                $number="(".substr($value,0,2).") ".substr($value,2,-4)."-".substr($value,-4);
+                // primeiro substr pega apenas o DDD e coloca dentro do (), segundo subtr pega os números do 3º até faltar 4, insere o hifem, e o ultimo pega apenas o 4 ultimos digitos
+
+                return $number;
+            }
+        });
+
+        $column__transformed->setTransformer(function($value, $object, $row, $cell = null, $last_row = null)
+        {
+            if(!empty($object->id)) {
+                $cadastros = [];
+                TTransaction::open('escritorio');
+
+                $pessoa_grupo = PessoaGrupo::where('pessoa_id', '=', $object->id)->load();
+
+                if(!empty($pessoa_grupo)){
+                    foreach ($pessoa_grupo as $pg){
+                        $grupo = Grupo::where('id', '=', $pg->grupo_id)->first();
+                        if(!empty($grupo)){
+
+                            $forms = [
+                                1 => 'ProfissionalForm',
+                                2 => 'ClienteForm',
+                                3 => 'FornecedorForm',
+                                4 => 'RepresentanteLegalForm',
+                                5 => 'ContraparteForm',
+                            ];
+
+                            if (isset($forms[$grupo->id])) {
+                                $action = new TAction([$forms[$grupo->id], 'onEdit']);
+                                $action->setParameter('key', $object->id);
+
+                                $url = $action->serialize();
+
+                                //$cadastros[] = "<a href=\"{$url}\" style=\"cursor:pointer;\">{$grupo->nome}</a>";
+
+                                $cadastros[] = "<a href=\"javascript:void(0);\" 
+                                    onclick=\"__adianti_load_page('{$url}');\" 
+                                    style=\"cursor:pointer; color:#478fca; text-decoration:none;\">
+                                    {$grupo->nome}
+                                </a>";
+
+                            } else {
+                                $cadastros[] = $grupo->nome;
+                            }
+                        }
+                    }
+                }
+                TTransaction::close();
+                return implode(", ", $cadastros);
+            }
+            else {
+                return '';
+            }
         });        
 
         $order_id = new TAction(array($this, 'onReload'));
@@ -115,19 +199,20 @@ class PessoaList extends TPage
         $order_cpf_cnpj_transformed = new TAction(array($this, 'onReload'));
         $order_cpf_cnpj_transformed->setParameter('order', 'cpf_cnpj');
         $column_cpf_cnpj_transformed->setAction($order_cpf_cnpj_transformed);
+        $order_telefone_transformed = new TAction(array($this, 'onReload'));
+        $order_telefone_transformed->setParameter('order', 'telefone');
+        $column_telefone_transformed->setAction($order_telefone_transformed);
+        $order_email = new TAction(array($this, 'onReload'));
+        $order_email->setParameter('order', 'email');
+        $column_email->setAction($order_email);
 
         $this->datagrid->addColumn($column_id);
         $this->datagrid->addColumn($column_nome);
         $this->datagrid->addColumn($column_cpf_cnpj_transformed);
-
-        $action_onEdit = new TDataGridAction(array('ClienteForm', 'onEdit'));
-        $action_onEdit->setUseButton(false);
-        $action_onEdit->setButtonClass('btn btn-default btn-sm');
-        $action_onEdit->setLabel("Editar");
-        $action_onEdit->setImage('far:edit #478fca');
-        $action_onEdit->setField(self::$primaryKey);
-
-        $this->datagrid->addAction($action_onEdit);
+        $this->datagrid->addColumn($column_telefone_transformed);
+        $this->datagrid->addColumn($column_email);
+        $this->datagrid->addColumn($column_tipo_pessoa_nome);
+        $this->datagrid->addColumn($column__transformed);
 
         // create the datagrid model
         $this->datagrid->createModel();
@@ -136,19 +221,27 @@ class PessoaList extends TPage
         $tr->id = 'datagrid-header-filter-row';
         $this->datagrid->prependRow($tr);
 
-        if(!$action_onEdit->isHidden())
-        {
-            $tr->add(TElement::tag('td', ''));
-        }
         $td_empty = TElement::tag('td', "");
         $tr->add($td_empty);
         $td_nome_col = TElement::tag('td', $nome_col);
         $tr->add($td_nome_col);
         $td_cpf_cnpj_col = TElement::tag('td', $cpf_cnpj_col);
         $tr->add($td_cpf_cnpj_col);
+        $td_telefone_col = TElement::tag('td', $telefone_col);
+        $tr->add($td_telefone_col);
+        $td_email_col = TElement::tag('td', $email_col);
+        $tr->add($td_email_col);
+        $td_tipo_pessoa_nome = TElement::tag('td', $tipo_pessoa_nome);
+        $tr->add($td_tipo_pessoa_nome);
+        $td_select_cadastro = TElement::tag('td', $select_cadastro);
+        $tr->add($td_select_cadastro);
 
         $this->datagrid_form->addField($nome_col);
         $this->datagrid_form->addField($cpf_cnpj_col);
+        $this->datagrid_form->addField($telefone_col);
+        $this->datagrid_form->addField($email_col);
+        $this->datagrid_form->addField($tipo_pessoa_nome);
+        $this->datagrid_form->addField($select_cadastro);
 
         $this->datagrid_form->setData( TSession::getValue(__CLASS__.'_filter_data') );
 
@@ -158,7 +251,7 @@ class PessoaList extends TPage
         $this->pageNavigation->setAction(new TAction(array($this, 'onReload')));
         $this->pageNavigation->setWidth($this->datagrid->getWidth());
 
-        $panel = new TPanelGroup("Listagem de pessoas");
+        $panel = new TPanelGroup("Listagem de Pessoas");
         $panel->datagrid = 'datagrid-container';
         $this->datagridPanel = $panel;
 
@@ -182,13 +275,6 @@ class PessoaList extends TPage
         $headerActions->add($head_right_actions);
 
         $this->datagrid_form->add($headerActions);
-
-        $button_cadastrar = new TButton('button_button_cadastrar');
-        $button_cadastrar->setAction(new TAction(['ClienteForm', 'onShow']), "Cadastrar");
-        $button_cadastrar->addStyleClass('btn-default');
-        $button_cadastrar->setImage('fas:plus #69aa46');
-
-        $this->datagrid_form->addField($button_cadastrar);
 
         $button_filtros = new TButton('button_button_filtros');
         $button_filtros->setAction(new TAction(['PessoaList', 'onShowCurtainFilters']), "Filtros");
@@ -218,7 +304,6 @@ class PessoaList extends TPage
         $dropdown_button_exportar->addPostAction( "PDF", new TAction(['PessoaList', 'onExportPdf'],['static' => 1]), 'datagrid_'.self::$formName, 'far:file-pdf #e74c3c' );
         $dropdown_button_exportar->addPostAction( "XLS", new TAction(['PessoaList', 'onExportXls']), 'datagrid_'.self::$formName, 'fas:file-excel #4CAF50' );
 
-        $head_left_actions->add($button_cadastrar);
         $head_left_actions->add($button_filtros);
         $head_left_actions->add($button_atualizar);
         $head_left_actions->add($button_limpar_filtros);
@@ -528,10 +613,10 @@ class PessoaList extends TPage
             $filters[] = new TFilter('nome', 'like', "%{$data->nome}%");// create the filter 
         }
 
-        if (isset($data->tipo_pessoa_id) AND ( (is_scalar($data->tipo_pessoa_id) AND $data->tipo_pessoa_id !== '') OR (is_array($data->tipo_pessoa_id) AND (!empty($data->tipo_pessoa_id)) )) )
+        if (isset($data->search_cadastro) AND ( (is_scalar($data->search_cadastro) AND $data->search_cadastro !== '') OR (is_array($data->search_cadastro) AND (!empty($data->search_cadastro)) )) )
         {
 
-            $filters[] = new TFilter('tipo_pessoa_id', '=', $data->tipo_pessoa_id);// create the filter 
+            $filters[] = new TFilter('id', 'in', "(SELECT pessoa_id FROM pessoa_grupo WHERE grupo_id = '{$data->search_cadastro}')");// create the filter 
         }
 
         if (isset($data->cpf_cnpj) AND ( (is_scalar($data->cpf_cnpj) AND $data->cpf_cnpj !== '') OR (is_array($data->cpf_cnpj) AND (!empty($data->cpf_cnpj)) )) )
@@ -540,16 +625,16 @@ class PessoaList extends TPage
             $filters[] = new TFilter('cpf_cnpj', 'like', "%{$data->cpf_cnpj}%");// create the filter 
         }
 
-        if (isset($data->email) AND ( (is_scalar($data->email) AND $data->email !== '') OR (is_array($data->email) AND (!empty($data->email)) )) )
-        {
-
-            $filters[] = new TFilter('email', 'like', "%{$data->email}%");// create the filter 
-        }
-
         if (isset($data->telefone) AND ( (is_scalar($data->telefone) AND $data->telefone !== '') OR (is_array($data->telefone) AND (!empty($data->telefone)) )) )
         {
 
             $filters[] = new TFilter('telefone', 'like', "%{$data->telefone}%");// create the filter 
+        }
+
+        if (isset($data->email) AND ( (is_scalar($data->email) AND $data->email !== '') OR (is_array($data->email) AND (!empty($data->email)) )) )
+        {
+
+            $filters[] = new TFilter('email', 'like', "%{$data->email}%");// create the filter 
         }
 
         if (isset($data->nome_col) AND ( (is_scalar($data->nome_col) AND $data->nome_col !== '') OR (is_array($data->nome_col) AND (!empty($data->nome_col)) )) )
@@ -562,6 +647,30 @@ class PessoaList extends TPage
         {
 
             $filters[] = new TFilter('cpf_cnpj', 'like', "%{$data->cpf_cnpj_col}%");// create the filter 
+        }
+
+        if (isset($data->telefone_col) AND ( (is_scalar($data->telefone_col) AND $data->telefone_col !== '') OR (is_array($data->telefone_col) AND (!empty($data->telefone_col)) )) )
+        {
+
+            $filters[] = new TFilter('telefone', 'like', "%{$data->telefone_col}%");// create the filter 
+        }
+
+        if (isset($data->email_col) AND ( (is_scalar($data->email_col) AND $data->email_col !== '') OR (is_array($data->email_col) AND (!empty($data->email_col)) )) )
+        {
+
+            $filters[] = new TFilter('email', 'like', "%{$data->email_col}%");// create the filter 
+        }
+
+        if (isset($data->tipo_pessoa_nome) AND ( (is_scalar($data->tipo_pessoa_nome) AND $data->tipo_pessoa_nome !== '') OR (is_array($data->tipo_pessoa_nome) AND (!empty($data->tipo_pessoa_nome)) )) )
+        {
+
+            $filters[] = new TFilter('tipo_pessoa_id', '=', $data->tipo_pessoa_nome);// create the filter 
+        }
+
+        if (isset($data->select_cadastro) AND ( (is_scalar($data->select_cadastro) AND $data->select_cadastro !== '') OR (is_array($data->select_cadastro) AND (!empty($data->select_cadastro)) )) )
+        {
+
+            $filters[] = new TFilter('id', 'in', "(SELECT pessoa_id FROM pessoa_grupo WHERE grupo_id = '{$data->select_cadastro}')");// create the filter 
         }
 
         if (isset($data->nome_col) AND ( (is_scalar($data->nome_col) AND $data->nome_col !== '') OR (is_array($data->nome_col) AND (!empty($data->nome_col)) )) ){
@@ -662,6 +771,8 @@ class PessoaList extends TPage
             $this->pageNavigation->setCount($count); // count of records
             $this->pageNavigation->setProperties($param); // order, page
             $this->pageNavigation->setLimit($this->limit); // limit
+
+            $this->datagrid->initPopoverHeaderFilters();
 
             // close the transaction
             TTransaction::close();

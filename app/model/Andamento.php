@@ -16,6 +16,7 @@ class Andamento extends TRecord
     private SystemUsers $criacao_user;
     private SystemUsers $modificacao_user;
     private Processo $processo;
+    private PublicacaoEtapa $publicacao_etapa;
 
     
 
@@ -34,6 +35,8 @@ class Andamento extends TRecord
         parent::addAttribute('criacao_user_id');
         parent::addAttribute('data_modificacao');
         parent::addAttribute('modificacao_user_id');
+        parent::addAttribute('publicacao_etapa_id');
+        parent::addAttribute('etapa_verificada');
             
     }
 
@@ -140,6 +143,32 @@ class Andamento extends TRecord
     
         // returns the associated object
         return $this->processo;
+    }
+    /**
+     * Method set_publicacao_etapa
+     * Sample of usage: $var->publicacao_etapa = $object;
+     * @param $object Instance of PublicacaoEtapa
+     */
+    public function set_publicacao_etapa(PublicacaoEtapa $object)
+    {
+        $this->publicacao_etapa = $object;
+        $this->publicacao_etapa_id = $object->id;
+    }
+
+    /**
+     * Method get_publicacao_etapa
+     * Sample of usage: $var->publicacao_etapa->attribute;
+     * @returns PublicacaoEtapa instance
+     */
+    public function get_publicacao_etapa()
+    {
+    
+        // loads the associated object
+        if (empty($this->publicacao_etapa))
+            $this->publicacao_etapa = new PublicacaoEtapa($this->publicacao_etapa_id);
+    
+        // returns the associated object
+        return $this->publicacao_etapa;
     }
 
     

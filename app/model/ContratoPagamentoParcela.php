@@ -19,6 +19,7 @@ class ContratoPagamentoParcela extends TRecord
     private ContratoPagamentoIndexador $contrato_indexador;
     private Contrato $contrato;
     private UnidadeIndexador $unidade_indexador;
+    private StatusContratoPagamento $status_contrato_pagamento;
 
     
 
@@ -30,8 +31,10 @@ class ContratoPagamentoParcela extends TRecord
     {
         parent::__construct($id, $callObjectLoad);
         parent::addAttribute('contrato_id');
+        parent::addAttribute('status_contrato_pagamento_id');
         parent::addAttribute('contrato_opcao_pagamento_id');
         parent::addAttribute('valor');
+        parent::addAttribute('saldo');
         parent::addAttribute('data_pagamento');
         parent::addAttribute('contrato_evento_id');
         parent::addAttribute('unidade_indexador_id');
@@ -227,6 +230,32 @@ class ContratoPagamentoParcela extends TRecord
     
         // returns the associated object
         return $this->unidade_indexador;
+    }
+    /**
+     * Method set_status_contrato_pagamento
+     * Sample of usage: $var->status_contrato_pagamento = $object;
+     * @param $object Instance of StatusContratoPagamento
+     */
+    public function set_status_contrato_pagamento(StatusContratoPagamento $object)
+    {
+        $this->status_contrato_pagamento = $object;
+        $this->status_contrato_pagamento_id = $object->id;
+    }
+
+    /**
+     * Method get_status_contrato_pagamento
+     * Sample of usage: $var->status_contrato_pagamento->attribute;
+     * @returns StatusContratoPagamento instance
+     */
+    public function get_status_contrato_pagamento()
+    {
+    
+        // loads the associated object
+        if (empty($this->status_contrato_pagamento))
+            $this->status_contrato_pagamento = new StatusContratoPagamento($this->status_contrato_pagamento_id);
+    
+        // returns the associated object
+        return $this->status_contrato_pagamento;
     }
 
     /**

@@ -16,6 +16,7 @@ class Publicacao extends TRecord
     private SystemUsers $criacao_user;
     private SystemUsers $modificacao_user;
     private Jornal $jornal;
+    private PublicacaoEtapa $publicacao_etapa;
 
     /**
      * Constructor method
@@ -43,6 +44,8 @@ class Publicacao extends TRecord
         parent::addAttribute('criacao_user_id');
         parent::addAttribute('data_modificacao');
         parent::addAttribute('modificacao_user_id');
+        parent::addAttribute('publicacao_etapa_id');
+        parent::addAttribute('etapa_verificada');
     
     }
 
@@ -150,6 +153,32 @@ class Publicacao extends TRecord
         // returns the associated object
         return $this->jornal;
     }
+    /**
+     * Method set_publicacao_etapa
+     * Sample of usage: $var->publicacao_etapa = $object;
+     * @param $object Instance of PublicacaoEtapa
+     */
+    public function set_publicacao_etapa(PublicacaoEtapa $object)
+    {
+        $this->publicacao_etapa = $object;
+        $this->publicacao_etapa_id = $object->id;
+    }
+
+    /**
+     * Method get_publicacao_etapa
+     * Sample of usage: $var->publicacao_etapa->attribute;
+     * @returns PublicacaoEtapa instance
+     */
+    public function get_publicacao_etapa()
+    {
+    
+        // loads the associated object
+        if (empty($this->publicacao_etapa))
+            $this->publicacao_etapa = new PublicacaoEtapa($this->publicacao_etapa_id);
+    
+        // returns the associated object
+        return $this->publicacao_etapa;
+    }
 
     /**
      * Method getPublicacaoMovimentacaos
@@ -186,6 +215,15 @@ class Publicacao extends TRecord
         $criteria = new TCriteria;
         $criteria->add(new TFilter('publicacao_id', '=', $this->id));
         return Tarefa::getObjects( $criteria );
+    }
+    /**
+     * Method getProcessoPublicacoess
+     */
+    public function getProcessoPublicacoess()
+    {
+        $criteria = new TCriteria;
+        $criteria->add(new TFilter('publicacao_id', '=', $this->id));
+        return ProcessoPublicacoes::getObjects( $criteria );
     }
 
     public function set_publicacao_movimentacao_publicacao_to_string($publicacao_movimentacao_publicacao_to_string)
@@ -601,6 +639,84 @@ class Publicacao extends TRecord
         }
     
         $values = Tarefa::where('publicacao_id', '=', $this->id)->getIndexedArray('modificacao_user_id','{modificacao_user->name}');
+        return implode(', ', $values);
+    }
+
+    public function set_processo_publicacoes_processo_to_string($processo_publicacoes_processo_to_string)
+    {
+        if(is_array($processo_publicacoes_processo_to_string))
+        {
+            $values = Processo::where('id', 'in', $processo_publicacoes_processo_to_string)->getIndexedArray('numero_cnj_numero', 'numero_cnj_numero');
+            $this->processo_publicacoes_processo_to_string = implode(', ', $values);
+        }
+        else
+        {
+            $this->processo_publicacoes_processo_to_string = $processo_publicacoes_processo_to_string;
+        }
+
+        $this->vdata['processo_publicacoes_processo_to_string'] = $this->processo_publicacoes_processo_to_string;
+    }
+
+    public function get_processo_publicacoes_processo_to_string()
+    {
+        if(!empty($this->processo_publicacoes_processo_to_string))
+        {
+            return $this->processo_publicacoes_processo_to_string;
+        }
+    
+        $values = ProcessoPublicacoes::where('publicacao_id', '=', $this->id)->getIndexedArray('processo_id','{processo->numero_cnj_numero}');
+        return implode(', ', $values);
+    }
+
+    public function set_processo_publicacoes_publicacao_to_string($processo_publicacoes_publicacao_to_string)
+    {
+        if(is_array($processo_publicacoes_publicacao_to_string))
+        {
+            $values = Publicacao::where('id', 'in', $processo_publicacoes_publicacao_to_string)->getIndexedArray('id', 'id');
+            $this->processo_publicacoes_publicacao_to_string = implode(', ', $values);
+        }
+        else
+        {
+            $this->processo_publicacoes_publicacao_to_string = $processo_publicacoes_publicacao_to_string;
+        }
+
+        $this->vdata['processo_publicacoes_publicacao_to_string'] = $this->processo_publicacoes_publicacao_to_string;
+    }
+
+    public function get_processo_publicacoes_publicacao_to_string()
+    {
+        if(!empty($this->processo_publicacoes_publicacao_to_string))
+        {
+            return $this->processo_publicacoes_publicacao_to_string;
+        }
+    
+        $values = ProcessoPublicacoes::where('publicacao_id', '=', $this->id)->getIndexedArray('publicacao_id','{publicacao->id}');
+        return implode(', ', $values);
+    }
+
+    public function set_processo_publicacoes_publicacao_etapa_to_string($processo_publicacoes_publicacao_etapa_to_string)
+    {
+        if(is_array($processo_publicacoes_publicacao_etapa_to_string))
+        {
+            $values = PublicacaoEtapa::where('id', 'in', $processo_publicacoes_publicacao_etapa_to_string)->getIndexedArray('id', 'id');
+            $this->processo_publicacoes_publicacao_etapa_to_string = implode(', ', $values);
+        }
+        else
+        {
+            $this->processo_publicacoes_publicacao_etapa_to_string = $processo_publicacoes_publicacao_etapa_to_string;
+        }
+
+        $this->vdata['processo_publicacoes_publicacao_etapa_to_string'] = $this->processo_publicacoes_publicacao_etapa_to_string;
+    }
+
+    public function get_processo_publicacoes_publicacao_etapa_to_string()
+    {
+        if(!empty($this->processo_publicacoes_publicacao_etapa_to_string))
+        {
+            return $this->processo_publicacoes_publicacao_etapa_to_string;
+        }
+    
+        $values = ProcessoPublicacoes::where('publicacao_id', '=', $this->id)->getIndexedArray('publicacao_etapa_id','{publicacao_etapa->id}');
         return implode(', ', $values);
     }
 

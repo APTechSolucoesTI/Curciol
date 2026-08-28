@@ -35,11 +35,13 @@ class AssuntoProcessoList extends TPage
         $this->limit = 20;
 
         $criteria_area_id = new TCriteria();
+        $criteria_area_nome = new TCriteria();
 
         $area_id = new TDBCombo('area_id', 'escritorio', 'Area', 'id', '{nome}','nome asc' , $criteria_area_id );
         $nome = new TEntry('nome');
         $nome_col = new TEntry('nome_col');
         $descricao_col = new TEntry('descricao_col');
+        $area_nome = new TDBCombo('area_nome', 'escritorio', 'Area', 'id', '{nome}','nome asc' , $criteria_area_nome );
 
         $nome_col->exitOnEnter();
         $descricao_col->exitOnEnter();
@@ -47,11 +49,16 @@ class AssuntoProcessoList extends TPage
         $nome_col->setExitAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
         $descricao_col->setExitAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
 
-        $area_id->enableSearch();
+        $area_nome->setChangeAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
+
         $nome->setMaxLength(255);
+        $area_id->enableSearch();
+        $area_nome->enableSearch();
+
         $nome->setSize('100%');
         $area_id->setSize('100%');
         $nome_col->setSize('100%');
+        $area_nome->setSize('100%');
         $descricao_col->setSize('100%');
 
         $row1 = $this->form->addFields([new TLabel("Area:", null, '14px', null, '100%'),$area_id],[new TLabel("Nome:", null, '14px', null, '100%'),$nome]);
@@ -71,6 +78,7 @@ class AssuntoProcessoList extends TPage
         $this->datagrid_form = new TForm('datagrid_'.self::$formName);
         $this->datagrid_form->onsubmit = 'return false';
 
+        $this->datagrid->setGroupColumn('area_id', " {area->nome} ");
         $this->datagrid = new BootstrapDatagridWrapper($this->datagrid);
         $this->filter_criteria = new TCriteria;
 
@@ -79,9 +87,11 @@ class AssuntoProcessoList extends TPage
 
         $column_nome = new TDataGridColumn('nome', "Nome", 'left');
         $column_descricao = new TDataGridColumn('descricao', "Descrição", 'left');
+        $column_area_nome = new TDataGridColumn('area->nome', "Área", 'left');
 
         $this->datagrid->addColumn($column_nome);
         $this->datagrid->addColumn($column_descricao);
+        $this->datagrid->addColumn($column_area_nome);
 
         $action_onEdit = new TDataGridAction(array('AssuntoProcessoForm', 'onEdit'));
         $action_onEdit->setUseButton(false);
@@ -120,9 +130,12 @@ class AssuntoProcessoList extends TPage
         $tr->add($td_nome_col);
         $td_descricao_col = TElement::tag('td', $descricao_col);
         $tr->add($td_descricao_col);
+        $td_area_nome = TElement::tag('td', $area_nome);
+        $tr->add($td_area_nome);
 
         $this->datagrid_form->addField($nome_col);
         $this->datagrid_form->addField($descricao_col);
+        $this->datagrid_form->addField($area_nome);
 
         $this->datagrid_form->setData( TSession::getValue(__CLASS__.'_filter_data') );
 
@@ -666,7 +679,11 @@ class AssuntoProcessoList extends TPage
 
             if (empty($param['order']))
             {
-                $param['order'] = 'nome';    
+                $param['order'] = 'area_id, nome';    
+            }
+            elseif($param['order'] != 'area_id, nome')
+            {
+                $param['order'] = "area_id, nome,{$param['order']}"; 
             }
 
             if (empty($param['direction']))
@@ -718,6 +735,8 @@ class AssuntoProcessoList extends TPage
             $this->pageNavigation->setCount($count); // count of records
             $this->pageNavigation->setProperties($param); // order, page
             $this->pageNavigation->setLimit($this->limit); // limit
+
+            $this->datagrid->initPopoverHeaderFilters();
 
             // close the transaction
             TTransaction::close();

@@ -202,7 +202,8 @@ class APIPublicacaoController extends TPage
                                         $processoUnico = $value->numeroUnicoProcesso;
                                     }
                                     
-                                    
+                                    $processoUnico = self::normalizarProcessoUnicoAposBarra($processoUnico);
+
                                     
                                     if($processoUnico == "" || $processoUnico==null){
                                         
@@ -213,7 +214,9 @@ class APIPublicacaoController extends TPage
                                             $processoUnico = str_replace("(","",str_replace(")","",$matches[0]));
                                         }
                                     }
-                                
+                                    
+                                    $processoUnico = self::normalizarProcessoUnicoAposBarra($processoUnico);
+
                                 
                                     //ADICIONA MASCARA NO NUMERO DO PROCESSO QUANDO O NUMERO TEM 20 CARACTERES
                                     if(strlen($processoUnico)==20){
@@ -269,6 +272,7 @@ class APIPublicacaoController extends TPage
                                         $publicacao->data_tratamento = $value->jornal->dataTratamento;
                                         $publicacao->data_disponibilizacao = $value->jornal->dataDisponibilizacao_Publicacao;
                                         $publicacao->termo_ref_data = $value->jornal->termoReferenciaData;
+                                        $publicacao->etapa_verificada = 'N';
                                         $publicacao->store();
                                         
                                         $countNew++;
@@ -279,9 +283,7 @@ class APIPublicacaoController extends TPage
                 
                                     }else{
                                         $publicacao = ($publicacao)[0];
-                                    }
-                                    
-                                    
+                                    }                                    
                                     
                                     APIPublicacaoController::buscarPrazo($publicacao);
                                     
@@ -438,6 +440,252 @@ class APIPublicacaoController extends TPage
                     $sugestao->store();
                 }
             }
+        }
+    }
+
+    private static function normalizarProcessoUnicoAposBarra(?string $processoUnico): ?string
+    {
+        if ($processoUnico === null) {
+            return null;
+        }
+
+        $processoUnico = trim($processoUnico);
+        if ($processoUnico === '') {
+            return $processoUnico;
+        }
+
+        // Se tiver barra, valida o sufixo
+        if (strpos($processoUnico, '/') !== false) {
+            $partes = explode('/', $processoUnico, 2);
+            $antes = trim($partes[0]);
+            $depois = trim($partes[1] ?? '');
+
+            // Se depois da barra NÃO for só dígitos, corta
+            if ($depois === '' || !ctype_digit($depois)) {
+                return $antes;
+            }
+
+            // Se for só números, mantém como está (com /)
+            return $antes . '/' . $depois;
+        }
+
+        return $processoUnico;
+    }
+
+   public static function onVerificaPublicacaoEtapa (){
+    try {
+        TTransaction::open(self::$database);
+        $contador = 0;
+        $hoje = date('Y-m-d H:i:s');
+        $updates = [];
+        $inserts = [];
+
+        $conn = TTransaction::get();
+
+        // BUSCA AS PALAVRAS E JA PEGA SE A ETAPA SERVE PRA JUDICIAL/EXTRAJUDICIAL
+        $sqlPal = "
+            SELECT 
+                epc.id,
+                epc.publicacao_etapa_id,
+                epc.palavra_chave,
+                pe.ordem_prioridade,
+                pe.judicial,
+                pe.extrajudicial
+            FROM etapa_palavras_chaves epc
+            LEFT JOIN publicacao_etapa pe ON pe.id = epc.publicacao_etapa_id
+            ORDER BY pe.ordem_prioridade DESC
+        ";
+
+        $resultPal = $conn->query($sqlPal);
+        $palavras = $resultPal->fetchAll(PDO::FETCH_OBJ);
+
+        $mapaJudicial = [];
+        $mapaExtrajudicial = [];
+        $regexJudicial = [];
+        $regexExtrajudicial = [];
+
+        if (!empty($palavras)) {
+            foreach ($palavras as $palavra) {
+                if (empty($palavra->palavra_chave)) {
+                    continue;
+                }
+
+                $p = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $palavra->palavra_chave) ?: $palavra->palavra_chave;
+                $p = preg_replace('/[^a-zA-Z0-9\s_-]/', '', $p);
+                $p = strtolower(trim($p));
+
+                if (empty($p)) {
+                    continue;
+                }
+
+                // ETAPA DISPONIVEL PRA PROCESSO JUDICIAL
+                if ($palavra->judicial == 'S') {
+                    $regexJudicial[] = preg_quote($p, '/');
+
+                    if (!isset($mapaJudicial[$p])) {
+                        $mapaJudicial[$p] = $palavra->publicacao_etapa_id;
+                    }
+                }
+
+                // ETAPA DISPONIVEL PRA PROCESSO EXTRAJUDICIAL
+                if ($palavra->extrajudicial == 'S') {
+                    $regexExtrajudicial[] = preg_quote($p, '/');
+
+                    if (!isset($mapaExtrajudicial[$p])) {
+                        $mapaExtrajudicial[$p] = $palavra->publicacao_etapa_id;
+                    }
+                }
+            }
+        }
+
+        $regexJudicial = !empty($regexJudicial) ? '/(' . implode('|', $regexJudicial) . ')/i' : null;
+        $regexExtrajudicial = !empty($regexExtrajudicial) ? '/(' . implode('|', $regexExtrajudicial) . ')/i' : null;
+
+        // JA TRAZ JUNTO O TIPO DO PROCESSO
+        $sqlPub = "
+            SELECT
+                pub.id, 
+                pub.texto,
+                pub.processo_id,
+                proc.tipo_processo_id
+            FROM publicacao pub
+            INNER JOIN processo proc ON proc.id = pub.processo_id
+            WHERE pub.publicacao_etapa_id IS NULL
+            AND pub.processo_id IS NOT NULL
+        ";
+
+        $resultPub = $conn->query($sqlPub);
+
+        $sqlUpdate = "UPDATE publicacao 
+                      SET publicacao_etapa_id = :etapa_id 
+                      WHERE id = :id";
+
+        $stmt = $conn->prepare($sqlUpdate);
+
+        $sqlInsert = "INSERT INTO processo_publicacoes
+                      (processo_id, publicacao_id, publicacao_etapa_id, date_log)
+                      VALUES (:processo_id, :publicacao_id, :etapa_id, :date_log)";
+
+        $stmtInsert = $conn->prepare($sqlInsert);
+
+        $lote = 0;
+
+        while ($pub = $resultPub->fetch(PDO::FETCH_OBJ)) {
+
+            $lote++;
+            $etapa_id = 1;
+            $processo_id = $pub->processo_id;
+
+            if ($lote >= 1000) {
+                foreach ($updates as $u) {
+                    $stmt->execute($u);
+                }
+
+                foreach ($inserts as $i) {
+                    $stmtInsert->execute($i);
+                }
+
+                $updates = [];
+                $inserts = [];
+                $lote = 0;
+            }
+
+            if (empty($pub->texto)) {
+                $updates[] = [
+                    ':etapa_id' => $etapa_id,
+                    ':id' => $pub->id
+                ];
+
+                $inserts[] = [
+                    ':processo_id' => $processo_id,
+                    ':publicacao_id' => $pub->id,
+                    ':etapa_id' => $etapa_id,
+                    ':date_log' => $hoje
+                ];
+
+                continue;
+            }
+
+            $t = strip_tags($pub->texto);
+            $t = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $t) ?: $t;
+            $t = preg_replace('/[^a-zA-Z0-9\s_-]/', '', $t);
+            $t = strtolower($t);
+            $t = preg_replace('/\s+/', ' ', $t);
+
+            // JUDICIAL
+            if ($pub->tipo_processo_id == 1) {
+                if ($regexJudicial && preg_match($regexJudicial, $t, $match)) {
+                    $palavraEncontrada = strtolower($match[1]);
+                    $etapa_id = $mapaJudicial[$palavraEncontrada] ?? 1;
+                    $contador++;
+                }
+            }
+
+            // EXTRAJUDICIAL
+            elseif ($pub->tipo_processo_id == 2) {
+                if ($regexExtrajudicial && preg_match($regexExtrajudicial, $t, $match)) {
+                    $palavraEncontrada = strtolower($match[1]);
+                    $etapa_id = $mapaExtrajudicial[$palavraEncontrada] ?? 1;
+                    $contador++;
+                }
+            }
+
+            $updates[] = [
+                ':etapa_id' => $etapa_id,
+                ':id' => $pub->id
+            ];
+
+            $inserts[] = [
+                ':processo_id' => $processo_id,
+                ':publicacao_id' => $pub->id,
+                ':etapa_id' => $etapa_id,
+                ':date_log' => $hoje
+            ];
+        }
+
+        foreach ($updates as $u) {
+            $stmt->execute($u);
+        }
+
+        foreach ($inserts as $i) {
+            $stmtInsert->execute($i);
+        }
+
+        TToast::show('success', "{$contador} registros atualizados", 'topRight', 'far:check-circle');
+        TTransaction::close(); 
+
+        } catch (Exception $e) {
+            TTransaction::rollback();
+            new TMessage('error', $e->getMessage());
+        }
+    }
+
+    public static function onExcluirVerificacaoPublicacaoEtapa (){
+        try {
+            TTransaction::open(self::$database);            
+            $conn = TTransaction::get();              
+
+            $sqlUpdate = "UPDATE publicacao 
+                            SET publicacao_etapa_id = null
+                            WHERE publicacao_etapa_id IS NOT NULL";
+
+            $stmt = $conn->prepare($sqlUpdate);
+            if (!$stmt->execute()) {
+                throw new Exception('Erro ao desvincular etapa de publicações!');
+            }
+
+            $result = $conn->exec("DELETE FROM processo_publicacoes");
+
+            if ($result == false) {
+                throw new Exception('Erro ao deletar processo_publicacoes!');
+            }
+
+            TToast::show('success', "sincronização excluída", 'topRight', 'far:check-circle');
+            TTransaction::close(); 
+
+        } catch (Exception $e) {
+            TTransaction::rollback();
+            new TMessage('error', $e->getMessage());
         }
     }
 }

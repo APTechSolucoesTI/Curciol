@@ -354,7 +354,7 @@ abstract class BChart extends TElement
                 continue;
             }
 
-            if (! $chart instanceof BTableChart && ! $chart instanceof BIndicator && ! ($chart instanceof BChart || $chart instanceof ApexChart))
+            if (! $chart instanceof BTableChart && ! $chart instanceof BIndicator && ! ($chart instanceof BChart || $chart instanceof BMadTable))
             {
                 throw new Exception(AdiantiCoreTranslator::translate('Invalid parameter (^1) in ^2', 'charts', __METHOD__));
             }

@@ -21,11 +21,9 @@ return array(
     '946db64f9a5c0688514fdcdafcabe7d2' => $vendorDir . '/symfony/polyfill/src/Intl/Icu/bootstrap.php',
     '299b3c040b39cb03c6eceb9bb272ad1d' => $vendorDir . '/symfony/polyfill/src/Intl/Normalizer/bootstrap.php',
     'e59f725579f9974327c76777296d6dcc' => $vendorDir . '/symfony/polyfill/src/Mbstring/bootstrap.php',
-    '7b11c4dc42b3b3023073cb14e519683c' => $vendorDir . '/ralouphie/getallheaders/src/getallheaders.php',
+    '5897ea0ac4cccf14d323035e65887801' => $vendorDir . '/symfony/polyfill-php82/bootstrap.php',
     '320cde22f66dd4f5d3fd621d3e88b98f' => $vendorDir . '/symfony/polyfill-ctype/bootstrap.php',
     'b46ad4fe52f4d1899a2951c7e6ea56b0' => $vendorDir . '/voku/portable-utf8/bootstrap.php',
     'cf150f72bd303a2ff07711c9a70f2d53' => $vendorDir . '/google/apiclient/src/Google/autoload.php',
-    '6e3fae29631ef280660b3cdad06f25a8' => $vendorDir . '/symfony/deprecation-contracts/function.php',
-    '37a3dc5111fe8f707ab4c132ef1dbc62' => $vendorDir . '/guzzlehttp/guzzle/src/functions_include.php',
     '9e237c6beff1b7e8fd770eb209424227' => $vendorDir . '/phputil/extenso/src/funcoes.php',
 );

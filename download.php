@@ -1,61 +1,110 @@
 <?php
-require_once 'init.php';
-new TSession;
+    require_once 'init.php';
+    new TSession;
 
-if (isset($_GET['file']) AND (TSession::getValue('logged') || TSession::getValue('portal_cliente_id')) )
-{
-    $file = __DIR__ . '/' . urldecode($_GET['file']);
-
-    if (class_exists('Normalizer')) {
-        $file = Normalizer::normalize($file, Normalizer::FORM_C);
+   if (!isset($_GET['file'])) {
+        exit('Arquivo ausente no servidor.');
     }
 
+    if (!(TSession::getValue('logged') || TSession::getValue('portal_cliente_id'))) {
+        exit('Sessão expirada ou acesso não permitido.');
+    }
 
-    $info      = pathinfo($file);
-    $extension = $info['extension'];
-    
-    $content_type_list = array();
-    $content_type_list['txt']  = 'text/plain';
-    $content_type_list['html'] = 'text/html';
-    $content_type_list['csv']  = 'text/csv';
-    $content_type_list['pdf']  = 'application/pdf';
-    $content_type_list['rtf']  = 'application/rtf';
-    $content_type_list['doc']  = 'application/msword';
-    $content_type_list['docx'] = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-    $content_type_list['xls']  = 'application/vnd.ms-excel';
-    $content_type_list['xlsx'] = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
-    $content_type_list['ppt']  = 'application/vnd.ms-powerpoint';
-    $content_type_list['pptx'] = 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
-    $content_type_list['odt']  = 'application/vnd.oasis.opendocument.text';
-    $content_type_list['ods']  = 'application/vnd.oasis.opendocument.spreadsheet';
-    $content_type_list['jpeg'] = 'image/jpeg';
-    $content_type_list['jpg']  = 'image/jpeg';
-    $content_type_list['png']  = 'image/png';
-    $content_type_list['gif']  = 'image/gif';
-    $content_type_list['svg']  = 'image/svg+xml';
-    $content_type_list['xml']  = 'application/xml';
-    $content_type_list['zip']  = 'application/zip';
-    $content_type_list['rar']  = 'application/x-rar-compressed';
-    $content_type_list['bz']   = 'application/x-bzip';
-    $content_type_list['bz2']  = 'application/x-bzip2';
-    $content_type_list['tar']  = 'application/x-tar';
-    $content_type_list['mp4']  = 'video/mp4';
-    
-    if (file_exists($file) AND in_array(strtolower($extension), array_keys($content_type_list)))
+    // Monta caminho base real
+    $requested = urldecode($_GET['file']);
+    $basePath  = realpath(__DIR__);
+
+    $rawPath = $basePath . '/' . $requested;
+
+    // tenta NFC e NFD ANTES do realpath
+    $normalized = normalize_and_check($rawPath);
+
+    if (!$normalized) {
+        exit('Arquivo não encontrado.');
+    }
+
+    $fullPath = realpath($normalized);
+
+    // impede quebrar por url invalida
+    if (!$fullPath || strpos($fullPath, $basePath) !== 0) {
+        exit('Acesso não permitido.');
+    }
+
+    // Função auxiliar para tentar NFC e NFD
+    function normalize_and_check($path)
     {
-        $basename = !empty($_GET['basename']) ? $_GET['basename'] : basename($file);
-        $filesize = filesize($file); // get the filesize
-        
-        header("Pragma: public");
-        header("Expires: 0"); // set expiration time
-        header("Cache-Control: must-revalidate, post-check=0, pre-check=0");
-        header("Content-type: " . $content_type_list[strtolower($extension)] );
-        header("Content-Length: {$filesize}");
-        header("Content-disposition: inline; filename=\"{$basename}\"");
-        header("Content-Transfer-Encoding: binary");
-        
-        // a readfile da problemas no internet explorer
-        // melhor jogar direto o conteudo do arquivo na tela
-        echo file_get_contents($file);
+        if (!class_exists('Normalizer')) {
+            return file_exists($path) ? $path : false;
+        }
+
+        // Tenta NFC
+        $nfc = Normalizer::normalize($path, Normalizer::FORM_C);
+        if (file_exists($nfc)) {
+            return $nfc;
+        }
+
+        // Tenta NFD
+        $nfd = Normalizer::normalize($path, Normalizer::FORM_D);
+        if (file_exists($nfd)) {
+            return $nfd;
+        }
+
+        return false;
     }
-}
+
+    $file = normalize_and_check($fullPath);
+    if (!$file) {
+        exit('Arquivo não encontrado.');
+    }
+
+    $info = pathinfo($file);
+    $extension = strtolower($info['extension'] ?? '');
+
+    $content_type_list = [
+        'txt'  => 'text/plain',
+        'html' => 'text/html',
+        'csv'  => 'text/csv',
+        'pdf'  => 'application/pdf',
+        'rtf'  => 'application/rtf',
+        'doc'  => 'application/msword',
+        'docx' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'xls'  => 'application/vnd.ms-excel',
+        'xlsx' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'ppt'  => 'application/vnd.ms-powerpoint',
+        'pptx' => 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+        'odt'  => 'application/vnd.oasis.opendocument.text',
+        'ods'  => 'application/vnd.oasis.opendocument.spreadsheet',
+        'jpeg' => 'image/jpeg',
+        'jpg'  => 'image/jpeg',
+        'png'  => 'image/png',
+        'gif'  => 'image/gif',
+        'svg'  => 'image/svg+xml',
+        'xml'  => 'application/xml',
+        'zip'  => 'application/zip',
+        'rar'  => 'application/x-rar-compressed',
+        'bz'   => 'application/x-bzip',
+        'bz2'  => 'application/x-bzip2',
+        'tar'  => 'application/x-tar',
+        'mp4'  => 'video/mp4'
+    ];
+
+        if (!isset($content_type_list[$extension])) {
+            exit('Tipo de arquivo não permitido.');
+        }
+
+    $basename = !empty($_GET['basename'])
+        ? basename($_GET['basename'])
+        : basename($file);
+
+    $filesize = filesize($file);
+
+    header("Pragma: public");
+    header("Expires: 0");
+    header("Cache-Control: must-revalidate, post-check=0, pre-check=0");
+    header("Content-type: " . $content_type_list[$extension]);
+    header("Content-Length: {$filesize}");
+    header("Content-Disposition: inline; filename=\"{$basename}\"");
+    header("Content-Transfer-Encoding: binary");
+
+    readfile($file);
+    exit;

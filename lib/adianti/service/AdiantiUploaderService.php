@@ -39,8 +39,14 @@ class AdiantiUploaderService
     {
         $ini  = AdiantiApplicationConfig::get();
         $seed = APPLICATION_NAME . ( !empty($ini['general']['seed']) ? $ini['general']['seed'] : 's8dkld83kf73kf094' );
-        $block_extensions = ['php', 'php3', 'php4', 'phtml', 'pl', 'py', 'jsp', 'asp', 'htm', 'shtml', 'sh', 'cgi', 'htaccess'];
-        
+        $block_extensions = [
+            'php', 'php2', 'php3', 'php4', 'php5', 'php6', 'php7', 'php8', 'php9',
+            'phps', 'pht', 'phtml', 'phtm', 'phar', 'inc', 'hphp', 'ctp', 'module',
+            'pl', 'py', 'rb', 'jsp', 'jspx', 'asp', 'aspx', 'asa', 'cer',
+            'sh', 'bash', 'cgi', 'shtml', 'shtm', 'stm',
+            'htm', 'htaccess', 'htpasswd', 'phtml5'
+	];
+
         $folder = 'tmp/';
         $response = array();
         if (isset($_FILES['fileName']))

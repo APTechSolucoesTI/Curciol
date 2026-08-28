@@ -331,6 +331,7 @@ class ProcessoSeekWindow extends TWindow
             TApplication::loadPage('PublicacaoFormView', 'onShow', $pageParam);
 
             TTransaction::close();
+            APIPublicacaoController::onVerificaPublicacaoEtapa();
         }
         catch (Exception $e) 
         {

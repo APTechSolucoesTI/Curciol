@@ -45,6 +45,8 @@ class ViewPublicacao extends TRecord
         parent::addAttribute('assunto');
         parent::addAttribute('status');
         parent::addAttribute('processo_id');
+        parent::addAttribute('etapa');
+        parent::addAttribute('etapa_verificada');
     
     }
 

@@ -11,6 +11,8 @@ class Document
   private $len;        // Length of RTF string
   public $root = null; // Root group
   private $group;      // Current RTF group
+  private $char = null; // Current character (PHP 8.2+ compatibility)
+  private $uc = [];     // Unicode skip count stack (PHP 8.2+ compatibility)
 
   public function __construct($rtf)
   {

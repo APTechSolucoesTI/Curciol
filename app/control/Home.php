@@ -14,58 +14,48 @@ class Home extends TPage
         parent::add($this->html);
     }
     
-    public function onDocumentos($param)
+    public static function onDocumentos($param)
     {
         try
         {
             TTransaction::open('escritorio');
-            
-            if (! empty(TSession::getValue('portal_cliente_id')))
+
+            $usuario = trim($param['usuario'] ?? '');
+            $senha   = trim($param['senha'] ?? '');
+
+            if (empty($usuario) || empty($senha))
             {
-                TApplication::loadPage('MeusDocumentoList', 'onShow', ['register_state' => 'false']);
+                throw new Exception('Informe seu usuário e senha para acessar seus processos.');
             }
-            else
+
+            $pessoa = Pessoa::where('usuario', '=', $usuario)
+                            ->where('senha', '=', $senha)
+                            ->first();
+
+            if (empty($pessoa))
             {
-                if (empty($param['usuario']) &&  empty($param['senha']))
-                {
-                    $form = new BootstrapFormBuilder('input_form');
-                    $form->setFieldSizes('100%');
-            
-                    $login = new TEntry('usuario');
-                    $pass  = new TPassword('senha');
-                    
-                    $form->addFields( [new TLabel('Usuário'), $login]);
-                    $form->addFields( [new TLabel('Senha'), $pass]);
-                    
-                    $form->addAction('Entrar', new TAction([__CLASS__, 'onDocumentos']), 'fa:sign-in-alt green');
-                    
-                    new TInputDialog('Informe o seu usuário e senha', $form);
-                }
-                else
-                {
-                    $pessoa = Pessoa::where('usuario', '=', $param['usuario'])->where('senha', '=', $param['senha'])->first();
-                    
-                    if (empty($pessoa))
-                    {
-                        throw new Exception('Você ainda não é um cliente registrado. Verifique os dados informado!');
-                    }
-                    
-                    TSession::setValue('portal_cliente_id', $pessoa->id);
-                    
-                    TApplication::loadPage('MeusDocumentoList', 'onShow', ['register_state' => 'false']);
-                }
+                throw new Exception('Você ainda não é um cliente registrado. Verifique os dados informados!');
             }
-            
+
+            TSession::setValue('portal_cliente_id', $pessoa->id);
+
             TTransaction::close();
+
+            TApplication::loadPage('ProcessosFormView', 'onShow', [
+                'key' => $pessoa->id
+            ]);
         }
         catch (Exception $e)
         {
-            TTransaction::rollback();
+            try {
+                TTransaction::rollback();
+            } catch (Exception $rollbackException) {
+            }
+
             new TMessage('error', $e->getMessage());
         }
     }
     
-    // função executa ao clicar no item de menu
     public function onShow($param = null)
     {
         

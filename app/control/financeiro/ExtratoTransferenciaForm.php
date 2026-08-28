@@ -49,6 +49,7 @@ class ExtratoTransferenciaForm extends TPage
         $modificacao_user_name = new TEntry('modificacao_user_name');
 
 
+        $escritorio_id->setValue('1');
         $historico->setMaxLength(3000);
         $historico->forceUpperCase();
         $compensado->setUseSwitch(true, 'blue');

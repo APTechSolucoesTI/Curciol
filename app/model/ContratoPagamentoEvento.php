@@ -121,6 +121,32 @@ class ContratoPagamentoEvento extends TRecord
         return implode(', ', $values);
     }
 
+    public function set_contrato_pagamento_parcela_status_contrato_pagamento_to_string($contrato_pagamento_parcela_status_contrato_pagamento_to_string)
+    {
+        if(is_array($contrato_pagamento_parcela_status_contrato_pagamento_to_string))
+        {
+            $values = StatusContratoPagamento::where('id', 'in', $contrato_pagamento_parcela_status_contrato_pagamento_to_string)->getIndexedArray('id', 'id');
+            $this->contrato_pagamento_parcela_status_contrato_pagamento_to_string = implode(', ', $values);
+        }
+        else
+        {
+            $this->contrato_pagamento_parcela_status_contrato_pagamento_to_string = $contrato_pagamento_parcela_status_contrato_pagamento_to_string;
+        }
+
+        $this->vdata['contrato_pagamento_parcela_status_contrato_pagamento_to_string'] = $this->contrato_pagamento_parcela_status_contrato_pagamento_to_string;
+    }
+
+    public function get_contrato_pagamento_parcela_status_contrato_pagamento_to_string()
+    {
+        if(!empty($this->contrato_pagamento_parcela_status_contrato_pagamento_to_string))
+        {
+            return $this->contrato_pagamento_parcela_status_contrato_pagamento_to_string;
+        }
+    
+        $values = ContratoPagamentoParcela::where('contrato_evento_id', '=', $this->id)->getIndexedArray('status_contrato_pagamento_id','{status_contrato_pagamento->id}');
+        return implode(', ', $values);
+    }
+
     public function set_contrato_pagamento_parcela_contrato_opcao_pagamento_to_string($contrato_pagamento_parcela_contrato_opcao_pagamento_to_string)
     {
         if(is_array($contrato_pagamento_parcela_contrato_opcao_pagamento_to_string))

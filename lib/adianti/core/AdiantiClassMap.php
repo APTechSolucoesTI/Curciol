@@ -209,6 +209,7 @@ class AdiantiClassMap
         $classPath['ApiResourceController']           = 'lib/mad/rest/ApiResourceController.php';
         $classPath['BRuntimeCache']                   = 'lib/mad/registry/BRuntimeCache.php';
         $classPath['MADThumbnailGallery']             = 'lib/mad/widget/MADThumbnailGallery.php';
+        $classPath['BMadTable']                       = 'lib/mad/widget/report/BMadTable.php';
         
         return $classPath;
     }

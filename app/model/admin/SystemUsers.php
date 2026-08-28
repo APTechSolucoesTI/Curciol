@@ -1750,6 +1750,32 @@ class SystemUsers extends TRecord
         return implode(', ', $values);
     }
 
+    public function set_andamento_publicacao_etapa_to_string($andamento_publicacao_etapa_to_string)
+    {
+        if(is_array($andamento_publicacao_etapa_to_string))
+        {
+            $values = PublicacaoEtapa::where('id', 'in', $andamento_publicacao_etapa_to_string)->getIndexedArray('id', 'id');
+            $this->andamento_publicacao_etapa_to_string = implode(', ', $values);
+        }
+        else
+        {
+            $this->andamento_publicacao_etapa_to_string = $andamento_publicacao_etapa_to_string;
+        }
+
+        $this->vdata['andamento_publicacao_etapa_to_string'] = $this->andamento_publicacao_etapa_to_string;
+    }
+
+    public function get_andamento_publicacao_etapa_to_string()
+    {
+        if(!empty($this->andamento_publicacao_etapa_to_string))
+        {
+            return $this->andamento_publicacao_etapa_to_string;
+        }
+    
+        $values = Andamento::where('modificacao_user_id', '=', $this->id)->getIndexedArray('publicacao_etapa_id','{publicacao_etapa->id}');
+        return implode(', ', $values);
+    }
+
     public function set_anexo_atendimento_to_string($anexo_atendimento_to_string)
     {
         if(is_array($anexo_atendimento_to_string))
@@ -3723,6 +3749,32 @@ class SystemUsers extends TRecord
         }
     
         $values = ContratoPagamentoParcela::where('modificacao_user_id', '=', $this->id)->getIndexedArray('contrato_id','{contrato->objeto}');
+        return implode(', ', $values);
+    }
+
+    public function set_contrato_pagamento_parcela_status_contrato_pagamento_to_string($contrato_pagamento_parcela_status_contrato_pagamento_to_string)
+    {
+        if(is_array($contrato_pagamento_parcela_status_contrato_pagamento_to_string))
+        {
+            $values = StatusContratoPagamento::where('id', 'in', $contrato_pagamento_parcela_status_contrato_pagamento_to_string)->getIndexedArray('id', 'id');
+            $this->contrato_pagamento_parcela_status_contrato_pagamento_to_string = implode(', ', $values);
+        }
+        else
+        {
+            $this->contrato_pagamento_parcela_status_contrato_pagamento_to_string = $contrato_pagamento_parcela_status_contrato_pagamento_to_string;
+        }
+
+        $this->vdata['contrato_pagamento_parcela_status_contrato_pagamento_to_string'] = $this->contrato_pagamento_parcela_status_contrato_pagamento_to_string;
+    }
+
+    public function get_contrato_pagamento_parcela_status_contrato_pagamento_to_string()
+    {
+        if(!empty($this->contrato_pagamento_parcela_status_contrato_pagamento_to_string))
+        {
+            return $this->contrato_pagamento_parcela_status_contrato_pagamento_to_string;
+        }
+    
+        $values = ContratoPagamentoParcela::where('modificacao_user_id', '=', $this->id)->getIndexedArray('status_contrato_pagamento_id','{status_contrato_pagamento->id}');
         return implode(', ', $values);
     }
 
@@ -6271,6 +6323,32 @@ class SystemUsers extends TRecord
         }
     
         $values = Publicacao::where('modificacao_user_id', '=', $this->id)->getIndexedArray('modificacao_user_id','{modificacao_user->name}');
+        return implode(', ', $values);
+    }
+
+    public function set_publicacao_publicacao_etapa_to_string($publicacao_publicacao_etapa_to_string)
+    {
+        if(is_array($publicacao_publicacao_etapa_to_string))
+        {
+            $values = PublicacaoEtapa::where('id', 'in', $publicacao_publicacao_etapa_to_string)->getIndexedArray('id', 'id');
+            $this->publicacao_publicacao_etapa_to_string = implode(', ', $values);
+        }
+        else
+        {
+            $this->publicacao_publicacao_etapa_to_string = $publicacao_publicacao_etapa_to_string;
+        }
+
+        $this->vdata['publicacao_publicacao_etapa_to_string'] = $this->publicacao_publicacao_etapa_to_string;
+    }
+
+    public function get_publicacao_publicacao_etapa_to_string()
+    {
+        if(!empty($this->publicacao_publicacao_etapa_to_string))
+        {
+            return $this->publicacao_publicacao_etapa_to_string;
+        }
+    
+        $values = Publicacao::where('modificacao_user_id', '=', $this->id)->getIndexedArray('publicacao_etapa_id','{publicacao_etapa->id}');
         return implode(', ', $values);
     }
 

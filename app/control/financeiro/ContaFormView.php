@@ -30,6 +30,31 @@ class ContaFormView extends TPage
         // define the form title
         $this->form->setFormTitle("Detalhe da conta #{$param['key']}");
 
+        $transformed_conta_contrato_id = call_user_func(function($value, $object, $row)
+        {
+           if (empty($value)) {
+                return '';
+            }
+
+            // value é o contrato_id vinculado na conta
+            $contratoId = (int) $value;
+
+            if (empty($contratoId)) {
+                return '';
+            }
+
+            $action = new TAction(['ContratoFormView', 'onShow']);
+            $action->setParameter('key', $contratoId);
+            $action->setParameter('id', $contratoId);
+            $action->setParameter('target_container', 'adianti_right_panel');
+
+            $button = new TActionLink('Ver contrato', $action, '#ffffff', 10, null, 'fas:eye');
+            $button->class = 'btn btn-sm btn-primary';
+            $button->style = 'padding: 3px 8px; font-size: 12px;';
+
+            return $button;
+        }, $conta->contrato_id, $conta, null);    
+
         $transformed_conta_total_conta = call_user_func(function($value, $object, $row) 
         {
             if(!$value)
@@ -60,6 +85,7 @@ class ContaFormView extends TPage
 
         $conta->quitada = $label;
 
+        $text13 = new TTextDisplay($transformed_conta_contrato_id, '', '12px', '');
         $label2 = new TLabel("Pessoa:", '', '14px', 'B', '100%');
         $text2 = new TTextDisplay($conta->pessoa->nome, '', '14px', '');
         $label6 = new TLabel("Tipo:", '', '14px', 'B', '100%');
@@ -83,32 +109,34 @@ class ContaFormView extends TPage
         $label16 = new TLabel("Motivo do cancelamento:", '', '14px', 'B', '100%');
         $label17 = new TLabel("MOTIVO CANCELAMENTO", '', '16px', '');
 
+        $row1 = $this->form->addFields([$text13]);
+        $row1->layout = [' col-sm-12'];
 
-        $row1 = $this->form->addFields([$label2,$text2],[$label6,$text4],[$label8,$text8]);
-        $row1->layout = [' col-sm-6',' col-sm-3',' col-sm-3'];
+        $row2 = $this->form->addFields([$label2,$text2],[$label6,$text4],[$label8,$text8]);
+        $row2->layout = [' col-sm-6',' col-sm-3',' col-sm-3'];
 
-        $row2 = $this->form->addFields([$label4,$text3],[$label25,$text7],[$label12,$text6]);
-        $row2->layout = [' col-sm-6','col-sm-3',' col-sm-3'];
+        $row3 = $this->form->addFields([$label4,$text3],[$label25,$text7],[$label12,$text6]);
+        $row3->layout = [' col-sm-6','col-sm-3',' col-sm-3'];
 
-        $row3 = $this->form->addFields([$label10,$text9],[$label14,$text14],[$label15,$text15,$text16,$text17]);
-        $row3->layout = [' col-sm-6',' col-sm-3',' col-sm-3'];
+        $row4 = $this->form->addFields([$label10,$text9],[$label14,$text14],[$label15,$text15,$text16,$text17]);
+        $row4->layout = [' col-sm-6',' col-sm-3',' col-sm-3'];
 
-        $row4 = $this->form->addFields([$label16,$label17]);
-        $row4->layout = [' col-sm-6'];
+        $row5 = $this->form->addFields([$label16,$label17]);
+        $row5->layout = [' col-sm-6'];
 
         $this->lancamento_conta_id_list = new TQuickGrid;
         $this->lancamento_conta_id_list->style = 'width:100%';
         $this->lancamento_conta_id_list->disableDefaultClick();
 
-        $action_onShow = new TDataGridAction(array('ModalQuitarParcela', 'onShow'));
-        $action_onShow->setUseButton(true);
-        $action_onShow->setButtonClass('btn btn-default btn-sm');
-        $action_onShow->setLabel("Quitar");
-        $action_onShow->setImage('fas:check #4CAF50');
-        $action_onShow->setField('id');
-        $action_onShow->setDisplayCondition('ContaFormView::canPagar');
-        $action_onShow->setParameter('lancamento_id', '{id}');
-        $this->lancamento_conta_id_list->addAction($action_onShow);
+        $action_onPagar = new TDataGridAction(array('ContaFormView', 'onPagar'));
+        $action_onPagar->setUseButton(true);
+        $action_onPagar->setButtonClass('btn btn-default btn-sm');
+        $action_onPagar->setLabel("Quitar");
+        $action_onPagar->setImage('fas:check #4CAF50');
+        $action_onPagar->setField('id');
+        $action_onPagar->setDisplayCondition('ContaFormView::canPagar');
+        $action_onPagar->setParameter('lancamento_id', '{id}');
+        $this->lancamento_conta_id_list->addAction($action_onPagar);
 
         $action_onDesquitar = new TDataGridAction(array('ContaFormView', 'onDesquitar'));
         $action_onDesquitar->setUseButton(true);
@@ -122,12 +150,12 @@ class ContaFormView extends TPage
 
         $column_dt_vencimento_transformed = $this->lancamento_conta_id_list->addQuickColumn("Vencimento", 'dt_vencimento', 'center');
         $column_tipo_pagamento_nome = $this->lancamento_conta_id_list->addQuickColumn("Tipo", 'tipo_pagamento->nome', 'center');
-        $column_valor_transformed = $this->lancamento_conta_id_list->addQuickColumn("Valor", 'valor', 'center');
+        $column_valor_total_transformed = $this->lancamento_conta_id_list->addQuickColumn("Valor", 'valor_total', 'center');
+        $column_saldo_transformed = $this->lancamento_conta_id_list->addQuickColumn("Saldo", 'saldo', 'left');
         $column_dt_pagamento_transformed = $this->lancamento_conta_id_list->addQuickColumn("Pago", 'dt_pagamento', 'center');
         $column_dt_pagamento_transformed1 = $this->lancamento_conta_id_list->addQuickColumn("Data da baixa", 'dt_pagamento', 'center' , '150px');
         $column_extrato_data_compensacao_transformed = $this->lancamento_conta_id_list->addQuickColumn("Data da compensação", 'extrato->data_compensacao', 'center');
         $column_cancelado_transformed = $this->lancamento_conta_id_list->addQuickColumn("Cancelado", 'cancelado', 'center');
-        $column_contrato_parcela_contrato_opcao_pagamento_nome = $this->lancamento_conta_id_list->addQuickColumn("", 'contrato_parcela->contrato_opcao_pagamento->nome', 'left');
 
         $column_dt_vencimento_transformed->setTransformer(function($value, $object, $row, $cell = null, $last_row = null)
         {
@@ -145,7 +173,7 @@ class ContaFormView extends TPage
             }
         });
 
-        $column_valor_transformed->setTransformer(function($value, $object, $row, $cell = null, $last_row = null)
+        $column_valor_total_transformed->setTransformer(function($value, $object, $row, $cell = null, $last_row = null)
         {
             if(!$value)
             {
@@ -160,6 +188,38 @@ class ContaFormView extends TPage
             {
                 return $value;
             }
+        });
+
+        $column_saldo_transformed->setTransformer(function($value, $object, $row, $cell = null, $last_row = null)
+        {
+            $saldo = (float) ($value ?? 0);
+
+            if($saldo > 0 && empty($object->dt_pagamento)){
+                $row->style = 'background-color: #fff8e1; border-left: 4px solid #f59e0b;';
+
+                $badge = new TElement('span');
+                $badge->style = 'display: inline-flex; align-items: center; gap: 6px; padding: 5px 9px; background: #fff3cd; color: #8a5a00; border: 1px solid #ffe69c; border-radius: 12px; font-size: 12px; font-weight: 600;';
+                $badge->title = 'Essa parcela já teve um pagamento parcial e ainda possui saldo em aberto.';
+
+                $icone = new TElement('i');
+                $icone->class = 'fas fa-exclamation-circle';
+
+                $badge->add($icone);
+                $badge->add('Saldo R$ '.number_format($saldo, 2, ',', '.'));
+
+                return $badge;
+            }
+
+            if(!empty($object->dt_pagamento)){
+                $badge = new TElement('span');
+                $badge->style = 'display: inline-block; padding: 4px 8px; background: #d1e7dd; color: #0f5132; border-radius: 12px; font-size: 12px; font-weight: 600;';
+                $badge->add('Quitada');
+
+                return $badge;
+            }
+
+            return '<span style="color: #999;">—</span>';
+
         });
 
         $column_dt_pagamento_transformed->setTransformer(function($value, $object, $row, $cell = null, $last_row = null)
@@ -292,6 +352,60 @@ class ContaFormView extends TPage
 
     }
 
+    public static function onPagar($param = null) 
+    {
+
+    try{
+        $lancamentoId = $param['lancamento_id'] ?? $param['id'] ?? null;
+
+        if (empty($lancamentoId))
+        {
+            throw new Exception('Lançamento não informado.');
+        }
+
+        /*
+         * Quitação completa da parcela.
+         * Continua abrindo o modal que já existia.
+         */
+        $actionQuitarParcela = new TAction(
+            array('ModalQuitarParcela', 'onShow')
+        );
+
+        $actionQuitarParcela->setParameter(
+            'lancamento_id',
+            $lancamentoId
+        );
+
+        /*
+         * Quitação parcial.
+         * Abre o novo modal clonado.
+         */
+        $actionQuitarParcial = new TAction(
+            array('ModalQuitarParcelaParcial', 'onShow')
+        );
+
+        $actionQuitarParcial->setParameter(
+            'lancamento_id',
+            $lancamentoId
+        );
+
+        new TQuestion(
+            'Como deseja quitar este lançamento?',
+            $actionQuitarParcela,
+            $actionQuitarParcial,
+            'Escolha o tipo de quitação',
+            'Quitar total',
+            'Quitar parcial'
+        );
+
+            //</autoCode>
+        }
+        catch (Exception $e) 
+        {
+            TTransaction::rollback();
+            new TMessage('error', $e->getMessage());    
+        }
+    }
     public static function canPagar($object)
     {
         try 
@@ -388,16 +502,72 @@ class ContaFormView extends TPage
 
                 $object = new Conta($key, FALSE); 
 
-                if($object->tipo_conta_id == TipoConta::Pagar){
+                if($object->tipo_conta_id == 2){
                     $tela = 'ContaPagarList';
                 }else{
                     $tela = 'ContaReceberList';
                 }
 
                 // deletes the object from the database
-                $object->deleteComposite('object', 'conta_id', $object->id);
-                $object->delete();
+               // Se for uma conta gerada por contrato, volta o status das parcelas do contrato
 
+                if (!empty($object->contrato_id))
+                {
+                    $lancamentosContrato = Lancamento::where('conta_id', '=', $object->id)->load();
+
+                    $contratoParcelaIds = [];
+
+                    if ($lancamentosContrato)
+                    {
+                        foreach ($lancamentosContrato as $lancamentoContrato)
+                        {
+                            if (!empty($lancamentoContrato->contrato_parcela_id)) {
+                                $contratoParcelaIds[] = (int) $lancamentoContrato->contrato_parcela_id;
+                            }
+                        }
+                    }
+
+                    $contratoParcelaIds = array_values(array_unique($contratoParcelaIds));
+
+                    foreach ($contratoParcelaIds as $contratoParcelaId)
+                    {
+                        $contratoPagamentoParcela = ContratoPagamentoParcela::find($contratoParcelaId);
+
+                        if ($contratoPagamentoParcela)
+                        {
+                            $contratoPagamentoParcela->status_contrato_pagamento_id = null;
+
+                            /*
+                            * Se está deletando o financeiro, a parcela volta a ficar em aberto pelo valor cheio.
+                            */
+                            $contratoPagamentoParcela->saldo = null;
+
+                            $contratoPagamentoParcela->store();
+                        }
+                    }
+                }
+
+                // deletes the object from the database
+               $lancamentos = Lancamento::where('conta_id', '=', $object->id)->load();
+
+                if($lancamentos){
+                    foreach($lancamentos as $lancamento){
+                        $lancamentosProfissionais = LancamentoProfissional::where('lancamento_id', '=', $lancamento->id)->load();
+
+                        if($lancamentosProfissionais){
+                            foreach($lancamentosProfissionais as $lancamentoProfissional){
+                                LancamentoProfissionalAjuste::where('lancamento_profissional_id', '=', $lancamentoProfissional->id)->delete();
+                                $lancamentoProfissional->delete();
+                            }
+                        }
+
+                        $lancamento->delete();
+                    }
+                }
+
+                ContaProfissional::where('conta_id', '=', $object->id)->delete();
+
+                $object->delete();
                 // close the transaction
                 TTransaction::close();
 
@@ -428,19 +598,30 @@ class ContaFormView extends TPage
     {
         try 
         {
+            $key = $param['key'] ?? $param['id'] ?? null;
+
+            if (empty($key)) {
+                throw new Exception('ID da conta não informado.');
+            }
+
             TTransaction::open(self::$database);
 
             $object = new Conta($key, FALSE); 
 
-            if($object->tipo_conta_id == TipoConta::Pagar){
-                $tela = 'ContaPagarForm';
-            }else{
-                $tela = 'ContaForm';
+            if (empty($object->id)) {
+                throw new Exception('Conta não encontrada.');
             }
 
+            $tela = ($object->tipo_conta_id == 2) ? 'ContaPagarForm' : 'ContaForm';
+
+            $conta_id = $object->id;
+
             TTransaction::close();
-            TApplication::loadPage($tela, 'onEdit', ['key'=>$object->id]);
-            TScript::create("Template.closeRightPanel();");
+
+            TApplication::loadPage($tela, 'onEdit', [
+                'key' => $conta_id,
+                'register_state' => 'false'
+            ]);
 
         }
         catch (Exception $e) 

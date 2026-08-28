@@ -25,6 +25,18 @@ class State
       16 => 'LightGray'
   );
   
+  // PHP 8.2+ compatibility: Declare all dynamic properties
+  public $bold = false;
+  public $italic = false;
+  public $underline = false;
+  public $strike = false;
+  public $hidden = false;
+  public $fontsize = 0;
+  public $fontcolor = null;
+  public $background = null;
+  public $hcolor = null;
+  public $font = null;
+  
   public function __construct()
   {
     $this->Reset();
@@ -63,7 +75,7 @@ class State
     // if($this->state->end_underline) {$span .= "text-decoration:none;";}
     if($this->strike) $style .= "text-decoration:line-through;";
     if($this->hidden) $style .= "display:none;";
-    if(isset($this->font)) {
+    if(isset($this->font) && count( self::$fonttbl)>0) {
       $font = self::$fonttbl[$this->font];
       $style .= $font->toStyle();
     }

@@ -29,6 +29,7 @@ class AndamentoForm extends TPage
 
         $criteria_processo_id = new TCriteria();
         $criteria_tipo_andamento_id = new TCriteria();
+        $criteria_publicacao_etapa_id = new TCriteria();
         $criteria_criacao_user_id = new TCriteria();
         $criteria_modificacao_user_id = new TCriteria();
 
@@ -37,6 +38,8 @@ class AndamentoForm extends TPage
         $processo_id = new TDBCombo('processo_id', 'escritorio', 'Processo', 'id', '{numero_cnj_numero}','numero_cnj_numero asc' , $criteria_processo_id );
         $tipo_andamento_id = new TDBCombo('tipo_andamento_id', 'escritorio', 'TipoAndamento', 'id', '{nome}','nome asc' , $criteria_tipo_andamento_id );
         $data_andamento = new TDateTime('data_andamento');
+        $publicacao_etapa_id = new TDBCombo('publicacao_etapa_id', 'escritorio', 'PublicacaoEtapa', 'id', '{etapa_nome}','ordem_prioridade asc' , $criteria_publicacao_etapa_id );
+        $etapa_verificada = new TRadioGroup('etapa_verificada');
         $titulo = new TEntry('titulo');
         $texto = new TText('texto');
         $data_criacao = new TDateTime('data_criacao');
@@ -47,9 +50,14 @@ class AndamentoForm extends TPage
         $processo_id->addValidation("Processo id", new TRequiredValidator()); 
         $tipo_andamento_id->addValidation("Tipo andamento id", new TRequiredValidator()); 
         $data_andamento->addValidation("Data do andamento", new TRequiredValidator()); 
+        $publicacao_etapa_id->addValidation("Etapa", new TRequiredValidator()); 
+        $etapa_verificada->addValidation("Etapa Verificada", new TRequiredValidator()); 
         $titulo->addValidation("Titulo", new TRequiredValidator()); 
 
+        $etapa_verificada->addItems(["S"=>"Sim","N"=>"Não"]);
+        $etapa_verificada->setLayout('horizontal');
         $titulo->setMaxLength(255);
+        $etapa_verificada->setValue('N');
         $tela->setValue($param['tela'] ?? "");
         $processo_id->setValue($param['processo_id'] ?? null);
 
@@ -58,12 +66,13 @@ class AndamentoForm extends TPage
         $data_modificacao->setMask('dd/mm/yyyy hh:ii');
 
         $data_criacao->setDatabaseMask('yyyy-mm-dd hh:ii');
-        $data_andamento->setDatabaseMask('yyyy-mm-dd hh:ii');
         $data_modificacao->setDatabaseMask('yyyy-mm-dd hh:ii');
+        $data_andamento->setDatabaseMask('yyyy-mm-dd hh:ii:ss');
 
         $processo_id->enableSearch();
         $criacao_user_id->enableSearch();
         $tipo_andamento_id->enableSearch();
+        $publicacao_etapa_id->enableSearch();
         $modificacao_user_id->enableSearch();
 
         $id->setEditable(false);
@@ -78,13 +87,14 @@ class AndamentoForm extends TPage
         $titulo->setSize('100%');
         $texto->setSize('100%', 70);
         $processo_id->setSize('100%');
+        $etapa_verificada->setSize(80);
         $data_criacao->setSize('100%');
         $data_andamento->setSize('100%');
         $criacao_user_id->setSize('100%');
         $data_modificacao->setSize('100%');
         $tipo_andamento_id->setSize('100%');
+        $publicacao_etapa_id->setSize('100%');
         $modificacao_user_id->setSize('100%');
-
 
         $row1 = $this->form->addFields([new TLabel("Id:", null, '14px', null, '100%'),$id,$tela],[new TLabel("Processo:", '#ff0000', '14px', null, '100%'),$processo_id]);
         $row1->layout = [' col-sm-6',' col-sm-6'];
@@ -92,15 +102,18 @@ class AndamentoForm extends TPage
         $row2 = $this->form->addFields([new TLabel("Tipo de andamento:", '#ff0000', '14px', null, '100%'),$tipo_andamento_id],[new TLabel("Data do andamento:", '#FF0000', '14px', null, '100%'),$data_andamento]);
         $row2->layout = [' col-sm-6',' col-sm-6'];
 
-        $row3 = $this->form->addFields([new TLabel("Titulo:", '#ff0000', '14px', null, '100%'),$titulo]);
-        $row3->layout = [' col-sm-12'];
+        $row3 = $this->form->addFields([new TLabel("Etapa:", '#FF0000', '14px', null),$publicacao_etapa_id],[new TLabel("Etapa verificada:", '#FF0000', '14px', null, '100%'),$etapa_verificada]);
+        $row3->layout = [' col-sm-6',' col-sm-6'];
 
-        $row4 = $this->form->addFields([new TLabel("Texto:", null, '14px', null, '100%'),$texto]);
+        $row4 = $this->form->addFields([new TLabel("Titulo:", '#ff0000', '14px', null, '100%'),$titulo]);
         $row4->layout = [' col-sm-12'];
 
-        $row5 = $this->form->addContent([new TFormSeparator("", '#333', '18', '#eee')]);
-        $row6 = $this->form->addFields([new TLabel("Criado em:", null, '14px', null, '100%'),$data_criacao],[new TLabel("Criado por:", null, '14px', null, '100%'),$criacao_user_id],[new TLabel("Atualizado em:", null, '14px', null, '100%'),$data_modificacao],[new TLabel("Atualizado por:", null, '14px', null, '100%'),$modificacao_user_id]);
-        $row6->layout = [' col-sm-3',' col-sm-3',' col-sm-3',' col-sm-3'];
+        $row5 = $this->form->addFields([new TLabel("Texto:", null, '14px', null, '100%'),$texto]);
+        $row5->layout = [' col-sm-12'];
+
+        $row6 = $this->form->addContent([new TFormSeparator("", '#333', '18', '#eee')]);
+        $row7 = $this->form->addFields([new TLabel("Criado em:", null, '14px', null, '100%'),$data_criacao],[new TLabel("Criado por:", null, '14px', null, '100%'),$criacao_user_id],[new TLabel("Atualizado em:", null, '14px', null, '100%'),$data_modificacao],[new TLabel("Atualizado por:", null, '14px', null, '100%'),$modificacao_user_id]);
+        $row7->layout = [' col-sm-3',' col-sm-3',' col-sm-3',' col-sm-3'];
 
         // create the form actions
         $btn_onsave = $this->form->addAction("Salvar", new TAction([$this, 'onSave']), 'fas:save #ffffff');
@@ -150,6 +163,22 @@ class AndamentoForm extends TPage
             $data->id = $object->id; 
 
             $this->form->setData($data); // fill form data
+
+            $pp = ProcessoPublicacoes::where('andamento_id', '=', $object->id)->first();
+
+            if (!empty($pp)) {                   
+                $pp->publicacao_etapa_id = $object->publicacao_etapa_id;
+                $pp->date_log = date('Y-m-d H:i:s');
+            }
+            else {
+                $pp = new ProcessoPublicacoes();
+                $pp->processo_id = $object->processo_id;
+                $pp->andamento_id = $object->id;
+                $pp->publicacao_etapa_id = $object->publicacao_etapa_id;
+                $pp->date_log = date('Y-m-d H:i:s');
+            }      
+            $pp->store();
+
             TTransaction::close(); // close the transaction
 
             TToast::show('success', "Registro salvo", 'topRight', 'far:check-circle'); 

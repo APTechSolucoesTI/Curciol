@@ -62,7 +62,6 @@ class ContratoFormView extends TPage
         $action1->class = 'btn btn-default';
         $action3->class = 'btn btn-default';
 
-
         $action3->name = 'btnGerarDocumento';
         $row1 = $this->form->addFields([$label1,$text1],[$label2,$text2],[$label8,$text8,$action2]);
         $row1->layout = [' col-sm-4',' col-sm-4',' col-sm-4'];
@@ -234,7 +233,7 @@ class ContratoFormView extends TPage
         $action_onAddFinanceiro->setLabel("Gerar financeiro");
         $action_onAddFinanceiro->setImage('fas:dollar-sign #000000');
         $action_onAddFinanceiro->setField('id');
-        $action_onAddFinanceiro->setDisplayCondition('ContratoFormView::canAdd');
+        $action_onAddFinanceiro->setDisplayCondition('ContratoFormView::canGerar');
         $action_onAddFinanceiro->setParameter('contrato_parcela_id', '{id}');
         $this->contrato_pagamento_parcela_contrato_id_list->addAction($action_onAddFinanceiro);
 
@@ -251,13 +250,32 @@ class ContratoFormView extends TPage
         $column_contrato_opcao_pagamento_nome = $this->contrato_pagamento_parcela_contrato_id_list->addQuickColumn("Opção de pagamento", 'contrato_opcao_pagamento->nome', 'left');
         $column_descritivo = $this->contrato_pagamento_parcela_contrato_id_list->addQuickColumn("Descritivo", 'descritivo', 'left' , '25%');
         $column_valor_transformed = $this->contrato_pagamento_parcela_contrato_id_list->addQuickColumn("Valor", 'valor', 'left');
+        $column_saldo_transformed = $this->contrato_pagamento_parcela_contrato_id_list->addQuickColumn("Saldo", 'saldo', 'left');
         $column_data_pagamento_transformed = $this->contrato_pagamento_parcela_contrato_id_list->addQuickColumn("Data", 'data_pagamento', 'left');
         $column_contrato_evento_nome = $this->contrato_pagamento_parcela_contrato_id_list->addQuickColumn("Evento", 'contrato_evento->nome', 'left');
         $column_complemento_indexador = $this->contrato_pagamento_parcela_contrato_id_list->addQuickColumn("Número do indexador", 'complemento_indexador', 'left');
         $column_contrato_indexador_nome = $this->contrato_pagamento_parcela_contrato_id_list->addQuickColumn("Indexador", 'contrato_indexador->nome', 'left');
         $column_numero_parcelas = $this->contrato_pagamento_parcela_contrato_id_list->addQuickColumn("Número de parcelas", 'numero_parcelas', 'left');
+        $column_status_contrato_pagamento_id_transformed = $this->contrato_pagamento_parcela_contrato_id_list->addQuickColumn("Status", 'status_contrato_pagamento_id', 'left');
 
         $column_valor_transformed->setTransformer(function($value, $object, $row, $cell = null, $last_row = null)
+        {
+            if(!$value)
+            {
+                $value = 0;
+            }
+
+            if(is_numeric($value))
+            {
+                return "R$ " . number_format($value, 2, ",", ".");
+            }
+            else
+            {
+                return $value;
+            }
+        });
+
+        $column_saldo_transformed->setTransformer(function($value, $object, $row, $cell = null, $last_row = null)
         {
             if(!$value)
             {
@@ -288,6 +306,146 @@ class ContratoFormView extends TPage
                     return $value;
                 }
             }
+        });
+
+        $column_status_contrato_pagamento_id_transformed->setTransformer(function($value, $object, $row, $cell = null, $last_row = null)
+        {
+             $valorParcela = $object->valor ?? 0;
+
+            if ($valorParcela === null || $valorParcela === '') {
+                return '';
+            }
+
+            if (!is_numeric($valorParcela)) {
+                $valorParcela = str_replace(['R$', ' '], '', (string) $valorParcela);
+                $valorParcela = str_replace('.', '', $valorParcela);
+                $valorParcela = str_replace(',', '.', $valorParcela);
+            }
+
+            $valorParcela = (float) $valorParcela;
+
+            if ($valorParcela <= 0) {
+                return '';
+            }
+
+            $statusId = empty($value) ? 1 : (int) $value;
+
+            switch ($statusId) {
+                case 1:
+                    $texto = 'Em Aberto';
+                    $corFundo = '#fff3cd';
+                    $corTexto = '#856404';
+                    $icone = 'fas fa-clock';
+                    break;
+
+                case 2:
+                    $texto = 'Gerado com Saldo';
+                    $corFundo = '#d1ecf1';
+                    $corTexto = '#0c5460';
+                    $icone = 'fas fa-adjust';
+                    break;
+
+                case 3:
+                    $texto = 'Gerado';
+                    $corFundo = '#d4edda';
+                    $corTexto = '#155724';
+                    $icone = 'fas fa-check-circle';
+                    break;
+
+                default:
+                    $texto = 'Em Aberto';
+                    $corFundo = '#fff3cd';
+                    $corTexto = '#856404';
+                    $icone = 'fas fa-clock';
+                    break;
+            }
+
+            $label = new TElement('span');
+            $label->style = "
+                display: inline-flex;
+                align-items: center;
+                gap: 5px;
+                padding: 4px 9px;
+                border-radius: 12px;
+                font-size: 12px;
+                font-weight: 600;
+                background: {$corFundo}
+                ;
+                color: {$corTexto}
+                ;
+                white-space: nowrap;
+            ";
+
+            $label->add("<i class='{$icone}'></i> {$texto}");
+
+            $contratoId = (int) ($object->contrato_id ?? 0);
+
+            if (in_array($statusId, [2, 3]) && !empty($contratoId)) {
+                try {
+                    $fecharTransacao = false;
+
+                    if (!TTransaction::get()) {
+                        TTransaction::open('escritorio');
+                        $fecharTransacao = true;
+                    }
+
+                    $conn = TTransaction::get();
+
+                    $sql = "
+                        SELECT id
+                        FROM conta
+                        WHERE contrato_id = :contrato_id
+                        ORDER BY id DESC
+                        LIMIT 1
+                    ";
+
+                    $stmt = $conn->prepare($sql);
+                    $stmt->bindValue(':contrato_id', $contratoId);
+                    $stmt->execute();
+
+                    $contaId = $stmt->fetchColumn();
+
+                    if ($fecharTransacao) {
+                        TTransaction::close();
+                    }
+
+                    if (!empty($contaId)) {
+                        $contaId = (int) $contaId;
+
+                       $url = "index.php?class=ContaFormView&method=onShow&key={$contaId}&id={$contaId}&target_container=adianti_right_panel";
+
+                        $link = new TElement('a');
+                        $link->href = 'javascript:void(0)';
+                        $link->style = 'text-decoration: none; cursor: pointer;';
+                        $link->title = 'Abrir conta gerada';
+
+                        $link->onclick = "
+                            if (event) {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                event.stopImmediatePropagation();
+                            }
+
+                            __adianti_load_page('{$url}');
+
+                            return false;
+                        ";
+
+                        $link->add($label);
+
+                        return $link;
+                    }
+                } catch (Exception $e) {
+                    if (TTransaction::get()) {
+                        TTransaction::rollback();
+                    }
+
+                    return $label;
+                }
+            }
+
+            return $label;
+
         });
 
         $this->contrato_pagamento_parcela_contrato_id_list->createModel();
@@ -517,27 +675,135 @@ class ContratoFormView extends TPage
         {
             TTransaction::open(self::$database);
 
-            $contratoParcela = ContratoPagamentoParcela::find($param['contrato_parcela_id']);
+            if (empty($param['contrato_parcela_id'])) {
+                throw new Exception('Parcela do contrato não informada.');
+            }
+
+            $toFloat = function($valor) {
+                if ($valor === null || $valor === '') {
+                    return 0;
+                }
+
+                if (is_int($valor) || is_float($valor)) {
+                    return (float) $valor;
+                }
+
+                $valor = trim((string) $valor);
+                $valor = str_replace('R$', '', $valor);
+                $valor = str_replace(' ', '', $valor);
+                $valor = preg_replace('/[^0-9,.\-]/', '', $valor);
+
+                if ($valor === '' || $valor === '-' || $valor === ',' || $valor === '.') {
+                    return 0;
+                }
+
+                if (strpos($valor, ',') !== false) {
+                    $valor = str_replace('.', '', $valor);
+                    $valor = str_replace(',', '.', $valor);
+                    return (float) $valor;
+                }
+
+                return (float) $valor;
+            };
+
+            $contratoParcela = ContratoPagamentoParcela::find((int) $param['contrato_parcela_id']);
+
+            if (!$contratoParcela) {
+                throw new Exception('Parcela do contrato não encontrada.');
+            }
+
             $contrato = Contrato::find($contratoParcela->contrato_id);
 
-            //REPASSES
-            $repasses = ContratoRepasse::where('contrato_id','=',$contrato->id)->load();
-            foreach($repasses as $repasse){
-                $grupo = PessoaGrupo::where('pessoa_id','=',$repasse->pessoa_id)->where('grupo_id','=',Grupo::PROFISSIONAL)->first();
-                if($grupo){
-                    $profissional = Pessoa::find($repasse->pessoa_id);
-                    break;
+            if (!$contrato) {
+                throw new Exception('Contrato não encontrado.');
+            }
+
+            $statusId = (int) ($contratoParcela->status_contrato_pagamento_id ?? 1);
+
+            /*
+            * 1 = Em Aberto
+            * 2 = Gerado com Saldo
+            * 3 = Gerado
+            */
+            if ($statusId === 3) {
+                throw new Exception('Esta parcela do contrato já foi gerada integralmente.');
+            }
+
+            if (!in_array($statusId, [1, 2])) {
+                throw new Exception('Status da parcela não permite gerar financeiro.');
+            }
+
+            $valorParcela = $toFloat($contratoParcela->valor ?? 0);
+            $saldoParcela = $toFloat($contratoParcela->saldo ?? 0);
+
+            /*
+            * Se está em aberto, usa o valor original.
+            * Se já foi gerado com saldo, usa o saldo restante.
+            */
+            if ($statusId === 2) {
+                $valorDisponivel = $saldoParcela;
+            } else {
+                $valorDisponivel = $valorParcela;
+            }
+
+            if ($valorDisponivel <= 0) {
+                throw new Exception('Adicione um valor inicial antes de gerar o financeiro.');
+            }
+
+            $profissionaisRepasse = [];
+            $percentuaisRepasse = [];
+            $valoresProfissionais = [];
+
+            $repasses = ContratoRepasse::where('contrato_id', '=', $contrato->id)->load();
+
+            foreach ($repasses as $repasse)
+            {
+                $grupo = PessoaGrupo::where('pessoa_id', '=', $repasse->pessoa_id)
+                    ->where('grupo_id', 'in', [Grupo::PARCEIRO, Grupo::FORNECEDOR])
+                    ->first();
+
+                if ($grupo)
+                {
+                    $profissionaisRepasse[] = $repasse->pessoa_id;
+                    $percentuaisRepasse[] = $repasse->percentual ?? 0;
                 }
             }
 
-            //CLIENTE
-            $pessoaCount = ContratoPessoa::where('contrato_id','=',$contrato->id)->count();
-            $pessoa = (ContratoPessoa::where('contrato_id','=',$contrato->id)->orderby('percentual')->load())[$pessoaCount-1];
+            $qtdProfissionais = count($profissionaisRepasse);
 
-            if($pessoaCount>1)
+            if ($qtdProfissionais > 0)
+            {
+                $valorBase = floor(($valorDisponivel / $qtdProfissionais) * 100) / 100;
+                $valorAcumulado = 0;
+
+                for ($i = 0; $i < $qtdProfissionais; $i++)
+                {
+                    if ($i == $qtdProfissionais - 1)
+                    {
+                        $valoresProfissionais[] = $valorDisponivel - $valorAcumulado;
+                    }
+                    else
+                    {
+                        $valoresProfissionais[] = $valorBase;
+                        $valorAcumulado += $valorBase;
+                    }
+                }
+            }
+
+            // CLIENTE
+            $pessoaCount = ContratoPessoa::where('contrato_id', '=', $contrato->id)->count();
+
+            if ($pessoaCount <= 0) {
+                throw new Exception('Nenhum cliente vinculado ao contrato.');
+            }
+
+            $pessoa = (ContratoPessoa::where('contrato_id', '=', $contrato->id)->orderby('percentual')->load())[$pessoaCount - 1];
+
+            if ($pessoaCount > 1) {
                 $pessoasDesc = $pessoa->cliente->nome . " e outros";
-            else
+            } else {
                 $pessoasDesc = $pessoa->cliente->nome;
+            }
 
             $pageParam = [
                 'escritorio_id' => $contrato->escritorio_id,
@@ -545,43 +811,95 @@ class ContratoFormView extends TPage
                 'pessoa_id' => $pessoa->cliente_id,
                 'profissional_id' => $profissional->id ?? null,
                 'contrato_parcela_id' => $contratoParcela->id,
-                'valor' => $contratoParcela->valor ?? null,
+
+                /*
+                * Aqui agora vai o valor disponível:
+                * - status 1: valor original
+                * - status 2: saldo
+                */
+                'valor' => $valorDisponivel,
+
                 'dt' => $contratoParcela->data_pagamento ?? null,
                 'desc' => "Contrato ".$contrato->area->nome." #$contrato->numero - $pessoasDesc.",
-                'quant_parcela' => $contratoParcela->numero_parcelas
+                'quant_parcela' => $contratoParcela->numero_parcelas,
+                'profissionais_json' => json_encode($profissionaisRepasse),
+                'valores_profissionais_json' => json_encode($valoresProfissionais),
+                'repasses_profissionais_json' => json_encode($percentuaisRepasse)
             ];
 
-            TApplication::loadPage('ModalContratoGerarFinanceiro', 'onShow', $pageParam);
             TTransaction::close();
 
-            //</autoCode>
+            TApplication::loadPage('ModalContratoGerarFinanceiro', 'onShow', $pageParam);
         }
+
+            //</autoCode>
+
         catch (Exception $e) 
         {
             new TMessage('error', $e->getMessage());    
         }
     }
-    public static function canAdd($object)
+    public static function canGerar($object)
     {
         try 
         {
             TTransaction::open(self::$database);
 
-            $pessoa = Pessoa::where('system_users_id','=',TSession::getValue('userid'))->first();
-            if($pessoa){
-                $pessoaGrupo = PessoaGrupo::where('pessoa_id','=',$pessoa->id)->where('grupo_id','=',Grupo::PROFISSIONAL)->count();
-                if($pessoaGrupo>0)
+            $podeGerar = false;
+
+            $toFloat = function($valor) {
+                if ($valor === null || $valor === '') {
+                    return 0;
+                }
+
+                if (is_numeric($valor)) {
+                    return (float) $valor;
+                }
+
+                $valor = str_replace(['R$', ' '], '', (string) $valor);
+                $valor = str_replace('.', '', $valor);
+                $valor = str_replace(',', '.', $valor);
+
+                return (float) $valor;
+            };
+
+            $pessoa = Pessoa::where('system_users_id', '=', TSession::getValue('userid'))->first();
+
+            if ($pessoa) 
+            {
+                $pessoaGrupo = PessoaGrupo::where('pessoa_id', '=', $pessoa->id)
+                    ->where('grupo_id', '=', Grupo::PROFISSIONAL)
+                    ->count();
+
+                if ($pessoaGrupo > 0)
                 {
-                    $search = Lancamento::where('contrato_parcela_id','=',$object->id)->load();
-                    if(!$search){
-                        return true;
+                    $statusId = (int) ($object->status_contrato_pagamento_id ?? 1);
+
+                    /*
+                    * 1 = Em Aberto
+                    * 2 = Gerado com Saldo
+                    * 3 = Gerado
+                    */
+                    if (in_array($statusId, [1, 2]))
+                    {
+                        $valor = $toFloat($object->valor ?? 0);
+                        $saldo = $toFloat($object->saldo ?? 0);
+
+                        if ($statusId === 1 && $valor > 0) {
+                            $podeGerar = true;
+                        }
+
+                        if ($statusId === 2 && $saldo > 0) {
+                            $podeGerar = true;
+                        }
+
                     }
                 }
             }
 
-            return false;
-
             TTransaction::close();
+
+            return $podeGerar;
         }
         catch (Exception $e) 
         {

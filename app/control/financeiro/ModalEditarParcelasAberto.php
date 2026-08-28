@@ -164,8 +164,10 @@ class ModalEditarParcelasAberto extends TWindow
                 throw new Exception('A Soma dos valores informados é diferente do valor em aberto.');
             }
 
+            $param['parcela_valor'] = $param['parcela_valor'] ?? [];
+
             for($i=0;$i<count($param['parcela_valor']);$i++){
-                if($param['parcela_valor'][$i]=='' && $param['parcela_vencimento'][$i]=='' && !isset($param['parcela_pagamento'][$i])){
+                if(($param['parcela_valor'][$i] ?? '')=='' && ($param['parcela_vencimento'][$i] ?? '')=='' && empty($param['parcela_pagamento'][$i])){
                     unset($param['lancamento_conta_id'][$i]);
                     unset($param['lancamento_conta___row__id'][$i]);
                     unset($param['lancamento_conta___row__data'][$i]);
@@ -183,24 +185,36 @@ class ModalEditarParcelasAberto extends TWindow
                         throw new Exception('Informe a data de vencimento da parcela.');
                         return ModalEditarParcelasAberto::onShow();
                     }
-                    if(!isset($param['parcela_pagamento'][$i])){
+                    if(empty($param['parcela_pagamento'][$i])){
                         throw new Exception('Informe o tipo de pagamento da parcela.');
                         return ModalEditarParcelasAberto::onShow();
                     }
                 }
             }
 
-            $search = Lancamento::where('id','not in',$param['id'])
-                                ->where('conta_id','=',$id)
-                                ->load();
+           $idsAtuais = $param['id'] ?? [];
 
-            if(count($search)>0){
+            $idsAtuais = array_values(array_filter($idsAtuais, function($valor){
+                return $valor !== '' && $valor !== null && is_numeric($valor);
+            }));
+
+            if(!empty($idsAtuais)){
+                $search = Lancamento::where('id','not in',$idsAtuais)
+                                    ->where('conta_id','=',$id)
+                                    ->load();
+            }else{
+                $search = Lancamento::where('conta_id','=',$id)->load();
+            }
+
+            if(!empty($search)){
                 foreach($search as $objeto){
                     if($objeto->dt_pagamento==''){
                         $objeto->delete();
                     }
                 }
             }
+
+            $param['parcela_valor'] = $param['parcela_valor'] ?? [];
 
             for ($i = 0; $i < count($param['parcela_valor']); $i++) {
                 $ids[] = $param['id'][$i];
@@ -209,20 +223,48 @@ class ModalEditarParcelasAberto extends TWindow
                 $valores[] = str_replace(',', '.', str_replace('.', '', $param['parcela_valor'][$i]));
 
                 if($param['id'][$i]=='' || empty($param['id'][$i])){
-                    $object = new Lancamento();
+                   $object = new Lancamento();
                     $object->conta_id = $id;
                     $object->parcela = $i+1;
                     $object->dt_vencimento = implode('-', array_reverse(explode('/', $param['parcela_vencimento'][$i])));
-                    $object->valor = str_replace(',', '.', str_replace('.', '', $param['parcela_valor'][$i]));
+
+                    $valorParcela = str_replace(',', '.', str_replace('.', '', $param['parcela_valor'][$i]));
+
+                    $object->valor = $valorParcela;
+                    $object->valor_total = $valorParcela;
+
                     $object->tipo_pagamento_id = $param['parcela_pagamento'][$i];
                     $object->store();
                 }else{
                     $data = Lancamento::find($param['id'][$i]);
+
                     $data->dt_vencimento = implode('-', array_reverse(explode('/', $param['parcela_vencimento'][$i])));
-                    $data->valor = str_replace(',', '.', str_replace('.', '', $param['parcela_valor'][$i]));
+
+                    $valorParcela = str_replace(',', '.', str_replace('.', '', $param['parcela_valor'][$i]));
+
+                    $data->valor = $valorParcela;
+                    $data->valor_total = $valorParcela;
+
                     $data->tipo_pagamento_id = $param['parcela_pagamento'][$i];
                     $data->store();
                 }
+            }
+
+            $lancamentosConta = Lancamento::where('conta_id','=',$id)->load();
+
+            $totalParcelasConta = 0;
+
+            foreach($lancamentosConta as $lancamentoConta){
+                if($lancamentoConta->cancelado != 'S'){
+                    $totalParcelasConta++;
+                }
+            }
+
+            $conta = Conta::find($id);
+
+            if($conta){
+                $conta->total_parcelas = $totalParcelasConta;
+                $conta->store();
             }
 
             $pageParam = ['key'=>$id];
@@ -249,17 +291,47 @@ class ModalEditarParcelasAberto extends TWindow
 
         $id = TSession::getValue('conta_id');
 
-        if(empty($id) || empty($param['total_conta']))
+        if(empty($id))
         {
+            TTransaction::close();
             return;
         }
 
-        $datas_pagamentos = $param['lancamento_conta_dt_pagamento'];
+        // se por algum motivo as parcelas nao vierem da tela anterior, busca direto no banco
+        if(empty($param['lancamento_conta_valor']))
+        {
+            $lancamentos = Lancamento::where('conta_id','=',$id)->load();
+
+            $param['lancamento_conta_id'] = [];
+            $param['lancamento_conta_valor'] = [];
+            $param['lancamento_conta_dt_vencimento'] = [];
+            $param['lancamento_conta_tipo_pagamento_id'] = [];
+            $param['lancamento_conta_parcela'] = [];
+            $param['lancamento_conta_dt_pagamento'] = [];
+
+            if(!empty($lancamentos))
+            {
+                foreach($lancamentos as $lancamento)
+                {
+                    $param['lancamento_conta_id'][] = $lancamento->id;
+                    $param['lancamento_conta_valor'][] = number_format((float) $lancamento->valor, 2, ',', '.');
+                    $param['lancamento_conta_dt_vencimento'][] = !empty($lancamento->dt_vencimento) ? date('d/m/Y', strtotime($lancamento->dt_vencimento)) : '';
+                    $param['lancamento_conta_tipo_pagamento_id'][] = $lancamento->tipo_pagamento_id;
+                    $param['lancamento_conta_parcela'][] = $lancamento->parcela;
+                    $param['lancamento_conta_dt_pagamento'][] = !empty($lancamento->dt_pagamento) ? date('d/m/Y', strtotime($lancamento->dt_pagamento)) : '';
+                }
+            }
+        }
+
+        $datas_pagamentos = $param['lancamento_conta_dt_pagamento'] ?? [];
         $soma = 0;
 
-        foreach ($datas_pagamentos as $key=>$data_pagamento){
-            if($data_pagamento!=''){
-                $soma += (float) str_replace(',', '.', str_replace('.', '', $param['lancamento_conta_valor'][$key]));
+        foreach($datas_pagamentos as $key=>$data_pagamento)
+        {
+            if($data_pagamento!='')
+            {
+                $soma += (float) str_replace(',', '.', str_replace('.', '', $param['lancamento_conta_valor'][$key] ?? 0));
+
                 unset($param['lancamento_conta_id'][$key]);
                 unset($param['lancamento_conta___row__id'][$key]);
                 unset($param['lancamento_conta___row__data'][$key]);
@@ -268,24 +340,31 @@ class ModalEditarParcelasAberto extends TWindow
                 unset($param['lancamento_conta_tipo_pagamento_id'][$key]);
                 unset($param['lancamento_conta_parcela'][$key]);
                 unset($param['lancamento_conta_dt_pagamento'][$key]);
-
             }
         }
 
-        $total_parcelas = count($param['lancamento_conta_valor']);
-        reset($param['lancamento_conta_valor']);
-        $primeiraKey = key($param['lancamento_conta_valor']);
-        end($param['lancamento_conta_valor']);
-        $ultimaKey = key($param['lancamento_conta_valor']);
-        for ($i=$primeiraKey; $i<=$ultimaKey; $i++) {
+        $ids = [];
+        $vencimentos = [];
+        $tipos = [];
+        $parcelas = [];
+        $valores = [];
+        $somaParcelasAbertas = 0;
+
+        $lancamentosValores = $param['lancamento_conta_valor'] ?? [];
+
+        foreach($lancamentosValores as $i=>$valor)
+        {
             $ids[] = $param['lancamento_conta_id'][$i] ?? null;
-            $vencimentos[] = $param['lancamento_conta_dt_vencimento'][$i];
-            $tipos[] = $param['lancamento_conta_tipo_pagamento_id'][$i];
-            $parcelas[] = $param['lancamento_conta_parcela'][$i];
-            $valores[] = $param['lancamento_conta_valor'][$i];
+            $vencimentos[] = $param['lancamento_conta_dt_vencimento'][$i] ?? null;
+            $tipos[] = $param['lancamento_conta_tipo_pagamento_id'][$i] ?? null;
+            $parcelas[] = $param['lancamento_conta_parcela'][$i] ?? null;
+            $valores[] = $valor;
+
+            $somaParcelasAbertas += (float) str_replace(',', '.', str_replace('.', '', $valor));
         }
 
-        $total = (float) str_replace(',', '.', str_replace('.', '', $param['total_conta']));
+        $total = (float) str_replace(',', '.', str_replace('.', '', $param['total_conta'] ?? 0));
+        $valorAberto = $total - $soma;
 
         $data = new stdClass;
         $data->id = $ids;
@@ -293,9 +372,9 @@ class ModalEditarParcelasAberto extends TWindow
         $data->parcela_vencimento = $vencimentos;
         $data->parcela_pagamento = $tipos;
         $data->parcela_numero = $parcelas;
-        $data->total_conta = number_format($total - $soma, 2, ',', '.');
-        $data->valor_em_aberto = number_format($total - $soma, 2, ',', '.');
-        $data->diferenca = number_format($total - $soma - (array_sum($valores)), 2, ',', '.');
+        $data->total_conta = number_format($valorAberto, 2, ',', '.');
+        $data->valor_em_aberto = number_format($valorAberto, 2, ',', '.');
+        $data->diferenca = number_format($valorAberto - $somaParcelasAbertas, 2, ',', '.');
 
         $this->detalhe_parcelas->addRows('detalhe_parcelas', count($valores));
 

@@ -1,14 +1,726 @@
 <!--[main]-->
-<div class="logo-public"></div>
-<div class="container container-public">
-    <div class="atalhos">
-        <div class="button-atalho" generator='adianti' href="agendas"><i class="fa fa-calendar"></i>Novo agendamento</div>
-        <div class="button-atalho" generator='adianti' href="engine.php?class=Home&method=onDocumentos&static=1&register_state=false"><i class="fa fa-file"></i>Meus documentos</div>
-        <div class="button-atalho" generator='adianti' href="validar-documento"><i class="fa fa-check"></i>Validar documento</div>
-    </div>
-    <div>
-        <a href="login-adm" generator="adianti"><i class="fas fa-sign-in-alt"></i>&nbsp;&nbsp;login administrativo</a>
+
+<style>
+    :root {
+        --curciol-fundo: #1E2843;
+        --curciol-azul: #0D4069;
+        --curciol-cinza: #C0C3C9;
+        --curciol-branco: #FFFFFF;
+        --curciol-texto: #0D4069;
+        --curciol-borda: #dfe3ea;
+        --curciol-input: #f3f6fa;
+    }
+
+    html,
+    body,
+    body#builder-layout {
+        margin: 0 !important;
+        padding: 0 !important;
+        width: 100% !important;
+        min-height: 100% !important;
+        overflow-x: hidden !important;
+        background: var(--curciol-branco) !important;
+    }
+
+    nav.container-header,
+    .container-header,
+    .container-header.navbar,
+    .header-logo,
+    .navbar,
+    .login-admin,
+    .nav-login,
+    .navigation-arrows,
+    .adianti_tabs_container,
+    .adianti_tab_content_actions,
+    .tab-arrow,
+    .tab-arrow-left,
+    .tab-arrow-right,
+    a[onclick*="__adianti_scroll_tab"] {
+        display: none !important;
+        visibility: hidden !important;
+        opacity: 0 !important;
+        width: 0 !important;
+        height: 0 !important;
+        max-width: 0 !important;
+        max-height: 0 !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        overflow: hidden !important;
+        pointer-events: none !important;
+        position: absolute !important;
+        top: -99999px !important;
+        left: -99999px !important;
+    }
+
+    .container-main,
+    .master-container,
+    .container-live,
+    #adianti_content,
+    #adianti_div_content {
+        margin: 0 !important;
+        padding: 0 !important;
+        width: 100% !important;
+        max-width: none !important;
+        min-height: 100vh !important;
+        background: var(--curciol-branco) !important;
+    }
+
+    #adianti_content > .logo-public {
+        display: none !important;
+    }
+
+    .curciol-home {
+        width: 100%;
+        min-height: 100vh;
+        min-height: 100dvh;
+        margin: 0 !important;
+        padding: 0 !important;
+        position: relative;
+        overflow-x: hidden;
+        overflow-y: auto;
+        background: var(--curciol-branco);
+        font-family: Helvetica, Arial, sans-serif;
+        box-sizing: border-box;
+    }
+
+    .curciol-home::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 155px;
+        background: linear-gradient(135deg, var(--curciol-fundo), var(--curciol-azul));
+        clip-path: polygon(0 0, 100% 0, 100% 45%, 0 100%);
+        z-index: 0;
+        pointer-events: none;
+    }
+
+    .curciol-top-link {
+        position: absolute;
+        top: 24px;
+        left: 28px;
+        z-index: 5;
+        display: inline-flex;
+        align-items: center;
+        gap: 9px;
+        color: var(--curciol-branco);
+        text-decoration: none;
+        font-size: 14px;
+        font-weight: 500;
+        letter-spacing: .2px;
+        padding: 10px 14px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, .10);
+        border: 1px solid rgba(255, 255, 255, .22);
+        backdrop-filter: blur(6px);
+        transition: .2s;
+    }
+
+    .curciol-top-link:hover {
+        background: rgba(255, 255, 255, .18);
+        color: var(--curciol-branco);
+        text-decoration: none;
+        transform: translateX(-2px);
+    }
+
+    .curciol-top-link i {
+        font-size: 13px;
+    }
+
+    .curciol-wrapper {
+        position: relative;
+        z-index: 2;
+        width: 100%;
+        max-width: 1120px;
+        margin: 0 auto;
+        padding: 132px 32px 65px 32px;
+        display: grid;
+        grid-template-columns: minmax(0, 455px) minmax(0, 505px);
+        gap: 90px;
+        align-items: center;
+        justify-content: center;
+        box-sizing: border-box;
+    }
+
+    .curciol-left {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        min-width: 0;
+    }
+
+    .curciol-logo-area {
+        width: 100%;
+        margin-bottom: 28px;
+        display: flex;
+        justify-content: flex-start;
+    }
+
+    .curciol-logo-area .logo-public {
+        display: block !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        margin: 0 !important;
+        width: 430px !important;
+        max-width: 100% !important;
+        height: 128px !important;
+        background-size: contain !important;
+        background-repeat: no-repeat !important;
+        background-position: left center !important;
+        transform: none !important;
+        position: relative !important;
+        top: auto !important;
+        left: auto !important;
+    }
+
+    .curciol-info-area {
+        width: 100%;
+    }
+
+    .curciol-title {
+        font-size: 43px;
+        line-height: 1.1;
+        font-weight: 300;
+        color: var(--curciol-azul);
+        margin: 0 0 26px 0;
+        letter-spacing: -1px;
+    }
+
+    .curciol-text {
+        max-width: 365px;
+        color: #1f2937;
+        font-size: 16px;
+        line-height: 1.45;
+        font-weight: 300;
+        margin-bottom: 32px;
+    }
+
+    .curciol-line {
+        width: 245px;
+        height: 1px;
+        background: var(--curciol-azul);
+        opacity: .45;
+        margin-bottom: 24px;
+    }
+
+    .curciol-social {
+        display: flex;
+        gap: 16px;
+        align-items: center;
+    }
+
+    .curciol-social a {
+        width: 34px;
+        height: 34px;
+        border-radius: 50%;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--curciol-azul);
+        background: #f4f6f9;
+        border: 1px solid #dfe3ea;
+        font-size: 16px;
+        text-decoration: none;
+        transition: .2s;
+    }
+
+    .curciol-social a:hover {
+        background: var(--curciol-fundo);
+        color: var(--curciol-branco);
+        border-color: var(--curciol-fundo);
+        transform: translateY(-2px);
+    }
+
+    .curciol-right {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-width: 0;
+        width: 100%;
+    }
+
+    .curciol-login-card {
+        width: 100%;
+        max-width: 505px;
+        background: var(--curciol-branco);
+        border: 1px solid var(--curciol-borda);
+        border-radius: 20px;
+        box-shadow: 0 26px 65px rgba(30, 40, 67, .16);
+        padding: 42px 44px;
+        box-sizing: border-box;
+    }
+
+    .curciol-login-title {
+        font-size: 31px;
+        line-height: 1.1;
+        font-weight: 600;
+        color: var(--curciol-azul);
+        margin: 0 0 8px 0;
+        letter-spacing: 1.2px;
+    }
+
+    .curciol-login-subtitle {
+        color: #475569;
+        font-size: 14px;
+        line-height: 1.45;
+        font-weight: 300;
+        margin-bottom: 28px;
+    }
+
+    .curciol-field {
+        margin-bottom: 18px;
+    }
+
+    .curciol-field label {
+        display: block;
+        font-size: 14px;
+        color: var(--curciol-texto);
+        margin-bottom: 7px;
+        font-weight: 600;
+    }
+
+    .curciol-input-wrap {
+        position: relative;
+    }
+
+    .curciol-input-wrap i {
+        position: absolute;
+        left: 15px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #8ca0b3;
+        font-size: 15px;
+        z-index: 2;
+    }
+
+    .curciol-input {
+        width: 100%;
+        height: 48px;
+        border: 1px solid #cfd8e3;
+        border-radius: 10px;
+        padding: 0 14px 0 42px;
+        font-size: 15px;
+        font-weight: 300;
+        outline: none;
+        transition: .2s;
+        background: var(--curciol-input);
+        color: #111827;
+        box-sizing: border-box;
+        font-family: Helvetica, Arial, sans-serif;
+    }
+
+    .curciol-input:focus {
+        background: var(--curciol-branco);
+        border-color: var(--curciol-azul);
+        box-shadow: 0 0 0 3px rgba(13, 64, 105, .12);
+    }
+
+    .curciol-btn {
+        margin-top: 8px;
+        width: 175px;
+        height: 48px;
+        border: none;
+        border-radius: 10px;
+        background: linear-gradient(135deg, var(--curciol-fundo), var(--curciol-azul));
+        color: var(--curciol-branco);
+        font-size: 15px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: .2s;
+        font-family: Helvetica, Arial, sans-serif;
+    }
+
+    .curciol-btn:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 10px 25px rgba(30, 40, 67, .25);
+    }
+
+    .curciol-footer-info {
+        margin-top: 20px;
+        color: #64748b;
+        font-size: 13px;
+        font-weight: 300;
+    }
+
+    .curciol-help {
+        margin-top: 24px;
+        padding-top: 20px;
+        border-top: 1px solid #edf0f5;
+        font-size: 13px;
+        line-height: 1.45;
+        color: #475569;
+        font-weight: 300;
+    }
+
+    .curciol-help strong {
+        display: block;
+        color: var(--curciol-azul);
+        font-size: 14px;
+        font-weight: 600;
+        margin-bottom: 4px;
+    }
+
+    .curciol-help a {
+        color: var(--curciol-azul);
+        font-weight: 600;
+        text-decoration: none;
+    }
+
+    .curciol-help a:hover {
+        text-decoration: underline;
+    }
+
+    @media (max-width: 980px) {
+        .curciol-home::before {
+            height: 130px;
+            clip-path: polygon(0 0, 100% 0, 100% 55%, 0 100%);
+        }
+
+        .curciol-top-link {
+            top: 18px;
+            left: 22px;
+        }
+
+        .curciol-wrapper {
+            max-width: 640px;
+            grid-template-columns: 1fr;
+            gap: 28px;
+            padding: 116px 24px 50px 24px;
+        }
+
+        .curciol-left {
+            display: contents;
+        }
+
+        .curciol-logo-area {
+            order: 1;
+            justify-content: center;
+            margin-bottom: 0;
+        }
+
+        .curciol-right {
+            order: 2;
+        }
+
+        .curciol-info-area {
+            order: 3;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-top: 4px;
+        }
+
+        .curciol-logo-area .logo-public {
+            width: 360px !important;
+            height: 108px !important;
+            background-position: center center !important;
+        }
+
+        .curciol-title {
+            font-size: 38px;
+            margin-bottom: 20px;
+        }
+
+        .curciol-text {
+            max-width: 500px;
+            margin-bottom: 26px;
+        }
+
+        .curciol-line {
+            width: 250px;
+        }
+
+        .curciol-login-card {
+            max-width: 520px;
+            margin: 0 auto;
+        }
+    }
+
+    @media (max-width: 520px) {
+        .curciol-home::before {
+            height: 104px;
+            clip-path: polygon(0 0, 100% 0, 100% 68%, 0 100%);
+        }
+
+        .curciol-top-link {
+            top: 14px;
+            left: 14px;
+            right: 14px;
+            width: auto;
+            justify-content: center;
+            font-size: 13px;
+            padding: 9px 12px;
+        }
+
+        .curciol-wrapper {
+            padding: 100px 14px 34px 14px;
+            gap: 20px;
+        }
+
+        .curciol-logo-area .logo-public {
+            width: 285px !important;
+            height: 82px !important;
+        }
+
+        .curciol-login-card {
+            width: 100%;
+            max-width: 100%;
+            padding: 26px 18px;
+            border-radius: 16px;
+            box-shadow: 0 16px 38px rgba(30, 40, 67, .13);
+        }
+
+        .curciol-login-title {
+            font-size: 28px;
+            margin-bottom: 8px;
+        }
+
+        .curciol-login-subtitle {
+            font-size: 13px;
+            margin-bottom: 22px;
+        }
+
+        .curciol-field {
+            margin-bottom: 15px;
+        }
+
+        .curciol-input {
+            height: 46px;
+            font-size: 14px;
+        }
+
+        .curciol-btn {
+            width: 100%;
+            height: 46px;
+        }
+
+        .curciol-help {
+            text-align: center;
+            font-size: 12.5px;
+            margin-top: 22px;
+            padding-top: 18px;
+        }
+
+        .curciol-info-area {
+            margin-top: 8px;
+        }
+
+        .curciol-title {
+            font-size: 30px;
+            margin-bottom: 16px;
+        }
+
+        .curciol-text {
+            font-size: 14px;
+            line-height: 1.45;
+            max-width: 330px;
+            margin-bottom: 22px;
+        }
+
+        .curciol-line {
+            width: 200px;
+            margin-bottom: 18px;
+        }
+
+        .curciol-social {
+            justify-content: center;
+        }
+
+        .curciol-footer-info {
+            text-align: center;
+            font-size: 12px;
+        }
+    }
+
+    @media (max-width: 360px) {
+        .curciol-wrapper {
+            padding-left: 10px;
+            padding-right: 10px;
+        }
+
+        .curciol-logo-area .logo-public {
+            width: 250px !important;
+            height: 74px !important;
+        }
+
+        .curciol-login-card {
+            padding: 24px 14px;
+        }
+
+        .curciol-title {
+            font-size: 27px;
+        }
+
+        .curciol-top-link {
+            font-size: 12px;
+        }
+    }
+</style>
+
+<div class="curciol-home">
+
+    <a class="curciol-top-link" href="https://curciol.com.br/" title="Voltar para a página inicial">
+        <i class="fa fa-arrow-left"></i>
+        <span>Voltar para a página inicial</span>
+    </a>
+
+    <div class="curciol-wrapper">
+
+        <div class="curciol-left">
+            <div class="curciol-logo-area">
+                <div class="logo-public"></div>
+            </div>
+
+            <div class="curciol-info-area">
+                <h1 class="curciol-title">Área do cliente</h1>
+
+                <div class="curciol-text">
+                    Acompanhe seus processos, documentos e informações vinculadas ao seu atendimento na Curciol Sociedade de Advogados.
+                </div>
+
+                <div class="curciol-line"></div>
+
+                <div class="curciol-social">
+                    <a href="https://www.instagram.com/curcioladvogados/" target="_blank" rel="noopener" title="Instagram">
+                        <i class="fab fa-instagram"></i>
+                    </a>
+
+                    <a href="https://www.linkedin.com/company/curciol-sociedade-de-advogados/" target="_blank" rel="noopener" title="LinkedIn">
+                        <i class="fab fa-linkedin"></i>
+                    </a>
+
+                    <a href="https://wa.me/551936213770" target="_blank" rel="noopener" title="WhatsApp">
+                        <i class="fab fa-whatsapp"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <div class="curciol-right">
+            <form 
+                class="curciol-login-card"
+                id="form_portal_cliente"
+                name="form_portal_cliente"
+                method="post"
+                onsubmit="return curciolEnviarLogin(event);"
+            >
+                <h2 class="curciol-login-title">Login</h2>
+
+                <div class="curciol-login-subtitle">
+                    Informe seu usuário e senha para acessar seus processos.
+                </div>
+
+                <div class="curciol-field">
+                    <label>Usuário</label>
+
+                    <div class="curciol-input-wrap">
+                        <i class="fa fa-user"></i>
+
+                        <input 
+                            class="curciol-input" 
+                            type="text" 
+                            name="usuario" 
+                            autocomplete="username"
+                        >
+                    </div>
+                </div>
+
+                <div class="curciol-field">
+                    <label>Senha</label>
+
+                    <div class="curciol-input-wrap">
+                        <i class="fa fa-lock"></i>
+
+                        <input 
+                            class="curciol-input" 
+                            type="password" 
+                            name="senha" 
+                            autocomplete="current-password"
+                        >
+                    </div>
+                </div>
+
+                <button type="submit" class="curciol-btn">
+                    Entrar
+                </button>
+
+                <div class="curciol-footer-info">
+                    Acesso exclusivo para clientes cadastrados.
+                </div>
+
+                <div class="curciol-help">
+                    <strong>Problemas para acessar?</strong>
+                    Entre em contato com nossa equipe de atendimento pelo
+                    <a href="https://wa.me/551936213770" target="_blank" rel="noopener">
+                        WhatsApp
+                    </a>.
+                </div>
+            </form>
+        </div>
+
     </div>
 </div>
+
+<script>
+    function curciolEnviarLogin(event) {
+        if (event) {
+            event.preventDefault();
+            event.stopPropagation();
+        }
+
+        var form = document.getElementById('form_portal_cliente');
+
+        var usuario = form.querySelector('[name="usuario"]').value.trim();
+        var senha   = form.querySelector('[name="senha"]').value.trim();
+
+        if (!usuario || !senha) {
+            alert('Informe seu usuário e senha para acessar seus processos.');
+            return false;
+        }
+
+        if (typeof __adianti_post_data === 'function') {
+            __adianti_post_data(
+                'form_portal_cliente',
+                'class=Home&method=onDocumentos&static=1&register_state=false'
+            );
+        } else {
+            form.action = 'index.php?class=Home&method=onDocumentos&static=1&register_state=false';
+            form.method = 'post';
+            HTMLFormElement.prototype.submit.call(form);
+        }
+
+        return false;
+    }
+
+    (function removerSetasAdianti() {
+        function remover() {
+            document.querySelectorAll(
+                '.adianti_tab_content_actions, .tab-arrow, .tab-arrow-left, .tab-arrow-right, a[onclick*="__adianti_scroll_tab"]'
+            ).forEach(function(el) {
+                el.remove();
+            });
+        }
+
+        remover();
+
+        setTimeout(remover, 50);
+        setTimeout(remover, 300);
+        setTimeout(remover, 1000);
+        setTimeout(remover, 2000);
+
+        if (window.MutationObserver) {
+            var observer = new MutationObserver(function() {
+                remover();
+            });
+
+            observer.observe(document.body, {
+                childList: true,
+                subtree: true
+            });
+        }
+    })();
+</script>
 
 <!--[/main]-->

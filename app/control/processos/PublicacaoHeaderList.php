@@ -33,6 +33,7 @@ class PublicacaoHeaderList extends TPage
         $this->limit = 50;
 
         $criteria_jornal = new TCriteria();
+        $criteria_etapa = new TCriteria();
 
         $responsavel = new TEntry('responsavel');
         $jornal = new TDBCombo('jornal', 'escritorio', 'Jornal', 'nome', '{nome}','nome asc' , $criteria_jornal );
@@ -43,6 +44,8 @@ class PublicacaoHeaderList extends TPage
         $numero_publicacao = new TEntry('numero_publicacao');
         $prazo = new TDate('prazo');
         $data_entrega = new TDate('data_entrega');
+        $etapa = new TDBCombo('etapa', 'escritorio', 'PublicacaoEtapa', 'etapa_nome', '{etapa_nome}','id asc' , $criteria_etapa );
+        $etapa_verificada = new TCombo('etapa_verificada');
         $global_filter = new TEntry('global_filter');
 
         $responsavel->exitOnEnter();
@@ -63,11 +66,17 @@ class PublicacaoHeaderList extends TPage
         $data_entrega->setExitAction(new TAction([$this, 'onSearch'], ['static'=>'1', 'target_container' => $param['target_container'] ?? null]));
 
         $jornal->setChangeAction(new TAction([$this, 'onSearch'], ['static'=>'1', 'target_container' => $param['target_container'] ?? null]));
+        $etapa->setChangeAction(new TAction([$this, 'onSearch'], ['static'=>'1', 'target_container' => $param['target_container'] ?? null]));
+        $etapa_verificada->setChangeAction(new TAction([$this, 'onSearch'], ['static'=>'1', 'target_container' => $param['target_container'] ?? null]));
 
-        $jornal->enableSearch();
+        $etapa_verificada->addItems(["S"=>"Verificada","N"=>"Não Verificada"]);
         $global_filter->setInnerIcon(new TImage('fas:search #9E9E9E'), 'left');
         $responsavel->forceUpperCase();
         $global_filter->forceUpperCase();
+
+        $etapa->enableSearch();
+        $jornal->enableSearch();
+        $etapa_verificada->enableSearch();
 
         $prazo->setMask('dd/mm/yyyy');
         $data_entrega->setMask('dd/mm/yyyy');
@@ -78,12 +87,14 @@ class PublicacaoHeaderList extends TPage
         $data_disponibilizacao->setDatabaseMask('yyyy-mm-dd');
 
         $prazo->setSize('100%');
+        $etapa->setSize('100%');
         $jornal->setSize('100%');
         $titulo->setSize('100%');
         $data_entrega->setSize(110);
         $global_filter->setSize(200);
         $responsavel->setSize('100%');
         $numero_arquivo->setSize('100%');
+        $etapa_verificada->setSize('100%');
         $numero_publicacao->setSize('100%');
         $data_disponibilizacao->setSize('100%');
         $numero_processo_principal->setSize('100%');
@@ -113,6 +124,8 @@ class PublicacaoHeaderList extends TPage
         $column_numero_publicacao = new TDataGridColumn('numero_publicacao', "Número da publicação", 'left');
         $column_prazo_transformed = new TDataGridColumn('prazo', "Prazo", 'left');
         $column_data_entrega_transformed = new TDataGridColumn('data_entrega', "Data de entrega", 'left');
+        $column_etapa_transformed = new TDataGridColumn('etapa', "Etapa", 'left');
+        $column_etapa_verificada_transformed = new TDataGridColumn('etapa_verificada', "", 'left');
         $column_id_transformed = new TDataGridColumn('id', "Status", 'left');
 
         $column_processo_id_transformed->setTransformer(function($value, $object, $row, $cell = null, $last_row = null)
@@ -179,6 +192,46 @@ class PublicacaoHeaderList extends TPage
                     return $value;
                 }
             }
+        });
+
+        $column_etapa_transformed->setTransformer(function($value, $object, $row, $cell = null, $last_row = null)
+        {
+            $verificaCor = PublicacaoEtapa::where('etapa_nome', '=', $value)->first();
+
+            if (!empty($verificaCor)) {        
+                $cor = $verificaCor->cor;
+                $etapa = $value;
+                return "<span class='label' style='width: 100%; width: 100%;background-color:".$cor.";'> {$etapa} <span> ";
+            }  
+        });
+
+        $column_etapa_verificada_transformed->setTransformer(function($value, $object, $row, $cell = null, $last_row = null)
+        {
+            $valor = strtoupper(trim((string) $value));
+
+            if ($valor == 'S') {
+                return "<span style='
+                    display:inline-block;
+                    width:12px;
+                    height:12px;
+                    border-radius:50%;
+                    background:#16a34a;
+                    box-shadow:0 0 4px rgba(22,163,74,.6);
+                ' title='Etapa Verificada'></span>";
+            }
+
+            if ($valor == 'N') {
+                return "<span style='
+                    display:inline-block;
+                    width:12px;
+                    height:12px;
+                    border-radius:50%;
+                    background:#dc2626;
+                    box-shadow:0 0 4px rgba(220,38,38,.6);
+                ' title='Etapa Não Verificada'></span>";
+            }
+
+            return '';    
         });
 
         $column_id_transformed->setTransformer(function($value, $object, $row, $cell = null, $last_row = null)
@@ -248,6 +301,8 @@ class PublicacaoHeaderList extends TPage
         $order_id_transformed->setParameter('order', 'id');
         $column_id_transformed->setAction($order_id_transformed);
 
+        $column_etapa_verificada_transformed->disableHtmlConversion();
+
         $this->datagrid->addColumn($column_responsavel);
         $this->datagrid->addColumn($column_jornal);
         $this->datagrid->addColumn($column_processo_id_transformed);
@@ -258,6 +313,8 @@ class PublicacaoHeaderList extends TPage
         $this->datagrid->addColumn($column_numero_publicacao);
         $this->datagrid->addColumn($column_prazo_transformed);
         $this->datagrid->addColumn($column_data_entrega_transformed);
+        $this->datagrid->addColumn($column_etapa_transformed);
+        $this->datagrid->addColumn($column_etapa_verificada_transformed);
         $this->datagrid->addColumn($column_id_transformed);
 
         $action_onShow = new TDataGridAction(array('PublicacaoFormView', 'onShow'));
@@ -329,6 +386,10 @@ class PublicacaoHeaderList extends TPage
         $tr->add($td_prazo);
         $td_data_entrega = TElement::tag('td', $data_entrega);
         $tr->add($td_data_entrega);
+        $td_etapa = TElement::tag('td', $etapa);
+        $tr->add($td_etapa);
+        $td_etapa_verificada = TElement::tag('td', $etapa_verificada);
+        $tr->add($td_etapa_verificada);
         $td_empty = TElement::tag('td', "");
         $tr->add($td_empty);
         $tr->add(TElement::tag('td', ''));
@@ -342,6 +403,8 @@ class PublicacaoHeaderList extends TPage
         $this->datagrid_form->addField($numero_publicacao);
         $this->datagrid_form->addField($prazo);
         $this->datagrid_form->addField($data_entrega);
+        $this->datagrid_form->addField($etapa);
+        $this->datagrid_form->addField($etapa_verificada);
 
         $this->datagrid_form->setData( TSession::getValue(__CLASS__.'_filter_data') );
 
@@ -1005,6 +1068,18 @@ class PublicacaoHeaderList extends TPage
         {
 
             $filters[] = new TFilter('data_entrega', '=', $data->data_entrega);// create the filter 
+        }
+
+        if (isset($data->etapa) AND ( (is_scalar($data->etapa) AND $data->etapa !== '') OR (is_array($data->etapa) AND (!empty($data->etapa)) )) )
+        {
+
+            $filters[] = new TFilter('etapa', '=', $data->etapa);// create the filter 
+        }
+
+        if (isset($data->etapa_verificada) AND ( (is_scalar($data->etapa_verificada) AND $data->etapa_verificada !== '') OR (is_array($data->etapa_verificada) AND (!empty($data->etapa_verificada)) )) )
+        {
+
+            $filters[] = new TFilter('etapa_verificada', '=', $data->etapa_verificada);// create the filter 
         }
 
         if (isset($data->global_filter) AND ( (is_scalar($data->global_filter) AND $data->global_filter !== '') OR (is_array($data->global_filter) AND (!empty($data->global_filter)) )) )

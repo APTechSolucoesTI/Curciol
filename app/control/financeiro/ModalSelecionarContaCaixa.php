@@ -32,39 +32,36 @@ class ModalSelecionarContaCaixa extends TWindow
 
         $criteria_conta_caixa_id = new TCriteria();
 
-        $conta_caixa_id = new TDBCombo('conta_caixa_id', 'escritorio', 'ContaCaixa', 'id', '{nome}','nome asc' , $criteria_conta_caixa_id );
+        $conta_caixa_id = new BDBSelectCheck('conta_caixa_id', 'escritorio', 'ContaCaixa', 'id', '{nome}','nome asc' , $criteria_conta_caixa_id );
+        $data_periodo = new BDateRange('data_periodo', 'data_periodo_final');
         $periodo = new TCombo('periodo');
-        $data_periodo = new TDate('data_periodo');
 
         $periodo->setChangeAction(new TAction([$this,'onSelectPeriodo']));
 
         $conta_caixa_id->addValidation("Conta caixa", new TRequiredValidator()); 
-        $periodo->addValidation("Período", new TRequiredValidator()); 
 
-        $periodo->addItems(["7"=>"7 dias","15"=>"15 dias","30"=>" 30 dias","0"=>"Personalizado"]);
         $data_periodo->setMask('dd/mm/yyyy');
         $data_periodo->setDatabaseMask('yyyy-mm-dd');
+        $periodo->addItems(["7"=>"7 dias","15"=>"15 dias","30"=>" 30 dias"]);
         $periodo->enableSearch();
-        $conta_caixa_id->enableSearch();
-
         $periodo->setSize('100%');
-        $data_periodo->setSize('100%');
+        $data_periodo->setSize('98%');
         $conta_caixa_id->setSize('100%');
 
 
         $row1 = $this->form->addFields([new TLabel("Conta caixa:", '#FF0000', '14px', null, '100%'),$conta_caixa_id]);
         $row1->layout = [' col-sm-12'];
 
-        $row2 = $this->form->addFields([new TLabel("Período:", '#FF0000', '14px', null, '100%'),$periodo],[new TLabel("A partir de:", '#FF0000', '14px', null, '100%'),$data_periodo]);
-        $row2->layout = [' col-sm-6',' col-sm-6'];
+        $row2 = $this->form->addFields([new TLabel("Período Personalizado:", '#2E2E2E', '14px', null, '100%'),$data_periodo]);
+        $row2->layout = [' col-sm-6'];
+
+        $row3 = $this->form->addFields([new TLabel("Período Fixo:", '#2E2E2E', '14px', null, '100%'),$periodo]);
+        $row3->layout = ['col-sm-6'];
 
         // create the form actions
         $btnVisualizar = $this->form->addAction("Visualizar extrato", new TAction([$this, 'onVisualizar']), 'fas:eye #ffffff');
         $this->btnVisualizar = $btnVisualizar;
         $btnVisualizar->addStyleClass('btn-info'); 
-
-        TScript::create("$('label:contains(\"A partir de:\")').hide();");
-        TScript::create("$(\"[name='data_periodo']\").closest('.fb-inline-field-container').hide()");
 
         parent::add($this->form);
 
@@ -72,25 +69,7 @@ class ModalSelecionarContaCaixa extends TWindow
 
     public static function onSelectPeriodo($param = null) 
     {
-        try 
-        {
-            if($param['periodo']==0){
 
-                TScript::create("$('label:contains(\"A partir de:\")').show();");
-                TScript::create("$(\"[name='data_periodo']\").closest('.fb-inline-field-container').show()");
-
-            }else{
-
-                TScript::create("$('label:contains(\"A partir de:\")').hide();");
-                TScript::create("$(\"[name='data_periodo']\").closest('.fb-inline-field-container').hide()");
-
-            }
-
-        }
-        catch (Exception $e) 
-        {
-            new TMessage('error', $e->getMessage());    
-        }
     }
 
     public function onVisualizar($param = null) 
@@ -99,23 +78,70 @@ class ModalSelecionarContaCaixa extends TWindow
         {
             $this->form->validate(); 
             $data = $this->form->getData();
-            $pageParam['key']=$data->conta_caixa_id;
 
-            if($data->periodo==0){
-                if(!$data->data_periodo){
-                    throw new Exception('O campo A partir de é obrigatório.');
-                }
-                $hoje = date('Y-m-d');
-                $dtPeriodo = $data->data_periodo;
-                if($hoje<$dtPeriodo){
-                    throw new Exception('O dia deve ser anterior ao dia de hoje.');
-                }
-                $diferenca = strtotime($hoje) - strtotime($dtPeriodo);
-                $dias = floor($diferenca / (60 * 60 * 24)); 
-                $pageParam['periodo'] = $dias;
-            }else{
-                $pageParam['periodo'] = $data->periodo;
+            $contas = $data->conta_caixa_id;
+
+            if(!is_array($contas)){
+                $contas = preg_split('/[^0-9]+/', (string) $contas, -1, PREG_SPLIT_NO_EMPTY);
             }
+
+            $contasSelecionadas = [];
+
+            foreach($contas as $contaId){
+                $contaId = (int) $contaId;
+
+                if($contaId > 0){
+                    $contasSelecionadas[$contaId] = $contaId;
+                }
+            }
+
+            $contasSelecionadas = array_values($contasSelecionadas);
+
+            if(!$contasSelecionadas){
+                throw new Exception('Selecione pelo menos uma conta caixa.');
+            }
+
+            $hoje = date('Y-m-d');
+
+            $temDataInicial = !empty($data->data_periodo);
+            $temDataFinal = !empty($data->data_periodo_final);
+            $temPeriodoPersonalizado = $temDataInicial || $temDataFinal;
+            $temPeriodoFixo = isset($data->periodo) && (string) $data->periodo !== '';
+
+            if($temPeriodoPersonalizado && $temPeriodoFixo){
+                throw new Exception('Escolha somente um período: personalizado ou fixo.');
+            }
+
+            if(!$temPeriodoPersonalizado && !$temPeriodoFixo){
+                throw new Exception('Informe o período personalizado ou selecione um período fixo.');
+            }
+
+            if($temPeriodoPersonalizado){
+                if(!$temDataInicial || !$temDataFinal){
+                    throw new Exception('Informe a data inicial e a data final do período personalizado.');
+                }
+
+                $dataInicial = $data->data_periodo;
+                $dataFinal = $data->data_periodo_final;
+
+                if($dataInicial > $dataFinal){
+                    throw new Exception('A data inicial deve ser menor ou igual à data final.');
+                }
+
+            }else{
+                $dias = (int) $data->periodo;
+
+                if(!in_array($dias, [7, 15, 30])){
+                    throw new Exception('O período fixo selecionado é inválido.');
+                }
+
+                $dataFinal = $hoje;
+                $dataInicial = date('Y-m-d', strtotime("-{$dias} days", strtotime($dataFinal)));
+            }
+
+            $pageParam['contas'] = implode(',', $contasSelecionadas);
+            $pageParam['data_inicial'] = $dataInicial;
+            $pageParam['data_final'] = $dataFinal;
 
             TApplication::loadPage('ContaCaixaFormView', 'onShow', $pageParam);
             TScript::create("$(\"[page_name='ModalSelecionarContaCaixa']\").remove()");
@@ -128,9 +154,6 @@ class ModalSelecionarContaCaixa extends TWindow
 
     public function onShow($param = null)
     {               
-
-        TScript::create("$('label:contains(\"A partir de:\")').hide();");
-        TScript::create("$(\"[name='data_periodo']\").closest('.fb-inline-field-container').hide()");
 
     } 
 

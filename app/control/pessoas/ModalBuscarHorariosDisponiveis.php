@@ -53,7 +53,6 @@ class ModalBuscarHorariosDisponiveis extends TWindow
         $btnRadioDia->setUseButton();
         $btnRadioHorario->setUseButton();
 
-
         TTransaction::open('escritorio');
 
         $agenda_id = TSession::getValue('agenda_id');

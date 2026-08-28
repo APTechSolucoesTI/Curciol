@@ -37,9 +37,95 @@ class ViewAndamentosPublicacoesProcesso extends TPage
         $this->datagrid->enablePopover("", " {texto_caracteres} ");
 
         $column_origem = new TDataGridColumn('origem', "Origem", 'left');
+        $column_id_transformed = new TDataGridColumn('id', "Etapa", 'left');
         $column_dt_transformed = new TDataGridColumn('dt', "Data", 'left');
         $column_jornal_tipo = new TDataGridColumn('jornal_tipo', "Jornal/Tipo", 'left');
         $column_titulo_transformed = new TDataGridColumn('titulo', "Titulo", 'left');
+
+        $column_id_transformed->setTransformer(function($value, $object, $row, $cell = null, $last_row = null)
+        {
+            $verificada = strtoupper(trim((string) $object->etapa_verificada)) == 'S';
+
+                if(!$verificada){
+                    return "
+                        <span
+                            title='Etapa não verificada'
+                            style='
+                                display:inline-block;
+                                width:10px;
+                                height:10px;
+                                min-width:10px;
+                                border-radius:50%;
+                                background:#ef4444;
+                                cursor:help;
+                            '
+                        ></span>
+                    ";
+                }
+
+                if(empty($object->publicacao_etapa_id)){
+                    return "
+                        <span
+                            title='Etapa verificada, porém sem etapa vinculada'
+                            style='
+                                display:inline-block;
+                                width:10px;
+                                height:10px;
+                                min-width:10px;
+                                border-radius:50%;
+                                background:#ef4444;
+                                cursor:help;
+                            '
+                        ></span>
+                    ";
+                }
+
+                $etapa = PublicacaoEtapa::where('id', '=', $object->publicacao_etapa_id)->first();
+
+                if(!$etapa){
+                    return "
+                        <span
+                            title='Etapa não encontrada'
+                            style='
+                                display:inline-block;
+                                width:10px;
+                                height:10px;
+                                min-width:10px;
+                                border-radius:50%;
+                                background:#ef4444;
+                                cursor:help;
+                            '
+                        ></span>
+                    ";
+                }
+
+                $nome = htmlspecialchars($etapa->etapa_nome ?? '-', ENT_QUOTES, 'UTF-8');
+                $descricao = htmlspecialchars($etapa->descricao ?? '', ENT_QUOTES, 'UTF-8');
+
+                return "
+                    <div style='display:flex; align-items:flex-start; gap:8px;'>
+                        <span
+                            title='{$descricao}'
+                            style='
+                                display:inline-block;
+                                width:10px;
+                                height:10px;
+                                min-width:10px;
+                                border-radius:50%;
+                                background:#22c55e;
+                                margin-top:4px;
+                                cursor:help;
+                            '
+                        ></span>
+
+                        <div>
+                            <div style='font-weight:600;'>{$nome}</div>
+                            <div style='font-size:11px; color:#777;'>{$descricao}</div>
+                        </div>
+                    </div>
+                ";
+
+        });
 
         $column_dt_transformed->setTransformer(function($value, $object, $row, $cell = null, $last_row = null)
         {
@@ -71,6 +157,8 @@ class ViewAndamentosPublicacoesProcesso extends TPage
         $order_titulo_transformed->setParameter('order', 'titulo');
         $column_titulo_transformed->setAction($order_titulo_transformed);
 
+        $column_id_transformed->disableHtmlConversion();
+
         $this->datagrid->enablePopover("Texto", "{texto_caracteres}", null, function($object){
             if(!$object->texto_caracteres)
             {
@@ -79,6 +167,7 @@ class ViewAndamentosPublicacoesProcesso extends TPage
             return true;
         });
         $this->datagrid->addColumn($column_origem);
+        $this->datagrid->addColumn($column_id_transformed);
         $this->datagrid->addColumn($column_dt_transformed);
         $this->datagrid->addColumn($column_jornal_tipo);
         $this->datagrid->addColumn($column_titulo_transformed);

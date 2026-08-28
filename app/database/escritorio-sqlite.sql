@@ -86,11 +86,14 @@ CREATE TABLE andamento(
       criacao_user_id int   , 
       data_modificacao datetime   , 
       modificacao_user_id int   , 
+      publicacao_etapa_id int   NOT NULL  , 
+      etapa_verificada char  (1)   , 
  PRIMARY KEY (id),
 FOREIGN KEY(tipo_andamento_id) REFERENCES tipo_andamento(id),
 FOREIGN KEY(criacao_user_id) REFERENCES system_users(id),
 FOREIGN KEY(modificacao_user_id) REFERENCES system_users(id),
-FOREIGN KEY(processo_id) REFERENCES processo(id)) ; 
+FOREIGN KEY(processo_id) REFERENCES processo(id),
+FOREIGN KEY(publicacao_etapa_id) REFERENCES publicacao_etapa(id)) ; 
 
 CREATE TABLE anexo( 
       id  INTEGER    NOT NULL  , 
@@ -411,6 +414,7 @@ CREATE TABLE conta(
       criacao_user_id int   , 
       data_modificacao datetime   , 
       modificacao_user_id int   , 
+      tipo_lancamento varchar  (1)   , 
  PRIMARY KEY (id),
 FOREIGN KEY(criacao_user_id) REFERENCES system_users(id),
 FOREIGN KEY(modificacao_user_id) REFERENCES system_users(id),
@@ -448,6 +452,16 @@ FOREIGN KEY(criacao_user_id) REFERENCES system_users(id),
 FOREIGN KEY(modificacao_user_id) REFERENCES system_users(id),
 FOREIGN KEY(tipo_conta_caixa_id) REFERENCES tipo_conta_caixa(id),
 FOREIGN KEY(banco_id) REFERENCES banco(id)) ; 
+
+CREATE TABLE conta_profissional( 
+      id  INTEGER    NOT NULL  , 
+      conta_id int   NOT NULL  , 
+      pessoa_id int   NOT NULL  , 
+      percentual double   , 
+      valor double   , 
+ PRIMARY KEY (id),
+FOREIGN KEY(conta_id) REFERENCES conta(id),
+FOREIGN KEY(pessoa_id) REFERENCES pessoa(id)) ; 
 
 CREATE TABLE contraparte( 
       id  INTEGER    NOT NULL  , 
@@ -558,8 +572,10 @@ FOREIGN KEY(modificacao_user_id) REFERENCES system_users(id)) ;
 CREATE TABLE contrato_pagamento_parcela( 
       contrato_id int   NOT NULL  , 
       id  INTEGER    NOT NULL  , 
+      status_contrato_pagamento_id int   NOT NULL  , 
       contrato_opcao_pagamento_id int   NOT NULL  , 
       valor double   , 
+      saldo double   , 
       data_pagamento date   , 
       contrato_evento_id int   , 
       unidade_indexador_id int   , 
@@ -578,13 +594,14 @@ FOREIGN KEY(contrato_opcao_pagamento_id) REFERENCES contrato_pagamento_opcao(id)
 FOREIGN KEY(contrato_evento_id) REFERENCES contrato_pagamento_evento(id),
 FOREIGN KEY(contrato_indexador_id) REFERENCES contrato_pagamento_indexador(id),
 FOREIGN KEY(contrato_id) REFERENCES contrato(id),
-FOREIGN KEY(unidade_indexador_id) REFERENCES unidade_indexador(id)) ; 
+FOREIGN KEY(unidade_indexador_id) REFERENCES unidade_indexador(id),
+FOREIGN KEY(status_contrato_pagamento_id) REFERENCES status_contrato_pagamento(id)) ; 
 
 CREATE TABLE contrato_pessoa( 
       id  INTEGER    NOT NULL  , 
       contrato_id int   NOT NULL  , 
       cliente_id int   NOT NULL  , 
-      percentual int   , 
+      percentual double   , 
  PRIMARY KEY (id),
 FOREIGN KEY(cliente_id) REFERENCES pessoa(id),
 FOREIGN KEY(contrato_id) REFERENCES contrato(id)) ; 
@@ -607,7 +624,7 @@ CREATE TABLE contrato_repasse(
       id  INTEGER    NOT NULL  , 
       contrato_id int   NOT NULL  , 
       pessoa_id int   NOT NULL  , 
-      percentual int   , 
+      percentual double  (2)   , 
  PRIMARY KEY (id),
 FOREIGN KEY(pessoa_id) REFERENCES pessoa(id),
 FOREIGN KEY(contrato_id) REFERENCES contrato(id)) ; 
@@ -793,6 +810,17 @@ CREATE TABLE estado_civil(
       nome varchar  (30)   NOT NULL  , 
  PRIMARY KEY (id)) ; 
 
+CREATE TABLE etapa_palavras_chaves( 
+      id  INTEGER    NOT NULL  , 
+      publicacao_etapa_id int   NOT NULL  , 
+      palavra_chave text   , 
+      data_criacao datetime   , 
+      criacao_user_id int   , 
+      data_modificacao datetime   , 
+      modificacao_user_id int   , 
+ PRIMARY KEY (id),
+FOREIGN KEY(publicacao_etapa_id) REFERENCES publicacao_etapa(id)) ; 
+
 CREATE TABLE extrato( 
       id  INTEGER    NOT NULL  , 
       escritorio_id int   NOT NULL  , 
@@ -900,8 +928,12 @@ CREATE TABLE lancamento(
       conta_id int   NOT NULL  , 
       tipo_pagamento_id int   NOT NULL  , 
       parcela int     DEFAULT 1, 
-      dt_vencimento date   NOT NULL  , 
       valor double   NOT NULL  , 
+      saldo double  (15,2)   , 
+      acrescimo double  (15,2)   , 
+      desconto double  (15,2)   , 
+      valor_total double  (15,2)   , 
+      dt_vencimento date   NOT NULL  , 
       dt_pagamento date   , 
       ano_pagamento text   , 
       mes_pagamento text   , 
@@ -921,6 +953,25 @@ FOREIGN KEY(cheque_banco_id) REFERENCES banco(id),
 FOREIGN KEY(extrato_id) REFERENCES extrato(id),
 FOREIGN KEY(conta_id) REFERENCES conta(id),
 FOREIGN KEY(tipo_pagamento_id) REFERENCES tipo_pagamento(id)) ; 
+
+CREATE TABLE lancamento_profissional( 
+      id  INTEGER    NOT NULL  , 
+      lancamento_id int   NOT NULL  , 
+      pessoa_id int   NOT NULL  , 
+      percentual double   , 
+      valor double   , 
+ PRIMARY KEY (id),
+FOREIGN KEY(lancamento_id) REFERENCES lancamento(id),
+FOREIGN KEY(pessoa_id) REFERENCES pessoa(id)) ; 
+
+CREATE TABLE lancamento_profissional_ajuste( 
+      id  INTEGER    NOT NULL  , 
+      lancamento_profissional_id int   NOT NULL  , 
+      tipo char  (1)   , 
+      valor double  (15,2)   , 
+      descricao varchar  (255)   , 
+ PRIMARY KEY (id),
+FOREIGN KEY(lancamento_profissional_id) REFERENCES lancamento_profissional(id)) ; 
 
 CREATE TABLE log_crontab( 
       system_unit_id int   NOT NULL  , 
@@ -1269,6 +1320,7 @@ CREATE TABLE processo(
       criacao_user_id int   , 
       data_modificacao datetime   , 
       modificacao_user_id int   , 
+      exibir_cliente char  (1)   , 
  PRIMARY KEY (id),
 FOREIGN KEY(criacao_user_id) REFERENCES system_users(id),
 FOREIGN KEY(modificacao_user_id) REFERENCES system_users(id),
@@ -1283,6 +1335,19 @@ FOREIGN KEY(responsavel_id) REFERENCES pessoa(id),
 FOREIGN KEY(status_processual_id) REFERENCES status_processual(id),
 FOREIGN KEY(vara_id) REFERENCES vara(id),
 FOREIGN KEY(orgao_id) REFERENCES orgao(id)) ; 
+
+CREATE TABLE processo_publicacoes( 
+      id  INTEGER    NOT NULL  , 
+      processo_id int   NOT NULL  , 
+      publicacao_id int   , 
+      andamento_id int   , 
+      publicacao_etapa_id int   NOT NULL  , 
+      date_log datetime   , 
+      complemento text   , 
+ PRIMARY KEY (id),
+FOREIGN KEY(publicacao_etapa_id) REFERENCES publicacao_etapa(id),
+FOREIGN KEY(processo_id) REFERENCES processo(id),
+FOREIGN KEY(publicacao_id) REFERENCES publicacao(id)) ; 
 
 CREATE TABLE processo_vinculo( 
       id  INTEGER    NOT NULL  , 
@@ -1314,11 +1379,28 @@ CREATE TABLE publicacao(
       criacao_user_id int   , 
       data_modificacao datetime   , 
       modificacao_user_id int   , 
+      publicacao_etapa_id int   NOT NULL  , 
+      etapa_verificada char  (1)   , 
  PRIMARY KEY (id),
 FOREIGN KEY(processo_id) REFERENCES processo(id),
 FOREIGN KEY(criacao_user_id) REFERENCES system_users(id),
 FOREIGN KEY(modificacao_user_id) REFERENCES system_users(id),
-FOREIGN KEY(jornal_id) REFERENCES jornal(id)) ; 
+FOREIGN KEY(jornal_id) REFERENCES jornal(id),
+FOREIGN KEY(publicacao_etapa_id) REFERENCES publicacao_etapa(id)) ; 
+
+CREATE TABLE publicacao_etapa( 
+      id  INTEGER    NOT NULL  , 
+      etapa_nome text   , 
+      ordem_prioridade int   , 
+      descricao text   , 
+      cor text   , 
+      data_criacao datetime   , 
+      criacao_user_id int   , 
+      data_modificacao datetime   , 
+      modificacao_user_id int   , 
+      extrajudicial char  (1)   , 
+      judicial char  (1)   , 
+ PRIMARY KEY (id)) ; 
 
 CREATE TABLE publicacao_movimentacao( 
       id  INTEGER    NOT NULL  , 
@@ -1369,6 +1451,69 @@ CREATE TABLE questao(
  PRIMARY KEY (id),
 FOREIGN KEY(formulario_id) REFERENCES formulario(id)) ; 
 
+CREATE TABLE requisicao_pagamento( 
+      id  INTEGER    NOT NULL  , 
+      processo_id int   NOT NULL  , 
+      tipos_requisicao_pagamento_id int   NOT NULL  , 
+      data_criacao datetime   , 
+      criacao_user_id int   , 
+      data_modificacao datetime   , 
+      modificacao_user_id int   , 
+ PRIMARY KEY (id),
+FOREIGN KEY(processo_id) REFERENCES processo(id),
+FOREIGN KEY(tipos_requisicao_pagamento_id) REFERENCES tipos_requisicao_pagamento(id)) ; 
+
+CREATE TABLE requisicao_pagamento_cliente( 
+      id  INTEGER    NOT NULL  , 
+      pessoa_id int   NOT NULL  , 
+      entidade_devedora_id int   NOT NULL  , 
+      requisicao_pagamento_id int   NOT NULL  , 
+      status_requisicao_pagamento_id int   NOT NULL  , 
+      valor double  (15,2)   , 
+      obs text   , 
+      conta_indicada_mle varchar  (255)   , 
+      data_base date   , 
+      data_criacao date   , 
+      criacao_user_id int   , 
+      data_modificacao datetime   , 
+      modificacao_user_id int   , 
+      data_requerimento datetime   , 
+ PRIMARY KEY (id),
+FOREIGN KEY(pessoa_id) REFERENCES pessoa(id),
+FOREIGN KEY(entidade_devedora_id) REFERENCES pessoa(id),
+FOREIGN KEY(requisicao_pagamento_id) REFERENCES requisicao_pagamento(id),
+FOREIGN KEY(status_requisicao_pagamento_id) REFERENCES status_requisicao_pagamento(id)) ; 
+
+CREATE TABLE requisicao_pagamento_etapa2( 
+      id  INTEGER    NOT NULL  , 
+      requisicao_pagamento_cliente_id int   NOT NULL  , 
+      processo_filho_id int   NOT NULL  , 
+      data_deferimento_expedicao_requisitorio date   , 
+      protocolo_depre_entidade_devedora date   , 
+      numero_depre_entidade_devedora varchar  (100)   , 
+      numero_ordem varchar  (100)   , 
+ PRIMARY KEY (id),
+FOREIGN KEY(processo_filho_id) REFERENCES processo(id),
+FOREIGN KEY(requisicao_pagamento_cliente_id) REFERENCES requisicao_pagamento_cliente(id)) ; 
+
+CREATE TABLE requisicao_pagamento_etapa3( 
+      id  INTEGER    NOT NULL  , 
+      requisicao_pagamento_cliente_id int   NOT NULL  , 
+      processo_filho_id int   NOT NULL  , 
+      data_deposito date   , 
+      valor_bruto_depositado double  (15,2)   , 
+      valor_mle double  (15,2)   , 
+      conta_indicada_mle varchar  (255)   , 
+      data_pedido_mle date   , 
+      data_deferimento_mle date   , 
+      numero_ciclo int   , 
+      saldo_bruto double  (15,2)   , 
+      data_base_saldo date   , 
+      possui_saldo char  (1)   , 
+ PRIMARY KEY (id),
+FOREIGN KEY(requisicao_pagamento_cliente_id) REFERENCES requisicao_pagamento_cliente(id),
+FOREIGN KEY(processo_filho_id) REFERENCES processo(id)) ; 
+
 CREATE TABLE resposta( 
       id  INTEGER    NOT NULL  , 
       resposta_formulario_id int   NOT NULL  , 
@@ -1401,6 +1546,11 @@ CREATE TABLE situacao_profissional(
       nome varchar  (255)   NOT NULL  , 
  PRIMARY KEY (id)) ; 
 
+CREATE TABLE status_contrato_pagamento( 
+      id  INTEGER    NOT NULL  , 
+      nome varchar  (40)   , 
+ PRIMARY KEY (id)) ; 
+
 CREATE TABLE status_processual( 
       id  INTEGER    NOT NULL  , 
       tipo_processo_id int   NOT NULL  , 
@@ -1413,6 +1563,16 @@ CREATE TABLE status_processual(
 FOREIGN KEY(criacao_user_id) REFERENCES system_users(id),
 FOREIGN KEY(modificacao_user_id) REFERENCES system_users(id),
 FOREIGN KEY(tipo_processo_id) REFERENCES tipo_processo(id)) ; 
+
+CREATE TABLE status_requisicao_pagamento( 
+      id  INTEGER    NOT NULL  , 
+      nome varchar  (50)   , 
+      cor varchar  (50)   , 
+      data_criacao datetime   , 
+      criacao_user_id int   , 
+      data_modificacao datetime   , 
+      modificacao_user_id int   , 
+ PRIMARY KEY (id)) ; 
 
 CREATE TABLE system_group( 
       id int   NOT NULL  , 
@@ -1495,7 +1655,7 @@ CREATE TABLE tarefa(
       publicacao_id int   , 
       processo_id int   , 
       usuario_destinatario_id int   NOT NULL  , 
-      titulo varchar  (255)   NOT NULL  , 
+      titulo varchar  (1000)   NOT NULL  , 
       data_disponibilizacao datetime   , 
       prazo_validacao date   , 
       prazo_entrega date   NOT NULL  , 
@@ -1771,6 +1931,16 @@ CREATE TABLE tipo_profissional(
 FOREIGN KEY(criacao_user_id) REFERENCES system_users(id),
 FOREIGN KEY(modificacao_user_id) REFERENCES system_users(id)) ; 
 
+CREATE TABLE tipos_requisicao_pagamento( 
+      id  INTEGER    NOT NULL  , 
+      nome varchar  (50)   , 
+      descricao varchar  (100)   , 
+      data_criacao datetime   , 
+      criacao_user_id int   , 
+      data_modificacao datetime   , 
+      modificacao_user_id int   , 
+ PRIMARY KEY (id)) ; 
+
 CREATE TABLE tmp_documento( 
       id  INTEGER    NOT NULL  , 
       nome varchar  (255)   NOT NULL  , 
@@ -1909,61 +2079,194 @@ WHERE
 	tarefa.id = tarefa_cliente.tarefa_id
 	AND tarefa_cliente.cliente_id = pessoa.id; 
 
-CREATE VIEW view_andamentos AS SELECT 
-    'Publicação' as "origem",
-    publicacao.id as "id",
-    publicacao.titulo as "titulo",
-    publicacao.texto as "texto",
-    publicacao.processo_id as "keyprocesso_id",
-    publicacao.jornal_id as "jornal_tipo_id",
-    publicacao.data_disponibilizacao as "dt",
-    jornal.id as "key_jornal_tipo",
-    jornal.nome as "jornal_tipo",
-    processo.id as "processo_id",
-    processo.numero_cnj_numero as "numero",
-    tipo_processo.id as "tipo_processo_id",
-    tipo_processo.nome as "tipo_processo_nome"
-    
-    FROM 
-    publicacao, 
-    processo, 
-    tipo_processo,
-    jornal
-    
-WHERE 
-    publicacao.processo_id = processo.id AND 
-    processo.tipo_processo_id = tipo_processo.id AND
-    publicacao.jornal_id = jornal.id
+CREATE VIEW processo_view AS SELECT 
+    p.id AS id, 
+    tp.nome AS tipo_processo, 
+    p.numero_cnj_numero AS numero, 
+    pe.nome AS cliente, 
+    a.nome AS area, 
+    ass.nome AS assunto, 
+    rep.nome AS representante, 
+    pe.id AS pessoa_id, 
+    p.exibir_cliente AS exibir_cliente, 
+    pp_ult.publicacao_etapa_id AS ultima_etapa_id, 
+    etapa_pp.etapa_nome AS ultima_etapa
+FROM processo p 
+JOIN contrato_processo cp 
+    ON cp.processo_id = p.id 
+JOIN contrato_pessoa cpe 
+    ON cpe.contrato_id = cp.contrato_id 
+JOIN pessoa pe 
+    ON pe.id = cpe.cliente_id 
+JOIN tipo_processo tp 
+    ON tp.id = p.tipo_processo_id 
+JOIN area a 
+    ON a.id = p.area_id 
+JOIN assunto ass 
+    ON ass.id = p.assunto_id 
+JOIN pessoa rep 
+    ON rep.id = p.responsavel_id
 
-UNION ALL 
-SELECT 
-    'Andamento' as "origem",
-    andamento.id as "id",
-    andamento.titulo as "titulo",
-    andamento.texto as "texto",
-    andamento.processo_id as "keyprocesso_id",
-    andamento.tipo_andamento_id as "jornal_tipo_id",
-    andamento.data_andamento as "dt",
-    tipo_andamento.id as "key_jornal_tipo",
-    tipo_andamento.nome as "jornal_tipo",
-    processo.id as "processo_id",
-    processo.numero_cnj_numero as "numero",
-    tipo_processo.id as "tipo_processo_id",
-    tipo_processo.nome as "tipo_processo_nome"
+LEFT JOIN (
+    SELECT DISTINCT ON (mov.processo_id)
+        mov.processo_id,
+        mov.publicacao_etapa_id,
+        mov.publicacao_id,
+        mov.andamento_id,
+        mov.id,
+        mov.data_ultima_movimentacao
+    FROM (
+        SELECT 
+            pp.processo_id,
+            pp.publicacao_etapa_id,
+            pp.publicacao_id,
+            pp.andamento_id,
+            pp.id,
+            pub.data_disponibilizacao::timestamp AS data_ultima_movimentacao
+        FROM processo_publicacoes pp
+        JOIN publicacao pub 
+            ON pub.id = pp.publicacao_id
+        WHERE pp.publicacao_etapa_id NOT IN (1, 10)
+          AND pub.etapa_verificada = 'S'
 
-    FROM 
-    andamento, 
-    processo, 
-    tipo_processo,
-    tipo_andamento
-    
-WHERE 
-    andamento.processo_id = processo.id AND 
-    processo.tipo_processo_id = tipo_processo.id AND
-    andamento.tipo_andamento_id = tipo_andamento.id
-    
+        UNION ALL
 
-; 
+        SELECT 
+            pp.processo_id,
+            pp.publicacao_etapa_id,
+            pp.publicacao_id,
+            pp.andamento_id,
+            pp.id,
+            andm.data_andamento::timestamp AS data_ultima_movimentacao
+        FROM processo_publicacoes pp
+        JOIN andamento andm
+            ON andm.id = pp.andamento_id
+        WHERE pp.publicacao_etapa_id NOT IN (1, 10)
+          AND andm.etapa_verificada = 'S'
+    ) mov
+    ORDER BY 
+        mov.processo_id,
+        mov.data_ultima_movimentacao DESC NULLS LAST,
+        mov.id DESC
+) pp_ult 
+    ON pp_ult.processo_id = p.id
+
+LEFT JOIN publicacao_etapa etapa_pp 
+    ON etapa_pp.id = pp_ult.publicacao_etapa_id
+
+ORDER BY 
+    pp_ult.data_ultima_movimentacao DESC NULLS LAST,
+    p.id DESC;; 
+
+CREATE VIEW requisicao_pagamento_listagem AS SELECT
+    rp.id AS requisicao_pagamento_id,
+    rpc.id AS requisicao_pagamento_cliente_id,
+    rpc.pessoa_id AS pessoa_id,
+
+    COALESCE(p.numero_cnj_numero, p.numero_outro) AS numero_processo,
+
+    trp.id AS tipo_requisicao,
+
+    pe.nome AS cliente,
+
+    rpc.status_requisicao_pagamento_id AS status,
+    rpc.data_requerimento AS data_requerimento,
+
+    e2.data_deferimento_expedicao_requisitorio AS data_deferimento_expedicao_requisitorio,
+
+    e3.data_pedido_mle AS data_pedido_mle,
+    e3.data_deferimento_mle AS data_deferimento_mle
+
+FROM requisicao_pagamento rp
+
+LEFT JOIN processo p
+    ON p.id = rp.processo_id
+
+LEFT JOIN tipos_requisicao_pagamento trp
+    ON trp.id = rp.tipos_requisicao_pagamento_id
+
+LEFT JOIN requisicao_pagamento_cliente rpc
+    ON rpc.requisicao_pagamento_id = rp.id
+
+LEFT JOIN pessoa pe
+    ON pe.id = rpc.pessoa_id
+
+LEFT JOIN (
+    SELECT
+        requisicao_pagamento_cliente_id,
+        MAX(data_deferimento_expedicao_requisitorio) AS data_deferimento_expedicao_requisitorio
+    FROM requisicao_pagamento_etapa2
+    GROUP BY requisicao_pagamento_cliente_id
+) e2
+    ON e2.requisicao_pagamento_cliente_id = rpc.id
+
+LEFT JOIN (
+    SELECT
+        requisicao_pagamento_cliente_id,
+        MAX(data_pedido_mle) AS data_pedido_mle,
+        MAX(data_deferimento_mle) AS data_deferimento_mle
+    FROM requisicao_pagamento_etapa3
+    GROUP BY requisicao_pagamento_cliente_id
+) e3
+    ON e3.requisicao_pagamento_cliente_id = rpc.id
+
+ORDER BY
+    rp.id DESC,
+    pe.nome ASC;; 
+
+CREATE VIEW view_andamentos AS SELECT  
+    'Publicação' as "origem", 
+    publicacao.id as "id", 
+    publicacao.titulo as "titulo", 
+    publicacao.texto as "texto", 
+    publicacao.processo_id as "keyprocesso_id", 
+    publicacao.jornal_id as "jornal_tipo_id", 
+    publicacao.data_disponibilizacao as "dt", 
+    jornal.id as "key_jornal_tipo", 
+    jornal.nome as "jornal_tipo", 
+    processo.id as "processo_id", 
+    processo.numero_cnj_numero as "numero", 
+    tipo_processo.id as "tipo_processo_id", 
+    tipo_processo.nome as "tipo_processo_nome",
+    publicacao.publicacao_etapa_id as "publicacao_etapa_id",
+    publicacao.etapa_verificada as "etapa_verificada"
+FROM  
+    publicacao,  
+    processo,  
+    tipo_processo, 
+    jornal 
+WHERE  
+    publicacao.processo_id = processo.id AND  
+    processo.tipo_processo_id = tipo_processo.id AND 
+    publicacao.jornal_id = jornal.id 
+
+UNION ALL  
+
+SELECT  
+    'Andamento' as "origem", 
+    andamento.id as "id", 
+    andamento.titulo as "titulo", 
+    andamento.texto as "texto", 
+    andamento.processo_id as "keyprocesso_id", 
+    andamento.tipo_andamento_id as "jornal_tipo_id", 
+    andamento.data_andamento as "dt", 
+    tipo_andamento.id as "key_jornal_tipo", 
+    tipo_andamento.nome as "jornal_tipo", 
+    processo.id as "processo_id", 
+    processo.numero_cnj_numero as "numero", 
+    tipo_processo.id as "tipo_processo_id", 
+    tipo_processo.nome as "tipo_processo_nome",
+    andamento.publicacao_etapa_id as "publicacao_etapa_id",
+    andamento.etapa_verificada as "etapa_verificada"
+FROM  
+    andamento,  
+    processo,  
+    tipo_processo, 
+    tipo_andamento 
+WHERE  
+    andamento.processo_id = processo.id AND  
+    processo.tipo_processo_id = tipo_processo.id AND 
+    andamento.tipo_andamento_id = tipo_andamento.id; 
 
 CREATE VIEW view_publicacao AS SELECT 
     publicacao.id AS "id",
@@ -1999,7 +2302,9 @@ CREATE VIEW view_publicacao AS SELECT
     envolvimento.nome AS "envolvimento",
     area.nome AS "area",
     assunto.nome AS "assunto",
-    status_processual.nome AS "status"
+    status_processual.nome AS "status",
+    publicacao_etapa.etapa_nome AS "etapa",
+    publicacao.etapa_verificada as "etapa_verificada"
 FROM 
     publicacao
     LEFT JOIN processo ON publicacao.processo_id = processo.id
@@ -2014,6 +2319,7 @@ FROM
     LEFT JOIN status_processual ON processo.status_processual_id = status_processual.id
     LEFT JOIN vara ON processo.vara_id = vara.id
     LEFT JOIN orgao ON processo.orgao_id = orgao.id
-    LEFT JOIN tipo_processo ON processo.tipo_processo_id = tipo_processo.id;
+    LEFT JOIN tipo_processo ON processo.tipo_processo_id = tipo_processo.id
+    LEFT JOIN publicacao_etapa ON publicacao.publicacao_etapa_id = publicacao_etapa.id;
 ; 
  

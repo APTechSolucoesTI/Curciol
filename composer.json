@@ -14,8 +14,8 @@
     "pablodalloglio/phprtflite": "dev-master",
     "madbuild3r/pquery": "dev-master",
     "gears/pdf": "*",
-    "guzzlehttp/guzzle": "^7.10",
-    "henck/rtf-to-html": "^1.2",
+    "guzzlehttp/guzzle": "^8.1",
+    "henck/rtf-to-html": "^1.3",
     "phpoffice/phpword": "^1.4",
     "phputil/extenso": "^3.0"
   },

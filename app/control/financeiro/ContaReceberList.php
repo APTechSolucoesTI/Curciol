@@ -42,7 +42,7 @@ class ContaReceberList extends TPage
         $criteria_profissional_id = new TCriteria();
         $criteria_tipo_documento_financeiro_id = new TCriteria();
         $criteria_pessoa_col = new TCriteria();
-        $criteria_profissional_nome = new TCriteria();
+        $criteria_id = new TCriteria();
         $criteria_tipo_documento_financeiro_nome = new TCriteria();
 
         $filterVar = Grupo::CLIENTE;
@@ -52,10 +52,14 @@ class ContaReceberList extends TPage
         $filterVar = TSession::getValue("userunitids");
         $filterVar = (is_array($filterVar) && $filterVar) ? "'".implode("','", $filterVar)."'" : $filterVar;
         $criteria_escritorio_id->add(new TFilter('system_unit_id', 'in', "(SELECT id FROM escritorio WHERE system_unit_id in ($filterVar))")); 
-        $filterVar = Grupo::PROFISSIONAL;
-        $criteria_profissional_id->add(new TFilter('id', 'in', "(SELECT pessoa_id FROM pessoa_grupo WHERE grupo_id = '{$filterVar}')")); 
+        $filterVar = [Grupo::PARCEIRO, Grupo::PROFISSIONAL];
+        $filterVar = (is_array($filterVar) && $filterVar) ? "'".implode("','", $filterVar)."'" : $filterVar;
+        $criteria_profissional_id->add(new TFilter('id', 'in', "(SELECT pessoa_id FROM pessoa_grupo WHERE grupo_id in ($filterVar))")); 
         $filterVar = TipoConta::RECEBER;
         $criteria_tipo_documento_financeiro_id->add(new TFilter('tipo_conta_id', '=', $filterVar)); 
+        $filterVar = [Grupo::PARCEIRO, Grupo::PROFISSIONAL];
+        $filterVar = (is_array($filterVar) && $filterVar) ? "'".implode("','", $filterVar)."'" : $filterVar;
+        $criteria_id->add(new TFilter('id', 'in', "(SELECT pessoa_id FROM pessoa_grupo WHERE grupo_id in ($filterVar))")); 
 
         $this->showMethods = array_merge($this->showMethods, ['onVencidas', 'onVencer', 'onEmAberto']);
 
@@ -64,7 +68,7 @@ class ContaReceberList extends TPage
         $filtro_rapido = new TCombo('filtro_rapido');
         $categoria_conta_id = new TDBCombo('categoria_conta_id', 'escritorio', 'CategoriaConta', 'id', '{nome}','nome asc' , $criteria_categoria_conta_id );
         $escritorio_id = new TDBCombo('escritorio_id', 'escritorio', 'Escritorio', 'id', '{nome}','nome asc' , $criteria_escritorio_id );
-        $profissional_id = new TDBCombo('profissional_id', 'escritorio', 'Pessoa', 'id', '{nome}','nome asc' , $criteria_profissional_id );
+        $profissional_id = new TDBMultiSearch('profissional_id', 'escritorio', 'Pessoa', 'id', 'nome','nome asc' , $criteria_profissional_id );
         $tipo_documento_financeiro_id = new TDBCombo('tipo_documento_financeiro_id', 'escritorio', 'TipoDocumentoFinanceiro', 'id', '{nome}','nome asc' , $criteria_tipo_documento_financeiro_id );
         $numero_documento = new TEntry('numero_documento');
         $quitada = new TRadioGroup('quitada');
@@ -73,52 +77,62 @@ class ContaReceberList extends TPage
         $dt_vencimento_ini = new TDate('dt_vencimento_ini');
         $data_vencimento_fim = new TDate('data_vencimento_fim');
         $pessoa_col = new TDBUniqueSearch('pessoa_col', 'escritorio', 'Pessoa', 'id', 'nome','nome asc' , $criteria_pessoa_col );
-        $profissional_nome = new TDBUniqueSearch('profissional_nome', 'escritorio', 'Pessoa', 'id', 'nome','nome asc' , $criteria_profissional_nome );
+        $id = new BDBSelectCheck('id', 'escritorio', 'Pessoa', 'id', '{nome}','nome asc' , $criteria_id );
         $tipo_documento_financeiro_nome = new TDBCombo('tipo_documento_financeiro_nome', 'escritorio', 'TipoDocumentoFinanceiro', 'id', '{nome}','nome asc' , $criteria_tipo_documento_financeiro_nome );
         $descricao_col = new TEntry('descricao_col');
+        $data_emissao = new TDate('data_emissao');
+        $quitada22 = new TCombo('quitada22');
 
         $descricao_col->exitOnEnter();
 
         $descricao_col->setExitAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
+        $data_emissao->setExitAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
 
         $pessoa_col->setChangeAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
-        $profissional_nome->setChangeAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
+        $id->setChangeAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
         $tipo_documento_financeiro_nome->setChangeAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
+        $quitada22->setChangeAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
 
         $descricao->forceUpperCase();
         $quitada->setLayout('horizontal');
         $quitada->setUseButton();
-        $quitada->addItems(["S"=>"Sim","N"=>"Não",""=>"Ambos"]);
-        $filtro_rapido->addItems(["1"=>"Vencidas","2"=>"À vencer"]);
-
         $pessoa_col->setFilterColumns(["nome"]);
-        $profissional_nome->setFilterColumns(["nome"]);
+        $profissional_id->setFilterColumns(["nome"]);
 
         $pessoa_id->setMinLength(3);
         $pessoa_col->setMinLength(2);
-        $profissional_nome->setMinLength(2);
+        $profissional_id->setMinLength(0);
 
+        $quitada22->addItems(["S"=>"Sim","N"=>"Não"]);
+        $quitada->addItems(["S"=>"Sim","N"=>"Não",""=>"Ambos"]);
+        $filtro_rapido->addItems(["1"=>"Vencidas","2"=>"À vencer"]);
+
+        $quitada22->enableSearch();
         $filtro_rapido->enableSearch();
-        $profissional_id->enableSearch();
         $tipo_documento_financeiro_id->enableSearch();
         $tipo_documento_financeiro_nome->enableSearch();
 
+        $data_emissao->setDatabaseMask('yyyy-mm-dd');
         $data_emissao_ini->setDatabaseMask('yyyy-mm-dd');
         $data_emissao_fim->setDatabaseMask('yyyy-mm-dd');
         $dt_vencimento_ini->setDatabaseMask('yyyy-mm-dd');
         $data_vencimento_fim->setDatabaseMask('yyyy-mm-dd');
 
         $pessoa_col->setMask('{nome}');
-        $profissional_nome->setMask('{nome}');
+        $profissional_id->setMask('{nome}');
+        $data_emissao->setMask('dd/mm/yyyy');
         $pessoa_id->setMask('{nome_formatado}');
         $data_emissao_ini->setMask('dd/mm/yyyy');
         $data_emissao_fim->setMask('dd/mm/yyyy');
         $dt_vencimento_ini->setMask('dd/mm/yyyy');
         $data_vencimento_fim->setMask('dd/mm/yyyy');
 
+        $id->setSize('100%');
         $quitada->setSize(100);
         $pessoa_id->setSize('100%');
         $descricao->setSize('100%');
+        $data_emissao->setSize(110);
+        $quitada22->setSize('100%');
         $pessoa_col->setSize('100%');
         $filtro_rapido->setSize('100%');
         $escritorio_id->setSize('100%');
@@ -126,11 +140,10 @@ class ContaReceberList extends TPage
         $data_emissao_fim->setSize(150);
         $descricao_col->setSize('100%');
         $dt_vencimento_ini->setSize(150);
-        $profissional_id->setSize('100%');
         $numero_documento->setSize('100%');
         $data_vencimento_fim->setSize(150);
-        $profissional_nome->setSize('100%');
         $categoria_conta_id->setSize('100%');
+        $profissional_id->setSize('100%', 70);
         $tipo_documento_financeiro_id->setSize('100%');
         $tipo_documento_financeiro_nome->setSize('100%');
 
@@ -173,7 +186,7 @@ class ContaReceberList extends TPage
         $this->datagrid->setHeight(250);
 
         $column_pessoa_nome_transformed = new TDataGridColumn('pessoa->nome', "Pessoa", 'left' , '30%');
-        $column_profissional_nome = new TDataGridColumn('profissional->nome', "Profissional", 'left');
+        $column_id_transformed = new TDataGridColumn('id', "Profissional", 'left');
         $column_tipo_documento_financeiro_nome = new TDataGridColumn('tipo_documento_financeiro->nome', "Tipo de documento", 'left');
         $column_numero_documentoatendimento_idcontrato_idprocesso_id = new TDataGridColumn('{numero_documento}{atendimento_id}{contrato_id}{processo_id}', "Número do documento", 'left');
         $column_descricao = new TDataGridColumn('descricao', "Descrição", 'left' , '20%');
@@ -182,25 +195,100 @@ class ContaReceberList extends TPage
         $column_quitada_transformed = new TDataGridColumn('quitada', "Quitada", 'center' , '100px');
 
         $column_pessoa_nome_transformed->setTransformer(function($value, $object, $row, $cell = null, $last_row = null)
-        {
+        {   
+            TTransaction::open('escritorio');
+
             $table = new TElement('div');
             $table->style = 'display: flex; flex-direction: row; flex-wrap: wrap; gap: 4px;';
 
-            $lancamentos = Lancamento::where('conta_id', '=', $object->id)->orderBy('dt_vencimento', 'asc')->load();
+            $filterData = TSession::getValue(__CLASS__.'_filter_data');
 
-            foreach($lancamentos as $lancamento)
-            {
+            $normalizarData = function($valor){
+                if(empty($valor)){
+                    return null;
+                }
+
+                $valor = trim((string) $valor);
+
+                if(strpos($valor, '/') !== false){
+                    $partes = explode('/', $valor);
+
+                    if(count($partes) == 3){
+                        return $partes[2].'-'.str_pad($partes[1], 2, '0', STR_PAD_LEFT).'-'.str_pad($partes[0], 2, '0', STR_PAD_LEFT);
+                    }
+                }
+
+                return substr($valor, 0, 10);
+            }
+            ;
+
+            $dataFiltroInicio = null;
+            $dataFiltroFim = null;
+
+            if($filterData){
+                if(!empty($filterData->dt_vencimento_ini) || !empty($filterData->data_vencimento_fim)){
+                    $dataFiltroInicio = $normalizarData($filterData->dt_vencimento_ini ?? null);
+                    $dataFiltroFim = $normalizarData($filterData->data_vencimento_fim ?? null);
+                }elseif(!empty($filterData->data_emissao_ini) || !empty($filterData->data_emissao_fim)){
+                    $dataFiltroInicio = $normalizarData($filterData->data_emissao_ini ?? null);
+                    $dataFiltroFim = $normalizarData($filterData->data_emissao_fim ?? null);
+                }elseif(!empty($filterData->data_emissao)){
+                    $dataFiltroInicio = $normalizarData($filterData->data_emissao);
+                    $dataFiltroFim = $normalizarData($filterData->data_emissao);
+                }
+            }
+
+            $lancamentos = Lancamento::where('conta_id', '=', $object->id)
+                ->orderBy('dt_vencimento', 'asc')
+                ->load();
+
+            foreach($lancamentos as $lancamento){
+                $dataVencimento = $normalizarData($lancamento->dt_vencimento);
+
+                if($dataFiltroInicio && $dataVencimento < $dataFiltroInicio){
+                    continue;
+                }
+
+                if($dataFiltroFim && $dataVencimento > $dataFiltroFim){
+                    continue;
+                }
+
+                $valorBase = round((float) ($lancamento->valor ?? 0), 2);
+                $acrescimo = round((float) ($lancamento->acrescimo ?? 0), 2);
+                $desconto = round((float) ($lancamento->desconto ?? 0), 2);
+
+                $valorTotal = $lancamento->valor_total !== null && $lancamento->valor_total !== ''
+                    ? round((float) $lancamento->valor_total, 2)
+                    : round($valorBase + $acrescimo - $desconto, 2);
+
                 $tableDetail = new TElement('div');
                 $tableDetail->style = 'display: flex; flex-direction: column';
-                $tableDetail->add(TElement::tag('small',TDate::date2br($lancamento->dt_vencimento)));
-                $tableDetail->add(TElement::tag('span', 'R$ ' . number_format($lancamento->valor, 2, ',', '.')));
+                $tableDetail->add(TElement::tag('small', TDate::date2br($lancamento->dt_vencimento)));
+                $tableDetail->add(TElement::tag('span', 'R$ '.number_format($valorTotal, 2, ',', '.')));
 
-                if($lancamento->dt_pagamento){
+               if($lancamento->dt_pagamento){
                     $clazz = 'label-success';
                     $title = 'Quitada';
-                }elseif ($lancamento->cancelado=='S') {
+
+                    if($acrescimo > 0 || $desconto > 0){
+                        $title .= ' - Valor base: R$ '.number_format($valorBase, 2, ',', '.');
+
+                        if($acrescimo > 0){
+                            $title .= ' - Acréscimo: R$ '.number_format($acrescimo, 2, ',', '.');
+                        }
+
+                        if($desconto > 0){
+                            $title .= ' - Desconto: R$ '.number_format($desconto, 2, ',', '.');
+                        }
+
+                        $title .= ' - Valor total: R$ '.number_format($valorTotal, 2, ',', '.');
+                    }
+                }elseif($lancamento->cancelado == 'S'){
                     $clazz = 'label-blue';
                     $title = 'Cancelada';
+                }elseif((float) $lancamento->saldo > 0){
+                    $clazz = 'label-parcial';
+                    $title = 'Pagamento parcial - Saldo restante: R$ '.number_format($lancamento->saldo, 2, ',', '.');
                 }elseif($lancamento->dt_vencimento < date('Y-m-d')){
                     $clazz = 'label-danger';
                     $title = 'Atrasada';
@@ -208,13 +296,15 @@ class ContaReceberList extends TPage
                     $clazz = 'label-default';
                     $title = 'Em aberto';
                 }
-
-                $tableDetail->class = 'card card-lancamento ' . $clazz;
-
-                $tableDetail->title =  $title;
+                $tableDetail->class = 'card card-lancamento '.$clazz;
+                $tableDetail->title = $title;
 
                 if($clazz == 'label-blue'){
-                    $tableDetail->style =  'background-color: #2E9AFE; color:#FFF';
+                    $tableDetail->style = 'display: flex; flex-direction: column; background-color: #2E9AFE; color: #FFF;';
+                }
+
+                if($clazz == 'label-parcial'){
+                    $tableDetail->style = 'display: flex; flex-direction: column; background-color: #f59e0b; color: #FFF;';
                 }
 
                 $table->add($tableDetail);
@@ -224,7 +314,59 @@ class ContaReceberList extends TPage
             $div->add(TElement::tag('span', $value, ['style' => 'color: var(--text-color-strong); text-transform: uppercase; font-size: 110%;']));
             $div->add(TElement::tag('div', 'Lançamentos', ['class' => 'title-lancamentos']));
             $div->add($table);
+
+            TTransaction::close();
+
             return $div;
+
+        });
+
+        $column_id_transformed->setTransformer(function($value, $object, $row, $cell = null, $last_row = null)
+        {
+           try
+            {
+                if (empty($value)) {
+                    return '';
+                }
+
+                static $cache = [];
+
+                $contaId = (int) $value;
+
+                if (isset($cache[$contaId])) {
+                    return $cache[$contaId];
+                }
+
+                TTransaction::open('escritorio');
+
+                $nomes = [];
+
+                $profissionais = ContaProfissional::where('conta_id', '=', $contaId)->load();
+
+                foreach ($profissionais as $contaProfissional) {
+                    if (!empty($contaProfissional->pessoa_id)) {
+                        $pessoa = Pessoa::find($contaProfissional->pessoa_id);
+
+                        if ($pessoa) {
+                            $nomes[] = $pessoa->nome;
+                        }
+                    }
+                }
+
+                TTransaction::close();
+
+                $cache[$contaId] = implode(', ', $nomes);
+
+                return $cache[$contaId];
+            }
+            catch (Exception $e)
+            {
+                if (TTransaction::get()) {
+                    TTransaction::rollback();
+                }
+
+                return '';
+            }
 
         });
 
@@ -294,7 +436,7 @@ class ContaReceberList extends TPage
         $column_quitada_transformed->setAction($order_quitada_transformed);
 
         $this->datagrid->addColumn($column_pessoa_nome_transformed);
-        $this->datagrid->addColumn($column_profissional_nome);
+        $this->datagrid->addColumn($column_id_transformed);
         $this->datagrid->addColumn($column_tipo_documento_financeiro_nome);
         $this->datagrid->addColumn($column_numero_documentoatendimento_idcontrato_idprocesso_id);
         $this->datagrid->addColumn($column_descricao);
@@ -325,8 +467,8 @@ class ContaReceberList extends TPage
         }
         $td_pessoa_col = TElement::tag('td', $pessoa_col);
         $tr->add($td_pessoa_col);
-        $td_profissional_nome = TElement::tag('td', $profissional_nome);
-        $tr->add($td_profissional_nome);
+        $td_id = TElement::tag('td', $id);
+        $tr->add($td_id);
         $td_tipo_documento_financeiro_nome = TElement::tag('td', $tipo_documento_financeiro_nome);
         $tr->add($td_tipo_documento_financeiro_nome);
         $td_empty = TElement::tag('td', "");
@@ -335,16 +477,18 @@ class ContaReceberList extends TPage
         $tr->add($td_descricao_col);
         $td_empty = TElement::tag('td', "");
         $tr->add($td_empty);
-        $td_empty = TElement::tag('td', "");
-        $tr->add($td_empty);
-        $td_empty = TElement::tag('td', "");
-        $tr->add($td_empty);
+        $td_data_emissao = TElement::tag('td', $data_emissao);
+        $tr->add($td_data_emissao);
+        $td_quitada22 = TElement::tag('td', $quitada22);
+        $tr->add($td_quitada22);
         $tr->add(TElement::tag('td', ''));
 
         $this->datagrid_form->addField($pessoa_col);
-        $this->datagrid_form->addField($profissional_nome);
+        $this->datagrid_form->addField($id);
         $this->datagrid_form->addField($tipo_documento_financeiro_nome);
         $this->datagrid_form->addField($descricao_col);
+        $this->datagrid_form->addField($data_emissao);
+        $this->datagrid_form->addField($quitada22);
 
         $this->datagrid_form->setData( TSession::getValue(__CLASS__.'_filter_data') );
 
@@ -815,8 +959,8 @@ class ContaReceberList extends TPage
 
         if (isset($data->profissional_id) AND ( (is_scalar($data->profissional_id) AND $data->profissional_id !== '') OR (is_array($data->profissional_id) AND (!empty($data->profissional_id)) )) )
         {
-
-            $filters[] = new TFilter('profissional_id', '=', $data->profissional_id);// create the filter 
+            $filterVar = (is_array($data->profissional_id) && $data->profissional_id) ? "'".implode("','", $data->profissional_id)."'" : $data->profissional_id;
+            $filters[] = new TFilter('id', 'in', "(SELECT conta_id FROM conta_profissional WHERE pessoa_id in ($filterVar))");// create the filter 
         }
 
         if (isset($data->tipo_documento_financeiro_id) AND ( (is_scalar($data->tipo_documento_financeiro_id) AND $data->tipo_documento_financeiro_id !== '') OR (is_array($data->tipo_documento_financeiro_id) AND (!empty($data->tipo_documento_financeiro_id)) )) )
@@ -867,10 +1011,10 @@ class ContaReceberList extends TPage
             $filters[] = new TFilter('pessoa_id', '=', $data->pessoa_col);// create the filter 
         }
 
-        if (isset($data->profissional_nome) AND ( (is_scalar($data->profissional_nome) AND $data->profissional_nome !== '') OR (is_array($data->profissional_nome) AND (!empty($data->profissional_nome)) )) )
+        if (isset($data->id) AND ( (is_scalar($data->id) AND $data->id !== '') OR (is_array($data->id) AND (!empty($data->id)) )) )
         {
-
-            $filters[] = new TFilter('profissional_id', '=', $data->profissional_nome);// create the filter 
+            $filterVar = (is_array($data->id) && $data->id) ? "'".implode("','", $data->id)."'" : $data->id;
+            $filters[] = new TFilter('id', 'in', "(SELECT conta_id FROM conta_profissional WHERE pessoa_id in ($filterVar))");// create the filter 
         }
 
         if (isset($data->tipo_documento_financeiro_nome) AND ( (is_scalar($data->tipo_documento_financeiro_nome) AND $data->tipo_documento_financeiro_nome !== '') OR (is_array($data->tipo_documento_financeiro_nome) AND (!empty($data->tipo_documento_financeiro_nome)) )) )
@@ -882,7 +1026,19 @@ class ContaReceberList extends TPage
         if (isset($data->descricao_col) AND ( (is_scalar($data->descricao_col) AND $data->descricao_col !== '') OR (is_array($data->descricao_col) AND (!empty($data->descricao_col)) )) )
         {
 
-            $filters[] = new TFilter('descricao', 'like', "%{$data->descricao_col}%");// create the filter 
+            $filters[] = new TFilter('unaccent(descricao)', 'ilike', "%{$data->descricao_col}%");// create the filter 
+        }
+
+        if (isset($data->data_emissao) AND ( (is_scalar($data->data_emissao) AND $data->data_emissao !== '') OR (is_array($data->data_emissao) AND (!empty($data->data_emissao)) )) )
+        {
+
+            $filters[] = new TFilter('data_emissao', '=', $data->data_emissao);// create the filter 
+        }
+
+        if (isset($data->quitada22) AND ( (is_scalar($data->quitada22) AND $data->quitada22 !== '') OR (is_array($data->quitada22) AND (!empty($data->quitada22)) )) )
+        {
+
+            $filters[] = new TFilter('quitada', '=', $data->quitada22);// create the filter 
         }
 
         if (!empty($data->filtro_rapido) && $data->filtro_rapido == 1)

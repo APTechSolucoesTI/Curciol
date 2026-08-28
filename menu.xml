@@ -24,6 +24,10 @@
         <icon>fas:address-book fa-fw </icon>
         <action>ClienteList#method=onShow</action>
         </menuitem>
+        <menuitem label="Parceiros">
+        <icon>fas:briefcase fa-fw </icon>
+        <action>ParceirosHeaderList#method=onShow</action>
+        </menuitem>
         <menuitem label="Representantes Legais">
         <icon>fas:user-tie fa-fw </icon>
         <action>RepresentantesLegaisList#method=onShow</action>
@@ -40,6 +44,10 @@
         <icon>fas:truck fa-fw </icon>
         <action>FornecedorList#method=onShow</action>
         </menuitem>
+        <menuitem label="Pessoas">
+        <icon>fas:users fa-fw </icon>
+        <action>PessoaList#method=onShow</action>
+        </menuitem>        
     </menu>
     </menuitem>
     <menuitem label="Documentos">
@@ -61,6 +69,10 @@
         <menuitem label="Publicações">
         <icon>fas:list fa-fw </icon>
         <action>PublicacaoHeaderList#method=onShow</action>
+        </menuitem>
+        <menuitem label="Requisição de Pagamento">
+        <icon>far:money-bill-alt fa-fw</icon>
+        <action>RequisicaoPagamentoListagemHeaderList#method=onShow</action>
         </menuitem>
         <menuitem label="Tarefas">
         <icon>fas:list-ul fa-fw </icon>
@@ -103,7 +115,7 @@
         </menuitem>
         <menuitem label="Extrato">
         <icon>fas:clipboard-list fa-fw </icon>
-        <action>ModalFiltroExtrato#method=onShow</action>
+        <action>ExtratoList#method=onShow</action>
         </menuitem>
         <menuitem label="Contas">
         <icon>far:money-bill-alt fa-fw</icon>
@@ -246,6 +258,10 @@
         <menuitem label="Processos">
         <icon>fas:gavel fa-fw </icon>
         <menu>
+            <menuitem label="Etapas de Andamentos">
+            <icon>fas:angle-right fa-fw </icon>
+            <action>PublicacaoEtapaHeaderList#method=onShow</action>
+            </menuitem>  
             <menuitem label="Tribunais">
             <icon>fas:angle-right fa-fw </icon>
             <action>TribunalList#method=onShow</action>
@@ -281,6 +297,10 @@
             <menuitem label="Status processuais">
             <icon>fas:angle-right fa-fw </icon>
             <action>StatusProcessualList#method=onShow</action>
+            </menuitem>
+            <menuitem label="Status da Requisição de Pagamento">
+            <icon>fas:angle-right fa-fw </icon>
+            <action>StatusRequisicaoPagamentoHeaderList#method=onShow</action>
             </menuitem>
             <menuitem label="Tipos de andamento">
             <icon>fas:angle-right fa-fw </icon>

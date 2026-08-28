@@ -46,9 +46,9 @@ class ExtratoSaidaForm extends TPage
 
         $saida_valor->addValidation("Valor", new TRequiredValidator()); 
 
+        $escritorio_id->setValue('1');
         $saida_valor->setAllowNegative(false);
         $historico->setMaxLength(3000);
-        $historico->setValue('Saída manual.');
         $historico->forceUpperCase();
         $compensado->setUseSwitch(true, 'blue');
         $compensado->setIndexValue("S");

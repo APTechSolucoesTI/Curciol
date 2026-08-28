@@ -48,7 +48,7 @@ class ContratoForm extends TPage
         $criteria_contrato_pessoa_contrato_cliente_id->add(new TFilter('id', 'in', "(SELECT pessoa_id FROM pessoa_grupo WHERE grupo_id = '{$filterVar}')")); 
         $filterVar = Grupo::REPRESENTANTE_LEGAL;
         $criteria_contrato_representante_contrato_representante_id->add(new TFilter('id', 'in', "(SELECT pessoa_id FROM pessoa_grupo WHERE grupo_id = '{$filterVar}')")); 
-        $filterVar = [Grupo::FORNECEDOR, Grupo::PROFISSIONAL];
+        $filterVar = [Grupo::PARCEIRO, Grupo::PROFISSIONAL];
         $filterVar = (is_array($filterVar) && $filterVar) ? "'".implode("','", $filterVar)."'" : $filterVar;
         $criteria_contrato_repasse_contrato_pessoa_id->add(new TFilter('id', 'in', "(SELECT pessoa_id FROM pessoa_grupo WHERE grupo_id in ($filterVar))")); 
 
@@ -387,18 +387,24 @@ class ContratoForm extends TPage
 
         $this->form->appendPage("Repasse");
         $row15 = $this->form->addFields([$this->fieldList_contrato_profissional]);
-        $row15->layout = [' col-sm-12'];
+        $row15->layout = ['col-sm-12'];
+
+/*
 
         // create the form actions
-        $btn_onsave = $this->form->addAction("Salvar", new TAction([$this, 'onSave'],['static' => 1]), 'fas:save #ffffff');
-        $this->btn_onsave = $btn_onsave;
-        $btn_onsave->addStyleClass('btn-primary'); 
+        $onSaveFalso = $this->form->addAction("Salvar", new TAction([$this, 'onChamaDateForm']), 'fas:save #FFFFFF');
+        $this->onSaveFalso = $onSaveFalso;
+        $onSaveFalso->addStyleClass('btn-primary'); 
 
         $btn_onclear = $this->form->addAction("Cancelar", new TAction([$this, 'onClear']), 'fas:eraser #dd5a43');
         $this->btn_onclear = $btn_onclear;
 
         $btn_onshow = $this->form->addAction("Sair", new TAction(['ContratoList', 'onShow']), 'fas:arrow-left #000000');
         $this->btn_onshow = $btn_onshow;
+
+        $onSaveReal = $this->form->addAction("SalvarReal", new TAction([$this, 'onSave'],['static' => 1]), 'fas:save #ffffff');
+        $this->onSaveReal = $onSaveReal;
+        $onSaveReal->addStyleClass('btn-primary'); 
 
         parent::setTargetContainer('adianti_right_panel');
 
@@ -410,6 +416,341 @@ class ContratoForm extends TPage
         $btnClose->setImage('fas:times');
 
         $this->form->addHeaderWidget($btnClose);
+
+*/      TScript::create("
+            var seletorPercentualContrato = 'input[name=\"contrato_pessoa_contrato_percentual[]\"], input[name=\"contrato_repasse_contrato_percentual[]\"]';
+
+            $(document).off('input', seletorPercentualContrato);
+            $(document).off('keydown', seletorPercentualContrato);
+            $(document).off('paste', seletorPercentualContrato);
+            $(document).off('focus', seletorPercentualContrato);
+            $(document).off('blur', seletorPercentualContrato);
+
+            if (window.mascaraPercentualContratoInterval) {
+                clearInterval(window.mascaraPercentualContratoInterval);
+            }
+
+            function percentualContratoFormatarNumero(numero) {
+                numero = parseFloat(numero || 0);
+
+                if (isNaN(numero)) {
+                    numero = 0;
+                }
+
+                return numero.toLocaleString('pt-BR', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2
+                });
+            }
+
+            function percentualContratoNumeroDoValor(valor) {
+                valor = (valor || '').toString().trim();
+
+                if (valor === '') {
+                    return null;
+                }
+
+                valor = valor.replace('%', '');
+                valor = valor.replace(/\\s/g, '');
+
+                if (valor.indexOf(',') !== -1) {
+                    valor = valor.replace(/\\./g, '');
+                    valor = valor.replace(',', '.');
+                }
+
+                var numero = parseFloat(valor);
+
+                if (isNaN(numero)) {
+                    return null;
+                }
+
+                if (numero > 100) {
+                    numero = 100;
+                }
+
+                if (numero < 0) {
+                    numero = 0;
+                }
+
+                return numero;
+            }
+
+            function percentualContratoDigitosDoValor(valor) {
+                var numero = percentualContratoNumeroDoValor(valor);
+
+                if (numero === null) {
+                    return '';
+                }
+
+                return Math.round(numero * 100).toString();
+            }
+
+            function percentualContratoDigitosDoTextoColado(texto) {
+                texto = (texto || '').toString().trim();
+
+                if (texto === '') {
+                    return '';
+                }
+
+                if (texto.indexOf(',') !== -1 || texto.indexOf('.') !== -1) {
+                    return percentualContratoDigitosDoValor(texto);
+                }
+
+                return texto.replace(/[^0-9]/g, '');
+            }
+
+            function percentualContratoFormatarPorDigitos(digitos) {
+                digitos = (digitos || '').toString().replace(/[^0-9]/g, '');
+
+                if (digitos === '') {
+                    return '';
+                }
+
+                var numero = parseInt(digitos, 10) / 100;
+
+                if (isNaN(numero)) {
+                    return '';
+                }
+
+                if (numero > 100) {
+                    numero = 100;
+                }
+
+                return percentualContratoFormatarNumero(numero);
+            }
+
+            function percentualContratoCursorFinal(campo) {
+                setTimeout(function() {
+                    if (campo && typeof campo.setSelectionRange === 'function') {
+                        var tamanho = campo.value.length;
+                        campo.setSelectionRange(tamanho, tamanho);
+                    }
+                }, 0);
+            }
+
+            function atualizarTotalPercentualPorCampo(nomeCampo) {
+                var campos = $('input[name=\"' + nomeCampo + '[]\"]');
+
+                if (!campos.length) {
+                    return;
+                }
+
+                var total = 0;
+
+                campos.each(function() {
+                    var numero = percentualContratoNumeroDoValor($(this).val());
+
+                    if (numero !== null) {
+                        total += numero;
+                    }
+                });
+
+                total = Math.round(total * 100) / 100;
+
+                var texto = percentualContratoFormatarNumero(total);
+
+                var tabela = campos.first().closest('table');
+
+                if (!tabela.length) {
+                    return;
+                }
+
+                var campoTotal = tabela.find('input:visible').filter(function() {
+                    var name = $(this).attr('name') || '';
+
+                    if (name === nomeCampo + '[]') {
+                        return false;
+                    }
+
+                    var linha = $(this).closest('tr');
+
+                    if (linha.find('input[name=\"' + nomeCampo + '[]\"]').length > 0) {
+                        return false;
+                    }
+
+                    return true;
+                }).last();
+
+                if (campoTotal.length) {
+                    campoTotal.val(texto);
+                }
+            }
+
+            function atualizarTotaisPercentuaisContrato() {
+                atualizarTotalPercentualPorCampo('contrato_pessoa_contrato_percentual');
+                atualizarTotalPercentualPorCampo('contrato_repasse_contrato_percentual');
+            }
+
+            function aplicarMascaraPercentualContrato() {
+                $(seletorPercentualContrato).each(function() {
+                    var campo = $(this);
+
+                    campo.attr('inputmode', 'numeric');
+                    campo.attr('autocomplete', 'off');
+                    campo.attr('placeholder', '0,00');
+
+                    if (!campo.data('mascara-percentual-contrato')) {
+                        campo.data('mascara-percentual-contrato', true);
+                    }
+
+                    if (!campo.is(':focus')) {
+                        var valorAtual = campo.val();
+
+                        if (valorAtual !== '') {
+                            var digitos = percentualContratoDigitosDoValor(valorAtual);
+                            var valorFormatado = percentualContratoFormatarPorDigitos(digitos);
+
+                            campo.data('percentual-digitos', digitos);
+                            campo.val(valorFormatado);
+                        }
+                    }
+                });
+
+                atualizarTotaisPercentuaisContrato();
+            }
+
+            $(document).on('focus', seletorPercentualContrato, function() {
+                var campo = $(this);
+
+                campo.data('percentual-digitos', percentualContratoDigitosDoValor(campo.val()));
+
+                this.select();
+            });
+
+            $(document).on('keydown', seletorPercentualContrato, function(e) {
+                var tecla = e.key;
+                var campoHtml = this;
+                var campo = $(this);
+
+                if (
+                    tecla === 'Tab' ||
+                    tecla === 'ArrowLeft' ||
+                    tecla === 'ArrowRight' ||
+                    tecla === 'Home' ||
+                    tecla === 'End'
+                ) {
+                    return;
+                }
+
+                e.preventDefault();
+
+                var selecionouTudo = campoHtml.selectionStart === 0 && campoHtml.selectionEnd === campoHtml.value.length;
+
+                var digitos = campo.data('percentual-digitos');
+
+                if (typeof digitos === 'undefined') {
+                    digitos = percentualContratoDigitosDoValor(campo.val());
+                }
+
+                digitos = (digitos || '').toString();
+
+                if (/^[0-9]$/.test(tecla)) {
+                    if (selecionouTudo) {
+                        digitos = tecla;
+                    } else {
+                        digitos = digitos + tecla;
+                    }
+                } else if (tecla === 'Backspace' || tecla === 'Delete') {
+                    if (selecionouTudo) {
+                        digitos = '';
+                    } else {
+                        digitos = digitos.slice(0, -1);
+                    }
+                } else {
+                    return;
+                }
+
+                digitos = digitos.replace(/^0+(?=\\d)/, '');
+
+                var numero = parseInt(digitos || '0', 10) / 100;
+
+                if (numero > 100) {
+                    digitos = '10000';
+                }
+
+                campo.data('percentual-digitos', digitos);
+                campo.val(percentualContratoFormatarPorDigitos(digitos));
+
+                atualizarTotaisPercentuaisContrato();
+                percentualContratoCursorFinal(campoHtml);
+            });
+
+            $(document).on('paste', seletorPercentualContrato, function(e) {
+                e.preventDefault();
+
+                var campo = $(this);
+                var texto = (e.originalEvent || e).clipboardData.getData('text') || '';
+                var digitos = percentualContratoDigitosDoTextoColado(texto);
+
+                var numero = parseInt(digitos || '0', 10) / 100;
+
+                if (numero > 100) {
+                    digitos = '10000';
+                }
+
+                campo.data('percentual-digitos', digitos);
+                campo.val(percentualContratoFormatarPorDigitos(digitos));
+
+                atualizarTotaisPercentuaisContrato();
+                percentualContratoCursorFinal(this);
+            });
+
+            $(document).on('blur', seletorPercentualContrato, function() {
+                var campo = $(this);
+                var digitos = campo.data('percentual-digitos');
+
+                if (typeof digitos === 'undefined') {
+                    digitos = percentualContratoDigitosDoValor(campo.val());
+                }
+
+                campo.val(percentualContratoFormatarPorDigitos(digitos));
+
+                atualizarTotaisPercentuaisContrato();
+            });
+
+            aplicarMascaraPercentualContrato();
+
+            $(document).on('click', '.tfieldlist_add, .tfieldlist_clone, .btn', function() {
+                setTimeout(function() {
+                    aplicarMascaraPercentualContrato();
+                    atualizarTotaisPercentuaisContrato();
+                }, 300);
+            });
+
+            window.mascaraPercentualContratoInterval = setInterval(function() {
+                aplicarMascaraPercentualContrato();
+                atualizarTotaisPercentuaisContrato();
+            }, 1000);
+        ");
+
+        $onSaveFalso = $this->form->addAction("Salvar", new TAction([$this, 'onChamaDateForm']), 'fas:save #FFFFFF');
+        $this->onSaveFalso = $onSaveFalso;
+        $onSaveFalso->addStyleClass('btn-primary'); 
+
+        $btn_onclear = $this->form->addAction("Cancelar", new TAction([$this, 'onClear']), 'fas:eraser #dd5a43');
+        $this->btn_onclear = $btn_onclear;
+
+        $btn_onshow = $this->form->addAction("Sair", new TAction(['ContratoList', 'onShow']), 'fas:arrow-left #000000');
+        $this->btn_onshow = $btn_onshow;
+
+        $onSaveReal = $this->form->addAction("SalvarReal", new TAction([$this, 'onSave']), 'fas:save #ffffff');
+        $this->onSaveReal = $onSaveReal;
+        $onSaveReal->addStyleClass('btn-primary'); 
+
+        $onSaveReal->id = 'onsavereal';
+        $onSaveReal->style = 'display:none';
+        TScript::create("$('#onsavereal').hide();");
+
+        parent::setTargetContainer('adianti_right_panel');
+
+        $btnClose = new TButton('closeCurtain');
+        $btnClose->class = 'btn btn-sm btn-default';
+        $btnClose->style = 'margin-right:10px;';
+        $btnClose->onClick = "Template.closeRightPanel();";
+        $btnClose->setLabel("Fechar");
+        $btnClose->setImage('fas:times');
+
+        $this->form->addHeaderWidget($btnClose);   
 
         parent::add($this->form);
 
@@ -489,7 +830,8 @@ class ContratoForm extends TPage
         {
             $object = new stdClass();
 
-            $porcentagem = 100 - array_sum($param['contrato_pessoa_contrato_percentual']);
+            $porcentagem = 100 - self::somarPercentuais($param['contrato_pessoa_contrato_percentual'] ?? []);
+            $porcentagem = number_format($porcentagem, 2, ',', '');
 
             $field_id = explode('_', $param['_field_id']);
             $field_id = end($field_id);
@@ -619,7 +961,8 @@ class ContratoForm extends TPage
 
             if(!isset($object->{"contrato_repasse_contrato_percentual_{$field_id}"})){
 
-                $porcentagem = 100 - array_sum($param['contrato_repasse_contrato_percentual']);
+                $porcentagem = 100 - self::somarPercentuais($param['contrato_repasse_contrato_percentual'] ?? []);
+                $porcentagem = number_format($porcentagem, 2, ',', '');
 
                 $object->{"contrato_repasse_contrato_percentual_{$field_id}"} = $porcentagem;
 
@@ -849,6 +1192,32 @@ class ContratoForm extends TPage
             TTransaction::rollback();
         }
     }
+    public function onChamaDateForm($param = null) 
+    {
+        try 
+        {
+            $this->form->validate();
+
+            if (!empty($param['id'])) {
+                $this->onSave($param);
+                return;
+            }
+
+            unset($param['class']);
+            unset($param['method']);
+            unset($param['static']);
+            unset($param['target_container']);
+
+            TSession::setValue('contrato_save_param_pendente', $param);
+
+            TApplication::loadPage('ContratoDateForm', 'onShow');      
+
+        }
+        catch (Exception $e) 
+        {
+            new TMessage('error', $e->getMessage());    
+        }
+    }
     public function onSave($param = null) 
     {
         try
@@ -857,11 +1226,34 @@ class ContratoForm extends TPage
 
             $messageAction = null;
 
-            $this->form->validate(); // validate form data
+            $param = $param ?? [];
+
+            $salvandoPacoteContrato = !empty($param['_salvar_pacote_contrato']);
+
+            if ($salvandoPacoteContrato) {
+
+                unset($param['class']);
+                unset($param['method']);
+                unset($param['static']);
+                unset($param['target_container']);
+
+                $data = (object) $param;
+
+                $this->form->setData($data);
+
+            } else {
+
+                $this->form->validate();
+                $data = $this->form->getData();
+            }
+
+            $anoReferenciaContrato = $data->ano_referencia_contrato ?? null;
+
+            unset($data->ano_referencia_contrato);
+            unset($data->_salvar_pacote_contrato);
 
             $object = new Contrato(); // create an empty object 
 
-            $data = $this->form->getData(); // get form data as array
             $object->fromArray( (array) $data); // load the object with data
 
             // validação de alteração de status
@@ -874,26 +1266,15 @@ class ContratoForm extends TPage
                 if ($contratoAntigo->contrato_status_id != $object->contrato_status_id) {
                     throw new Exception('Você não tem permissão para alterar o status do contrato.');
                 }
-            }
+            }                      
 
-            if(!$data->id){
-                $numeroInicial = $object->numero;
+            if (empty($data->id)) {
 
-                while($i<1){
-                    if(!isset($varNumero)){
-                        $c = '/'.date('Y');
-                        $varNumero = rtrim($object->numero, $c);
-                    }else{
-                        $varNumero++;
-                    }
-                    $varNumero = str_pad($varNumero, 7, '0', STR_PAD_LEFT);
-                    $object->numero = $varNumero.'/'.date('Y');
-
-                    $quant = Contrato::where('numero', '=', $object->numero)->count();
-                    if($quant<1){
-                       $i++; 
-                    }
+                if (empty($anoReferenciaContrato)) {
+                    throw new Exception('Ano de referência do contrato não informado.');
                 }
+
+                $object->numero = self::gerarProximoNumeroContrato($anoReferenciaContrato);
             }
 
             if(!$data->id){
@@ -901,6 +1282,23 @@ class ContratoForm extends TPage
             }else{
                 $object->modificacao_user_id = TSession::getValue('userid');
             }
+
+            $object->id = $data->id ?? null;
+            $object->tela = $data->tela ?? null;
+            $object->atendimento_id = $data->atendimento_id ?? null;
+            $object->numero = $object->numero ?? ($data->numero ?? null);
+
+            $object->escritorio_id = $data->escritorio_id ?? null;
+            $object->tipo_processo_id = $data->tipo_processo_id ?? null;
+            $object->envolvimento_id = $data->envolvimento_id ?? null;
+            $object->area_id = $data->area_id ?? null;
+            $object->assunto_id = $data->assunto_id ?? null;
+            $object->contrato_status_id = $data->contrato_status_id ?? null;
+            $object->objeto = $data->objeto ?? null;
+
+            $object->data_criacao = $data->data_criacao ?? null;
+            $object->data_modificacao = $data->data_modificacao ?? null;
+
             $object->store(); // save the object 
 
             $this->fireEvents($object);
@@ -973,20 +1371,30 @@ class ContratoForm extends TPage
                 $object->valor = null;
             }
 
-            if(count(array_filter($data->contrato_repasse_contrato_percentual)) > 0 && array_sum($data->contrato_repasse_contrato_percentual)!=100){
-                throw new Exception("A soma do percentual de repasse deve ser igual a 100!");
+            $totalRepasse = self::somarPercentuais($data->contrato_repasse_contrato_percentual ?? []);
+
+            if ($totalRepasse > 0 && abs($totalRepasse - 100) > 0.0001) {
+                throw new Exception("A soma do percentual de repasse deve ser igual a 100! Total atual: " . number_format($totalRepasse, 2, ',', '.'));
             }
             $contrato_repasse_contrato_items = $this->storeItems('ContratoRepasse', 'contrato_id', $object, $this->fieldList_contrato_profissional, function($masterObject, $detailObject){ 
 
+                $detailObject->percentual = self::normalizarNumero($detailObject->percentual ?? null);
+
             }, $this->criteria_fieldList_contrato_profissional); 
 
-            if(count(array_filter($data->contrato_pessoa_contrato_percentual))>0 && array_sum($data->contrato_pessoa_contrato_percentual)!=100){
-                throw new Exception("A soma do percentual de clientes deve ser igual a 100!");
+            $totalClientes = self::somarPercentuais($data->contrato_pessoa_contrato_percentual ?? []);
+
+            if ($totalClientes > 0 && abs($totalClientes - 100) > 0.0001) {
+                throw new Exception("A soma do percentual de clientes deve ser igual a 100! Total atual: " . number_format($totalClientes, 2, ',', '.'));
             }
             $contrato_pessoa_contrato_items = $this->storeItems('ContratoPessoa', 'contrato_id', $object, $this->fieldList_contrato_cliente, function($masterObject, $detailObject){ 
 
-            }, $this->criteria_fieldList_contrato_cliente); 
+                $detailObject->percentual = self::normalizarNumero($detailObject->percentual ?? null);
 
+            }, $this->criteria_fieldList_contrato_cliente); 
+            if ($salvandoPacoteContrato) {
+                self::salvarFieldListsContratoManual($object, $data);
+            }
             // get the generated {PRIMARY_KEY}
             $data->id = $object->id; 
 
@@ -1018,6 +1426,10 @@ class ContratoForm extends TPage
             } elseif (!isset($numeroInicial)) {
                 TApplication::loadPage('ContratoFormView', 'onShow', ['key' => $object->id, 'id' => $object->id]);
             }
+
+            TSession::setValue('contrato_save_param_pendente', null);
+            TSession::setValue('contrato_save_ano_pendente', null);
+
             TTransaction::close(); // close the transaction
         }
         catch (Exception $e) // in case of exception
@@ -1231,6 +1643,203 @@ class ContratoForm extends TPage
     public static function getFormName()
     {
         return self::$formName;
+    }
+
+    private static function gerarProximoNumeroContrato($ano)
+    {
+        $ano = (int) $ano;
+
+        $conn = TTransaction::get();
+
+        $conn->exec('LOCK TABLE contrato IN SHARE ROW EXCLUSIVE MODE');
+
+        $sql = "
+            SELECT 
+                COALESCE(MAX(CAST(split_part(numero, '/', 1) AS INTEGER)), 0) + 1 AS proximo
+            FROM contrato
+            WHERE numero IS NOT NULL
+            AND numero LIKE :ano
+            AND numero <> :zero
+            AND numero ~ '^[0-9]+/[0-9]{4}$'
+        ";
+
+        $stmt = $conn->prepare($sql);
+        $stmt->execute([
+            ':ano'  => '%/' . $ano,
+            ':zero' => '0000000/' . $ano
+        ]);
+
+        $proximo = (int) $stmt->fetchColumn();
+
+        return str_pad($proximo, 7, '0', STR_PAD_LEFT) . '/' . $ano;
+    }
+
+    public function onSalvarContratoPendente($param = null)
+    {
+        try
+        {
+            $dadosContrato = TSession::getValue('contrato_save_param_pendente');
+            $anoReferencia = TSession::getValue('contrato_save_ano_pendente');
+
+            if (empty($dadosContrato) || !is_array($dadosContrato)) {
+                throw new Exception('Dados temporários do contrato não encontrados.');
+            }
+
+            if (empty($anoReferencia)) {
+                throw new Exception('Ano de referência do contrato não encontrado.');
+            }
+
+            $dadosContrato['ano_referencia_contrato'] = $anoReferencia;
+            $dadosContrato['_salvar_pacote_contrato'] = 1;
+
+            $this->onSave($dadosContrato);
+        }
+        catch (Exception $e)
+        {
+            new TMessage('error', $e->getMessage());
+        }
+    }
+
+    private static function salvarFieldListsContratoManual($contrato, $dados)
+    {
+        if (empty($contrato->id)) {
+            throw new Exception('Contrato não encontrado para salvar os vínculos.');
+        }
+
+        self::limparDetalhesContrato('ContratoPessoa', $contrato->id);
+        self::limparDetalhesContrato('ContratoRepresentante', $contrato->id);
+        self::limparDetalhesContrato('ContratoRepasse', $contrato->id);
+
+        self::salvarClientesContratoManual($contrato, $dados);
+        self::salvarRepresentantesContratoManual($contrato, $dados);
+        self::salvarRepassesContratoManual($contrato, $dados);
+    }
+
+    private static function limparDetalhesContrato($classe, $contratoId)
+    {
+        $criteria = new TCriteria();
+        $criteria->add(new TFilter('contrato_id', '=', $contratoId));
+
+        $repository = new TRepository($classe);
+        $repository->delete($criteria);
+    }
+
+    private static function salvarClientesContratoManual($contrato, $dados)
+    {
+        $clientes = self::campoArray($dados, 'contrato_pessoa_contrato_cliente_id');
+        $percentuais = self::campoArray($dados, 'contrato_pessoa_contrato_percentual');
+
+        foreach ($clientes as $i => $clienteId) {
+            $clienteId = trim((string) $clienteId);
+
+            if ($clienteId === '') {
+                continue;
+            }
+
+            $item = new ContratoPessoa();
+            $item->contrato_id = $contrato->id;
+            $item->cliente_id = (int) $clienteId;
+            $item->percentual = self::normalizarNumero($percentuais[$i] ?? null);
+            $item->store();
+        }
+    }
+
+    private static function salvarRepresentantesContratoManual($contrato, $dados)
+    {
+        $representantes = self::campoArray($dados, 'contrato_representante_contrato_representante_id');
+
+        foreach ($representantes as $representanteId) {
+            $representanteId = trim((string) $representanteId);
+
+            if ($representanteId === '') {
+                continue;
+            }
+
+            $item = new ContratoRepresentante();
+            $item->contrato_id = $contrato->id;
+            $item->representante_id = (int) $representanteId;
+            $item->store();
+        }
+    }
+
+    private static function salvarRepassesContratoManual($contrato, $dados)
+    {
+        $pessoas = self::campoArray($dados, 'contrato_repasse_contrato_pessoa_id');
+        $percentuais = self::campoArray($dados, 'contrato_repasse_contrato_percentual');
+
+        foreach ($pessoas as $i => $pessoaId) {
+            $pessoaId = trim((string) $pessoaId);
+
+            if ($pessoaId === '') {
+                continue;
+            }
+
+            $item = new ContratoRepasse();
+            $item->contrato_id = $contrato->id;
+            $item->pessoa_id = (int) $pessoaId;
+            $item->percentual = self::normalizarNumero($percentuais[$i] ?? null);
+            $item->store();
+        }
+    }
+
+    private static function campoArray($dados, $campo)
+    {
+        if (!isset($dados->{$campo})) {
+            return [];
+        }
+
+        $valor = $dados->{$campo};
+
+        if (is_array($valor)) {
+            return array_values($valor);
+        }
+
+        if ($valor === null || $valor === '') {
+            return [];
+        }
+
+        return [$valor];
+    }
+
+    private static function normalizarNumero($valor)
+    {
+        if ($valor === null || $valor === '') {
+            return null;
+        }
+
+        $valor = trim((string) $valor);
+        $valor = str_replace('%', '', $valor);
+        $valor = str_replace(' ', '', $valor);
+
+        if (strpos($valor, ',') !== false) {
+            $valor = str_replace('.', '', $valor);
+            $valor = str_replace(',', '.', $valor);
+        }
+
+        return (float) $valor;
+    }
+
+    private static function somarPercentuais($valores)
+    {
+        if (empty($valores)) {
+            return 0;
+        }
+
+        if (!is_array($valores)) {
+            $valores = [$valores];
+        }
+
+        $total = 0;
+
+        foreach ($valores as $valor) {
+            if ($valor === null || trim((string) $valor) === '') {
+                continue;
+            }
+
+            $total += self::normalizarNumero($valor);
+        }
+
+        return round($total, 4);
     }
 
 }

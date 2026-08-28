@@ -198,6 +198,32 @@ class TipoAndamento extends TRecord
         return implode(', ', $values);
     }
 
+    public function set_andamento_publicacao_etapa_to_string($andamento_publicacao_etapa_to_string)
+    {
+        if(is_array($andamento_publicacao_etapa_to_string))
+        {
+            $values = PublicacaoEtapa::where('id', 'in', $andamento_publicacao_etapa_to_string)->getIndexedArray('id', 'id');
+            $this->andamento_publicacao_etapa_to_string = implode(', ', $values);
+        }
+        else
+        {
+            $this->andamento_publicacao_etapa_to_string = $andamento_publicacao_etapa_to_string;
+        }
+
+        $this->vdata['andamento_publicacao_etapa_to_string'] = $this->andamento_publicacao_etapa_to_string;
+    }
+
+    public function get_andamento_publicacao_etapa_to_string()
+    {
+        if(!empty($this->andamento_publicacao_etapa_to_string))
+        {
+            return $this->andamento_publicacao_etapa_to_string;
+        }
+    
+        $values = Andamento::where('tipo_andamento_id', '=', $this->id)->getIndexedArray('publicacao_etapa_id','{publicacao_etapa->id}');
+        return implode(', ', $values);
+    }
+
     
 }
 

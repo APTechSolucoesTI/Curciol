@@ -740,7 +740,6 @@ class PessoaEditHeaderList extends TPage
             new TMessage('error', $e->getMessage()); // shows the exception error message
         }
     }
-
     public function onExportXls($param = null) 
     {
         try
@@ -832,7 +831,6 @@ class PessoaEditHeaderList extends TPage
             new TMessage('error', $e->getMessage()); // shows the exception error message
         }
     }
-
     public function onExportPdf($param = null) 
     {
         try
@@ -874,7 +872,6 @@ class PessoaEditHeaderList extends TPage
             new TMessage('error', $e->getMessage()); // shows the exception error message
         }
     }
-
     public function onExportXml($param = null) 
     {
         try

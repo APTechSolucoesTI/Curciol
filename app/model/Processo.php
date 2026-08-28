@@ -51,6 +51,7 @@ class Processo extends TRecord
         parent::addAttribute('criacao_user_id');
         parent::addAttribute('data_modificacao');
         parent::addAttribute('modificacao_user_id');
+        parent::addAttribute('exibir_cliente');
     
     }
 
@@ -474,6 +475,42 @@ class Processo extends TRecord
         $criteria->add(new TFilter('processo_id', '=', $this->id));
         return Tarefa::getObjects( $criteria );
     }
+    /**
+     * Method getProcessoPublicacoess
+     */
+    public function getProcessoPublicacoess()
+    {
+        $criteria = new TCriteria;
+        $criteria->add(new TFilter('processo_id', '=', $this->id));
+        return ProcessoPublicacoes::getObjects( $criteria );
+    }
+    /**
+     * Method getRequisicaoPagamentos
+     */
+    public function getRequisicaoPagamentos()
+    {
+        $criteria = new TCriteria;
+        $criteria->add(new TFilter('processo_id', '=', $this->id));
+        return RequisicaoPagamento::getObjects( $criteria );
+    }
+    /**
+     * Method getRequisicaoPagamentoEtapa2s
+     */
+    public function getRequisicaoPagamentoEtapa2s()
+    {
+        $criteria = new TCriteria;
+        $criteria->add(new TFilter('processo_filho_id', '=', $this->id));
+        return RequisicaoPagamentoEtapa2::getObjects( $criteria );
+    }
+    /**
+     * Method getRequisicaoPagamentoEtapa3s
+     */
+    public function getRequisicaoPagamentoEtapa3s()
+    {
+        $criteria = new TCriteria;
+        $criteria->add(new TFilter('processo_filho_id', '=', $this->id));
+        return RequisicaoPagamentoEtapa3::getObjects( $criteria );
+    }
 
     public function set_andamento_processo_to_string($andamento_processo_to_string)
     {
@@ -576,6 +613,32 @@ class Processo extends TRecord
         }
     
         $values = Andamento::where('processo_id', '=', $this->id)->getIndexedArray('modificacao_user_id','{modificacao_user->name}');
+        return implode(', ', $values);
+    }
+
+    public function set_andamento_publicacao_etapa_to_string($andamento_publicacao_etapa_to_string)
+    {
+        if(is_array($andamento_publicacao_etapa_to_string))
+        {
+            $values = PublicacaoEtapa::where('id', 'in', $andamento_publicacao_etapa_to_string)->getIndexedArray('id', 'id');
+            $this->andamento_publicacao_etapa_to_string = implode(', ', $values);
+        }
+        else
+        {
+            $this->andamento_publicacao_etapa_to_string = $andamento_publicacao_etapa_to_string;
+        }
+
+        $this->vdata['andamento_publicacao_etapa_to_string'] = $this->andamento_publicacao_etapa_to_string;
+    }
+
+    public function get_andamento_publicacao_etapa_to_string()
+    {
+        if(!empty($this->andamento_publicacao_etapa_to_string))
+        {
+            return $this->andamento_publicacao_etapa_to_string;
+        }
+    
+        $values = Andamento::where('processo_id', '=', $this->id)->getIndexedArray('publicacao_etapa_id','{publicacao_etapa->id}');
         return implode(', ', $values);
     }
 
@@ -1229,6 +1292,32 @@ class Processo extends TRecord
         return implode(', ', $values);
     }
 
+    public function set_publicacao_publicacao_etapa_to_string($publicacao_publicacao_etapa_to_string)
+    {
+        if(is_array($publicacao_publicacao_etapa_to_string))
+        {
+            $values = PublicacaoEtapa::where('id', 'in', $publicacao_publicacao_etapa_to_string)->getIndexedArray('id', 'id');
+            $this->publicacao_publicacao_etapa_to_string = implode(', ', $values);
+        }
+        else
+        {
+            $this->publicacao_publicacao_etapa_to_string = $publicacao_publicacao_etapa_to_string;
+        }
+
+        $this->vdata['publicacao_publicacao_etapa_to_string'] = $this->publicacao_publicacao_etapa_to_string;
+    }
+
+    public function get_publicacao_publicacao_etapa_to_string()
+    {
+        if(!empty($this->publicacao_publicacao_etapa_to_string))
+        {
+            return $this->publicacao_publicacao_etapa_to_string;
+        }
+    
+        $values = Publicacao::where('processo_id', '=', $this->id)->getIndexedArray('publicacao_etapa_id','{publicacao_etapa->id}');
+        return implode(', ', $values);
+    }
+
     public function set_publicacao_movimentacao_publicacao_to_string($publicacao_movimentacao_publicacao_to_string)
     {
         if(is_array($publicacao_movimentacao_publicacao_to_string))
@@ -1486,6 +1575,240 @@ class Processo extends TRecord
         }
     
         $values = Tarefa::where('processo_id', '=', $this->id)->getIndexedArray('modificacao_user_id','{modificacao_user->name}');
+        return implode(', ', $values);
+    }
+
+    public function set_processo_publicacoes_processo_to_string($processo_publicacoes_processo_to_string)
+    {
+        if(is_array($processo_publicacoes_processo_to_string))
+        {
+            $values = Processo::where('id', 'in', $processo_publicacoes_processo_to_string)->getIndexedArray('numero_cnj_numero', 'numero_cnj_numero');
+            $this->processo_publicacoes_processo_to_string = implode(', ', $values);
+        }
+        else
+        {
+            $this->processo_publicacoes_processo_to_string = $processo_publicacoes_processo_to_string;
+        }
+
+        $this->vdata['processo_publicacoes_processo_to_string'] = $this->processo_publicacoes_processo_to_string;
+    }
+
+    public function get_processo_publicacoes_processo_to_string()
+    {
+        if(!empty($this->processo_publicacoes_processo_to_string))
+        {
+            return $this->processo_publicacoes_processo_to_string;
+        }
+    
+        $values = ProcessoPublicacoes::where('processo_id', '=', $this->id)->getIndexedArray('processo_id','{processo->numero_cnj_numero}');
+        return implode(', ', $values);
+    }
+
+    public function set_processo_publicacoes_publicacao_to_string($processo_publicacoes_publicacao_to_string)
+    {
+        if(is_array($processo_publicacoes_publicacao_to_string))
+        {
+            $values = Publicacao::where('id', 'in', $processo_publicacoes_publicacao_to_string)->getIndexedArray('id', 'id');
+            $this->processo_publicacoes_publicacao_to_string = implode(', ', $values);
+        }
+        else
+        {
+            $this->processo_publicacoes_publicacao_to_string = $processo_publicacoes_publicacao_to_string;
+        }
+
+        $this->vdata['processo_publicacoes_publicacao_to_string'] = $this->processo_publicacoes_publicacao_to_string;
+    }
+
+    public function get_processo_publicacoes_publicacao_to_string()
+    {
+        if(!empty($this->processo_publicacoes_publicacao_to_string))
+        {
+            return $this->processo_publicacoes_publicacao_to_string;
+        }
+    
+        $values = ProcessoPublicacoes::where('processo_id', '=', $this->id)->getIndexedArray('publicacao_id','{publicacao->id}');
+        return implode(', ', $values);
+    }
+
+    public function set_processo_publicacoes_publicacao_etapa_to_string($processo_publicacoes_publicacao_etapa_to_string)
+    {
+        if(is_array($processo_publicacoes_publicacao_etapa_to_string))
+        {
+            $values = PublicacaoEtapa::where('id', 'in', $processo_publicacoes_publicacao_etapa_to_string)->getIndexedArray('id', 'id');
+            $this->processo_publicacoes_publicacao_etapa_to_string = implode(', ', $values);
+        }
+        else
+        {
+            $this->processo_publicacoes_publicacao_etapa_to_string = $processo_publicacoes_publicacao_etapa_to_string;
+        }
+
+        $this->vdata['processo_publicacoes_publicacao_etapa_to_string'] = $this->processo_publicacoes_publicacao_etapa_to_string;
+    }
+
+    public function get_processo_publicacoes_publicacao_etapa_to_string()
+    {
+        if(!empty($this->processo_publicacoes_publicacao_etapa_to_string))
+        {
+            return $this->processo_publicacoes_publicacao_etapa_to_string;
+        }
+    
+        $values = ProcessoPublicacoes::where('processo_id', '=', $this->id)->getIndexedArray('publicacao_etapa_id','{publicacao_etapa->id}');
+        return implode(', ', $values);
+    }
+
+    public function set_requisicao_pagamento_processo_to_string($requisicao_pagamento_processo_to_string)
+    {
+        if(is_array($requisicao_pagamento_processo_to_string))
+        {
+            $values = Processo::where('id', 'in', $requisicao_pagamento_processo_to_string)->getIndexedArray('numero_cnj_numero', 'numero_cnj_numero');
+            $this->requisicao_pagamento_processo_to_string = implode(', ', $values);
+        }
+        else
+        {
+            $this->requisicao_pagamento_processo_to_string = $requisicao_pagamento_processo_to_string;
+        }
+
+        $this->vdata['requisicao_pagamento_processo_to_string'] = $this->requisicao_pagamento_processo_to_string;
+    }
+
+    public function get_requisicao_pagamento_processo_to_string()
+    {
+        if(!empty($this->requisicao_pagamento_processo_to_string))
+        {
+            return $this->requisicao_pagamento_processo_to_string;
+        }
+    
+        $values = RequisicaoPagamento::where('processo_id', '=', $this->id)->getIndexedArray('processo_id','{processo->numero_cnj_numero}');
+        return implode(', ', $values);
+    }
+
+    public function set_requisicao_pagamento_tipos_requisicao_pagamento_to_string($requisicao_pagamento_tipos_requisicao_pagamento_to_string)
+    {
+        if(is_array($requisicao_pagamento_tipos_requisicao_pagamento_to_string))
+        {
+            $values = TiposRequisicaoPagamento::where('id', 'in', $requisicao_pagamento_tipos_requisicao_pagamento_to_string)->getIndexedArray('id', 'id');
+            $this->requisicao_pagamento_tipos_requisicao_pagamento_to_string = implode(', ', $values);
+        }
+        else
+        {
+            $this->requisicao_pagamento_tipos_requisicao_pagamento_to_string = $requisicao_pagamento_tipos_requisicao_pagamento_to_string;
+        }
+
+        $this->vdata['requisicao_pagamento_tipos_requisicao_pagamento_to_string'] = $this->requisicao_pagamento_tipos_requisicao_pagamento_to_string;
+    }
+
+    public function get_requisicao_pagamento_tipos_requisicao_pagamento_to_string()
+    {
+        if(!empty($this->requisicao_pagamento_tipos_requisicao_pagamento_to_string))
+        {
+            return $this->requisicao_pagamento_tipos_requisicao_pagamento_to_string;
+        }
+    
+        $values = RequisicaoPagamento::where('processo_id', '=', $this->id)->getIndexedArray('tipos_requisicao_pagamento_id','{tipos_requisicao_pagamento->id}');
+        return implode(', ', $values);
+    }
+
+    public function set_requisicao_pagamento_etapa2_requisicao_pagamento_cliente_to_string($requisicao_pagamento_etapa2_requisicao_pagamento_cliente_to_string)
+    {
+        if(is_array($requisicao_pagamento_etapa2_requisicao_pagamento_cliente_to_string))
+        {
+            $values = RequisicaoPagamentoCliente::where('id', 'in', $requisicao_pagamento_etapa2_requisicao_pagamento_cliente_to_string)->getIndexedArray('id', 'id');
+            $this->requisicao_pagamento_etapa2_requisicao_pagamento_cliente_to_string = implode(', ', $values);
+        }
+        else
+        {
+            $this->requisicao_pagamento_etapa2_requisicao_pagamento_cliente_to_string = $requisicao_pagamento_etapa2_requisicao_pagamento_cliente_to_string;
+        }
+
+        $this->vdata['requisicao_pagamento_etapa2_requisicao_pagamento_cliente_to_string'] = $this->requisicao_pagamento_etapa2_requisicao_pagamento_cliente_to_string;
+    }
+
+    public function get_requisicao_pagamento_etapa2_requisicao_pagamento_cliente_to_string()
+    {
+        if(!empty($this->requisicao_pagamento_etapa2_requisicao_pagamento_cliente_to_string))
+        {
+            return $this->requisicao_pagamento_etapa2_requisicao_pagamento_cliente_to_string;
+        }
+    
+        $values = RequisicaoPagamentoEtapa2::where('processo_filho_id', '=', $this->id)->getIndexedArray('requisicao_pagamento_cliente_id','{requisicao_pagamento_cliente->id}');
+        return implode(', ', $values);
+    }
+
+    public function set_requisicao_pagamento_etapa2_processo_filho_to_string($requisicao_pagamento_etapa2_processo_filho_to_string)
+    {
+        if(is_array($requisicao_pagamento_etapa2_processo_filho_to_string))
+        {
+            $values = Processo::where('id', 'in', $requisicao_pagamento_etapa2_processo_filho_to_string)->getIndexedArray('numero_cnj_numero', 'numero_cnj_numero');
+            $this->requisicao_pagamento_etapa2_processo_filho_to_string = implode(', ', $values);
+        }
+        else
+        {
+            $this->requisicao_pagamento_etapa2_processo_filho_to_string = $requisicao_pagamento_etapa2_processo_filho_to_string;
+        }
+
+        $this->vdata['requisicao_pagamento_etapa2_processo_filho_to_string'] = $this->requisicao_pagamento_etapa2_processo_filho_to_string;
+    }
+
+    public function get_requisicao_pagamento_etapa2_processo_filho_to_string()
+    {
+        if(!empty($this->requisicao_pagamento_etapa2_processo_filho_to_string))
+        {
+            return $this->requisicao_pagamento_etapa2_processo_filho_to_string;
+        }
+    
+        $values = RequisicaoPagamentoEtapa2::where('processo_filho_id', '=', $this->id)->getIndexedArray('processo_filho_id','{processo_filho->numero_cnj_numero}');
+        return implode(', ', $values);
+    }
+
+    public function set_requisicao_pagamento_etapa3_requisicao_pagamento_cliente_to_string($requisicao_pagamento_etapa3_requisicao_pagamento_cliente_to_string)
+    {
+        if(is_array($requisicao_pagamento_etapa3_requisicao_pagamento_cliente_to_string))
+        {
+            $values = RequisicaoPagamentoCliente::where('id', 'in', $requisicao_pagamento_etapa3_requisicao_pagamento_cliente_to_string)->getIndexedArray('id', 'id');
+            $this->requisicao_pagamento_etapa3_requisicao_pagamento_cliente_to_string = implode(', ', $values);
+        }
+        else
+        {
+            $this->requisicao_pagamento_etapa3_requisicao_pagamento_cliente_to_string = $requisicao_pagamento_etapa3_requisicao_pagamento_cliente_to_string;
+        }
+
+        $this->vdata['requisicao_pagamento_etapa3_requisicao_pagamento_cliente_to_string'] = $this->requisicao_pagamento_etapa3_requisicao_pagamento_cliente_to_string;
+    }
+
+    public function get_requisicao_pagamento_etapa3_requisicao_pagamento_cliente_to_string()
+    {
+        if(!empty($this->requisicao_pagamento_etapa3_requisicao_pagamento_cliente_to_string))
+        {
+            return $this->requisicao_pagamento_etapa3_requisicao_pagamento_cliente_to_string;
+        }
+    
+        $values = RequisicaoPagamentoEtapa3::where('processo_filho_id', '=', $this->id)->getIndexedArray('requisicao_pagamento_cliente_id','{requisicao_pagamento_cliente->id}');
+        return implode(', ', $values);
+    }
+
+    public function set_requisicao_pagamento_etapa3_processo_filho_to_string($requisicao_pagamento_etapa3_processo_filho_to_string)
+    {
+        if(is_array($requisicao_pagamento_etapa3_processo_filho_to_string))
+        {
+            $values = Processo::where('id', 'in', $requisicao_pagamento_etapa3_processo_filho_to_string)->getIndexedArray('numero_cnj_numero', 'numero_cnj_numero');
+            $this->requisicao_pagamento_etapa3_processo_filho_to_string = implode(', ', $values);
+        }
+        else
+        {
+            $this->requisicao_pagamento_etapa3_processo_filho_to_string = $requisicao_pagamento_etapa3_processo_filho_to_string;
+        }
+
+        $this->vdata['requisicao_pagamento_etapa3_processo_filho_to_string'] = $this->requisicao_pagamento_etapa3_processo_filho_to_string;
+    }
+
+    public function get_requisicao_pagamento_etapa3_processo_filho_to_string()
+    {
+        if(!empty($this->requisicao_pagamento_etapa3_processo_filho_to_string))
+        {
+            return $this->requisicao_pagamento_etapa3_processo_filho_to_string;
+        }
+    
+        $values = RequisicaoPagamentoEtapa3::where('processo_filho_id', '=', $this->id)->getIndexedArray('processo_filho_id','{processo_filho->numero_cnj_numero}');
         return implode(', ', $values);
     }
 

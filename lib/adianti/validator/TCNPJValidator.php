@@ -7,7 +7,16 @@ use Exception;
 /**
  * Validator for CNPJ (Brazilian business identification number).
  *
- * This class checks if a given CNPJ is valid according to official validation rules.
+ * Supports both the legacy numeric format and the new alphanumeric format
+ * introduced by Instrução Normativa RFB nº 2.229/2024, effective for new
+ * registrations from July 2026. The first 12 positions may contain digits
+ * (0-9) or uppercase letters (A-Z); the last 2 positions (check digits)
+ * remain strictly numeric.
+ *
+ * The check-digit routine still uses módulo 11. Each character is converted
+ * to a numeric value using its ASCII code minus 48 (so '0'-'9' => 0-9 and
+ * 'A'-'Z' => 17-42), which keeps the algorithm fully backward-compatible
+ * with existing numeric CNPJs.
  *
  * @version    7.5
  * @package    validator
@@ -18,7 +27,7 @@ use Exception;
 class TCNPJValidator extends TFieldValidator
 {
     /**
-     * Validates a given CNPJ.
+     * Validates a given CNPJ (numeric or alphanumeric).
      *
      * @param string $label The field label used for error messages.
      * @param string $value The CNPJ value to be validated.
@@ -28,42 +37,49 @@ class TCNPJValidator extends TFieldValidator
      */
     public function validate($label, $value, $parameters = NULL)
     {
-        $cnpj = preg_replace( "@[./-]@", "", $value );
-        if( strlen( $cnpj ) <> 14 or !is_numeric( $cnpj ) )
+        // strip the usual mask characters and normalize letters to uppercase
+        $cnpj = strtoupper( preg_replace( '@[./-]@', '', (string) $value ) );
+
+        // 12 alphanumeric positions (0-9, A-Z) followed by 2 numeric check digits
+        if( !preg_match( '/^[A-Z0-9]{12}[0-9]{2}$/', $cnpj ) )
         {
             throw new Exception(AdiantiCoreTranslator::translate('The field ^1 has not a valid CNPJ', $label));
         }
-        $k = 6;
-        $soma1 = 0;
-        $soma2 = 0;
-        for( $i = 0; $i < 13; $i++ )
-        {
-            $k = $k == 1 ? 9 : $k;
-            $soma2 += ( substr($cnpj, $i, 1) * $k );
-            $k--;
-            if($i < 12)
-            {
-                if($k == 1)
-                {
-                    $k = 9;
-                    $soma1 += ( substr($cnpj, $i, 1) * $k );
-                    $k = 1;
-                }
-                else
-                {
-                    $soma1 += ( substr($cnpj, $i, 1) * $k );
-                }
-            }
-        }
-        
-        $digito1 = $soma1 % 11 < 2 ? 0 : 11 - $soma1 % 11;
-        $digito2 = $soma2 % 11 < 2 ? 0 : 11 - $soma2 % 11;
-        
-        $valid = ( substr($cnpj, 12, 1) == $digito1 and substr($cnpj, 13, 1) == $digito2 );
-        
+
+        $digito1 = self::checkDigit( substr($cnpj, 0, 12) );
+        $digito2 = self::checkDigit( substr($cnpj, 0, 13) );
+
+        $valid = ( (int) $cnpj[12] === $digito1 and (int) $cnpj[13] === $digito2 );
+
         if (!$valid)
         {
             throw new Exception(AdiantiCoreTranslator::translate('The field ^1 has not a valid CNPJ', $label));
         }
+    }
+
+    /**
+     * Calculates a módulo 11 check digit for the given CNPJ slice.
+     *
+     * Each character is converted to a number using (ASCII code - 48),
+     * then multiplied by weights running from 2 to 9, right to left.
+     *
+     * @param string $base The 12 or 13 leading characters of the CNPJ.
+     *
+     * @return int The resulting check digit (0-9).
+     */
+    private static function checkDigit($base)
+    {
+        $sum    = 0;
+        $weight = 2;
+
+        for( $i = strlen($base) - 1; $i >= 0; $i-- )
+        {
+            $sum   += ( ord( $base[$i] ) - 48 ) * $weight;
+            $weight = $weight == 9 ? 2 : $weight + 1;
+        }
+
+        $remainder = $sum % 11;
+
+        return $remainder < 2 ? 0 : 11 - $remainder;
     }
 }

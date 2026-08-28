@@ -107,6 +107,7 @@ class RepresentanteLegalForm extends TPage
         $pessoa_contato_pessoa_descricao->forceUpperCase();
 
         $email->forceLowerCase();
+        $profissao->forceLowerCase();
         $pessoa_contato_pessoa_email->forceLowerCase();
 
         $btnVerificarNome->addStyleClass('btn-success');

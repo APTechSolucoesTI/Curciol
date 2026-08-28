@@ -51,6 +51,7 @@ class Conta extends TRecord
         parent::addAttribute('criacao_user_id');
         parent::addAttribute('data_modificacao');
         parent::addAttribute('modificacao_user_id');
+        parent::addAttribute('tipo_lancamento');
     
     }
 
@@ -350,6 +351,15 @@ class Conta extends TRecord
         $criteria->add(new TFilter('conta_id', '=', $this->id));
         return Lancamento::getObjects( $criteria );
     }
+    /**
+     * Method getContaProfissionals
+     */
+    public function getContaProfissionals()
+    {
+        $criteria = new TCriteria;
+        $criteria->add(new TFilter('conta_id', '=', $this->id));
+        return ContaProfissional::getObjects( $criteria );
+    }
 
     public function set_lancamento_conta_to_string($lancamento_conta_to_string)
     {
@@ -478,6 +488,58 @@ class Conta extends TRecord
         }
     
         $values = Lancamento::where('conta_id', '=', $this->id)->getIndexedArray('contrato_parcela_id','{contrato_parcela->id}');
+        return implode(', ', $values);
+    }
+
+    public function set_conta_profissional_conta_to_string($conta_profissional_conta_to_string)
+    {
+        if(is_array($conta_profissional_conta_to_string))
+        {
+            $values = Conta::where('id', 'in', $conta_profissional_conta_to_string)->getIndexedArray('descricao', 'descricao');
+            $this->conta_profissional_conta_to_string = implode(', ', $values);
+        }
+        else
+        {
+            $this->conta_profissional_conta_to_string = $conta_profissional_conta_to_string;
+        }
+
+        $this->vdata['conta_profissional_conta_to_string'] = $this->conta_profissional_conta_to_string;
+    }
+
+    public function get_conta_profissional_conta_to_string()
+    {
+        if(!empty($this->conta_profissional_conta_to_string))
+        {
+            return $this->conta_profissional_conta_to_string;
+        }
+    
+        $values = ContaProfissional::where('conta_id', '=', $this->id)->getIndexedArray('conta_id','{conta->descricao}');
+        return implode(', ', $values);
+    }
+
+    public function set_conta_profissional_pessoa_to_string($conta_profissional_pessoa_to_string)
+    {
+        if(is_array($conta_profissional_pessoa_to_string))
+        {
+            $values = Pessoa::where('id', 'in', $conta_profissional_pessoa_to_string)->getIndexedArray('nome', 'nome');
+            $this->conta_profissional_pessoa_to_string = implode(', ', $values);
+        }
+        else
+        {
+            $this->conta_profissional_pessoa_to_string = $conta_profissional_pessoa_to_string;
+        }
+
+        $this->vdata['conta_profissional_pessoa_to_string'] = $this->conta_profissional_pessoa_to_string;
+    }
+
+    public function get_conta_profissional_pessoa_to_string()
+    {
+        if(!empty($this->conta_profissional_pessoa_to_string))
+        {
+            return $this->conta_profissional_pessoa_to_string;
+        }
+    
+        $values = ContaProfissional::where('conta_id', '=', $this->id)->getIndexedArray('pessoa_id','{pessoa->nome}');
         return implode(', ', $values);
     }
 

@@ -66,6 +66,70 @@ class PublicacaoFormView extends TWindow
             }
         }, $publicacao->data_disponibilizacao, $publicacao, null);    
 
+        $transformed_publicacao_publicacao_etapa_etapa_nome = call_user_func(function($value, $object, $row)
+        {
+            $verificaCor = PublicacaoEtapa::where('etapa_nome', '=', $value)->first();
+
+            if (!empty($verificaCor)) {        
+                $cor = $verificaCor->cor;
+                $etapa = $value;
+                return "<span class='label' style='width: 100%; width: 100%;background-color:".$cor.";'> {$etapa} <span> ";
+            }
+        }, $publicacao->publicacao_etapa->etapa_nome, $publicacao, null);    
+
+        $transformed_publicacao_id = call_user_func(function($value, $object, $row)
+        {
+         $id = (int) $value;
+
+            $verificada = strtoupper(trim($object->etapa_verificada ?? 'N'));
+
+            if ($verificada !== 'S') {
+                $verificada = 'N';
+            }
+
+            $btnId = 'btn_etapa_verificada_' . $id;
+
+            $label = ($verificada == 'S') ? 'Verificada' : 'Não verificada';
+            $cor   = ($verificada == 'S') ? '#059669' : '#dc2626';
+
+            $classe = __CLASS__;
+
+            return "
+                <button
+                    type='button'
+                    id='{$btnId}'
+                    onclick=\"
+                        if (event) {
+                            event.preventDefault();
+                            event.stopPropagation();
+                        }
+
+                        this.disabled = true;
+
+                        __adianti_ajax_exec('class={$classe}&method=onAlternarEtapaVerificada&static=1&id={$id}');
+
+                        return false;
+                    \"
+                    style='
+                        background: {$cor}
+                        ; 
+                        color: #fff;
+                        border: none;
+                        border-radius: 4px;
+                        padding: 3px 7px;
+                        font-size: 11px;
+                        font-weight: 700;
+                        line-height: 14px;
+                        cursor: pointer;
+                        white-space: nowrap;
+                        box-shadow: none;
+                    '
+                >
+                    {$label}
+                </button>
+            ";
+        }, $publicacao->id, $publicacao, null);    
+
         $transformed_publicacao_data_entrega = call_user_func(function($value, $object, $row)
         {
 
@@ -100,6 +164,22 @@ class PublicacaoFormView extends TWindow
             return $label;
 
         }, $publicacao->data_entrega, $publicacao, null);    
+
+        $transformed_publicacao_processo_publicacoes_processo_to_string = call_user_func(function($value, $object, $row)
+        {
+             if(empty($object->id)){
+                return '-';
+            }
+
+            $processoPublicacao = ProcessoPublicacoes::where('publicacao_id', '=', $object->publicacao_id)->first();
+
+            if(!$processoPublicacao || empty($processoPublicacao->complemento)){
+                return '-';
+            }
+
+            return $processoPublicacao->complemento;
+
+        }, $publicacao->processo_publicacoes_processo_to_string, $publicacao, null);    
 
         $transformed_publicacao_titulo = call_user_func(function($value, $object, $row)
         {
@@ -152,8 +232,18 @@ class PublicacaoFormView extends TWindow
         $labelAtencao = new TLabel("<b>Atenção:</b> confirme o prazo e altere se necessário.", '#FF0000', '12px', '', '100%');
         $btnConfirmarPrazo = new TButton('btnConfirmarPrazo');
         $btnSugestaoPrazo = new TButton('btnSugestaoPrazo');
+        $Etapa = new TLabel("Etapa:", '', '13px', 'B', '100%');
+        $etapa_nome = new TTextDisplay($transformed_publicacao_publicacao_etapa_etapa_nome, '', '12px', '');
+        $label23434 = new TLabel("Status da Etapa:", '', '12px', 'B', '100%');
+        $text923 = new TTextDisplay($transformed_publicacao_id, '', '12px', '');
+        $labelvazia = new TLabel(" ", '', '12px', '', '100%');
+        $tbuttonalteretapa = new TButton('tbuttonalteretapa');
+        $tbuttonaddcomplemento = new TButton('tbuttonaddcomplemento');
         $labeldtEntrega = new TLabel("Status:", '', '13px', 'B', '100%');
         $text13 = new TTextDisplay($transformed_publicacao_data_entrega, '', '12px', '');
+        $complementoLabel = new TLabel("Complemento:", '', '12px', 'B', '100%');
+        $text31 = new TTextDisplay($transformed_publicacao_processo_publicacoes_processo_to_string, '', '12px', '');
+        $tbutton4 = new TButton('tbutton4');
         $label9 = new TLabel("Número da publicação:", '', '13px', 'B', '100%');
         $text9 = new TTextDisplay($publicacao->numero_publicacao, '', '12px', '');
         $label10 = new TLabel("Número do arquivo:", '', '13px', 'B', '100%');
@@ -175,11 +265,15 @@ class PublicacaoFormView extends TWindow
         $btnVerPrincipal->setAction(new TAction(['ProcessoFormView', 'onShow'],['key' => 'id']), "Ver principal");
         $btnAddPrazo->setAction(new TAction(['PublicacaoPrazoForm', 'onEdit'],['key' => 'id']), "Adicionar prazo");
         $btnSugestaoPrazo->setAction(new TAction([$this, 'onSugerirPrazo'],['key' => 'key']), "Sugestão de prazo");
+        $tbutton4->setAction(new TAction([$this, 'onVisualizarRequisicao']), " Visualizar Requisição de Pagamento");
         $btnVerProcesso->setAction(new TAction(['ProcessoFormView', 'onShow'],['key' => 'processo_id']), "Ver processo");
         $btnConfirmarPrazo->setAction(new TAction([$this, 'onConfirma'],['key' => 'id']), "Confirmar status - Sem prazo");
+        $tbuttonalteretapa->setAction(new TAction(['PublicacaoAlterEtapaForm', 'onEdit'],['key' => 'id']), "Alterar Etapa");
+        $tbuttonaddcomplemento->setAction(new TAction(['ProcessoPublicacoesForm', 'onEdit'],['key' => 'id']), "Complemento");
         $btnCriarProcesso->setAction(new TAction(['PublicacaoFormView', 'onCriarProcesso'],['numero_processo' => 'numero_processo']), "Criar processo");
         $btnCriarPrincipal->setAction(new TAction(['PublicacaoFormView', 'onCriarProcesso'],['numero_principal' => 'numeroprincipal']), "Criar principal");
 
+        $tbutton4->addStyleClass('btn-default');
         $btnAddPrazo->addStyleClass('btn-default');
         $btnAddTarefa->addStyleClass('btn-default');
         $btnVerProcesso->addStyleClass('btn-default');
@@ -189,20 +283,26 @@ class PublicacaoFormView extends TWindow
         $btnSugestaoPrazo->addStyleClass('btn-default');
         $btnCriarPrincipal->addStyleClass('btn-default');
         $btnConfirmarPrazo->addStyleClass('btn-default');
+        $tbuttonalteretapa->addStyleClass('btn-default');
         $btnVincularProcesso->addStyleClass('btn-default');
         $btnVincularPrincipal->addStyleClass('btn-default');
+        $tbuttonaddcomplemento->addStyleClass('btn-default');
 
         $btnAddTarefa->setImage('fas:plus #4CAF50');
         $btnVerProcesso->setImage('fas:gavel #000000');
         $btnCriarProcesso->setImage('fas:plus #4CAF50');
         $btnVerPrincipal->setImage('fas:gavel #000000');
         $btnCriarPrincipal->setImage('fas:plus #4CAF50');
+        $tbutton4->setImage('far:money-bill-alt #8BC34A');
         $btnAddPrazo->setImage('fas:calendar-plus #000000');
         $btnSugestaoPrazo->setImage('fas:lightbulb #000000');
+        $tbuttonaddcomplemento->setImage('fas:plus #000000');
+        $tbuttonalteretapa->setImage('fas:pencil-alt #000000');
         $btnRemoverPrazo->setImage('fas:calendar-times #000000');
         $btnConfirmarPrazo->setImage('fas:check-circle #4CAF50');
         $btnVincularProcesso->setImage('fas:exchange-alt #03A9F4');
         $btnVincularPrincipal->setImage('fas:exchange-alt #03A9F4');
+
 
         $btnVerPrincipal->name = 'btnVerPrincipal';
 
@@ -283,6 +383,22 @@ class PublicacaoFormView extends TWindow
             }
         }
 
+        if ($publicacao) {
+            if ($publicacao->publicacao_etapa_id) {
+                $tbuttonalteretapa->setAction(new TAction(['PublicacaoAlterEtapaForm', 'onEdit'],['key' => $publicacao->id]), "Alterar Etapa");                
+            }else {
+                TScript::create("$(\"[name='tbuttonalteretapa']\").hide()");
+            }
+
+            $comp = ProcessoPublicacoes::where('publicacao_id', '=', $publicacao->id)->first();
+            if ($comp) {
+                $tbuttonaddcomplemento->setAction(new TAction(['ProcessoPublicacoesForm', 'onEdit'],['key' => $comp->id]), "Complemento");                
+            }else {            
+                TScript::create("$(\"[name='tbuttonaddcomplemento']\").hide()");
+            }
+
+        }     
+
         if($publicacao->data_entrega){
             TScript::create("$(\"[name='btnAddDtEntrega']\").hide()");
             TScript::create("$(\"[name='btnAddTarefa']\").hide()");
@@ -312,18 +428,21 @@ class PublicacaoFormView extends TWindow
         $row1 = $this->form->addFields([$label14,$text14,$btnCriarProcesso,$btnVincularProcesso,$btnVerProcesso],[$label2,$text11asdsadsadsa],[$label28,$text15asdasda],[$label4,$text13adsdadas]);
         $row1->layout = [' col-sm-3',' col-sm-3',' col-sm-3',' col-sm-3'];
 
-        $row2 = $this->form->addFields([$label223,$text101,$btnCriarPrincipal,$btnVincularPrincipal,$btnVerPrincipal],[],[$labelPrazo,$datetext2,$btnAddPrazo,$btnRemoverPrazo,$labelAtencao,$btnConfirmarPrazo,$btnSugestaoPrazo],[$labeldtEntrega,$text13]);
-        $row2->layout = ['col-sm-3','col-sm-3',' col-sm-3',' col-sm-3'];
+        $row2 = $this->form->addFields([$label223,$text101,$btnCriarPrincipal,$btnVincularPrincipal,$btnVerPrincipal],[$labelPrazo,$datetext2,$btnAddPrazo,$btnRemoverPrazo,$labelAtencao,$btnConfirmarPrazo,$btnSugestaoPrazo],[$Etapa,$etapa_nome,$label23434,$text923,$labelvazia,$tbuttonalteretapa,$tbuttonaddcomplemento],[$labeldtEntrega,$text13],[$complementoLabel,$text31]);
+        $row2->layout = ['col-sm-3',' col-sm-3',' col-sm-3',' col-sm-3',' col-sm-12'];
 
-        $row3 = $this->form->addContent([new TFormSeparator("", '#333', '18', '#eee')]);
-        $row4 = $this->form->addFields([$label9,$text9],[$label10,$text10]);
-        $row4->layout = [' col-sm-6',' col-sm-6'];
+        $row3 = $this->form->addFields([$tbutton4]);
+        $row3->layout = [' col-sm-12'];
 
-        $row5 = $this->form->addContent([new TFormSeparator("", '#333', '18', '#eee')]);
-        $row6 = $this->form->addFields([$label8,$text8]);
-        $row6->layout = [' col-sm-12'];
+        $row4 = $this->form->addContent([new TFormSeparator("", '#333', '18', '#eee')]);
+        $row5 = $this->form->addFields([$label9,$text9],[$label10,$text10]);
+        $row5->layout = [' col-sm-6',' col-sm-6'];
 
-        $row7 = $this->form->addContent([new TFormSeparator("", '#333', '18', '#eee')]);
+        $row6 = $this->form->addContent([new TFormSeparator("", '#333', '18', '#eee')]);
+        $row7 = $this->form->addFields([$label8,$text8]);
+        $row7->layout = [' col-sm-12'];
+
+        $row8 = $this->form->addContent([new TFormSeparator("", '#333', '18', '#eee')]);
 
         $tab_65afd56db7789 = new BootstrapFormBuilder('tab_65afd56db7789');
         $this->tab_65afd56db7789 = $tab_65afd56db7789;
@@ -334,8 +453,8 @@ class PublicacaoFormView extends TWindow
         $tab_65afd56db7789->addFields([new THidden('current_tab_tab_65afd56db7789')]);
         $tab_65afd56db7789->setTabFunction("$('[name=current_tab_tab_65afd56db7789]').val($(this).attr('data-current_page'));");
 
-        $row8 = $tab_65afd56db7789->addFields([$label3,$text3,$label48,$text11,$label69,$text12]);
-        $row8->layout = [' col-sm-12'];
+        $row9 = $tab_65afd56db7789->addFields([$label3,$text3,$label48,$text11,$label69,$text12]);
+        $row9->layout = [' col-sm-12'];
 
         $tab_65afd56db7789->appendPage("Profissionais");
 
@@ -364,8 +483,8 @@ class PublicacaoFormView extends TWindow
         $tab_65afd56db7789->addContent([$panel]);
 
         $tab_65afd56db7789->appendPage("Tarefas");
-        $row9 = $tab_65afd56db7789->addFields([$btnAddTarefa]);
-        $row9->layout = [' col-sm-3'];
+        $row10 = $tab_65afd56db7789->addFields([$btnAddTarefa]);
+        $row10->layout = [' col-sm-3'];
 
         $this->tarefa_publicacao_id_list = new TQuickGrid;
         $this->tarefa_publicacao_id_list->style = 'width:100%';
@@ -522,8 +641,8 @@ class PublicacaoFormView extends TWindow
         $panel->add(new BootstrapDatagridWrapper($this->publicacao_movimentacao_publicacao_id_list));
 
         $tab_65afd56db7789->addContent([$panel]);
-        $row10 = $this->form->addFields([$tab_65afd56db7789]);
-        $row10->layout = [' col-sm-12'];
+        $row11 = $this->form->addFields([$tab_65afd56db7789]);
+        $row11->layout = [' col-sm-12'];
 
         if(!empty($param['current_tab']))
         {
@@ -638,6 +757,18 @@ class PublicacaoFormView extends TWindow
                 new TMessage('info', "Não há prazos sugeridos nessa publicação.");
                 TApplication::loadPage('PublicacaoFormView', 'onShow', ['key' => $param['key'], 'id' => $param['key']]);
             }
+
+        }
+        catch (Exception $e) 
+        {
+            new TMessage('error', $e->getMessage());    
+        }
+    }
+
+    public  function onVisualizarRequisicao($param = null) 
+    {
+        try 
+        {
 
         }
         catch (Exception $e) 
@@ -860,6 +991,8 @@ class PublicacaoFormView extends TWindow
 
             TWindow::closeWindow();
 
+            APIPublicacaoController::onVerificaPublicacaoEtapa();
+
         }
         catch (Exception $e) 
         {
@@ -868,5 +1001,60 @@ class PublicacaoFormView extends TWindow
         }
     }
 
+    public static function onAlternarEtapaVerificada($param = null)
+    {
+        try {
+            TTransaction::open(self::$database);
+
+            $id = $param['id'] ?? null;
+
+            if (!$id) {
+                throw new Exception('Publicação não encontrada');
+            }
+
+            $publicacao = new Publicacao($id);
+
+            $atual = strtoupper(trim($publicacao->etapa_verificada ?? 'N'));
+            $novo  = ($atual == 'S') ? 'N' : 'S';
+
+            $publicacao->etapa_verificada = $novo;
+            $publicacao->store();
+
+            TTransaction::close();
+
+            $btnId = 'btn_etapa_verificada_' . $id;
+
+            if ($novo == 'S') {
+                TScript::create("
+                    var btn = document.getElementById('{$btnId}');
+                    if (btn) {
+                        btn.innerHTML = 'Verificada';
+                        btn.style.background = '#16a34a';
+                        btn.disabled = false;
+                    }
+                ");
+            } else {
+                TScript::create("
+                    var btn = document.getElementById('{$btnId}');
+                    if (btn) {
+                        btn.innerHTML = 'Não Verificada';
+                        btn.style.background = '#dc2626';
+                        btn.disabled = false;
+                    }
+                ");
+            }
+        } catch (Exception $e) {
+            TTransaction::rollback();
+
+            TScript::create("
+                var btn = document.getElementById('btn_etapa_verificada_" . ($param['id'] ?? '') . "');
+                if (btn) {
+                    btn.disabled = false;
+                }
+            ");
+
+            new TMessage('error', $e->getMessage());
+        }
+    }
 }
 

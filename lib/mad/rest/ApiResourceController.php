@@ -447,6 +447,7 @@ abstract class ApiResourceController
      */
     public function addTransformer(string $field, callable $transformer)
     {
+        $field = str_replace(['{', '}' ], ['',''], $field);
         $this->transformers[$field] = $transformer;
         return $this;
     }

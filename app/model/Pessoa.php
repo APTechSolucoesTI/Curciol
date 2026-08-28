@@ -506,6 +506,42 @@ class Pessoa extends TRecord
         $criteria->add(new TFilter('cliente_id', '=', $this->id));
         return TarefaCliente::getObjects( $criteria );
     }
+    /**
+     * Method getLancamentoProfissionals
+     */
+    public function getLancamentoProfissionals()
+    {
+        $criteria = new TCriteria;
+        $criteria->add(new TFilter('pessoa_id', '=', $this->id));
+        return LancamentoProfissional::getObjects( $criteria );
+    }
+    /**
+     * Method getRequisicaoPagamentoClientes
+     */
+    public function getRequisicaoPagamentoClientesByPessoas()
+    {
+        $criteria = new TCriteria;
+        $criteria->add(new TFilter('pessoa_id', '=', $this->id));
+        return RequisicaoPagamentoCliente::getObjects( $criteria );
+    }
+    /**
+     * Method getRequisicaoPagamentoClientes
+     */
+    public function getRequisicaoPagamentoClientesByEntidadeDevedoras()
+    {
+        $criteria = new TCriteria;
+        $criteria->add(new TFilter('entidade_devedora_id', '=', $this->id));
+        return RequisicaoPagamentoCliente::getObjects( $criteria );
+    }
+    /**
+     * Method getContaProfissionals
+     */
+    public function getContaProfissionals()
+    {
+        $criteria = new TCriteria;
+        $criteria->add(new TFilter('pessoa_id', '=', $this->id));
+        return ContaProfissional::getObjects( $criteria );
+    }
 
     public function set_atendimento_agendamento_to_string($atendimento_agendamento_to_string)
     {
@@ -2376,6 +2412,214 @@ class Pessoa extends TRecord
         }
     
         $values = TarefaCliente::where('cliente_id', '=', $this->id)->getIndexedArray('cliente_id','{cliente->nome}');
+        return implode(', ', $values);
+    }
+
+    public function set_lancamento_profissional_lancamento_to_string($lancamento_profissional_lancamento_to_string)
+    {
+        if(is_array($lancamento_profissional_lancamento_to_string))
+        {
+            $values = Lancamento::where('id', 'in', $lancamento_profissional_lancamento_to_string)->getIndexedArray('id', 'id');
+            $this->lancamento_profissional_lancamento_to_string = implode(', ', $values);
+        }
+        else
+        {
+            $this->lancamento_profissional_lancamento_to_string = $lancamento_profissional_lancamento_to_string;
+        }
+
+        $this->vdata['lancamento_profissional_lancamento_to_string'] = $this->lancamento_profissional_lancamento_to_string;
+    }
+
+    public function get_lancamento_profissional_lancamento_to_string()
+    {
+        if(!empty($this->lancamento_profissional_lancamento_to_string))
+        {
+            return $this->lancamento_profissional_lancamento_to_string;
+        }
+    
+        $values = LancamentoProfissional::where('pessoa_id', '=', $this->id)->getIndexedArray('lancamento_id','{lancamento->id}');
+        return implode(', ', $values);
+    }
+
+    public function set_lancamento_profissional_pessoa_to_string($lancamento_profissional_pessoa_to_string)
+    {
+        if(is_array($lancamento_profissional_pessoa_to_string))
+        {
+            $values = Pessoa::where('id', 'in', $lancamento_profissional_pessoa_to_string)->getIndexedArray('nome', 'nome');
+            $this->lancamento_profissional_pessoa_to_string = implode(', ', $values);
+        }
+        else
+        {
+            $this->lancamento_profissional_pessoa_to_string = $lancamento_profissional_pessoa_to_string;
+        }
+
+        $this->vdata['lancamento_profissional_pessoa_to_string'] = $this->lancamento_profissional_pessoa_to_string;
+    }
+
+    public function get_lancamento_profissional_pessoa_to_string()
+    {
+        if(!empty($this->lancamento_profissional_pessoa_to_string))
+        {
+            return $this->lancamento_profissional_pessoa_to_string;
+        }
+    
+        $values = LancamentoProfissional::where('pessoa_id', '=', $this->id)->getIndexedArray('pessoa_id','{pessoa->nome}');
+        return implode(', ', $values);
+    }
+
+    public function set_requisicao_pagamento_cliente_pessoa_to_string($requisicao_pagamento_cliente_pessoa_to_string)
+    {
+        if(is_array($requisicao_pagamento_cliente_pessoa_to_string))
+        {
+            $values = Pessoa::where('id', 'in', $requisicao_pagamento_cliente_pessoa_to_string)->getIndexedArray('nome', 'nome');
+            $this->requisicao_pagamento_cliente_pessoa_to_string = implode(', ', $values);
+        }
+        else
+        {
+            $this->requisicao_pagamento_cliente_pessoa_to_string = $requisicao_pagamento_cliente_pessoa_to_string;
+        }
+
+        $this->vdata['requisicao_pagamento_cliente_pessoa_to_string'] = $this->requisicao_pagamento_cliente_pessoa_to_string;
+    }
+
+    public function get_requisicao_pagamento_cliente_pessoa_to_string()
+    {
+        if(!empty($this->requisicao_pagamento_cliente_pessoa_to_string))
+        {
+            return $this->requisicao_pagamento_cliente_pessoa_to_string;
+        }
+    
+        $values = RequisicaoPagamentoCliente::where('entidade_devedora_id', '=', $this->id)->getIndexedArray('pessoa_id','{pessoa->nome}');
+        return implode(', ', $values);
+    }
+
+    public function set_requisicao_pagamento_cliente_entidade_devedora_to_string($requisicao_pagamento_cliente_entidade_devedora_to_string)
+    {
+        if(is_array($requisicao_pagamento_cliente_entidade_devedora_to_string))
+        {
+            $values = Pessoa::where('id', 'in', $requisicao_pagamento_cliente_entidade_devedora_to_string)->getIndexedArray('nome', 'nome');
+            $this->requisicao_pagamento_cliente_entidade_devedora_to_string = implode(', ', $values);
+        }
+        else
+        {
+            $this->requisicao_pagamento_cliente_entidade_devedora_to_string = $requisicao_pagamento_cliente_entidade_devedora_to_string;
+        }
+
+        $this->vdata['requisicao_pagamento_cliente_entidade_devedora_to_string'] = $this->requisicao_pagamento_cliente_entidade_devedora_to_string;
+    }
+
+    public function get_requisicao_pagamento_cliente_entidade_devedora_to_string()
+    {
+        if(!empty($this->requisicao_pagamento_cliente_entidade_devedora_to_string))
+        {
+            return $this->requisicao_pagamento_cliente_entidade_devedora_to_string;
+        }
+    
+        $values = RequisicaoPagamentoCliente::where('entidade_devedora_id', '=', $this->id)->getIndexedArray('entidade_devedora_id','{entidade_devedora->nome}');
+        return implode(', ', $values);
+    }
+
+    public function set_requisicao_pagamento_cliente_requisicao_pagamento_to_string($requisicao_pagamento_cliente_requisicao_pagamento_to_string)
+    {
+        if(is_array($requisicao_pagamento_cliente_requisicao_pagamento_to_string))
+        {
+            $values = RequisicaoPagamento::where('id', 'in', $requisicao_pagamento_cliente_requisicao_pagamento_to_string)->getIndexedArray('id', 'id');
+            $this->requisicao_pagamento_cliente_requisicao_pagamento_to_string = implode(', ', $values);
+        }
+        else
+        {
+            $this->requisicao_pagamento_cliente_requisicao_pagamento_to_string = $requisicao_pagamento_cliente_requisicao_pagamento_to_string;
+        }
+
+        $this->vdata['requisicao_pagamento_cliente_requisicao_pagamento_to_string'] = $this->requisicao_pagamento_cliente_requisicao_pagamento_to_string;
+    }
+
+    public function get_requisicao_pagamento_cliente_requisicao_pagamento_to_string()
+    {
+        if(!empty($this->requisicao_pagamento_cliente_requisicao_pagamento_to_string))
+        {
+            return $this->requisicao_pagamento_cliente_requisicao_pagamento_to_string;
+        }
+    
+        $values = RequisicaoPagamentoCliente::where('entidade_devedora_id', '=', $this->id)->getIndexedArray('requisicao_pagamento_id','{requisicao_pagamento->id}');
+        return implode(', ', $values);
+    }
+
+    public function set_requisicao_pagamento_cliente_status_requisicao_pagamento_to_string($requisicao_pagamento_cliente_status_requisicao_pagamento_to_string)
+    {
+        if(is_array($requisicao_pagamento_cliente_status_requisicao_pagamento_to_string))
+        {
+            $values = StatusRequisicaoPagamento::where('id', 'in', $requisicao_pagamento_cliente_status_requisicao_pagamento_to_string)->getIndexedArray('id', 'id');
+            $this->requisicao_pagamento_cliente_status_requisicao_pagamento_to_string = implode(', ', $values);
+        }
+        else
+        {
+            $this->requisicao_pagamento_cliente_status_requisicao_pagamento_to_string = $requisicao_pagamento_cliente_status_requisicao_pagamento_to_string;
+        }
+
+        $this->vdata['requisicao_pagamento_cliente_status_requisicao_pagamento_to_string'] = $this->requisicao_pagamento_cliente_status_requisicao_pagamento_to_string;
+    }
+
+    public function get_requisicao_pagamento_cliente_status_requisicao_pagamento_to_string()
+    {
+        if(!empty($this->requisicao_pagamento_cliente_status_requisicao_pagamento_to_string))
+        {
+            return $this->requisicao_pagamento_cliente_status_requisicao_pagamento_to_string;
+        }
+    
+        $values = RequisicaoPagamentoCliente::where('entidade_devedora_id', '=', $this->id)->getIndexedArray('status_requisicao_pagamento_id','{status_requisicao_pagamento->id}');
+        return implode(', ', $values);
+    }
+
+    public function set_conta_profissional_conta_to_string($conta_profissional_conta_to_string)
+    {
+        if(is_array($conta_profissional_conta_to_string))
+        {
+            $values = Conta::where('id', 'in', $conta_profissional_conta_to_string)->getIndexedArray('descricao', 'descricao');
+            $this->conta_profissional_conta_to_string = implode(', ', $values);
+        }
+        else
+        {
+            $this->conta_profissional_conta_to_string = $conta_profissional_conta_to_string;
+        }
+
+        $this->vdata['conta_profissional_conta_to_string'] = $this->conta_profissional_conta_to_string;
+    }
+
+    public function get_conta_profissional_conta_to_string()
+    {
+        if(!empty($this->conta_profissional_conta_to_string))
+        {
+            return $this->conta_profissional_conta_to_string;
+        }
+    
+        $values = ContaProfissional::where('pessoa_id', '=', $this->id)->getIndexedArray('conta_id','{conta->descricao}');
+        return implode(', ', $values);
+    }
+
+    public function set_conta_profissional_pessoa_to_string($conta_profissional_pessoa_to_string)
+    {
+        if(is_array($conta_profissional_pessoa_to_string))
+        {
+            $values = Pessoa::where('id', 'in', $conta_profissional_pessoa_to_string)->getIndexedArray('nome', 'nome');
+            $this->conta_profissional_pessoa_to_string = implode(', ', $values);
+        }
+        else
+        {
+            $this->conta_profissional_pessoa_to_string = $conta_profissional_pessoa_to_string;
+        }
+
+        $this->vdata['conta_profissional_pessoa_to_string'] = $this->conta_profissional_pessoa_to_string;
+    }
+
+    public function get_conta_profissional_pessoa_to_string()
+    {
+        if(!empty($this->conta_profissional_pessoa_to_string))
+        {
+            return $this->conta_profissional_pessoa_to_string;
+        }
+    
+        $values = ContaProfissional::where('pessoa_id', '=', $this->id)->getIndexedArray('pessoa_id','{pessoa->nome}');
         return implode(', ', $values);
     }
 

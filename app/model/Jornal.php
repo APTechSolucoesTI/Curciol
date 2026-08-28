@@ -196,6 +196,32 @@ class Jornal extends TRecord
         return implode(', ', $values);
     }
 
+    public function set_publicacao_publicacao_etapa_to_string($publicacao_publicacao_etapa_to_string)
+    {
+        if(is_array($publicacao_publicacao_etapa_to_string))
+        {
+            $values = PublicacaoEtapa::where('id', 'in', $publicacao_publicacao_etapa_to_string)->getIndexedArray('id', 'id');
+            $this->publicacao_publicacao_etapa_to_string = implode(', ', $values);
+        }
+        else
+        {
+            $this->publicacao_publicacao_etapa_to_string = $publicacao_publicacao_etapa_to_string;
+        }
+
+        $this->vdata['publicacao_publicacao_etapa_to_string'] = $this->publicacao_publicacao_etapa_to_string;
+    }
+
+    public function get_publicacao_publicacao_etapa_to_string()
+    {
+        if(!empty($this->publicacao_publicacao_etapa_to_string))
+        {
+            return $this->publicacao_publicacao_etapa_to_string;
+        }
+    
+        $values = Publicacao::where('jornal_id', '=', $this->id)->getIndexedArray('publicacao_etapa_id','{publicacao_etapa->id}');
+        return implode(', ', $values);
+    }
+
     public function get_data_disponibilizacao_formatada(){
         if($this->dt_venda)
         {

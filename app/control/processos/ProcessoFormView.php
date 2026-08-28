@@ -30,6 +30,13 @@ class ProcessoFormView extends TPage
         // define the form title
         $this->form->setFormTitle("Visualizar Processo");
 
+        $transformed_processo_exibir_cliente = call_user_func(function($value, $object, $row)
+        {
+
+            return $value == 'S' ? 'Sim' : 'Não';
+
+        }, $processo->exibir_cliente, $processo, null);    
+
         $transformed_processo_gratuidade_processual = call_user_func(function($value, $object, $row) 
         {
             if($value === true || $value == 't' || $value === 1 || $value == '1' || $value == 's' || $value == 'S' || $value == 'T')
@@ -47,6 +54,8 @@ class ProcessoFormView extends TPage
 
         $label2 = new TLabel("Tipo de processo:", '', '13px', 'B', '100%');
         $text2 = new TTextDisplay($processo->tipo_processo->nome, '', '12px', '');
+        $label234 = new TLabel("Processo sendo exibido ao Cliente:", '', '12px', 'B', '100%');
+        $text22 = new TTextDisplay($transformed_processo_exibir_cliente, '', '12px', '');
         $label3 = new TLabel("Número padrão CNJ:", '', '13px', 'B', '100%');
         $text3 = new TTextDisplay($processo->numero_cnj_numero, '', '12px', '');
         $label4 = new TLabel("Número de outro padrão:", '', '13px', 'B', '100%');
@@ -94,10 +103,7 @@ class ProcessoFormView extends TPage
         $bpagecontainer2 = new BPageContainer();
         $pessoasPage = new BPageContainer();
         $bpagecontainer3 = new BPageContainer();
-
-        $pessoasPage->setSize('100%');
-        $bpagecontainer2->setSize('100%');
-        $bpagecontainer3->setSize('100%');
+        $bpagecontainer24 = new BPageContainer();
 
         $pessoasPage->setId('b668be8c016723');
         $bpagecontainer2->setId('b65cb618d9c4be');
@@ -113,6 +119,11 @@ class ProcessoFormView extends TPage
         $btnAddIncidente->setImage('fas:plus #4CAF50');
         $btnCriarIncidente->setImage('fas:plus #4CAF50');
 
+        $pessoasPage->setSize('100%');
+        $bpagecontainer2->setSize('100%');
+        $bpagecontainer3->setSize('100%');
+        $bpagecontainer24->setSize('100%');
+
         $btnCriarIncidente->setAction(new TAction(['ProcessoForm', 'onShow']), "Criar incidente");
         $btnAddContrato->setAction(new TAction(['ContratoProcessoForm', 'onShow']), "Adicionar Contrato");
         $bpagecontainer3->setAction(new TAction(['TarefaSimpleList', 'onShow'], ['processo_id' => $processo->id]));
@@ -120,6 +131,8 @@ class ProcessoFormView extends TPage
         $bpagecontainer2->setAction(new TAction(['ViewAndamentosPublicacoesProcesso', 'onShow'], ['key' => $processo->id]));
         $pessoasPage->setAction(new TAction(['ProcessoContratoPessoaSimpleList', 'onShow'], ['processo_id' => $processo->id]));
         $btnAddPrincipal->setAction(new TAction([$this, 'onAddPrincipal'],['processo_incidente_id' => '$processo->id']), "Adicionar principal");
+
+        $bpagecontainer24->id = 'b6a105112d1d65';
 
         $loadingContainer = new TElement('div');
         $loadingContainer->style = 'text-align:center; padding:50px';
@@ -151,19 +164,53 @@ class ProcessoFormView extends TPage
         $loadingContainer->add('<br>Carregando');
 
         $bpagecontainer3->add($loadingContainer);
+        $loadingContainer = new TElement('div');
+        $loadingContainer->style = 'text-align:center; padding:50px';
 
-        $btnAddPrincipal->setAction(new TAction([$this, 'onAddPrincipal'],['processo_incidente_id' => $processo->id, 'key' => $processo->id, 'tela' => "PRINCIPAL"]), "Adicionar principal");
-        $btnAddIncidente->setAction(new TAction([$this, 'onAddIncidente'],['processo_principal_id' => $processo->id, 'key' => $processo->id, 'tela' => "INCIDENTE"]), "Adicionar incidente");
-        $btnAddContrato->setAction(new TAction(['ContratoProcessoForm', 'onShow'],['processo_id' => $param['key']]), "Adicionar Contrato");
-        $btnCriarIncidente->setAction(new TAction(['ProcessoForm', 'onShow'],['key' => $processo->id, 'principal_id' => $processo->id]), "Criar incidente");
+        $icon = new TElement('i');
+        $icon->class = 'fas fa-spinner fa-spin fa-3x';
+
+        $loadingContainer->add($icon);
+        $loadingContainer->add('<br>Carregando');
+
+        $bpagecontainer24->add($loadingContainer);
+
+        $btnAddPrincipal->setAction(new TAction([$this, 'onAddPrincipal'],[
+            'processo_incidente_id' => $processo->id,
+            'key' => $processo->id,
+            'tela' => "PRINCIPAL"
+        ]), "Adicionar principal");
+
+        $btnAddIncidente->setAction(new TAction([$this, 'onAddIncidente'],[
+            'processo_principal_id' => $processo->id,
+            'key' => $processo->id,
+            'tela' => "INCIDENTE"
+        ]), "Adicionar incidente");
+
+        $btnAddContrato->setAction(new TAction(['ContratoProcessoForm', 'onShow'],[
+            'processo_id' => $param['key']
+        ]), "Adicionar Contrato");
+
+        $btnCriarIncidente->setAction(new TAction(['ProcessoForm', 'onShow'],[
+            'key' => $processo->id,
+            'principal_id' => $processo->id
+        ]), "Criar incidente");
+
+        $processoIdAtual = (int) ($processo->id ?? $param['key'] ?? 0);
+
+        $bpagecontainer24->setAction(new TAction(['RequisicaoPagamentoVisualizacaoAba', 'onShow'], [
+            'processo_id' => $processo->id,
+            'modo_embutido' => '1',
+            'register_state' => 'false'
+        ]));
 
         $this->form->appendPage("Processo");
 
         $this->form->addFields([new THidden('current_tab')]);
         $this->form->setTabFunction("$('[name=current_tab]').val($(this).attr('data-current_page'));");
 
-        $row1 = $this->form->addFields([$label2,$text2]);
-        $row1->layout = ['col-sm-6'];
+        $row1 = $this->form->addFields([$label2,$text2],[$label234,$text22]);
+        $row1->layout = ['col-sm-6',' col-sm-6'];
 
         $row2 = $this->form->addFields([$label3,$text3],[$label4,$text4]);
         $row2->layout = ['col-sm-6','col-sm-6'];
@@ -383,6 +430,10 @@ class ProcessoFormView extends TPage
         $this->form->appendPage("Tarefa");
         $row18 = $this->form->addFields([$bpagecontainer3]);
         $row18->layout = [' col-sm-12'];
+
+        $this->form->appendPage("Requisição de Pagamento");
+        $row19 = $this->form->addFields([$bpagecontainer24]);
+        $row19->layout = [' col-sm-12'];
 
         if(!empty($param['current_tab']))
         {

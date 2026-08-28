@@ -143,7 +143,6 @@ class GerarContratoForm extends TPage
 
         $button_adicionar_contrato_pagamento_parcela_contrato->id = '66e1956754b6f';
 
-
         $row1 = $this->form->addFields([$numero]);
         $row1->layout = ['col-sm-3'];
 
@@ -525,6 +524,7 @@ class GerarContratoForm extends TPage
             new TMessage('error', $e->getMessage()); // shows the exception error message
         }
     }
+
     public static function onDeleteDetailContratoPagamentoParcela($param = null) 
     {
         try
@@ -561,6 +561,7 @@ class GerarContratoForm extends TPage
             new TMessage('error', $e->getMessage()); // shows the exception error message
         }
     }
+
     public static function onAnterior($param = null) 
     {
         try 
@@ -573,6 +574,7 @@ class GerarContratoForm extends TPage
             TApplication::loadPage('GerarContratoForm','onShow');
         }
     }
+
     public static function onProximo($param = null) 
     {
        try 
@@ -962,6 +964,7 @@ class GerarContratoForm extends TPage
         }
         TForm::sendData(self::$formName, $object);
         TTransaction::close();
+
     } 
 
     public static function onGerar($contrato,$cliente,$objeto,$modelo_documento){
