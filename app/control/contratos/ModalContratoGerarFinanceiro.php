@@ -55,6 +55,7 @@ class ModalContratoGerarFinanceiro extends TWindow
         $dt_vencimento = new TDate('dt_vencimento');
         $tipo_pagamento_id = new TDBCombo('tipo_pagamento_id', 'escritorio', 'TipoPagamento', 'id', '{nome}','nome asc' , $criteria_tipo_pagamento_id );
         $numero_parcelas = new TSpinner('numero_parcelas');
+        $pagamento_solidario = new TCheckButton('pagamento_solidario');
         $coluna = new TDBCombo('coluna[]', 'escritorio', 'Pessoa', 'id', '{nome}','nome asc' , $criteria_coluna );
         $valor_profissional = new TNumeric('valor_profissional[]', '2', ',', '.' );
         $valor_repasse = new TNumeric('valor_repasse[]', '2', ',', '.' );
@@ -86,12 +87,16 @@ class ModalContratoGerarFinanceiro extends TWindow
         $dt_vencimento->setMask('dd/mm/yyyy');
         $dt_vencimento->setDatabaseMask('yyyy-mm-dd');
         $numero_parcelas->setRange(1, 2000, 1);
+        $pagamento_solidario->setUseSwitch(true, 'blue');
+        $pagamento_solidario->setIndexValue("S");
+        $pagamento_solidario->setInactiveIndexValue("N");
         $coluna->enableSearch();
         $contrato_id->enableSearch();
         $tipo_pagamento_id->enableSearch();
         $categoria_conta_id->enableSearch();
 
         $categoria_conta_id->setValue('20');
+        $pagamento_solidario->setValue('S');
         $valor->setValue($param["valor"] ?? null);
         $descricao->setValue($param["desc"] ?? null);
         $dt_vencimento->setValue($param["dt"] ?? null);
@@ -255,9 +260,12 @@ class ModalContratoGerarFinanceiro extends TWindow
         $row4 = $this->form->addFields([new TLabel("Valor:", '#FF0000', '14px', null, '100%'),$valor],[new TLabel("Data de vencimento:", '#FF0000', '14px', null, '100%'),$dt_vencimento],[new TLabel("Forma de pagamento", '#FF0000', '14px', null, '100%'),$tipo_pagamento_id],[new TLabel("Parcelas:", '#FF0000', '14px', null, '100%'),$numero_parcelas]);
         $row4->layout = [' col-sm-3',' col-sm-3',' col-sm-3',' col-sm-3'];
 
-        $row5 = $this->form->addContent([new TFormSeparator("Profissional", '#333333', '18', '#eee')]);
-        $row6 = $this->form->addFields([$this->fieldList_6a39175d40e6e]);
-        $row6->layout = [' col-sm-12'];
+        $row5 = $this->form->addFields([new TLabel("Pagamento Solidário?", '#FF0000', '14px', null, '100%'),$pagamento_solidario]);
+        $row5->layout = [' col-sm-3'];
+
+        $row6 = $this->form->addContent([new TFormSeparator("Profissional", '#333333', '18', '#eee')]);
+        $row7 = $this->form->addFields([$this->fieldList_6a39175d40e6e]);
+        $row7->layout = [' col-sm-12'];
 
         TScript::create("
             $(document).off('.calcProfissionalFinanceiro');
@@ -438,6 +446,7 @@ class ModalContratoGerarFinanceiro extends TWindow
         $this->btn_ongerar = $btn_ongerar;
         $btn_ongerar->addStyleClass('btn-success'); 
 
+
         parent::add($this->form);
 
     }
@@ -586,82 +595,495 @@ class ModalContratoGerarFinanceiro extends TWindow
                 }
             }
 
-            $buscaContaContrato = Conta::where('contrato_id','=',$data->contrato_id)->first();
-            if(!$buscaContaContrato){
-                $conta = new Conta(); // create an empty object
-            }else{
-                $conta = Conta::find($buscaContaContrato->id); // create an empty object
+           /*
+ * PAGAMENTO SOLIDÁRIO
+ *
+ * S = funcionamento antigo:
+ *     uma única conta para o contrato.
+ *
+ * N = uma conta para cada cliente do contrato,
+ *     respeitando ContratoPessoa.percentual.
+ */
+$pagamentoSolidario = strtoupper(trim((string) ($data->pagamento_solidario ?? 'S')));
+
+if (!in_array($pagamentoSolidario, ['S', 'N'], true)) {
+    $pagamentoSolidario = 'S';
+}
+
+$parcelas = (int) $data->numero_parcelas;
+
+if ($parcelas <= 0) {
+    throw new Exception('Informe a quantidade de parcelas.');
+}
+
+/*
+ * ============================================================
+ * PAGAMENTO SOLIDÁRIO = SIM
+ * Mantém exatamente a lógica atual.
+ * ============================================================
+ */
+if ($pagamentoSolidario === 'S')
+{
+    $buscaContaContrato = Conta::where('contrato_id', '=', $data->contrato_id)->first();
+
+    if (!$buscaContaContrato) {
+        $conta = new Conta();
+    } else {
+        $conta = Conta::find($buscaContaContrato->id);
+    }
+
+    $conta->fromArray((array) $data);
+    $conta->data_emissao = date('Y-m-d');
+    $conta->tipo_conta_id = TipoConta::RECEBER;
+    $conta->tipo_documento_financeiro_id = TipoDocumentoFinanceiro::CONTRATO;
+
+    $conta->total_conta =
+        self::valorBrParaFloat($conta->total_conta ?? 0)
+        + $totalFinanceiro;
+
+    $conta->store();
+
+    // garante vínculo do contrato com a conta
+    $conta->contrato_id = $data->contrato_id;
+    $conta->store();
+
+    /*
+     * Profissionais - comportamento atual
+     */
+    ContaProfissional::where('conta_id', '=', $conta->id)->delete();
+
+    foreach ($profissionais as $index => $profissionalId)
+    {
+        if (empty($profissionalId)) {
+            continue;
+        }
+
+        $contaProfissional = new ContaProfissional();
+        $contaProfissional->conta_id = $conta->id;
+        $contaProfissional->pessoa_id = $profissionalId;
+        $contaProfissional->valor =
+            self::valorBrParaFloat($valoresProfissionais[$index] ?? 0);
+        $contaProfissional->percentual =
+            self::valorBrParaFloat($repassesProfissionais[$index] ?? 0);
+
+        $contaProfissional->store();
+    }
+
+    /*
+     * Busca a última parcela já criada para essa conta.
+     */
+    $ultimoLancamento = Lancamento::where('conta_id', '=', $conta->id)
+        ->orderBy('parcela', 'desc')
+        ->first();
+
+    $ultimaParcela = 0;
+
+    if ($ultimoLancamento && !empty($ultimoLancamento->parcela)) {
+        $ultimaParcela = (int) $ultimoLancamento->parcela;
+    }
+
+    $valor_parcela = $totalFinanceiro / $parcelas;
+
+    for ($i = 1; $i <= $parcelas; $i++)
+    {
+        $lancamento = new Lancamento();
+        $lancamento->fromArray((array) $data);
+
+        $lancamento->valor = round((float) $valor_parcela, 2);
+        $lancamento->valor_total = $lancamento->valor;
+        $lancamento->conta_id = $conta->id;
+
+        $lancamento->parcela = $ultimaParcela + $i;
+
+        if ($i == 1) {
+            $lancamento->dt_vencimento = $data->dt_vencimento;
+        } else {
+            $aux = $i - 1;
+
+            $lancamento->dt_vencimento = date(
+                'Y-m-d',
+                strtotime("+{$aux} months", strtotime($data->dt_vencimento))
+            );
+        }
+
+        $lancamento->store();
+    }
+}
+
+/*
+ * ============================================================
+ * PAGAMENTO SOLIDÁRIO = NÃO
+ * Cria uma conta por cliente.
+ * ============================================================
+ */
+else
+{
+    $clientesContrato = ContratoPessoa::where(
+        'contrato_id',
+        '=',
+        $data->contrato_id
+    )
+    ->orderBy('id')
+    ->load();
+
+    if (!$clientesContrato || count($clientesContrato) <= 0) {
+        throw new Exception('Nenhum cliente vinculado ao contrato.');
+    }
+
+    /*
+     * Valida os percentuais dos clientes.
+     */
+    $totalPercentualClientes = 0;
+    $clientesEncontrados = [];
+
+    foreach ($clientesContrato as $contratoPessoa)
+    {
+        $clienteId = (int) ($contratoPessoa->cliente_id ?? 0);
+
+        if ($clienteId <= 0) {
+            throw new Exception(
+                'Existe um vínculo de cliente inválido no contrato.'
+            );
+        }
+
+        if (isset($clientesEncontrados[$clienteId])) {
+            throw new Exception(
+                'O mesmo cliente está vinculado mais de uma vez ao contrato.'
+            );
+        }
+
+        $clientesEncontrados[$clienteId] = true;
+
+        $percentualCliente =
+            self::valorBrParaFloat($contratoPessoa->percentual ?? 0);
+
+        if ($percentualCliente <= 0) {
+            $nomeCliente = $contratoPessoa->cliente->nome ?? $clienteId;
+
+            throw new Exception(
+                "Informe o percentual do cliente {$nomeCliente}."
+            );
+        }
+
+        if ($percentualCliente > 100) {
+            $nomeCliente = $contratoPessoa->cliente->nome ?? $clienteId;
+
+            throw new Exception(
+                "O percentual do cliente {$nomeCliente} não pode passar de 100%."
+            );
+        }
+
+        $totalPercentualClientes += $percentualCliente;
+    }
+
+    if (abs($totalPercentualClientes - 100) > 0.01) {
+        throw new Exception(
+            'A soma dos percentuais dos clientes deve ser exatamente 100%. ' .
+            'Total atual: ' .
+            number_format($totalPercentualClientes, 2, ',', '.') .
+            '%.'
+        );
+    }
+
+    /*
+     * Trabalha em centavos para garantir que o rateio
+     * sempre feche exatamente no valor financeiro.
+     */
+    $totalFinanceiroCentavos = (int) round($totalFinanceiro * 100);
+
+    $valorClientesAcumuladoCentavos = 0;
+    $qtdClientes = count($clientesContrato);
+
+    foreach ($clientesContrato as $indiceCliente => $contratoPessoa)
+    {
+        $clienteId = (int) $contratoPessoa->cliente_id;
+
+        $percentualCliente =
+            self::valorBrParaFloat($contratoPessoa->percentual ?? 0);
+
+        /*
+         * Todos menos o último são calculados normalmente.
+         * O último recebe a diferença de centavos.
+         */
+        if ($indiceCliente === ($qtdClientes - 1))
+        {
+            $valorClienteCentavos =
+                $totalFinanceiroCentavos
+                - $valorClientesAcumuladoCentavos;
+        }
+        else
+        {
+            $valorClienteCentavos = (int) floor(
+                ($totalFinanceiroCentavos * $percentualCliente) / 100
+            );
+
+            $valorClientesAcumuladoCentavos += $valorClienteCentavos;
+        }
+
+        if ($valorClienteCentavos <= 0) {
+            $nomeCliente = $contratoPessoa->cliente->nome ?? $clienteId;
+
+            throw new Exception(
+                "O rateio do cliente {$nomeCliente} resultou em valor zerado."
+            );
+        }
+
+        $valorCliente = $valorClienteCentavos / 100;
+
+        /*
+         * Dados específicos desse cliente.
+         *
+         * O pessoa_id escondido do formulário é IGNORADO aqui.
+         */
+        $dadosCliente = clone $data;
+
+        $dadosCliente->pessoa_id = $clienteId;
+        $dadosCliente->valor = $valorCliente;
+
+        $nomeCliente = $contratoPessoa->cliente->nome ?? ('Cliente #' . $clienteId);
+
+        $dadosCliente->descricao = preg_replace(
+            '/ - .*?\.$/',
+            ' - ' . $nomeCliente . '.',
+            $data->descricao
+        );
+
+        /*
+         * Para pagamento não solidário:
+         * uma conta por CONTRATO + CLIENTE.
+         *
+         * Isso também permite que uma geração posterior
+         * com saldo continue usando a mesma conta daquele cliente.
+         */
+        $buscaContaCliente = Conta::where(
+            'contrato_id',
+            '=',
+            $data->contrato_id
+        )
+        ->where(
+            'pessoa_id',
+            '=',
+            $clienteId
+        )
+        ->first();
+
+        if (!$buscaContaCliente) {
+            $contaCliente = new Conta();
+        } else {
+            $contaCliente = Conta::find($buscaContaCliente->id);
+        }
+
+        $totalAnteriorConta = self::valorBrParaFloat(
+            $contaCliente->total_conta ?? 0
+        );
+
+        $contaCliente->fromArray((array) $dadosCliente);
+
+        $contaCliente->pessoa_id = $clienteId;
+        $contaCliente->contrato_id = $data->contrato_id;
+        $contaCliente->data_emissao = date('Y-m-d');
+        $contaCliente->tipo_conta_id = TipoConta::RECEBER;
+        $contaCliente->tipo_documento_financeiro_id =
+            TipoDocumentoFinanceiro::CONTRATO;
+
+        $contaCliente->total_conta =
+            $totalAnteriorConta + $valorCliente;
+
+        $contaCliente->store();
+
+        /*
+         * =====================================================
+         * PROFISSIONAIS DA CONTA DO CLIENTE
+         *
+         * O profissional também precisa acompanhar o valor
+         * proporcional da conta desse cliente.
+         *
+         * Exemplo:
+         * Financeiro total = 10.000
+         * Profissional = 50% = 5.000
+         *
+         * Cliente = 30% = conta de 3.000
+         * Profissional nessa conta = 1.500
+         * =====================================================
+         */
+
+        ContaProfissional::where(
+            'conta_id',
+            '=',
+            $contaCliente->id
+        )->delete();
+
+        /*
+         * Como a conta pode já existir por uma geração anterior
+         * com saldo, usamos o TOTAL ATUAL DA CONTA.
+         */
+        $totalContaClienteCentavos = (int) round(
+            self::valorBrParaFloat($contaCliente->total_conta) * 100
+        );
+
+        $indicesProfissionais = [];
+
+        foreach ($profissionais as $indiceProfissional => $profissionalId)
+        {
+            if (!empty($profissionalId)) {
+                $indicesProfissionais[] = $indiceProfissional;
             }
+        }
 
-            $conta->fromArray( (array) $data); // load the object with data
-            $conta->data_emissao = date('Y-m-d');
-            $conta->tipo_conta_id = TipoConta::RECEBER;
-            $conta->tipo_documento_financeiro_id = TipoDocumentoFinanceiro::CONTRATO;
-            $conta->total_conta = self::valorBrParaFloat($conta->total_conta ?? 0) + $totalFinanceiro;
-            $conta->store();
+        $qtdProfissionaisConta = count($indicesProfissionais);
+        $valorProfissionaisAcumulado = 0;
 
-            // garante vínculo do contrato com a conta
-            $conta->contrato_id = $data->contrato_id;
-            $conta->store();
+        foreach ($indicesProfissionais as $posicao => $indiceProfissional)
+        {
+            $profissionalId = $profissionais[$indiceProfissional];
 
-            // recria os profissionais vinculados à conta
-            ContaProfissional::where('conta_id', '=', $conta->id)->delete();
-
-            foreach ($profissionais as $index => $profissionalId)
-            {
-                if (empty($profissionalId)) {
-                    continue;
-                }
-
-                $contaProfissional = new ContaProfissional();
-                $contaProfissional->conta_id = $conta->id;
-                $contaProfissional->pessoa_id = $profissionalId;
-                $contaProfissional->valor = self::valorBrParaFloat($valoresProfissionais[$index] ?? 0);
-                $contaProfissional->percentual = self::valorBrParaFloat($repassesProfissionais[$index] ?? 0);
-                $contaProfissional->store();
-            }
-
-            $parcelas = (int) $data->numero_parcelas;
-
-            if ($parcelas <= 0) {
-                throw new Exception('Informe a quantidade de parcelas.');
-            }
-
-            $valor_parcela = $totalFinanceiro / $parcelas;
+            $valorProfissionalOriginal =
+                self::valorBrParaFloat(
+                    $valoresProfissionais[$indiceProfissional] ?? 0
+                );
 
             /*
-            * Busca a última parcela já criada para essa conta.
-            * Assim, se já existe parcela 1, a próxima começa na 2.
-            */
-            $ultimoLancamento = Lancamento::where('conta_id', '=', $conta->id)
-                ->orderBy('parcela', 'desc')
-                ->first();
+             * Usa a proporção REAL do valor informado
+             * para o profissional no financeiro total.
+             */
+            $proporcaoProfissional = 0;
 
-            $ultimaParcela = 0;
-
-            if ($ultimoLancamento && !empty($ultimoLancamento->parcela)) {
-                $ultimaParcela = (int) $ultimoLancamento->parcela;
+            if ($totalFinanceiro > 0) {
+                $proporcaoProfissional =
+                    $valorProfissionalOriginal / $totalFinanceiro;
             }
 
-           for($i = 1; $i <= $parcelas; $i++){
+            if ($posicao === ($qtdProfissionaisConta - 1))
+            {
+                $valorProfissionalContaCentavos =
+                    $totalContaClienteCentavos
+                    - $valorProfissionaisAcumulado;
+            }
+            else
+            {
+                $valorProfissionalContaCentavos = (int) floor(
+                    $totalContaClienteCentavos
+                    * $proporcaoProfissional
+                );
+
+                $valorProfissionaisAcumulado +=
+                    $valorProfissionalContaCentavos;
+            }
+
+            $contaProfissional = new ContaProfissional();
+
+            $contaProfissional->conta_id = $contaCliente->id;
+            $contaProfissional->pessoa_id = $profissionalId;
+            $contaProfissional->valor =
+                $valorProfissionalContaCentavos / 100;
+
+            /*
+             * Mantém o percentual que veio do modal.
+             */
+            $contaProfissional->percentual =
+                self::valorBrParaFloat(
+                    $repassesProfissionais[$indiceProfissional] ?? 0
+                );
+
+            $contaProfissional->store();
+        }
+
+            /*
+            * =====================================================
+            * LANÇAMENTOS DA CONTA DO CLIENTE
+            * =====================================================
+            */
+
+            $ultimoLancamentoCliente = Lancamento::where(
+                'conta_id',
+                '=',
+                $contaCliente->id
+            )
+            ->orderBy('parcela', 'desc')
+            ->first();
+
+            $ultimaParcelaCliente = 0;
+
+            if (
+                $ultimoLancamentoCliente
+                && !empty($ultimoLancamentoCliente->parcela)
+            ) {
+                $ultimaParcelaCliente =
+                    (int) $ultimoLancamentoCliente->parcela;
+            }
+
+            /*
+            * Divide também em centavos.
+            *
+            * Exemplo:
+            * R$ 100 / 3
+            *
+            * 33,33
+            * 33,33
+            * 33,34
+            */
+            $valorBaseParcelaCentavos = intdiv(
+                $valorClienteCentavos,
+                $parcelas
+            );
+
+            $valorParcelasAcumulado = 0;
+
+            for ($i = 1; $i <= $parcelas; $i++)
+            {
+                if ($i === $parcelas)
+                {
+                    $valorLancamentoCentavos =
+                        $valorClienteCentavos
+                        - $valorParcelasAcumulado;
+                }
+                else
+                {
+                    $valorLancamentoCentavos =
+                        $valorBaseParcelaCentavos;
+
+                    $valorParcelasAcumulado +=
+                        $valorLancamentoCentavos;
+                }
+
                 $lancamento = new Lancamento();
-                $lancamento->fromArray((array) $data);
-                $lancamento->valor = round((float) $valor_parcela, 2);
-                $lancamento->valor_total = $lancamento->valor;
-                $lancamento->conta_id = $conta->id;
 
-                // continua a numeracao da ultima parcela da conta
-                $lancamento->parcela = $ultimaParcela + $i;
+                $lancamento->fromArray((array) $dadosCliente);
 
-                if($i == 1){
-                    $lancamento->dt_vencimento = $data->dt_vencimento;
-                }else{
+                $lancamento->valor =
+                    $valorLancamentoCentavos / 100;
+
+                $lancamento->valor_total =
+                    $lancamento->valor;
+
+                $lancamento->conta_id =
+                    $contaCliente->id;
+
+                $lancamento->parcela =
+                    $ultimaParcelaCliente + $i;
+
+                if ($i == 1)
+                {
+                    $lancamento->dt_vencimento =
+                        $data->dt_vencimento;
+                }
+                else
+                {
                     $aux = $i - 1;
-                    $lancamento->dt_vencimento = date('Y-m-d', strtotime("+{$aux} months", strtotime($data->dt_vencimento)));
+
+                    $lancamento->dt_vencimento = date(
+                        'Y-m-d',
+                        strtotime(
+                            "+{$aux} months",
+                            strtotime($data->dt_vencimento)
+                        )
+                    );
                 }
 
                 $lancamento->store();
             }
+        }
+    }
             if ($contratoPagamentoParcela) {
                 $contratoPagamentoParcela->store();
             }

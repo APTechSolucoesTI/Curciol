@@ -135,6 +135,18 @@ class RequisicaoPagamentoVisualizacao extends TWindow
                     WHERE e3.requisicao_pagamento_cliente_id = rpc.id
                     AND e3.processo_filho_id IN ({$placeholders})
                 )
+
+                OR EXISTS (
+                    SELECT 1
+                    FROM requisicao_pagamento_etapa2 e2_depre
+                    WHERE e2_depre.requisicao_pagamento_cliente_id = rpc.id
+                    AND e2_depre.numero_depre_entidade_devedora = (
+                        SELECT COALESCE(p_depre.numero_cnj_numero, p_depre.numero_outro)
+                        FROM processo p_depre
+                        WHERE p_depre.id = ?
+                        LIMIT 1
+                    )
+                )
             )
             ORDER BY
                 CASE
@@ -166,6 +178,7 @@ class RequisicaoPagamentoVisualizacao extends TWindow
             $idsProcessos,
             $idsProcessos,
             $idsProcessos,
+            [$processoId],
             [$processoId, $processoId, $processoId]
         );
 
@@ -433,7 +446,21 @@ class RequisicaoPagamentoVisualizacao extends TWindow
                     $etapa2Protocolo = new TDate('etapa2_protocolo_depre_entidade_devedora_' . $rpcId);
                     $etapa2Protocolo->setMask('dd/mm/yyyy');
                     $etapa2Protocolo->setDatabaseMask('yyyy-mm-dd');
-                    $etapa2Numero = new TEntry('etapa2_numero_depre_entidade_devedora_' . $rpcId);
+                    $etapa2Numero = new TCombo(
+                        'etapa2_numero_depre_entidade_devedora_' . $rpcId
+                    );
+
+                    $processosDepre = [];
+
+                    foreach ($processosVinculados as $processoVinculadoId => $numeroProcessoVinculado) {
+                        if (!empty($numeroProcessoVinculado)) {
+                            $processosDepre[$numeroProcessoVinculado] = $numeroProcessoVinculado;
+                        }
+                    }
+
+                    $etapa2Numero->addItems($processosDepre);
+                    $etapa2Numero->enableSearch();
+                    $etapa2Numero->setSize('100%');
                     $etapa2NumeroOrdem = new TEntry('etapa2_numero_ordem_' . $rpcId);
 
                     $etapa2Processo->addItems($processosVinculados);
@@ -449,7 +476,7 @@ class RequisicaoPagamentoVisualizacao extends TWindow
                         [new TLabel('Número na DEPRE/entidade'), $etapa2Numero],
                         [new TLabel('Número da ordem'), $etapa2NumeroOrdem]
                     );
-                    $row->layout = ['col-sm-3', 'col-sm-2', 'col-sm-3', 'col-sm-2', 'col-sm-2'];
+                    $row->layout = ['col-sm-2', 'col-sm-2', 'col-sm-2', 'col-sm-4', 'col-sm-2'];
 
                     $data->{'etapa2_processo_filho_id_' . $rpcId} = self::valorComboProcesso(
                         $cliente->etapa2_processo_filho_id

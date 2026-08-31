@@ -195,6 +195,18 @@ class RequisicaoPagamentoVisualizacaoAba extends TPage
                     WHERE e3_atual.requisicao_pagamento_cliente_id = rpc.id
                     AND e3_atual.processo_filho_id = ?
                 )
+
+                OR EXISTS (
+                    SELECT 1
+                    FROM requisicao_pagamento_etapa2 e2_depre
+                    WHERE e2_depre.requisicao_pagamento_cliente_id = rpc.id
+                    AND e2_depre.numero_depre_entidade_devedora = (
+                        SELECT COALESCE(p_depre.numero_cnj_numero, p_depre.numero_outro)
+                        FROM processo p_depre
+                        WHERE p_depre.id = ?
+                        LIMIT 1
+                    )
+                )
             )
             AND (
                 rp.processo_id IN ({$placeholders})
@@ -211,6 +223,18 @@ class RequisicaoPagamentoVisualizacaoAba extends TPage
                     FROM requisicao_pagamento_etapa3 e3
                     WHERE e3.requisicao_pagamento_cliente_id = rpc.id
                     AND e3.processo_filho_id IN ({$placeholders})
+                )
+
+                OR EXISTS (
+                    SELECT 1
+                    FROM requisicao_pagamento_etapa2 e2_depre_vinculo
+                    WHERE e2_depre_vinculo.requisicao_pagamento_cliente_id = rpc.id
+                    AND e2_depre_vinculo.numero_depre_entidade_devedora = (
+                        SELECT COALESCE(p_depre_vinculo.numero_cnj_numero, p_depre_vinculo.numero_outro)
+                        FROM processo p_depre_vinculo
+                        WHERE p_depre_vinculo.id = ?
+                        LIMIT 1
+                    )
                 )
             )
 
@@ -240,18 +264,20 @@ class RequisicaoPagamentoVisualizacaoAba extends TPage
 
         $params = array_merge(
             [
-                $processoId, // CASE rp.processo_id
-                $processoId, // CASE etapa2
-                $processoId, // CASE etapa3
+                $processoId,
+                $processoId,
+                $processoId,
 
-                $processoId, // WHERE rp.processo_id
-                $processoId, // WHERE processo_view
-                $processoId, // WHERE etapa2 atual
-                $processoId  // WHERE etapa3 atual
+                $processoId,
+                $processoId,
+                $processoId,
+                $processoId,
+                $processoId
             ],
             $idsProcessos,
             $idsProcessos,
             $idsProcessos,
+            [$processoId],
             [
                 $processoId,
                 $processoId,
@@ -642,7 +668,21 @@ class RequisicaoPagamentoVisualizacaoAba extends TPage
                     $etapa2Protocolo = new TDate('etapa2_protocolo_depre_entidade_devedora_' . $rpcId);
                     $etapa2Protocolo->setMask('dd/mm/yyyy');
                     $etapa2Protocolo->setDatabaseMask('yyyy-mm-dd');
-                    $etapa2Numero = new TEntry('etapa2_numero_depre_entidade_devedora_' . $rpcId);
+                    $etapa2Numero = new TCombo(
+                            'etapa2_numero_depre_entidade_devedora_' . $rpcId
+                        );
+
+                        $processosDepre = [];
+
+                        foreach ($processosVinculados as $processoVinculadoId => $numeroProcessoVinculado) {
+                            if (!empty($numeroProcessoVinculado)) {
+                                $processosDepre[$numeroProcessoVinculado] = $numeroProcessoVinculado;
+                            }
+                        }
+
+                        $etapa2Numero->addItems($processosDepre);
+                        $etapa2Numero->enableSearch();
+                        $etapa2Numero->setSize('100%');
                     $etapa2NumeroOrdem = new TEntry('etapa2_numero_ordem_' . $rpcId);
 
                     $etapa2Processo->addItems($processosVinculados);
@@ -658,7 +698,7 @@ class RequisicaoPagamentoVisualizacaoAba extends TPage
                         [new TLabel('Número na DEPRE/entidade'), $etapa2Numero],
                         [new TLabel('Número da ordem'), $etapa2NumeroOrdem]
                     );
-                    $row->layout = ['col-sm-3', 'col-sm-2', 'col-sm-3', 'col-sm-2', 'col-sm-2'];
+                    $row->layout = ['col-sm-2', 'col-sm-2', 'col-sm-2', 'col-sm-4', 'col-sm-2'];
 
                     $data->{'etapa2_processo_filho_id_' . $rpcId} = self::valorComboProcesso(
                         $cliente->etapa2_processo_filho_id

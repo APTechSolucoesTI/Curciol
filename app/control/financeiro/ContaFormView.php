@@ -55,6 +55,82 @@ class ContaFormView extends TPage
             return $button;
         }, $conta->contrato_id, $conta, null);    
 
+        $transformed_conta_pessoa_nome = call_user_func(function($value, $object, $row)
+        {
+             try
+            {
+                if (empty($object->id)) {
+                    return '';
+                }
+
+                TTransaction::open('escritorio');
+
+                $conta = Conta::find((int) $object->id);
+
+                if (!$conta) {
+                    TTransaction::close();
+                    return '';
+                }
+
+                $nomes = [];
+
+                /*
+                 * Se a conta pertence a contrato,
+                 * busca todos os clientes do contrato.
+                 */
+                if (!empty($conta->contrato_id))
+                {
+                    $clientesContrato = ContratoPessoa::where(
+                        'contrato_id',
+                        '=',
+                        $conta->contrato_id
+                    )
+                    ->orderBy('id')
+                    ->load();
+
+                    foreach ($clientesContrato as $contratoPessoa)
+                    {
+                        if (!empty($contratoPessoa->cliente_id))
+                        {
+                            $cliente = Pessoa::find($contratoPessoa->cliente_id);
+
+                            if ($cliente && !empty($cliente->nome)) {
+                                $nomes[] = $cliente->nome;
+                            }
+                        }
+                    }
+                }
+
+                /*
+                 * Conta normal / sem contrato:
+                 * mantém a pessoa diretamente vinculada à conta.
+                 */
+                if (empty($nomes) && !empty($conta->pessoa_id))
+                {
+                    $pessoa = Pessoa::find($conta->pessoa_id);
+
+                    if ($pessoa && !empty($pessoa->nome)) {
+                        $nomes[] = $pessoa->nome;
+                    }
+                }
+
+                TTransaction::close();
+
+                $nomes = array_unique($nomes);
+
+                return implode(', ', $nomes);
+            }
+            catch (Exception $e)
+            {
+                if (TTransaction::get()) {
+                    TTransaction::rollback();
+                }
+
+                return '';
+            }
+
+        }, $conta->pessoa->nome, $conta, null);    
+
         $transformed_conta_total_conta = call_user_func(function($value, $object, $row) 
         {
             if(!$value)
@@ -87,7 +163,7 @@ class ContaFormView extends TPage
 
         $text13 = new TTextDisplay($transformed_conta_contrato_id, '', '12px', '');
         $label2 = new TLabel("Pessoa:", '', '14px', 'B', '100%');
-        $text2 = new TTextDisplay($conta->pessoa->nome, '', '14px', '');
+        $text2 = new TTextDisplay($transformed_conta_pessoa_nome, '', '14px', '');
         $label6 = new TLabel("Tipo:", '', '14px', 'B', '100%');
         $text4 = new TTextDisplay($conta->tipo_conta->nome, '', '14px', '');
         $label8 = new TLabel("Quitada:", '', '14px', 'B', '100%');

@@ -388,6 +388,20 @@ class RequisicaoPagamentoListagemHeaderList extends TPage
 
         $this->datagrid_form->add($this->datagrid);
 
+        $button_relatorio_dinamico = new TButton('button_relatorio_dinamico');
+
+            $button_relatorio_dinamico->setAction(
+                new TAction(['RequisicaoPagamentoListagemHeaderList', 'onRelatorioDinamico']),
+                'Relatório Dinâmico'
+            );
+
+            $button_relatorio_dinamico->addStyleClass('btn-default');
+            $button_relatorio_dinamico->setImage('fas:file-excel #218838');
+
+            $this->datagrid_form->addField($button_relatorio_dinamico);
+
+        $head_right_actions->add($button_relatorio_dinamico);
+
         // vertical box container
         $container = new TVBox;
         $container->style = 'width: 100%';
@@ -1008,6 +1022,24 @@ class RequisicaoPagamentoListagemHeaderList extends TPage
         }
 
         TDataGrid::replaceRowById(__CLASS__.'_datagrid', $row->id, $row);
+    }
+
+    public static function onRelatorioDinamico($param = null)
+    {
+        try
+        {
+            TApplication::loadPage(
+                'RequisicaoPagamentoRelatorioDinamico',
+                'onShow',
+                [
+                    'register_state' => 'false'
+                ]
+            );
+        }
+        catch (Exception $e)
+        {
+            new TMessage('error', $e->getMessage());
+        }
     }
 
 }

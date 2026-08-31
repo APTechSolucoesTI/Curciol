@@ -283,9 +283,71 @@ class ContaPagarList extends TPage
                 $table->add($tableDetail);
             }
 
+           /*
+            * Se a conta veio de contrato, mostra TODOS os clientes
+            * vinculados ao contrato.
+            *
+            * Se não tiver contrato, mantém exatamente o funcionamento antigo.
+            */
+            $clientesNomes = [];
+
+            if (!empty($object->contrato_id))
+            {
+                $clientesContrato = ContratoPessoa::where(
+                    'contrato_id',
+                    '=',
+                    $object->contrato_id
+                )
+                ->orderBy('id')
+                ->load();
+
+                foreach ($clientesContrato as $contratoPessoa)
+                {
+                    if (!empty($contratoPessoa->cliente_id))
+                    {
+                        $nomeCliente = $contratoPessoa->cliente->nome ?? null;
+
+                        if (!empty($nomeCliente)) {
+                            $clientesNomes[] = $nomeCliente;
+                        }
+                    }
+                }
+            }
+
+            $clientesNomes = array_values(array_unique($clientesNomes));
+
+            /*
+            * Sem contrato ou sem clientes vinculados:
+            * mantém o $value original da conta.
+            */
+            $nomeExibicao = !empty($clientesNomes)
+                ? implode(', ', $clientesNomes)
+                : $value;
+
             $div = new TElement('div');
-            $div->add(TElement::tag('span', $value, ['style' => 'color: var(--text-color-strong); text-transform: uppercase; font-size: 110%;']));
-            $div->add(TElement::tag('div', 'Lançamentos', ['class' => 'title-lancamentos']));
+
+            $div->add(
+                TElement::tag(
+                    'span',
+                    $nomeExibicao,
+                    [
+                        'style' => '
+                            color: var(--text-color-strong);
+                            text-transform: uppercase;
+                            font-size: 110%;
+                        '
+                    ]
+                )
+            );
+
+            $div->add(
+                TElement::tag(
+                    'div',
+                    'Lançamentos',
+                    ['class' => 'title-lancamentos']
+                )
+            );
+
             $div->add($table);
 
             TTransaction::close();

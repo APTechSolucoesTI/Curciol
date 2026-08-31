@@ -310,9 +310,71 @@ class ContaReceberList extends TPage
                 $table->add($tableDetail);
             }
 
+           /*
+            * Se a conta veio de contrato, mostra TODOS os clientes
+            * vinculados ao contrato.
+            *
+            * Se não tiver contrato, mantém exatamente o funcionamento antigo.
+            */
+            $clientesNomes = [];
+
+            if (!empty($object->contrato_id))
+            {
+                $clientesContrato = ContratoPessoa::where(
+                    'contrato_id',
+                    '=',
+                    $object->contrato_id
+                )
+                ->orderBy('id')
+                ->load();
+
+                foreach ($clientesContrato as $contratoPessoa)
+                {
+                    if (!empty($contratoPessoa->cliente_id))
+                    {
+                        $nomeCliente = $contratoPessoa->cliente->nome ?? null;
+
+                        if (!empty($nomeCliente)) {
+                            $clientesNomes[] = $nomeCliente;
+                        }
+                    }
+                }
+            }
+
+            $clientesNomes = array_values(array_unique($clientesNomes));
+
+            /*
+            * Sem contrato ou sem clientes vinculados:
+            * mantém o $value original da conta.
+            */
+            $nomeExibicao = !empty($clientesNomes)
+                ? implode(', ', $clientesNomes)
+                : $value;
+
             $div = new TElement('div');
-            $div->add(TElement::tag('span', $value, ['style' => 'color: var(--text-color-strong); text-transform: uppercase; font-size: 110%;']));
-            $div->add(TElement::tag('div', 'Lançamentos', ['class' => 'title-lancamentos']));
+
+            $div->add(
+                TElement::tag(
+                    'span',
+                    $nomeExibicao,
+                    [
+                        'style' => '
+                            color: var(--text-color-strong);
+                            text-transform: uppercase;
+                            font-size: 110%;
+                        '
+                    ]
+                )
+            );
+
+            $div->add(
+                TElement::tag(
+                    'div',
+                    'Lançamentos',
+                    ['class' => 'title-lancamentos']
+                )
+            );
+
             $div->add($table);
 
             TTransaction::close();
@@ -930,6 +992,41 @@ class ContaReceberList extends TPage
         }
         $filters = [];
 
+        $clienteFiltroPrincipal = $data->pessoa_id ?? null;
+        $clienteFiltroColuna = $data->pessoa_col ?? null;
+        $adicionarFiltroClienteContrato = function($clienteId) use (&$filters)
+        {
+            if (empty($clienteId)) {
+                return;
+            }
+
+            $clienteId = (int) $clienteId;
+
+            $subquery = "(SELECT c.id FROM conta c WHERE c.pessoa_id = {$clienteId} OR (c.contrato_id IS NOT NULL AND c.contrato_id IN (SELECT cp.contrato_id FROM contrato_pessoa cp WHERE cp.cliente_id = {$clienteId})))";
+
+            $filters[] = new TFilter('id', 'in', $subquery);
+        };
+        if (!empty($clienteFiltroPrincipal))
+        {
+            $adicionarFiltroClienteContrato($clienteFiltroPrincipal);
+
+            /*
+            * Limpa temporariamente para impedir que o código automático
+            * abaixo aplique também pessoa_id = X.
+            */
+            $data->pessoa_id = null;
+        }
+
+        if (!empty($clienteFiltroColuna))
+        {
+            $adicionarFiltroClienteContrato($clienteFiltroColuna);
+
+            /*
+            * Mesma coisa para o filtro da coluna.
+            */
+            $data->pessoa_col = null;
+        } 
+
         TSession::setValue(__CLASS__.'_filter_data', NULL);
         TSession::setValue(__CLASS__.'_filters', NULL);
 
@@ -1049,6 +1146,18 @@ class ContaReceberList extends TPage
         if (!empty($data->filtro_rapido) && $data->filtro_rapido == 2)
         {
             $filters[] = new TFilter('id', 'in', "(SELECT conta_id FROM lancamento WHERE dt_vencimento >= '". date('Y-m-d 00:00') ."' and quitada = 'N')");
+        }
+
+        /*
+        * Devolve os valores aos campos para o filtro continuar
+        * aparecendo selecionado na tela.
+        */
+        if (!empty($clienteFiltroPrincipal)) {
+            $data->pessoa_id = $clienteFiltroPrincipal;
+        }
+
+        if (!empty($clienteFiltroColuna)) {
+            $data->pessoa_col = $clienteFiltroColuna;
         }
 
         // fill the form with data again
