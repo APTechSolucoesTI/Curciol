@@ -147,6 +147,157 @@ class ProcessoViewHeaderList extends TPage
         }
         $container->add($panel);
 
+
+        $container->class = trim(($container->class ?? '') . ' curciol-lista-processos');
+
+        /*
+            No celular a tabela de 4 colunas fica ilegível. As mesmas linhas
+            viram cards empilhados, cada célula com seu próprio rótulo.
+        */
+        $style = new TElement('style');
+        $style->add('
+            @media (max-width: 768px) {
+                .curciol-lista-processos .panel,
+                .curciol-lista-processos .card,
+                .curciol-lista-processos .panel-body,
+                .curciol-lista-processos .card-body,
+                .curciol-lista-processos .table-responsive {
+                    padding: 0 !important;
+                    margin: 0 !important;
+                    background: transparent !important;
+                    border: 0 !important;
+                    border-radius: 0 !important;
+                    box-shadow: none !important;
+                    overflow: visible !important;
+                }
+
+                .curciol-lista-processos table {
+                    display: block !important;
+                    width: 100% !important;
+                    max-width: 100% !important;
+                    border: 0 !important;
+                    box-shadow: none !important;
+                }
+
+                .curciol-lista-processos thead,
+                .curciol-lista-processos #datagrid-header-filter-row {
+                    display: none !important;
+                }
+
+                /*
+                    O datagrid nasce com altura fixa e rolagem própria; num
+                    telefone isso vira rolagem dentro de rolagem.
+                */
+                .curciol-lista-processos tbody {
+                    display: block !important;
+                    width: 100% !important;
+                    height: auto !important;
+                    max-height: none !important;
+                    overflow: visible !important;
+                }
+
+                .curciol-lista-processos tbody tr {
+                    display: block !important;
+                    width: 100% !important;
+                    margin: 0 0 12px 0 !important;
+                    padding: 12px 14px !important;
+                    background: #ffffff !important;
+                    border: 1px solid #dfe3ea !important;
+                    border-left: 4px solid #0D4069 !important;
+                    border-radius: 14px !important;
+                    box-shadow: 0 4px 14px rgba(30, 40, 67, .07) !important;
+                    box-sizing: border-box !important;
+                }
+
+                .curciol-lista-processos tbody td {
+                    display: block !important;
+                    width: 100% !important;
+                    padding: 5px 0 !important;
+                    border: 0 !important;
+                    text-align: left !important;
+                    white-space: normal !important;
+                    overflow-wrap: break-word !important;
+                    color: #1E2843 !important;
+                    font-family: Helvetica, Arial, sans-serif !important;
+                    font-size: 14px !important;
+                    font-weight: 600 !important;
+                    line-height: 1.35 !important;
+                }
+
+                .curciol-lista-processos tbody td:nth-child(2):before,
+                .curciol-lista-processos tbody td:nth-child(3):before,
+                .curciol-lista-processos tbody td:nth-child(4):before,
+                .curciol-lista-processos tbody td:nth-child(5):before {
+                    display: block;
+                    color: #7c8698;
+                    font-size: 11px;
+                    font-weight: 600;
+                    letter-spacing: .03em;
+                    margin-bottom: 1px;
+                }
+
+                .curciol-lista-processos tbody td:nth-child(2):before {
+                    content: "Tipo";
+                }
+
+                .curciol-lista-processos tbody td:nth-child(3):before {
+                    content: "Assunto";
+                }
+
+                .curciol-lista-processos tbody td:nth-child(4):before {
+                    content: "Número";
+                }
+
+                .curciol-lista-processos tbody td:nth-child(5):before {
+                    content: "Última etapa";
+                }
+
+                .curciol-lista-processos tbody td:nth-child(4) {
+                    word-break: break-all !important;
+                }
+
+                /* a coluna de ação passa a ser o rodapé do card */
+                .curciol-lista-processos tbody td.action {
+                    margin-top: 10px !important;
+                    padding: 10px 0 0 0 !important;
+                    border-top: 1px solid #eef1f6 !important;
+                }
+
+                .curciol-lista-processos tbody td.action a {
+                    display: inline-flex !important;
+                    align-items: center !important;
+                    gap: 8px !important;
+                    color: #0D4069 !important;
+                    font-size: 14px !important;
+                    font-weight: 700 !important;
+                    text-decoration: none !important;
+                }
+
+                .curciol-lista-processos tbody td.action a:after {
+                    content: "Ver andamento";
+                }
+
+                .curciol-lista-processos .tdatagrid_container,
+                .curciol-lista-processos .datagrid-header-actions {
+                    width: 100% !important;
+                    max-width: 100% !important;
+                    overflow: visible !important;
+                }
+            }
+
+            @media (max-width: 390px) {
+                .curciol-lista-processos tbody tr {
+                    padding: 11px 12px !important;
+                    border-radius: 12px !important;
+                }
+
+                .curciol-lista-processos tbody td {
+                    font-size: 13.5px !important;
+                }
+            }
+        ');
+
+        $container->add($style);
         parent::add($container);
 
     }

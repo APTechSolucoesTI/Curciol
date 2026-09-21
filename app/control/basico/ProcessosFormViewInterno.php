@@ -524,10 +524,87 @@ class ProcessosFormViewInterno extends TPage
         $row1 = $this->form->addFields([$publicacao_etapa_id]);
         $row1->layout = [' col-sm-12'];
 
+        /*
+            No celular a faixa de setas não cabe na largura da tela e obrigava o
+            cliente a arrastar para os lados. As mesmas etapas, na mesma ordem,
+            são remontadas aqui como uma lista vertical.
+        */
+        $passos_html = '';
+
+        if ($processo_id > 0 && !empty($etapas_ids))
+        {
+            $ids_passos = implode(',', array_map('intval', $etapas_ids));
+
+            $etapas_passos = TTransaction::get()->query("
+                SELECT id, etapa_nome
+                FROM publicacao_etapa
+                WHERE id IN ({$ids_passos})
+                ORDER BY
+                    CASE
+                        WHEN id = 8 THEN 0
+                        WHEN id = 2 THEN 1
+                        ELSE 2
+                    END,
+                    ordem_prioridade ASC,
+                    id ASC
+            ")->fetchAll(PDO::FETCH_OBJ);
+
+            $passou_etapa_atual = false;
+
+            foreach ($etapas_passos as $etapa_passo)
+            {
+                $eh_etapa_atual = !empty($etapa_atual_id)
+                    && (int) $etapa_passo->id === (int) $etapa_atual_id;
+
+                if ($passou_etapa_atual)
+                {
+                    $estado_passo = 'futura';
+                }
+                elseif ($eh_etapa_atual)
+                {
+                    $estado_passo = 'atual';
+                    $passou_etapa_atual = true;
+                }
+                else
+                {
+                    $estado_passo = 'concluida';
+                }
+
+                $aria_passo = ($estado_passo === 'atual') ? " aria-current='step'" : '';
+
+                $nome_passo_html = htmlspecialchars(
+                    (string) $etapa_passo->etapa_nome,
+                    ENT_QUOTES,
+                    'UTF-8'
+                );
+
+                $passos_html .= "
+                    <li class='curciol-passo curciol-passo-{$estado_passo}'{$aria_passo}>
+                        <span class='curciol-passo-marca'></span>
+                        <span class='curciol-passo-nome'>{$nome_passo_html}</span>
+                    </li>
+                ";
+            }
+        }
+
+        if (!empty($passos_html))
+        {
+            $lista_passos = new TElement('ol');
+            $lista_passos->class = 'curciol-passos';
+            $lista_passos->add($passos_html);
+
+            $row1b = $this->form->addContent([$lista_passos]);
+            $row1b->layout = [' col-sm-12'];
+
+            $row1b->class = trim(($row1b->class ?? '') . ' curciol-passos-row');
+
+            $row1b->style = 'display:none; margin-left:0; margin-right:0;';
+        }
+
         $row2 = $this->form->addFields([$processo_view]);
         $row2->layout = [' col-sm-12'];
 
-        $row1->class = trim(($row1->class ?? '') . ' curciol-etapas-mobile');
+        $row1->class = trim(($row1->class ?? '') . ' curciol-etapas-mobile curciol-arrowstep-row');
 
         $row2->class = trim(($row2->class ?? '') . ' curciol-timeline-mobile');
 
@@ -592,85 +669,120 @@ class ProcessosFormViewInterno extends TPage
                     padding-right: 0 !important;
                 }
 
-                .curciol-etapas-mobile {
-                    position: relative !important;
+                /*
+                    A faixa de setas sai de cena no celular: ela só cabia com
+                    scroll horizontal. Quem mostra o andamento aqui é a lista
+                    vertical montada no controller.
+                */
+                .curciol-arrowstep-row {
+                    display: none !important;
+                }
+
+                .curciol-passos-row {
                     display: block !important;
-                    width: calc(100% + 20px) !important;
-                    max-width: calc(100% + 20px) !important;
-                    margin-left: -10px !important;
-                    margin-right: -10px !important;
-                    margin-bottom: 10px !important;
-                    padding: 38px 8px 10px 8px !important;
-                    overflow-x: auto !important;
-                    overflow-y: hidden !important;
-                    -webkit-overflow-scrolling: touch !important;
-                    box-sizing: border-box !important;
-                }
-
-                .curciol-etapas-mobile:before {
-                    content: "Arraste para ver as próximas etapas";
-                    position: absolute;
-                    top: 10px;
-                    left: 12px;
-                    color: #64748b;
-                    font-size: 12px;
-                    font-weight: 600;
-                    z-index: 5;
-                }
-
-                .curciol-etapas-mobile::-webkit-scrollbar {
-                    height: 6px;
-                }
-
-                .curciol-etapas-mobile::-webkit-scrollbar-track {
-                    background: #eef2f7;
-                    border-radius: 999px;
-                }
-
-                .curciol-etapas-mobile::-webkit-scrollbar-thumb {
-                    background: #94a3b8;
-                    border-radius: 999px;
-                }
-
-                .curciol-etapas-mobile > div,
-                .curciol-etapas-mobile > [class*="col-"] {
-                    width: 820px !important;
-                    min-width: 820px !important;
-                    max-width: none !important;
-                    flex: 0 0 820px !important;
-                    padding-left: 0 !important;
-                    padding-right: 0 !important;
-                    box-sizing: border-box !important;
-                }
-
-                .curciol-etapas-mobile .arrow-steps,
-                .curciol-etapas-mobile .tarrowstep,
-                .curciol-etapas-mobile .tdbarrowstep,
-                .curciol-etapas-mobile .tstep,
-                .curciol-etapas-mobile table,
-                .curciol-etapas-mobile ul {
                     width: 100% !important;
-                    min-width: 820px !important;
-                    max-width: none !important;
-                }
-
-                .curciol-etapas-mobile .arrow-steps .step {
-                    min-width: 145px !important;
-                    max-width: 160px !important;
-                    height: 54px !important;
-                    padding-top: 10px !important;
-                    padding-bottom: 10px !important;
-                    font-size: 12px !important;
-                    line-height: 1.2 !important;
+                    max-width: 100% !important;
+                    margin: 0 0 14px 0 !important;
+                    padding: 14px 12px !important;
+                    background: #ffffff !important;
+                    border: 1px solid #dfe3ea !important;
+                    border-radius: 16px !important;
+                    box-shadow: 0 6px 18px rgba(30, 40, 67, .07) !important;
                     box-sizing: border-box !important;
                 }
 
-                .curciol-etapas-mobile .arrow-steps .step span {
-                    display: block !important;
-                    max-width: 120px !important;
-                    white-space: nowrap !important;
-                    overflow: hidden !important;
-                    text-overflow: ellipsis !important;
+                .curciol-passos {
+                    list-style: none;
+                    width: 100%;
+                    margin: 0;
+                    padding: 0;
+                    font-family: Helvetica, Arial, sans-serif;
+                    box-sizing: border-box;
+                }
+
+                .curciol-passo {
+                    position: relative;
+                    display: flex;
+                    align-items: flex-start;
+                    gap: 12px;
+                    padding: 2px 8px 2px 6px;
+                    box-sizing: border-box;
+                }
+
+                /* liga o marcador desta etapa ao da proxima */
+                .curciol-passo:not(:last-child):before {
+                    content: "";
+                    position: absolute;
+                    left: 15px;
+                    top: 24px;
+                    height: 100%;
+                    width: 2px;
+                    background: #dfe3ea;
+                }
+
+                .curciol-passo-concluida:not(:last-child):before {
+                    background: #0D4069;
+                }
+
+                .curciol-passo-marca {
+                    position: relative;
+                    z-index: 2;
+                    flex: 0 0 auto;
+                    width: 20px;
+                    height: 20px;
+                    margin-top: 12px;
+                    border-radius: 50%;
+                    background: #ffffff;
+                    border: 2px solid #C0C3C9;
+                    box-sizing: border-box;
+                }
+
+                .curciol-passo-concluida .curciol-passo-marca {
+                    background: #0D4069;
+                    border-color: #0D4069;
+                }
+
+                .curciol-passo-concluida .curciol-passo-marca:after {
+                    content: "";
+                    position: absolute;
+                    left: 5px;
+                    top: 2px;
+                    width: 4px;
+                    height: 8px;
+                    border: solid #ffffff;
+                    border-width: 0 2px 2px 0;
+                    transform: rotate(45deg);
+                }
+
+                .curciol-passo-atual .curciol-passo-marca {
+                    background: #1E2843;
+                    border-color: #1E2843;
+                    box-shadow: 0 0 0 4px rgba(13, 64, 105, .15);
+                }
+
+                .curciol-passo-nome {
+                    min-width: 0;
+                    padding: 13px 0 11px 0;
+                    color: #6b7585;
+                    font-size: 14px;
+                    font-weight: 500;
+                    line-height: 1.3;
+                    overflow-wrap: break-word;
+                }
+
+                .curciol-passo-concluida .curciol-passo-nome {
+                    color: #1E2843;
+                    font-weight: 600;
+                }
+
+                .curciol-passo-atual {
+                    background: #f3f6fa;
+                    border-radius: 10px;
+                }
+
+                .curciol-passo-atual .curciol-passo-nome {
+                    color: #0D4069;
+                    font-weight: 700;
                 }
 
                 .curciol-timeline-mobile {
@@ -712,11 +824,13 @@ class ProcessosFormViewInterno extends TPage
             }
 
             @media (max-width: 390px) {
-                .curciol-etapas-mobile {
-                    width: calc(100% + 16px) !important;
-                    max-width: calc(100% + 16px) !important;
-                    margin-left: -8px !important;
-                    margin-right: -8px !important;
+                .curciol-passos-row {
+                    padding: 12px 10px !important;
+                    border-radius: 14px !important;
+                }
+
+                .curciol-passo-nome {
+                    font-size: 13.5px;
                 }
 
                 .curciol-timeline-mobile {

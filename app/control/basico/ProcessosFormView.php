@@ -98,6 +98,30 @@ class ProcessosFormView extends TPage
                     box-sizing: border-box !important;
                 }
 
+                /*
+                    Quatro campos empilhados ocupavam quase toda a primeira
+                    tela. Documento e telefone cabem lado a lado; nome e email
+                    ficam inteiros porque são os que mais quebram linha.
+                */
+                #formView_Pessoa .curciol-dados-cliente-card {
+                    display: grid !important;
+                    grid-template-columns: 1fr 1fr !important;
+                    gap: 10px 14px !important;
+                }
+
+                #formView_Pessoa .curciol-dados-cliente-card > [class*='col-'] {
+                    width: 100% !important;
+                    max-width: 100% !important;
+                    flex: none !important;
+                    padding: 0 !important;
+                    min-width: 0 !important;
+                }
+
+                #formView_Pessoa .curciol-dados-cliente-card > [class*='col-']:nth-child(1),
+                #formView_Pessoa .curciol-dados-cliente-card > [class*='col-']:nth-child(4) {
+                    grid-column: 1 / -1 !important;
+                }
+
                 #formView_Pessoa .curciol-area-processos {
                     width: 100% !important;
                     max-width: 100% !important;

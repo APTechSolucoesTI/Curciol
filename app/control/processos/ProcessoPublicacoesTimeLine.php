@@ -475,6 +475,239 @@ class ProcessoPublicacoesTimeLine extends TPage
                 }
             }
 
+            /*
+                Organização Documental é sempre a seção mais antiga da timeline.
+                Ela não nasce de uma publicação: é montada a partir do cadastro
+                da etapa 8, por isso entra depois do laço, no fim da lista.
+            */
+            $etapa_org_doc = PublicacaoEtapa::find(8);
+
+            if ($etapa_org_doc)
+            {
+                $permite_org_doc = true;
+
+                if ($tipo_processo_id === 1)
+                {
+                    $permite_org_doc = strtoupper(trim((string) ($etapa_org_doc->judicial ?? 'N'))) === 'S';
+                }
+                elseif ($tipo_processo_id === 2)
+                {
+                    $permite_org_doc = strtoupper(trim((string) ($etapa_org_doc->extrajudicial ?? 'N'))) === 'S';
+                }
+
+                if ($permite_org_doc)
+                {
+                    /*
+                        A data vem da distribuição do processo. Quando não houver,
+                        a seção aparece sem data em vez de exibir um valor inventado.
+                    */
+                    $org_doc_date = date('Y-m-d');
+                    $org_doc_data_html = '';
+
+                    if (!empty($processo->data_distribuicao_protocolo))
+                    {
+                        $org_doc_date = $processo->data_distribuicao_protocolo;
+                        $org_doc_data_html = htmlspecialchars(
+                            date('d/m/Y', strtotime($processo->data_distribuicao_protocolo)),
+                            ENT_QUOTES,
+                            'UTF-8'
+                        );
+                    }
+                    elseif (!empty($date))
+                    {
+                        $org_doc_date = $date;
+                    }
+
+                    $org_doc_nome_html = htmlspecialchars(
+                        (string) ($etapa_org_doc->etapa_nome ?: 'Organização Documental'),
+                        ENT_QUOTES,
+                        'UTF-8'
+                    );
+
+                    $org_doc_desc_html = nl2br(htmlspecialchars(
+                        (string) ($etapa_org_doc->descricao ?: '-'),
+                        ENT_QUOTES,
+                        'UTF-8'
+                    ));
+
+                    $org_doc_detalhamento = (string) ($etapa_org_doc->detalhamento ?? '');
+
+                    $org_doc_det_html = nl2br(htmlspecialchars($org_doc_detalhamento, ENT_QUOTES, 'UTF-8'));
+
+                    $org_doc_det_bloco = '';
+                    $org_doc_det_bloco_mobile = '';
+
+                    if (!empty(trim($org_doc_detalhamento)))
+                    {
+                        $org_doc_det_bloco = "
+                            <div class='curciol-timeline-detail-line'>
+                                <b>Detalhamento:</b>
+                                <span>{$org_doc_det_html}</span>
+                            </div>
+                        ";
+
+                        $org_doc_det_bloco_mobile = "
+                            <div class='curciol-mobile-detail-block'>
+                                <div class='curciol-mobile-detail-label'>Detalhamento</div>
+                                <div class='curciol-mobile-detail-text'>{$org_doc_det_html}</div>
+                            </div>
+                        ";
+                    }
+
+                    $orgDocDetailId = 'timeline_detail_org_doc';
+                    $orgDocIconId   = 'timeline_icon_org_doc';
+
+                    $org_doc_title = "
+                        <div
+                            class='curciol-timeline-title-row'
+                            style='
+                                display:flex;
+                                align-items:center;
+                                justify-content:space-between;
+                                width:100%;
+                                gap:12px;
+                                box-sizing:border-box;
+                            '
+                        >
+                            <span
+                                class='curciol-timeline-title'
+                                style='
+                                    flex:1;
+                                    min-width:0;
+                                    font-weight:600;
+                                    color:#16325c;
+                                    font-size:15px;
+                                    line-height:1.25;
+                                    white-space:normal;
+                                    word-break:normal;
+                                    overflow-wrap:break-word;
+                                '
+                            >
+                                {$org_doc_nome_html}
+                            </span>
+
+                            <button
+                                type='button'
+                                class='curciol-timeline-toggle'
+                                onclick=\"
+                                    (function() {
+                                        var detail = document.getElementById('{$orgDocDetailId}');
+                                        var icon = document.getElementById('{$orgDocIconId}');
+
+                                        if (detail.style.display === 'none' || detail.style.display === '') {
+                                            detail.style.display = 'block';
+                                            icon.innerHTML = '-';
+                                        } else {
+                                            detail.style.display = 'none';
+                                            icon.innerHTML = '+';
+                                        }
+                                    })();
+                                    return false;
+                                \"
+                                style='
+                                    flex:0 0 auto;
+                                    border:1px solid #cbd5e1;
+                                    background:#ffffff;
+                                    color:#334155;
+                                    border-radius:6px;
+                                    width:28px;
+                                    height:28px;
+                                    cursor:pointer;
+                                    font-weight:bold;
+                                    line-height:1;
+                                    font-size:14px;
+                                    box-shadow:0 1px 3px rgba(15,23,42,.08);
+                                '
+                            >
+                                <span id='{$orgDocIconId}'>+</span>
+                            </button>
+                        </div>
+                    ";
+
+                    $org_doc_template = "
+                        <div id='{$orgDocDetailId}' class='curciol-timeline-detail' style='display:none;'>
+                            {$org_doc_det_bloco}
+
+                            <div class='curciol-timeline-detail-line'>
+                                <b>O que acontece nesta etapa?</b>
+                                <span>{$org_doc_desc_html}</span>
+                            </div>
+                        </div>
+                    ";
+
+                    $mobileOrgDocDetailId = 'mobile_timeline_detail_org_doc';
+                    $mobileOrgDocIconId   = 'mobile_timeline_icon_org_doc';
+
+                    $org_doc_data_bloco_mobile = '';
+
+                    if (!empty($org_doc_data_html))
+                    {
+                        $org_doc_data_bloco_mobile = "
+                            <div class='curciol-mobile-timeline-date'>
+                                {$org_doc_data_html}
+                            </div>
+                        ";
+                    }
+
+                    $mobileTimelineHtml .= "
+                        <div class='curciol-mobile-timeline-item curciol-mobile-timeline-item-origem'>
+                            {$org_doc_data_bloco_mobile}
+
+                            <div class='curciol-mobile-timeline-card'>
+                                <div class='curciol-mobile-timeline-header'>
+                                    <div class='curciol-mobile-timeline-icon'>
+                                        <i class='fas fa-folder-open'></i>
+                                    </div>
+
+                                    <div class='curciol-mobile-timeline-title'>
+                                        {$org_doc_nome_html}
+                                    </div>
+
+                                    <button
+                                        type='button'
+                                        class='curciol-mobile-timeline-toggle'
+                                        onclick=\"
+                                            (function() {
+                                                var detail = document.getElementById('{$mobileOrgDocDetailId}');
+                                                var icon = document.getElementById('{$mobileOrgDocIconId}');
+
+                                                if (detail.style.display === 'none' || detail.style.display === '') {
+                                                    detail.style.display = 'block';
+                                                    icon.innerHTML = '-';
+                                                } else {
+                                                    detail.style.display = 'none';
+                                                    icon.innerHTML = '+';
+                                                }
+                                            })();
+                                            return false;
+                                        \"
+                                    >
+                                        <span id='{$mobileOrgDocIconId}'>+</span>
+                                    </button>
+                                </div>
+
+                                <div id='{$mobileOrgDocDetailId}' class='curciol-mobile-timeline-detail' style='display:none;'>
+                                    {$org_doc_det_bloco_mobile}
+
+                                    <div class='curciol-mobile-detail-block'>
+                                        <div class='curciol-mobile-detail-label'>O que acontece nesta etapa?</div>
+                                        <div class='curciol-mobile-detail-text'>{$org_doc_desc_html}</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    ";
+
+                    $this->timeline->addItem(
+                        'org_doc',
+                        $org_doc_title,
+                        $org_doc_template,
+                        $org_doc_date,
+                        'fas:folder-open bg-blue',
+                        'left'
+                    );
+                }
+            }
             $this->timeline->setTimeDisplayMask('dd/mm/yyyy');
             $this->timeline->setFinalIcon( 'fas:flag-checkered #ffffff #de1414' );
 
@@ -684,6 +917,23 @@ class ProcessoPublicacoesTimeLine extends TPage
                     width: 3px;
                     background: #d7dee8;
                     border-radius: 999px;
+                }
+
+                /*
+                    Organização Documental fecha a lista por baixo: é o começo
+                    do processo. A linha vertical para nela em vez de seguir
+                    para o vazio.
+                */
+                .curciol-mobile-timeline-item-origem:before {
+                    bottom: 0 !important;
+                }
+
+                .curciol-mobile-timeline-item-origem .curciol-mobile-timeline-card {
+                    border-left-color: #1E2843;
+                }
+
+                .curciol-mobile-timeline-item-origem .curciol-mobile-timeline-icon {
+                    background: #1E2843 !important;
                 }
 
                 .curciol-mobile-timeline-date {
