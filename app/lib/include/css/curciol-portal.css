@@ -763,21 +763,27 @@ body.builder-template-login .curciol-lista .tdatagrid_pagination {
     font-size: 11px !important;
 }
 
-/* marcador: centro em x=16, alinhado com a primeira linha do cartao */
+/*
+    Marcador: circulo cheio, glifo branco. O anel vazado com glifo de 10px
+    nao renderizava o icone; o circulo cheio e maior e o unico que se provou
+    visivel nesta combinacao de tema e Font Awesome.
+    Centro em x=16 (28px de largura a partir de x=2), para bater com o trilho.
+*/
 .curciol-timeline-page .timeline > li > .fa,
 .curciol-timeline-page .timeline > li > .fas,
+.curciol-timeline-page .timeline > li > .far,
 .curciol-timeline-page .timeline > li > i {
-    left: 3px !important;
-    top: 11px !important;
-    width: 26px !important;
-    height: 26px !important;
-    line-height: 22px !important;
+    left: 2px !important;
+    top: 10px !important;
+    width: 28px !important;
+    height: 28px !important;
+    line-height: 28px !important;
     text-align: center !important;
-    background: var(--p-card) !important;
-    border: 2px solid var(--p-brand) !important;
+    background: var(--p-brand) !important;
+    border: 0 !important;
     border-radius: 50% !important;
-    color: var(--p-brand) !important;
-    font-size: 10px !important;
+    color: #ffffff !important;
+    font-size: 12px !important;
     box-shadow: none !important;
 }
 
@@ -905,8 +911,7 @@ body.builder-template-login .curciol-lista .tdatagrid_pagination {
 }
 
 .curciol-mobile-timeline-item-origem .curciol-mobile-timeline-icon {
-    border-color: var(--p-navy) !important;
-    color: var(--p-navy) !important;
+    background: var(--p-navy) !important;
 }
 
 .curciol-mobile-timeline-date {
@@ -944,14 +949,14 @@ body.builder-template-login .curciol-lista .tdatagrid_pagination {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 20px;
-    height: 20px;
-    min-width: 20px;
-    background: var(--p-card);
-    border: 2px solid var(--p-brand);
+    width: 22px;
+    height: 22px;
+    min-width: 22px;
+    background: var(--p-brand);
+    border: 0;
     border-radius: 50%;
-    color: var(--p-brand);
-    font-size: 8px;
+    color: #ffffff;
+    font-size: 9px;
     z-index: 5;
 }
 
