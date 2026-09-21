@@ -71,7 +71,33 @@ class ProcessoViewHeaderList extends TPage
         $column_tipo_processo = new TDataGridColumn('tipo_processo', "Tipo", 'left');
         $column_assunto = new TDataGridColumn('assunto', "Assunto", 'left');
         $column_numero = new TDataGridColumn('numero', "Número", 'left');
-        $column_ultima_etapa = new TDataGridColumn('ultima_etapa', "Ultima etapa", 'left');
+        $column_ultima_etapa = new TDataGridColumn('ultima_etapa', "Última etapa", 'left');
+
+        /*
+            Apresentacao das celulas. O numero do processo e uma sequencia
+            longa: em numeral tabular ele para de dancar de linha em linha.
+            A etapa vira um selo, para o olho achar o estado do processo sem
+            ler a linha inteira. Ver app/lib/include/css/curciol-portal.css.
+        */
+        $column_numero->setTransformer(function ($value) {
+            $value = trim((string) $value);
+
+            if ($value === '') {
+                return '-';
+            }
+
+            return "<span class='curciol-num'>" . htmlspecialchars($value, ENT_QUOTES, 'UTF-8') . "</span>";
+        });
+
+        $column_ultima_etapa->setTransformer(function ($value) {
+            $value = trim((string) $value);
+
+            if ($value === '') {
+                return '-';
+            }
+
+            return "<span class='curciol-selo'>" . htmlspecialchars($value, ENT_QUOTES, 'UTF-8') . "</span>";
+        });
 
         $this->datagrid->addColumn($column_tipo_processo);
         $this->datagrid->addColumn($column_assunto);
