@@ -3,7 +3,14 @@
 Please refer to [UPGRADING](UPGRADING.md) guide for upgrading to a major version.
 
 
-## 8.1.0 - Upcoming
+## 8.2.0 - 2026-09-06
+
+### Changed
+
+- Allow connection caps to be combined with persistent transport sharing on libcurl 8.22.0+
+
+
+## 8.1.0 - 2026-08-24
 
 ### Added
 

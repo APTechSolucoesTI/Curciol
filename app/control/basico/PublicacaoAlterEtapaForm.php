@@ -32,6 +32,40 @@ class PublicacaoAlterEtapaForm extends TWindow
 
         $criteria_publicacao_etapa_id = new TCriteria();
 
+        $key = $param['key'];
+        $tipo = null;
+
+        if (!empty($key)) {
+            TTransaction::open(self::$database);
+            $pub = Publicacao::where('id', '=', $key)->first();
+            if (!empty($pub->processo_id)) {
+                $processo = Processo::where('id', '=', $pub->processo_id)->first();
+                if (!empty($processo->tipo_processo_id)) {
+                    if ($processo->tipo_processo_id == 1) {
+                        $tipo = 'J';
+                    }
+                    if ($processo->tipo_processo_id == 2) {
+                        $tipo = 'E';
+                    }
+                }
+            }
+            TTransaction::close();
+        }
+
+        if ($tipo != null) {
+            if ($tipo == 'J') {
+                TSession::setValue(__CLASS__.'load_filter_judicial', 'S' ?? "");            
+                $filterVar = TSession::getValue(__CLASS__.'load_filter_judicial');
+                $criteria_publicacao_etapa_id->add(new TFilter('judicial', '=', $filterVar)); 
+            }
+
+            if ($tipo == 'E') {
+                TSession::setValue(__CLASS__.'load_filter_extrajudicial', 'S' ?? "");            
+                $filterVar = TSession::getValue(__CLASS__.'load_filter_extrajudicial');
+                $criteria_publicacao_etapa_id->add(new TFilter('extrajudicial', '=', $filterVar));    
+            }            
+        }
+
         $id = new THidden('id');
         $publicacao_etapa_id = new TDBCombo('publicacao_etapa_id', 'escritorio', 'PublicacaoEtapa', 'id', '{etapa_nome}','ordem_prioridade asc' , $criteria_publicacao_etapa_id );
 

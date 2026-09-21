@@ -74,6 +74,7 @@ SELECT setval('mensagem_acao_id_seq', coalesce(max(id),0) + 1, false) FROM mensa
 SELECT setval('modelo_doc_aplicacao_id_seq', coalesce(max(id),0) + 1, false) FROM modelo_doc_aplicacao;
 SELECT setval('modelo_doc_tipo_aplicacao_id_seq', coalesce(max(id),0) + 1, false) FROM modelo_doc_tipo_aplicacao;
 SELECT setval('modelo_documento_id_seq', coalesce(max(id),0) + 1, false) FROM modelo_documento;
+SELECT setval('modelo_documento_misto_id_seq', coalesce(max(id),0) + 1, false) FROM modelo_documento_misto;
 SELECT setval('modelo_documento_pf_id_seq', coalesce(max(id),0) + 1, false) FROM modelo_documento_pf;
 SELECT setval('modelo_documento_pfrep_id_seq', coalesce(max(id),0) + 1, false) FROM modelo_documento_pfrep;
 SELECT setval('modelo_documento_pj_id_seq', coalesce(max(id),0) + 1, false) FROM modelo_documento_pj;

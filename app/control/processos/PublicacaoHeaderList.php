@@ -44,7 +44,7 @@ class PublicacaoHeaderList extends TPage
         $numero_publicacao = new TEntry('numero_publicacao');
         $prazo = new TDate('prazo');
         $data_entrega = new TDate('data_entrega');
-        $etapa = new TDBCombo('etapa', 'escritorio', 'PublicacaoEtapa', 'etapa_nome', '{etapa_nome}','id asc' , $criteria_etapa );
+        $etapa = new TDBCombo('etapa', 'escritorio', 'PublicacaoEtapa', 'etapa_nome', '{etapa_nome}','ordem_prioridade asc' , $criteria_etapa );
         $etapa_verificada = new TCombo('etapa_verificada');
         $global_filter = new TEntry('global_filter');
 

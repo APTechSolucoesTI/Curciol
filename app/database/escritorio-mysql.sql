@@ -845,6 +845,31 @@ CREATE TABLE modelo_documento(
       `modificacao_user_id` int   , 
  PRIMARY KEY (id)) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci; 
 
+CREATE TABLE modelo_documento_misto( 
+      `id`  INT  AUTO_INCREMENT    , 
+      `modelo_documento_id` int   NOT NULL  , 
+      `filename` varchar  (255)   , 
+      `objeto` char  (1)     DEFAULT 'N', 
+      `informacoes_pagamento` char  (1)     DEFAULT 'N', 
+      `pf_cpf` char  (1)     DEFAULT 'N', 
+      `pf_rg` char  (1)     DEFAULT 'N', 
+      `pf_data_nascimento` char  (1)     DEFAULT 'N', 
+      `pf_nacionalidade` char  (1)     DEFAULT 'N', 
+      `pf_estado_civil` char  (1)     DEFAULT 'N', 
+      `pf_profissao` char  (1)     DEFAULT 'N', 
+      `pf_endereco` char  (1)     DEFAULT 'N', 
+      `pj_cnpj` char  (1)     DEFAULT 'N', 
+      `pj_data_abertura` char  (1)     DEFAULT 'N', 
+      `pj_endereco` char  (1)     DEFAULT 'N', 
+      `pj_rep_cpf` char  (1)     DEFAULT 'N', 
+      `pj_rep_rg` char  (1)     DEFAULT 'N', 
+      `pj_rep_data_nascimento` char  (1)     DEFAULT 'N', 
+      `pj_rep_nacionalidade` char  (1)     DEFAULT 'N', 
+      `pj_rep_estado_civil` char  (1)     DEFAULT 'N', 
+      `pj_rep_profissao` char  (1)     DEFAULT 'N', 
+      `pj_rep_endereco` char  (1)     DEFAULT 'N', 
+ PRIMARY KEY (id)) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci; 
+
 CREATE TABLE modelo_documento_pf( 
       `id`  INT  AUTO_INCREMENT    NOT NULL  , 
       `modelo_documento_id` int   NOT NULL  , 
@@ -1650,6 +1675,7 @@ CREATE TABLE whatsapp_config(
 
  
  ALTER TABLE cep_cache ADD UNIQUE (cep);
+ ALTER TABLE modelo_documento_misto ADD UNIQUE (modelo_documento_id);
   
  ALTER TABLE agenda ADD CONSTRAINT fk_agenda_3 FOREIGN KEY (procedimento_id) references procedimento(id); 
 ALTER TABLE agenda ADD CONSTRAINT fk_agenda_1 FOREIGN KEY (escritorio_id) references escritorio(id); 
@@ -1851,6 +1877,7 @@ ALTER TABLE modelo_doc_aplicacao ADD CONSTRAINT fk_tipo_doc_aplicacao_2 FOREIGN 
 ALTER TABLE modelo_documento ADD CONSTRAINT fk_tipo_documento_1 FOREIGN KEY (criacao_user_id) references system_users(id); 
 ALTER TABLE modelo_documento ADD CONSTRAINT fk_tipo_documento_2 FOREIGN KEY (modificacao_user_id) references system_users(id); 
 ALTER TABLE modelo_documento ADD CONSTRAINT fk_modelo_documento_3 FOREIGN KEY (tipo_modelo_documento_id) references tipo_modelo_documento(id); 
+ALTER TABLE modelo_documento_misto ADD CONSTRAINT fk_modelo_documento_misto_1 FOREIGN KEY (modelo_documento_id) references modelo_documento(id); 
 ALTER TABLE modelo_documento_pf ADD CONSTRAINT fk_modelo_documento_pf_1 FOREIGN KEY (modelo_documento_id) references modelo_documento(id); 
 ALTER TABLE modelo_documento_pfrep ADD CONSTRAINT fk_modelo_documento_pfrep_1 FOREIGN KEY (modelo_documento_id) references modelo_documento(id); 
 ALTER TABLE modelo_documento_pj ADD CONSTRAINT fk_modelo_documento_pj_1 FOREIGN KEY (modelo_documento_id) references modelo_documento(id); 

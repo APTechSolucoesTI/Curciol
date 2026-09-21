@@ -112,9 +112,63 @@ class ModeloDocumento extends TRecord
         '${informacoes_documento}' => "documento->autenticador"
     ];
 
+    const VARIAVEIS_MISTO = [
+            '${nome_cliente}' => "cliente->nome_formatado",
+            '${nome_profissional}' => "profissional->nome_formatado",
+
+            // PF
+            '${data_nascimento}' => "cliente->dt_nasci_formatada",
+            '${nacionalidade}' => "cliente->nacionalidade->nome",
+            '${estado_civil}' => "cliente->estado_civil->nome",
+            '${profissao}' => "cliente->profissao",
+            '${rg}' => "cliente->rg_ie",
+            '${orgao_emissor}' => "cliente->orgao_emissor",
+            '${cpf}' => "cliente->cpf_cnpj",
+
+            // PJ
+            '${data_abertura}' => "cliente->dt_nasci_formatada",
+            '${cnpj}' => "cliente->cpf_cnpj",
+
+            // Endereço cliente
+            '${rua}' => "cliente_endereco->rua",
+            '${numero}' => "cliente_endereco->numero",
+            '${complemento}' => "cliente_endereco->complemento",
+            '${bairro}' => "cliente_endereco->bairro",
+            '${cidade}' => "cliente_endereco->cidade->nome",
+            '${uf}' => "cliente_endereco->cidade->estado->sigla",
+            '${cep}' => "cliente_endereco->cep",
+
+            // Representante
+            '${nome_representante}' => "representante->nome_formatado",
+            '${data_nascimento_representante}' => "representante->dt_nasci_formatada",
+            '${nacionalidade_representante}' => "representante->nacionalidade->nome",
+            '${estado_civil_representante}' => "representante->estado_civil->nome",
+            '${profissao_representante}' => "representante->profissao",
+            '${rg_representante}' => "representante->rg",
+            '${orgao_emissor_representante}' => "representante->orgao_emissor",
+            '${cpf_representante}' => "representante->cpf_cnpj",
+
+            // Endereço representante
+            '${rua_representante}' => "representante_endereco->rua",
+            '${numero_representante}' => "representante_endereco->numero",
+            '${complemento_representante}' => "representante_endereco->complemento",
+            '${bairro_representante}' => "representante_endereco->bairro",
+            '${cidade_representante}' => "representante_endereco->cidade->nome",
+            '${uf_representante}' => "representante_endereco->cidade->estado->sigla",
+            '${cep_representante}' => "representante_endereco->cep",
+
+            // Gerais
+            '${nome_escritorio}' => "agendamento->agenda->escritorio->nome",
+            '${data_atendimento}' => "data_atendimento",
+            '${inicio_atendimento}' => "inicio_atendimento",
+            '${objeto}' => "contrato->objeto",
+            '${informacoes_pagamento}' => "contrato->pagamento",
+            '${informacoes_documento}' => "documento->autenticador"
+        ];
+
     private static $LAUDO = 1;
 
-                                                                                        
+                                                                                            
 
     /**
      * Constructor method
@@ -283,6 +337,15 @@ class ModeloDocumento extends TRecord
         $criteria = new TCriteria;
         $criteria->add(new TFilter('modelo_documento_id', '=', $this->id));
         return PadraoAtendModeloDoc::getObjects( $criteria );
+    }
+    /**
+     * Method getModeloDocumentoMistos
+     */
+    public function getModeloDocumentoMistos()
+    {
+        $criteria = new TCriteria;
+        $criteria->add(new TFilter('modelo_documento_id', '=', $this->id));
+        return ModeloDocumentoMisto::getObjects( $criteria );
     }
 
     public function set_contrato_documento_contrato_to_string($contrato_documento_contrato_to_string)
@@ -750,6 +813,32 @@ class ModeloDocumento extends TRecord
         }
     
         $values = PadraoAtendModeloDoc::where('modelo_documento_id', '=', $this->id)->getIndexedArray('modelo_documento_id','{modelo_documento->nome}');
+        return implode(', ', $values);
+    }
+
+    public function set_modelo_documento_misto_modelo_documento_to_string($modelo_documento_misto_modelo_documento_to_string)
+    {
+        if(is_array($modelo_documento_misto_modelo_documento_to_string))
+        {
+            $values = ModeloDocumento::where('id', 'in', $modelo_documento_misto_modelo_documento_to_string)->getIndexedArray('nome', 'nome');
+            $this->modelo_documento_misto_modelo_documento_to_string = implode(', ', $values);
+        }
+        else
+        {
+            $this->modelo_documento_misto_modelo_documento_to_string = $modelo_documento_misto_modelo_documento_to_string;
+        }
+
+        $this->vdata['modelo_documento_misto_modelo_documento_to_string'] = $this->modelo_documento_misto_modelo_documento_to_string;
+    }
+
+    public function get_modelo_documento_misto_modelo_documento_to_string()
+    {
+        if(!empty($this->modelo_documento_misto_modelo_documento_to_string))
+        {
+            return $this->modelo_documento_misto_modelo_documento_to_string;
+        }
+    
+        $values = ModeloDocumentoMisto::where('modelo_documento_id', '=', $this->id)->getIndexedArray('modelo_documento_id','{modelo_documento->nome}');
         return implode(', ', $values);
     }
 

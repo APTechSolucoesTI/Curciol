@@ -63,6 +63,7 @@ class ContratoFormView extends TPage
         $action3->class = 'btn btn-default';
 
         $action3->name = 'btnGerarDocumento';
+
         $row1 = $this->form->addFields([$label1,$text1],[$label2,$text2],[$label8,$text8,$action2]);
         $row1->layout = [' col-sm-4',' col-sm-4',' col-sm-4'];
 
@@ -603,6 +604,7 @@ class ContratoFormView extends TPage
             new TMessage('error', $e->getMessage());    
         }
     }
+
     public static function canInvalidar($object)
     {
         try 
@@ -619,6 +621,7 @@ class ContratoFormView extends TPage
             new TMessage('error', $e->getMessage());    
         }
     }
+
     public static function onPrint($param = null) 
     {
         try 
@@ -632,6 +635,7 @@ class ContratoFormView extends TPage
             new TMessage('error', $e->getMessage());    
         }
     }
+
     public static function canImprimir($object)
     {
         try 
@@ -656,6 +660,7 @@ class ContratoFormView extends TPage
             new TMessage('error', $e->getMessage());    
         }
     }
+
     public static function onDownload($param = null) 
     {
         try 
@@ -669,6 +674,7 @@ class ContratoFormView extends TPage
             new TMessage('error', $e->getMessage());    
         }
     }
+
     public static function onAddFinanceiro($param = null) 
     {
         try 
@@ -759,7 +765,7 @@ class ContratoFormView extends TPage
             foreach ($repasses as $repasse)
             {
                 $grupo = PessoaGrupo::where('pessoa_id', '=', $repasse->pessoa_id)
-                    ->where('grupo_id', 'in', [Grupo::PARCEIRO, Grupo::FORNECEDOR])
+                    ->where('grupo_id', 'in', [Grupo::PARCEIRO, Grupo::PROFISSIONAL])
                     ->first();
 
                 if ($grupo)
@@ -839,6 +845,7 @@ class ContratoFormView extends TPage
             new TMessage('error', $e->getMessage());    
         }
     }
+
     public static function canGerar($object)
     {
         try 
@@ -906,6 +913,7 @@ class ContratoFormView extends TPage
             new TMessage('error', $e->getMessage());    
         }
     }
+
     public function onDelete($param = null) 
     {
         if(isset($param['delete']) && $param['delete'] == 1)
@@ -978,90 +986,362 @@ class ContratoFormView extends TPage
             TScript::create("$(\"[name='btnGerarDocumento']\").closest('.fb-inline-field-container').hide()");
         }
         TTransaction::close();
+
     }
 
     public static function onGerarDoc($param = null) 
     {
-        try 
+        try
         {
             TTransaction::open(self::$database);
 
-            $contrato = Contrato::find((int)$param['key']);
+            $contrato = Contrato::find((int) $param['key']);
 
-            $contratoRepres = ContratoRepresentante::where('contrato_id','=',$contrato->id)->orderby('id')->first();
-            if(!$contratoRepres){
-                $param['repres'] = 0;
+            if (!$contrato) {
+                throw new Exception('Contrato não encontrado.');
             }
-            if(isset($param['repres']))
+
+            // =====================================================
+            // DESCOBRE TODOS OS CLIENTES DO CONTRATO
+            // =====================================================
+
+            $contratoPessoas = ContratoPessoa::where(
+                'contrato_id',
+                '=',
+                $contrato->id
+            )
+            ->orderby('id')
+            ->load();
+
+            $idsClientes = [];
+
+            $temPf = false;
+            $temPj = false;
+
+            foreach ($contratoPessoas as $contratoPessoa)
             {
-
-                $contrato = Contrato::find((int)$param['key']);
-
-                if($param['repres']==1){
-                    $cliente_id = (ContratoRepresentante::where('contrato_id','=',$contrato->id)->orderby('id')->first())->representante_id;
-                }else{
-                    $cliente_id = (ContratoPessoa::where('contrato_id','=',$contrato->id)->orderby('id')->first())->cliente_id;
+                if (empty($contratoPessoa->cliente_id)) {
+                    continue;
                 }
 
-                $repasses = ContratoRepasse::where('contrato_id','=',(int) $contrato->id)->orderby('id')->load();
-                foreach($repasses as $repasse){
-                    $grupo = PessoaGrupo::where('pessoa_id','=',$repasse->pessoa_id)->where('grupo_id','=',Grupo::PROFISSIONAL)->first();
-                    if($grupo){
+                $cid = (int) $contratoPessoa->cliente_id;
+
+                $idsClientes[] = $cid;
+
+                $pessoa = Pessoa::find($cid);
+
+                if (!$pessoa) {
+                    continue;
+                }
+
+                if ($pessoa->tipo_pessoa_id == TipoPessoa::FISICA) {
+                    $temPf = true;
+                }
+
+                if ($pessoa->tipo_pessoa_id == TipoPessoa::JURIDICA) {
+                    $temPj = true;
+                }
+            }
+
+            if (empty($idsClientes)) {
+                throw new Exception('Nenhum cliente vinculado ao contrato.');
+            }
+
+            $usarMisto = ($temPf && $temPj);
+
+            // =====================================================
+            // REPRESENTANTE
+            // =====================================================
+
+            $contratoRepres = ContratoRepresentante::where(
+                'contrato_id',
+                '=',
+                $contrato->id
+            )
+            ->orderby('id')
+            ->first();
+
+            /*
+            * No Misto não perguntamos se quer gerar usando representante.
+            *
+            * O documento será gerado com todos os clientes PF/PJ
+            * e o representante da PJ será preenchido automaticamente
+            * pelo ModeloDocumentoService.
+            */
+            if ($usarMisto)
+            {
+                $param['repres'] = 0;
+            }
+            elseif (!$contratoRepres)
+            {
+                $param['repres'] = 0;
+            }
+
+            if (isset($param['repres']))
+            {
+                // =================================================
+                // DEFINE QUEM SERÁ ENVIADO AO SERVICE
+                // =================================================
+
+                if (!$usarMisto)
+                {
+                    // Mantém funcionamento legado
+                    if ($param['repres'] == 1)
+                    {
+                        $rep = ContratoRepresentante::where(
+                            'contrato_id',
+                            '=',
+                            $contrato->id
+                        )
+                        ->orderby('id')
+                        ->first();
+
+                        if (!$rep) {
+                            throw new Exception('Representante não encontrado.');
+                        }
+
+                        $cliente_id = (int) $rep->representante_id;
+                    }
+                    else
+                    {
+                        $primeiroCliente = ContratoPessoa::where(
+                            'contrato_id',
+                            '=',
+                            $contrato->id
+                        )
+                        ->orderby('id')
+                        ->first();
+
+                        if (!$primeiroCliente) {
+                            throw new Exception('Cliente do contrato não encontrado.');
+                        }
+
+                        $cliente_id = (int) $primeiroCliente->cliente_id;
+                    }
+                }
+
+                // =================================================
+                // PROFISSIONAL
+                // =================================================
+
+                $profissional = null;
+
+                $repasses = ContratoRepasse::where(
+                    'contrato_id',
+                    '=',
+                    (int) $contrato->id
+                )
+                ->orderby('id')
+                ->load();
+
+                foreach ($repasses as $repasse)
+                {
+                    $grupo = PessoaGrupo::where(
+                        'pessoa_id',
+                        '=',
+                        $repasse->pessoa_id
+                    )
+                    ->where(
+                        'grupo_id',
+                        '=',
+                        Grupo::PROFISSIONAL
+                    )
+                    ->first();
+
+                    if ($grupo)
+                    {
                         $profissional = Pessoa::find($repasse->pessoa_id);
                         break;
                     }
                 }
 
-                $documentosObrigatorios = DocumentoBaseContrato::where('area_id','=',$contrato->area_id)->load();
-                foreach($documentosObrigatorios as $documentoObrigatorio){
+                // Quantidade real de pagamentos já existentes
+                $qtdePagamento = ContratoPagamentoParcela::where(
+                    'contrato_id',
+                    '=',
+                    $contrato->id
+                )->count();
 
-                    $modeloDocumento = ModeloDocumento::find($documentoObrigatorio->modelo_documento_id);
+                // =================================================
+                // DOCUMENTOS OBRIGATÓRIOS
+                // =================================================
 
-                    //VERIFICAR OBRIGATORIEDADES
-                    $serviceParam = [
-                        'modelo_documento_id' => $modeloDocumento->id,
-                        'cliente_id' => $cliente_id,
-                        'profissional_id' => $profissional->id,
-                        'contrato_id' => $contrato->id
-                    ];
+                $documentosObrigatorios = DocumentoBaseContrato::where(
+                    'area_id',
+                    '=',
+                    $contrato->area_id
+                )->load();
 
-                    $validarDados = ModeloDocumentoService::validarDadosObriatoriosDocumento($serviceParam);
+                foreach ($documentosObrigatorios as $documentoObrigatorio)
+                {
+                    $modeloDocumento = ModeloDocumento::find(
+                        $documentoObrigatorio->modelo_documento_id
+                    );
 
-                    if($validarDados!==""){
-                        throw new Exception($validarDados);
+                    if (!$modeloDocumento) {
+                        continue;
                     }
 
-                    $returnParam = ModeloDocumentoService::preencherDocumento($serviceParam);
+                    // =============================================
+                    // VALIDAÇÃO
+                    // =============================================
+
+                    if ($usarMisto)
+                    {
+                        $erros = [];
+
+                        foreach ($idsClientes as $cid)
+                        {
+                            $dadosCliente = ModeloDocumentoService::onVerificarDadosCliente(
+                                $cid,
+                                $modeloDocumento,
+                                $contrato->objeto,
+                                $qtdePagamento,
+                                true
+                            );
+
+                            if ($dadosCliente)
+                            {
+                                $erros[] =
+                                    "Não é possível gerar documento <b>{$modeloDocumento->nome}</b> " .
+                                    "para <b>{$dadosCliente['cliente']}</b>. " .
+                                    "Cadastre: {$dadosCliente['dadosFaltantes']}.";
+                            }
+                        }
+
+                        if (!empty($erros)) {
+                            throw new Exception(implode('<br>', $erros));
+                        }
+                    }
+                    else
+                    {
+                        /*
+                        * Mantém a validação antiga para não alterar o
+                        * comportamento dos contratos antigos.
+                        */
+                        $serviceParamValidacao = [
+                            'modelo_documento_id' => $modeloDocumento->id,
+                            'cliente_id'          => $cliente_id,
+                            'profissional_id'     => $profissional->id ?? null,
+                            'contrato_id'         => $contrato->id,
+                            'objeto'              => $contrato->objeto,
+                        ];
+
+                        $validarDados =
+                            ModeloDocumentoService::validarDadosObriatoriosDocumento(
+                                $serviceParamValidacao
+                            );
+
+                        if ($validarDados !== '') {
+                            throw new Exception($validarDados);
+                        }
+                    }
+
+                    // =============================================
+                    // GERAÇÃO
+                    // =============================================
+
+                    $serviceParam = [
+                        'modelo_documento_id' => $modeloDocumento->id,
+                        'profissional_id'     => $profissional->id ?? null,
+                        'contrato_id'         => $contrato->id,
+                        'objeto'              => $contrato->objeto,
+                    ];
+
+                    if ($usarMisto)
+                    {
+                        $serviceParam['clientes_ids'] = $idsClientes;
+                    }
+                    else
+                    {
+                        $serviceParam['cliente_id'] = $cliente_id;
+                    }
+
+                    $returnParam =
+                        ModeloDocumentoService::preencherDocumento(
+                            $serviceParam
+                        );
+
+                    if (!$returnParam) {
+                        throw new Exception(
+                            "Falha ao gerar documento {$modeloDocumento->nome}."
+                        );
+                    }
+
+                    // =============================================
+                    // REGISTRA DOCUMENTO
+                    // =============================================
 
                     $contratoDocumento = new ContratoDocumento();
-                    $contratoDocumento->modelo_documento_id = $modeloDocumento->id;
-                    $contratoDocumento->autenticador = $returnParam['autenticador'];
-                    $contratoDocumento->contrato_id = $returnParam['complemento_id'];
-                    $contratoDocumento->dt_preenchimento = date('Y-m-d H:i:s');
-                    $contratoDocumento->filename = $returnParam['novo_nome_arquivo'];
-                    $contratoDocumento->criacao_user_id = TSession::getValue('userid');
+
+                    $contratoDocumento->modelo_documento_id =
+                        $modeloDocumento->id;
+
+                    /*
+                    * MULTI não possui um único autenticador,
+                    * pois cada cliente recebe um autenticador dentro
+                    * dos blocos.
+                    */
+                    $contratoDocumento->autenticador =
+                        $returnParam['autenticador'] ?? null;
+
+                    /*
+                    * Não dependemos mais de complemento_id aqui.
+                    * Já sabemos qual é o contrato.
+                    */
+                    $contratoDocumento->contrato_id =
+                        $contrato->id;
+
+                    $contratoDocumento->dt_preenchimento =
+                        date('Y-m-d H:i:s');
+
+                    $contratoDocumento->filename =
+                        $returnParam['novo_nome_arquivo'];
+
+                    $contratoDocumento->criacao_user_id =
+                        TSession::getValue('userid');
+
                     $contratoDocumento->store();
                 }
 
-                TApplication::loadPage(__CLASS__, 'onShow', ['key' => $contrato->id]);
-
                 TTransaction::close();
+
+                TApplication::loadPage(
+                    __CLASS__,
+                    'onShow',
+                    ['key' => $contrato->id]
+                );
             }
             else
             {
+                // =================================================
+                // PERGUNTA ANTIGA - SOMENTE NÃO MISTO
+                // =================================================
 
-                // define the delete action
-                $actionRepres = new TAction(array('ContratoFormView', 'onGerarDoc'));
-                $actionRepres->setParameters($param); // pass the key paramseter ahead
+                $actionRepres = new TAction([
+                    'ContratoFormView',
+                    'onGerarDoc'
+                ]);
+
+                $actionRepres->setParameters($param);
                 $actionRepres->setParameter('repres', 1);
 
-                $actionPessoa = new TAction(array('ContratoFormView', 'onGerarDoc'));
-                $actionPessoa->setParameters($param); // pass the key paramseter ahead
+                $actionPessoa = new TAction([
+                    'ContratoFormView',
+                    'onGerarDoc'
+                ]);
+
+                $actionPessoa->setParameters($param);
                 $actionPessoa->setParameter('repres', 0);
-                // shows a dialog to the user
-                new TQuestion('Utilizar o representante nos documentos?', $actionRepres, $actionPessoa);   
+
+                new TQuestion(
+                    'Utilizar o representante nos documentos?',
+                    $actionRepres,
+                    $actionPessoa
+                );
+
+                TTransaction::close();
             }
-            TTransaction::close();
         }
         catch (Exception $e) 
         {

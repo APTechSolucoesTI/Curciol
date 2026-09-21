@@ -106,17 +106,80 @@ class ProcessosFormViewInterno extends TPage
         $processo_view->add($loadingContainer);
         $processo_view->setParameter("processo_id", $param["processo_id"] ?? "");
 
-
 */      $processo_id = (int) ($param['processo_id'] ?? 0);
 
         $criteria_etapas = new TCriteria;
+
+        $tipo_processo_id = null;
+        $filtro_tipo_etapa_sql = '';
 
         $etapas_ids = [];
         $etapa_atual_id = null;
         $ordem_etapa_atual = null;
 
-        $etapas_fixas = [8, 2];
+        $etapas_fixas = [];
         $etapas_ocultas = [1, 10];
+
+        if ($processo_id > 0)
+        {
+            $conn = TTransaction::get();
+
+            /*
+            * Descobre se o processo é Judicial ou Extrajudicial.
+            * 1 = Judicial
+            * 2 = Extrajudicial
+            */
+            $stmt_tipo = $conn->prepare("
+                SELECT tipo_processo_id
+                FROM processo
+                WHERE id = :processo_id
+                LIMIT 1
+            ");
+
+            $stmt_tipo->execute([
+                ':processo_id' => $processo_id
+            ]);
+
+            $tipo_processo_id = (int) $stmt_tipo->fetchColumn();
+
+            if ($tipo_processo_id === 1)
+            {
+                $filtro_tipo_etapa_sql = "
+                    AND COALESCE(UPPER(TRIM(pe.judicial)), 'N') = 'S'
+                ";
+            }
+            elseif ($tipo_processo_id === 2)
+            {
+                $filtro_tipo_etapa_sql = "
+                    AND COALESCE(UPPER(TRIM(pe.extrajudicial)), 'N') = 'S'
+                ";
+            }
+
+            /*
+            * Etapas fixas 8 e 2 também respeitam
+            * Judicial / Extrajudicial.
+            */
+            $sql_etapas_fixas = "
+                SELECT pe.id
+                FROM publicacao_etapa pe
+                WHERE pe.id IN (8, 2)
+
+                {$filtro_tipo_etapa_sql}
+
+                ORDER BY
+                    CASE
+                        WHEN pe.id = 8 THEN 0
+                        WHEN pe.id = 2 THEN 1
+                        ELSE 2
+                    END,
+                    pe.id
+            ";
+
+            $etapas_fixas = array_map(
+                'intval',
+                $conn->query($sql_etapas_fixas)->fetchAll(PDO::FETCH_COLUMN)
+            );
+        }
 
         if ($processo_id > 0)
         {
@@ -153,7 +216,9 @@ class ProcessosFormViewInterno extends TPage
                     andam.publicacao_etapa_id
                 ) IS NOT NULL
 
-                AND pe.id NOT IN (1, 10)
+               AND pe.id NOT IN (1, 10)
+
+                {$filtro_tipo_etapa_sql}
 
                 AND (
                     (
@@ -226,17 +291,35 @@ class ProcessosFormViewInterno extends TPage
             /*
                 Se não encontrou nenhuma etapa dinâmica, usa Protocolo Inicial como base.
             */
-            if ($ordem_etapa_atual === null)
+           if ($ordem_etapa_atual === null)
             {
-                $sql_ordem_base = "
-                    SELECT ordem_prioridade
-                    FROM publicacao_etapa
-                    WHERE id = 2
-                    LIMIT 1
-                ";
+                if (!empty($etapas_fixas))
+                {
+                    /*
+                    * Usa como base a última etapa fixa permitida
+                    * para esse tipo de processo.
+                    */
+                    $etapa_base_id = end($etapas_fixas);
 
-                $ordem_etapa_atual = (int) $conn->query($sql_ordem_base)->fetchColumn();
-                $etapa_atual_id = 2;
+                    $stmt_base = $conn->prepare("
+                        SELECT ordem_prioridade
+                        FROM publicacao_etapa
+                        WHERE id = :id
+                        LIMIT 1
+                    ");
+
+                    $stmt_base->execute([
+                        ':id' => $etapa_base_id
+                    ]);
+
+                    $ordem_etapa_atual = (int) $stmt_base->fetchColumn();
+                    $etapa_atual_id = $etapa_base_id;
+                }
+                else
+                {
+                    $ordem_etapa_atual = 0;
+                    $etapa_atual_id = null;
+                }
             }
 
             /*
@@ -247,13 +330,17 @@ class ProcessosFormViewInterno extends TPage
                 Se maior etapa apareceu = Julgamento de Recursos
                 Então Cumprimento da Decisão e Processo Concluído aparecem cinzas.
             */
-            $sql_etapas_futuras = "
+           $sql_etapas_futuras = "
                 SELECT 
                     pe.id
                 FROM publicacao_etapa pe
                 WHERE pe.id NOT IN (1, 10)
                 AND pe.id NOT IN (8, 2)
+
+                {$filtro_tipo_etapa_sql}
+
                 AND pe.ordem_prioridade > :ordem_etapa_atual
+
                 ORDER BY
                     pe.ordem_prioridade ASC,
                     pe.id ASC
@@ -591,6 +678,9 @@ class ProcessosFormViewInterno extends TPage
                         andam.publicacao_etapa_id
                     )
 
+                    INNER JOIN processo proc
+                        ON proc.id = pp.processo_id
+
                 WHERE pp.processo_id = :processo_id
 
                 AND COALESCE(
@@ -600,6 +690,21 @@ class ProcessosFormViewInterno extends TPage
                 ) IS NOT NULL
 
                 AND pe.id NOT IN (1, 10)
+                AND (
+                    (
+                        proc.tipo_processo_id = 1
+                        AND COALESCE(UPPER(TRIM(pe.judicial)), 'N') = 'S'
+                    )
+                    OR
+                    (
+                        proc.tipo_processo_id = 2
+                        AND COALESCE(UPPER(TRIM(pe.extrajudicial)), 'N') = 'S'
+                    )
+                    OR
+                    (
+                        proc.tipo_processo_id NOT IN (1, 2)
+                    )
+                )
 
                 AND (
                     (

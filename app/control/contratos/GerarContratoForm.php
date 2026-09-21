@@ -143,6 +143,7 @@ class GerarContratoForm extends TPage
 
         $button_adicionar_contrato_pagamento_parcela_contrato->id = '66e1956754b6f';
 
+
         $row1 = $this->form->addFields([$numero]);
         $row1->layout = ['col-sm-3'];
 
@@ -611,9 +612,12 @@ class GerarContratoForm extends TPage
                                 // caso mantenha um campo separado
                                 $idsClientes = self::normalizeClientesIds($param['clientes_ids']);
                             }
+
                             if (empty($idsClientes)) {
                                 throw new Exception('Informe ao menos um cliente.');
                             }
+
+                            $usarMisto = self::clientesSaoMistos($idsClientes);
 
                             $erro = [];
 
@@ -635,7 +639,8 @@ class GerarContratoForm extends TPage
                                         $cliente,
                                         $modelo_documento,
                                         $param['objeto'],
-                                        count($param['contrato_pagamento_parcela_contrato_list___row__data'])
+                                        count($param['contrato_pagamento_parcela_contrato_list___row__data']),
+                                        $usarMisto
                                     );
 
                                     if ($dadosCliente){
@@ -1115,6 +1120,35 @@ class GerarContratoForm extends TPage
         if (is_numeric($raw)) return [ (int)$raw ];
 
         return [];
+    }
+
+    private static function clientesSaoMistos(array $idsClientes): bool
+    {
+        $temPf = false;
+        $temPj = false;
+
+        foreach ($idsClientes as $cid)
+        {
+            $cliente = Pessoa::find((int) $cid);
+
+            if (!$cliente) {
+                continue;
+            }
+
+            if ($cliente->tipo_pessoa_id == TipoPessoa::FISICA) {
+                $temPf = true;
+            }
+
+            if ($cliente->tipo_pessoa_id == TipoPessoa::JURIDICA) {
+                $temPj = true;
+            }
+
+            if ($temPf && $temPj) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
 }

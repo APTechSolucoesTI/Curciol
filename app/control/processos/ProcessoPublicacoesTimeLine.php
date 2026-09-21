@@ -64,6 +64,15 @@ class ProcessoPublicacoesTimeLine extends TPage
                 throw new Exception('Processo não informado');
             }
 
+            $processo = Processo::find($processo_id);
+
+            if (!$processo)
+            {
+                throw new Exception('Processo não encontrado');
+            }
+
+            $tipo_processo_id = (int) $processo->tipo_processo_id;
+
 /*
 
             $objects = ProcessoPublicacoes::getObjects($this->timelineCriteria);
@@ -238,11 +247,38 @@ class ProcessoPublicacoesTimeLine extends TPage
 
                         $etapa = PublicacaoEtapa::find($etapa_id);
 
-                        if ($etapa)
+                        if (!$etapa)
                         {
-                            $etapa_nome = $etapa->etapa_nome;
-                            $etapa_obs  = $etapa->descricao ?: '-';
+                            continue;
                         }
+
+                        /*
+                        * Respeita o tipo do processo.
+                        *
+                        * 1 = Judicial
+                        * 2 = Extrajudicial
+                        */
+                        if ($tipo_processo_id === 1)
+                        {
+                            $permite_judicial = strtoupper(trim((string) ($etapa->judicial ?? 'N')));
+
+                            if ($permite_judicial !== 'S')
+                            {
+                                continue;
+                            }
+                        }
+                        elseif ($tipo_processo_id === 2)
+                        {
+                            $permite_extrajudicial = strtoupper(trim((string) ($etapa->extrajudicial ?? 'N')));
+
+                            if ($permite_extrajudicial !== 'S')
+                            {
+                                continue;
+                            }
+                        }
+
+                        $etapa_nome = $etapa->etapa_nome;
+                        $etapa_obs  = $etapa->descricao ?: '-';
 
                         $detailId = 'timeline_detail_' . $object->id;
                         $iconId   = 'timeline_icon_' . $object->id;
@@ -872,6 +908,34 @@ class ProcessoPublicacoesTimeLine extends TPage
                 $container->add(TBreadCrumb::create(["Processos","ProcessoPublicacoesTimeLine"]));
             }
             $container->add($this->timeline);
+
+/*
+
+            //</onBeforeAddTimeline>
+
+            $container->style = 'width: 100%';
+            $container->class = 'form-container';
+            if(empty($param['target_container']))
+            {    
+                $container->add(TBreadCrumb::create(["Processos","ProcessoPublicacoesTimeLine"]));
+            }
+            $container->add($this->timeline);
+
+            //<onAfterAddTimeline>
+
+/*
+
+            //</onBeforeAddTimeline>
+
+            $container->style = 'width: 100%';
+            $container->class = 'form-container';
+            if(empty($param['target_container']))
+            {    
+                $container->add(TBreadCrumb::create(["Processos","ProcessoPublicacoesTimeLine"]));
+            }
+            $container->add($this->timeline);
+
+            //<onAfterAddTimeline>
 
 /*
 

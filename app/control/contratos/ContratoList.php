@@ -52,6 +52,7 @@ class ContratoList extends TPage
         $objeto = new TText('objeto');
         $numero_col = new TEntry('numero_col');
         $cliente_col = new TEntry('cliente_col');
+        $assunto_nome = new TEntry('assunto_nome');
         $parceiro_col = new TEntry('parceiro_col');
         $contrato_status_nome = new TDBCombo('contrato_status_nome', 'escritorio', 'ContratoStatus', 'id', '{nome}','nome asc' , $criteria_contrato_status_nome );
 
@@ -59,10 +60,12 @@ class ContratoList extends TPage
 
         $numero_col->exitOnEnter();
         $cliente_col->exitOnEnter();
+        $assunto_nome->exitOnEnter();
         $parceiro_col->exitOnEnter();
 
         $numero_col->setExitAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
         $cliente_col->setExitAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
+        $assunto_nome->setExitAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
         $parceiro_col->setExitAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
 
         $contrato_status_nome->setChangeAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
@@ -85,6 +88,7 @@ class ContratoList extends TPage
         $objeto->setSize('100%', 70);
         $numero_col->setSize('100%');
         $cliente_col->setSize('100%');
+        $assunto_nome->setSize('100%');
         $parceiro_col->setSize('100%');
         $contrato_status_nome->setSize('100%');
         $contrato_pessoa_pessoa_id->setSize('100%');
@@ -126,6 +130,7 @@ class ContratoList extends TPage
 
         $column_numero = new TDataGridColumn('numero', "Numero", 'left');
         $column_contrato_pessoa_cliente_to_string = new TDataGridColumn('contrato_pessoa_cliente_to_string', "Cliente", 'left');
+        $column_assunto_nome = new TDataGridColumn('assunto->nome', "Assunto", 'center');
         $column_contrato_repasse_pessoa_to_string = new TDataGridColumn('contrato_repasse_pessoa_to_string', "Parceiro", 'left');
         $column_contrato_status_nome_transformed = new TDataGridColumn('contrato_status->nome', "Status", 'left');
 
@@ -143,6 +148,7 @@ class ContratoList extends TPage
 
         $this->datagrid->addColumn($column_numero);
         $this->datagrid->addColumn($column_contrato_pessoa_cliente_to_string);
+        $this->datagrid->addColumn($column_assunto_nome);
         $this->datagrid->addColumn($column_contrato_repasse_pessoa_to_string);
         $this->datagrid->addColumn($column_contrato_status_nome_transformed);
 
@@ -173,6 +179,8 @@ class ContratoList extends TPage
         $tr->add($td_numero_col);
         $td_cliente_col = TElement::tag('td', $cliente_col);
         $tr->add($td_cliente_col);
+        $td_assunto_nome = TElement::tag('td', $assunto_nome);
+        $tr->add($td_assunto_nome);
         $td_parceiro_col = TElement::tag('td', $parceiro_col);
         $tr->add($td_parceiro_col);
         $td_contrato_status_nome = TElement::tag('td', $contrato_status_nome);
@@ -181,6 +189,7 @@ class ContratoList extends TPage
 
         $this->datagrid_form->addField($numero_col);
         $this->datagrid_form->addField($cliente_col);
+        $this->datagrid_form->addField($assunto_nome);
         $this->datagrid_form->addField($parceiro_col);
         $this->datagrid_form->addField($contrato_status_nome);
 
@@ -749,6 +758,12 @@ class ContratoList extends TPage
         {
 
             $filters[] = new TFilter('numero', 'like', "%{$data->numero_col}%");// create the filter 
+        }
+
+        if (isset($data->assunto_nome) AND ( (is_scalar($data->assunto_nome) AND $data->assunto_nome !== '') OR (is_array($data->assunto_nome) AND (!empty($data->assunto_nome)) )) )
+        {
+
+            $filters[] = new TFilter('assunto_id', 'in', "(SELECT id FROM assunto WHERE nome ilike '%{$data->assunto_nome}%')");// create the filter 
         }
 
         $this->fireEvents($data);

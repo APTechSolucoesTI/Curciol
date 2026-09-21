@@ -31,7 +31,13 @@
 
 class ModeloDocumentoService
 {
-    public static function onVerificarDadosCliente($cliente, $modelo, $objeto = null, $qtdePagamento = 0) {
+    public static function onVerificarDadosCliente(
+        $cliente,
+        $modelo,
+        $objeto = null,
+        $qtdePagamento = 0,
+        $usarMisto = false
+    ) {
         try {
             // Normaliza: aceita ID ou objeto
             if (is_numeric($cliente)) { $cliente = Pessoa::find((int)$cliente); }
@@ -48,13 +54,39 @@ class ModeloDocumentoService
             $rep = ($representanteRel && isset($representanteRel->representante)) ? $representanteRel->representante : null;
 
             // Pega linha de obrigatoriedades conforme tipo
-            if ($cliente->tipo_pessoa_id == TipoPessoa::FISICA) {
+            if ($usarMisto)
+            {
+                $dadosObrigatorios = ModeloDocumentoMisto::where(
+                    'modelo_documento_id',
+                    '=',
+                    $modelo->id
+                )->first();
+            }
+            elseif ($cliente->tipo_pessoa_id == TipoPessoa::FISICA)
+            {
                 $dadosObrigatorios = $rep
-                    ? ModeloDocumentoPfr::where('modelo_documento_id', '=', $modelo->id)->first()
-                    : ModeloDocumentoPf::where('modelo_documento_id', '=', $modelo->id)->first();
-            } else {
-                $dadosObrigatorios = ModeloDocumentoPj::where('modelo_documento_id', '=', $modelo->id)->first();
-                if (!$rep) $dadosVerificados[] = "representante";
+                    ? ModeloDocumentoPfrep::where(
+                        'modelo_documento_id',
+                        '=',
+                        $modelo->id
+                    )->first()
+                    : ModeloDocumentoPf::where(
+                        'modelo_documento_id',
+                        '=',
+                        $modelo->id
+                    )->first();
+            }
+            else
+            {
+                $dadosObrigatorios = ModeloDocumentoPj::where(
+                    'modelo_documento_id',
+                    '=',
+                    $modelo->id
+                )->first();
+
+                if (!$rep) {
+                    $dadosVerificados[] = "representante";
+                }
             }
 
             self::verificarCampoObrigatorio($dadosVerificados, $objeto, ($dadosObrigatorios ? $dadosObrigatorios->objeto : null), "objeto");
@@ -63,50 +95,229 @@ class ModeloDocumentoService
                 $dadosVerificados[] = "informações de pagamento";
             }
 
-            self::verificarCampoObrigatorio(
-                $dadosVerificados,
-                (isset($cliente->cpf_cnpj) ? $cliente->cpf_cnpj : null),
-                ($cliente->tipo_pessoa_id == TipoPessoa::FISICA)
-                    ? ($dadosObrigatorios ? $dadosObrigatorios->cpf  : null)
-                    : ($dadosObrigatorios ? $dadosObrigatorios->cnpj : null),
-                ($cliente->tipo_pessoa_id == TipoPessoa::FISICA) ? "CPF" : "CNPJ"
-            );
+            if ($usarMisto)
+            {
+                if ($cliente->tipo_pessoa_id == TipoPessoa::FISICA)
+                {
+                    $reqDocumento      = $dadosObrigatorios->pf_cpf ?? null;
+                    $reqData           = $dadosObrigatorios->pf_data_nascimento ?? null;
+                    $reqRg             = $dadosObrigatorios->pf_rg ?? null;
+                    $reqNacionalidade  = $dadosObrigatorios->pf_nacionalidade ?? null;
+                    $reqEstadoCivil    = $dadosObrigatorios->pf_estado_civil ?? null;
+                    $reqProfissao      = $dadosObrigatorios->pf_profissao ?? null;
+                    $reqEndereco       = $dadosObrigatorios->pf_endereco ?? null;
+                }
+                else
+                {
+                    $reqDocumento      = $dadosObrigatorios->pj_cnpj ?? null;
+                    $reqData           = $dadosObrigatorios->pj_data_abertura ?? null;
+                    $reqRg             = null;
+                    $reqNacionalidade  = null;
+                    $reqEstadoCivil    = null;
+                    $reqProfissao      = null;
+                    $reqEndereco       = $dadosObrigatorios->pj_endereco ?? null;
+                }
+            }
+            else
+            {
+                $reqDocumento = $cliente->tipo_pessoa_id == TipoPessoa::FISICA
+                    ? ($dadosObrigatorios->cpf ?? null)
+                    : ($dadosObrigatorios->cnpj ?? null);
 
-            self::verificarCampoObrigatorio(
-                $dadosVerificados,
-                (isset($cliente->dt_nasci_formatada) ? $cliente->dt_nasci_formatada : null),
-                ($cliente->tipo_pessoa_id == TipoPessoa::FISICA)
-                    ? ($dadosObrigatorios ? $dadosObrigatorios->data_nascimento : null)
-                    : ($dadosObrigatorios ? $dadosObrigatorios->data_abertura   : null),
-                ($cliente->tipo_pessoa_id == TipoPessoa::FISICA) ? "Data de nascimento" : "Data de abertura"
-            );
+                $reqData = $cliente->tipo_pessoa_id == TipoPessoa::FISICA
+                    ? ($dadosObrigatorios->data_nascimento ?? null)
+                    : ($dadosObrigatorios->data_abertura ?? null);
 
-            if ($cliente->tipo_pessoa_id == TipoPessoa::FISICA) {
-                self::verificarCampoObrigatorio($dadosVerificados, (isset($cliente->rg_ie) ? $cliente->rg_ie : null), ($dadosObrigatorios ? $dadosObrigatorios->rg : null), "rg");
-                self::verificarCampoObrigatorio($dadosVerificados, (isset($cliente->orgao_emissor) ? $cliente->orgao_emissor : null), ($dadosObrigatorios ? $dadosObrigatorios->rg : null), "órgão emissor do rg");
-                self::verificarCampoObrigatorio($dadosVerificados, (isset($cliente->nacionalidade) ? $cliente->nacionalidade : null), ($dadosObrigatorios ? $dadosObrigatorios->nacionalidade : null), "nacionalidade");
-                self::verificarCampoObrigatorio($dadosVerificados, (isset($cliente->estado_civil) ? $cliente->estado_civil : null),     ($dadosObrigatorios ? $dadosObrigatorios->estado_civil  : null), "estado civil");
-                self::verificarCampoObrigatorio($dadosVerificados, (isset($cliente->profissao) ? $cliente->profissao : null),           ($dadosObrigatorios ? $dadosObrigatorios->profissao     : null), "profissão");
+                $reqRg            = $dadosObrigatorios->rg ?? null;
+                $reqNacionalidade = $dadosObrigatorios->nacionalidade ?? null;
+                $reqEstadoCivil   = $dadosObrigatorios->estado_civil ?? null;
+                $reqProfissao     = $dadosObrigatorios->profissao ?? null;
+                $reqEndereco      = $dadosObrigatorios->endereco ?? null;
             }
 
-            if ((self::verificarEndereco($cliente->id) < 1) && ($dadosObrigatorios && $dadosObrigatorios->endereco === "S")) {
+            self::verificarCampoObrigatorio(
+                $dadosVerificados,
+                $cliente->cpf_cnpj ?? null,
+                $reqDocumento,
+                $cliente->tipo_pessoa_id == TipoPessoa::FISICA
+                    ? "CPF"
+                    : "CNPJ"
+            );
+
+            self::verificarCampoObrigatorio(
+                $dadosVerificados,
+                $cliente->dt_nasci_formatada ?? null,
+                $reqData,
+                $cliente->tipo_pessoa_id == TipoPessoa::FISICA
+                    ? "Data de nascimento"
+                    : "Data de abertura"
+            );
+
+            if ($cliente->tipo_pessoa_id == TipoPessoa::FISICA)
+            {
+                self::verificarCampoObrigatorio(
+                    $dadosVerificados,
+                    $cliente->rg_ie ?? null,
+                    $reqRg,
+                    "rg"
+                );
+
+                self::verificarCampoObrigatorio(
+                    $dadosVerificados,
+                    $cliente->orgao_emissor ?? null,
+                    $reqRg,
+                    "órgão emissor do rg"
+                );
+
+                self::verificarCampoObrigatorio(
+                    $dadosVerificados,
+                    $cliente->nacionalidade ?? null,
+                    $reqNacionalidade,
+                    "nacionalidade"
+                );
+
+                self::verificarCampoObrigatorio(
+                    $dadosVerificados,
+                    $cliente->estado_civil ?? null,
+                    $reqEstadoCivil,
+                    "estado civil"
+                );
+
+                self::verificarCampoObrigatorio(
+                    $dadosVerificados,
+                    $cliente->profissao ?? null,
+                    $reqProfissao,
+                    "profissão"
+                );
+            }
+
+           if (
+                self::verificarEndereco($cliente->id) < 1 &&
+                $reqEndereco === 'S'
+            )
+            {
                 $dadosVerificados[] = "endereço principal";
             }
 
-            if ($rep) {
-                self::verificarCampoObrigatorio($dadosVerificados, (isset($rep->cpf_cnpj) ? $rep->cpf_cnpj : null),               ($dadosObrigatorios ? $dadosObrigatorios->cpf_rep           : null), "CPF do representante");
-                self::verificarCampoObrigatorio($dadosVerificados, (isset($rep->dt_nasci_formatada) ? $rep->dt_nasci_formatada : null), ($dadosObrigatorios ? $dadosObrigatorios->data_nascimento    : null), "Data de nascimento do representante");
-
-                if ($rep->tipo_pessoa_id == TipoPessoa::FISICA) {
-                    self::verificarCampoObrigatorio($dadosVerificados, (isset($rep->rg_ie) ? $rep->rg_ie : null),                 ($dadosObrigatorios ? $dadosObrigatorios->rg_rep             : null), "rg do representante");
-                    self::verificarCampoObrigatorio($dadosVerificados, (isset($rep->orgao_emissor) ? $rep->orgao_emissor : null), ($dadosObrigatorios ? $dadosObrigatorios->rg_rep             : null), "órgão emissor do rg do representante");
-                    self::verificarCampoObrigatorio($dadosVerificados, (isset($rep->nacionalidade) ? $rep->nacionalidade : null), ($dadosObrigatorios ? $dadosObrigatorios->nacionalidade_rep  : null), "nacionalidade do representante");
-                    self::verificarCampoObrigatorio($dadosVerificados, (isset($rep->estado_civil) ? $rep->estado_civil : null),   ($dadosObrigatorios ? $dadosObrigatorios->estado_civil_rep   : null), "estado civil do representante");
-                    self::verificarCampoObrigatorio($dadosVerificados, (isset($rep->profissao) ? $rep->profissao : null),         ($dadosObrigatorios ? $dadosObrigatorios->profissao_rep      : null), "profissão do representante");
+           if ($rep)
+            {
+                if ($usarMisto)
+                {
+                    // No Misto, o representante configurado é o representante da PJ.
+                    if ($cliente->tipo_pessoa_id == TipoPessoa::JURIDICA)
+                    {
+                        $reqRepCpf            = $dadosObrigatorios->pj_rep_cpf ?? null;
+                        $reqRepRg             = $dadosObrigatorios->pj_rep_rg ?? null;
+                        $reqRepDataNascimento = $dadosObrigatorios->pj_rep_data_nascimento ?? null;
+                        $reqRepNacionalidade  = $dadosObrigatorios->pj_rep_nacionalidade ?? null;
+                        $reqRepEstadoCivil    = $dadosObrigatorios->pj_rep_estado_civil ?? null;
+                        $reqRepProfissao      = $dadosObrigatorios->pj_rep_profissao ?? null;
+                        $reqRepEndereco       = $dadosObrigatorios->pj_rep_endereco ?? null;
+                    }
+                    else
+                    {
+                        // A configuração Misto atual não possui representante da PF.
+                        $reqRepCpf            = null;
+                        $reqRepRg             = null;
+                        $reqRepDataNascimento = null;
+                        $reqRepNacionalidade  = null;
+                        $reqRepEstadoCivil    = null;
+                        $reqRepProfissao      = null;
+                        $reqRepEndereco       = null;
+                    }
+                }
+                else
+                {
+                    $reqRepCpf            = $dadosObrigatorios->cpf_rep ?? null;
+                    $reqRepRg             = $dadosObrigatorios->rg_rep ?? null;
+                    $reqRepDataNascimento = $dadosObrigatorios->data_nascimento_rep ?? null;
+                    $reqRepNacionalidade  = $dadosObrigatorios->nacionalidade_rep ?? null;
+                    $reqRepEstadoCivil    = $dadosObrigatorios->estado_civil_rep ?? null;
+                    $reqRepProfissao      = $dadosObrigatorios->profissao_rep ?? null;
+                    $reqRepEndereco       = $dadosObrigatorios->endereco_rep ?? null;
                 }
 
-                if ((self::verificarEndereco($rep->id) < 1) && ($dadosObrigatorios && $dadosObrigatorios->endereco_rep === "S")) {
+                self::verificarCampoObrigatorio(
+                    $dadosVerificados,
+                    $rep->cpf_cnpj ?? null,
+                    $reqRepCpf,
+                    "CPF do representante"
+                );
+
+                self::verificarCampoObrigatorio(
+                    $dadosVerificados,
+                    $rep->dt_nasci_formatada ?? null,
+                    $reqRepDataNascimento,
+                    "Data de nascimento do representante"
+                );
+
+                if ($rep->tipo_pessoa_id == TipoPessoa::FISICA)
+                {
+                    self::verificarCampoObrigatorio(
+                        $dadosVerificados,
+                        $rep->rg_ie ?? null,
+                        $reqRepRg,
+                        "rg do representante"
+                    );
+
+                    self::verificarCampoObrigatorio(
+                        $dadosVerificados,
+                        $rep->orgao_emissor ?? null,
+                        $reqRepRg,
+                        "órgão emissor do rg do representante"
+                    );
+
+                    self::verificarCampoObrigatorio(
+                        $dadosVerificados,
+                        $rep->nacionalidade ?? null,
+                        $reqRepNacionalidade,
+                        "nacionalidade do representante"
+                    );
+
+                    self::verificarCampoObrigatorio(
+                        $dadosVerificados,
+                        $rep->estado_civil ?? null,
+                        $reqRepEstadoCivil,
+                        "estado civil do representante"
+                    );
+
+                    self::verificarCampoObrigatorio(
+                        $dadosVerificados,
+                        $rep->profissao ?? null,
+                        $reqRepProfissao,
+                        "profissão do representante"
+                    );
+                }
+
+                if (
+                    self::verificarEndereco($rep->id) < 1 &&
+                    $reqRepEndereco === 'S'
+                )
+                {
                     $dadosVerificados[] = "endereço principal do representante";
+                }
+            }
+            elseif (
+                $usarMisto &&
+                $cliente->tipo_pessoa_id == TipoPessoa::JURIDICA &&
+                $dadosObrigatorios
+            )
+            {
+                // Se alguma informação do representante for obrigatória,
+                // mas a PJ não possuir representante.
+                $exigeRepresentante = in_array('S', [
+                    $dadosObrigatorios->pj_rep_cpf ?? null,
+                    $dadosObrigatorios->pj_rep_rg ?? null,
+                    $dadosObrigatorios->pj_rep_data_nascimento ?? null,
+                    $dadosObrigatorios->pj_rep_nacionalidade ?? null,
+                    $dadosObrigatorios->pj_rep_estado_civil ?? null,
+                    $dadosObrigatorios->pj_rep_profissao ?? null,
+                    $dadosObrigatorios->pj_rep_endereco ?? null,
+                ], true);
+
+                if ($exigeRepresentante)
+                {
+                    $dadosVerificados[] = "representante";
                 }
             }
 
@@ -161,6 +372,148 @@ class ModeloDocumentoService
                 self::dbg("cloneBlock {$blk} OK", ['qtde' => $qtd]);
             } catch (\Throwable $e) {
                 self::dbg("Bloco {$blk} ausente (OK)");
+            }
+        }
+    }
+
+    private static function cloneBlocosMisto(
+        \PhpOffice\PhpWord\TemplateProcessor $tp,
+        array $idsClientes,
+        callable $preencherCliente
+    ): void
+    {
+        $todos = [];
+        $pfs   = [];
+        $pjs   = [];
+
+        foreach ($idsClientes as $clienteId)
+        {
+            $cliente = Pessoa::find((int) $clienteId);
+
+            if (!$cliente) {
+                continue;
+            }
+
+            $todos[] = (int) $clienteId;
+
+            if ($cliente->tipo_pessoa_id == TipoPessoa::FISICA)
+            {
+                $pfs[] = (int) $clienteId;
+            }
+            elseif ($cliente->tipo_pessoa_id == TipoPessoa::JURIDICA)
+            {
+                $pjs[] = (int) $clienteId;
+            }
+        }
+
+        /*
+        * Convenção do Misto:
+        *
+        * CLONE1      = todos
+        * CLONE2_PF   = somente PF
+        * CLONE3_PJ   = somente PJ
+        *
+        * O número NÃO possui significado.
+        */
+
+        $variaveis = $tp->getVariables();
+
+        $blocos = [];
+
+        foreach ($variaveis as $variavel)
+        {
+            if (!preg_match(
+                '/^(CLONE\d+)(?:_(PF|PJ))?$/i',
+                $variavel,
+                $match
+            )) {
+                continue;
+            }
+
+            $base = strtoupper($match[1]);
+
+            $tipo = !empty($match[2])
+                ? strtoupper($match[2])
+                : 'TODOS';
+
+            $bloco = $base;
+
+            if ($tipo === 'PF') {
+                $bloco .= '_PF';
+            }
+            elseif ($tipo === 'PJ') {
+                $bloco .= '_PJ';
+            }
+
+            // evita duplicidade
+            if (isset($blocos[$bloco])) {
+                continue;
+            }
+
+            $blocos[$bloco] = $tipo;
+        }
+
+        /*
+        * IMPORTANTE:
+        * clona UM bloco e preenche ele antes de ir para o próximo.
+        *
+        * Assim nome_cliente#1 de CLONE1 não conflita com
+        * nome_cliente#1 de CLONE2_PF, por exemplo.
+        */
+        foreach ($blocos as $bloco => $tipo)
+        {
+            if ($tipo === 'PF')
+            {
+                $clientesBloco = $pfs;
+            }
+            elseif ($tipo === 'PJ')
+            {
+                $clientesBloco = $pjs;
+            }
+            else
+            {
+                $clientesBloco = $todos;
+            }
+
+            try
+            {
+                $tp->cloneBlock(
+                    $bloco,
+                    count($clientesBloco),
+                    true,
+                    true
+                );
+
+                self::dbg(
+                    "cloneBlocosMisto {$bloco}",
+                    [
+                        'tipo' => $tipo,
+                        'qtd'  => count($clientesBloco)
+                    ]
+                );
+
+                $idx = 1;
+
+                foreach ($clientesBloco as $clienteId)
+                {
+                    /*
+                    * Preenche AGORA.
+                    *
+                    * Depois que terminar esse bloco, os #1/#2/etc
+                    * dele deixam de existir e podemos clonar outro
+                    * bloco usando novamente #1/#2/etc.
+                    */
+                    $preencherCliente($clienteId, $idx);
+
+                    $idx++;
+                }
+            }
+            catch (\Throwable $e)
+            {
+                self::dbg(
+                    "Erro clone Misto {$bloco}",
+                    $e->getMessage()
+                );
             }
         }
     }
@@ -227,19 +580,67 @@ class ModeloDocumentoService
             // ======================= MODO MULTI (UM DOC) =======================
             if (count($idsClientes) > 1) {
                 $primeiroCliente = Pessoa::find((int)$idsClientes[0]);
+
+                
                 if (!$primeiroCliente) throw new Exception('Primeiro cliente não encontrado.');
+                
+                $tiposClientes = self::verificarTiposClientes($idsClientes);
+                $ehMisto = $tiposClientes['misto'];
+
                 $representanteBase = PessoaRepresentantesLegais::where('pessoa_juridica_id', '=', $primeiroCliente->id)
                                                                ->where('principal', '=', 'S')
                                                                ->first();
 
-                // Decide template base
-                if ($primeiroCliente->tipo_pessoa_id == TipoPessoa::FISICA && !$representanteBase) {
-                    $documentoBase = ModeloDocumentoPf::where('modelo_documento_id','=',$modeloDocumento->id)->first();
-                } elseif ($primeiroCliente->tipo_pessoa_id == TipoPessoa::FISICA && $representanteBase) {
-                    $documentoBase = ModeloDocumentoPfrep::where('modelo_documento_id','=',$modeloDocumento->id)->first();
-                } else {
-                    $documentoBase = ModeloDocumentoPj::where('modelo_documento_id','=',$modeloDocumento->id)->first();
-                }
+
+                    // Se existir pelo menos um PF e um PJ no mesmo documento,
+                    // obrigatoriamente usa a aba/modelo MISTO.
+                    if ($ehMisto)
+                    {
+                        $documentoBase = ModeloDocumentoMisto::where(
+                            'modelo_documento_id',
+                            '=',
+                            $modeloDocumento->id
+                        )->first();
+
+                        if (!$documentoBase || !$documentoBase->filename)
+                        {
+                            throw new Exception(
+                                'Este contrato possui Pessoa Física e Pessoa Jurídica. ' .
+                                'Configure o arquivo da aba Misto no modelo de documento.'
+                            );
+                        }
+                    }
+                    elseif (
+                        $primeiroCliente->tipo_pessoa_id == TipoPessoa::FISICA &&
+                        !$representanteBase
+                    )
+                    {
+                        $documentoBase = ModeloDocumentoPf::where(
+                            'modelo_documento_id',
+                            '=',
+                            $modeloDocumento->id
+                        )->first();
+                    }
+                    elseif (
+                        $primeiroCliente->tipo_pessoa_id == TipoPessoa::FISICA &&
+                        $representanteBase
+                    )
+                    {
+                        $documentoBase = ModeloDocumentoPfrep::where(
+                            'modelo_documento_id',
+                            '=',
+                            $modeloDocumento->id
+                        )->first();
+                    }
+                    else
+                    {
+                        $documentoBase = ModeloDocumentoPj::where(
+                            'modelo_documento_id',
+                            '=',
+                            $modeloDocumento->id
+                        )->first();
+                    }
+
                 if (!$documentoBase || !$documentoBase->filename) {
                     throw new Exception('Arquivo do modelo não configurado para MULTI.');
                 }
@@ -251,138 +652,771 @@ class ModeloDocumentoService
 
                 $qtd = count($idsClientes);
 
-               //PADRÃO NOVO: CLONE1, CLONE2, CLONE3....CLONE9 (tolerante)
-               self::cloneBlocosPadrao($templateProcessor, $qtd);
-
                 $primeirosNomes = [];
-                
+                $autenticadores = [];
+
                 $templateProcessor->setValue('objeto', $objeto ?: '');
 
-                // Preenche cada índice
-                $idx = 1;
-                foreach ($idsClientes as $clienteId) {
-                    $cliente = Pessoa::find((int)$clienteId);
-                    if (!$cliente) { self::dbg('Cliente não encontrado', $clienteId); $idx++; continue; }
+                /*
+                * ÚNICO PREENCHEDOR DE CLIENTE DO MODO MULTI.
+                *
+                * LEGADO:
+                * cloneBlocosPadrao() clona todos os CLONES pela quantidade total
+                * e este callback é chamado uma vez por cliente.
+                *
+                * MISTO:
+                * cloneBlocosMisto() decide:
+                *
+                * CLONE normal      = todos
+                * CLONEX_PF         = somente PF
+                * CLONEX_PJ         = somente PJ
+                *
+                * e chama este callback com o índice correto de cada bloco.
+                */
+                $preencherCliente = function($clienteId, $idx) use (
+                    $templateProcessor,
+                    $profissional,
+                    $escritorio,
+                    $objeto,
+                    $param,
+                    $complemento,
+                    $tipo_complemento,
+                    $ehMisto,
+                    &$primeirosNomes,
+                    &$autenticadores
+                ) {
+                    $cliente = Pessoa::find((int) $clienteId);
 
-                    $nomeRaw = $cliente->nome_formatado ?? $cliente->nome ?? 'CLIENTE';
-                    $first = trim(preg_split('/\s+/u', $nomeRaw)[0] ?? 'CLIENTE');
-                    $first = preg_replace('/[^\pL\pN _\.-]+/u', '', $first); // mantém letras, números, espaço, _.-
-                    // evita vazio
-                    $primeirosNomes[] = $first !== '' ? $first : 'CLIENTE';
-
-                    $representante = PessoaRepresentantesLegais::where('pessoa_juridica_id', '=', $cliente->id)
-                                                               ->where('principal', '=', 'S')
-                                                               ->first();
-                    $cliente_endereco = PessoaEndereco::where('principal','=','S')
-                                                      ->where('pessoa_id','=',$cliente->id)
-                                                      ->first();
-
-
-
-                    // Autenticador por cliente (tentativas)
-                    $autenticador = null;
-                    $guard = 0;
-                    do {
-                        $autenticador = base64_encode(rand() . '-' . TSession::getValue('userid') . '-' . TSession::getValue('unitid'));
-                        $existeA = Documento::where('autenticador','=',$autenticador)->count();
-                        $existeB = ContratoDocumento::where('autenticador','=',$autenticador)->count();
-                        $guard++;
-                    } while (($existeA>0 || $existeB>0) && $guard < 5);
-
-                    // Campos cliente
-                    $templateProcessor->setValue("nome_cliente#{$idx}",          (isset($cliente->nome_formatado) ? $cliente->nome_formatado : null));
-                    $templateProcessor->setValue("nome_profissional#{$idx}",     ($profissional ? $profissional->nome_formatado : null));
-                    $templateProcessor->setValue("data_nascimento#{$idx}",       (isset($cliente->dt_nasci_formatada) ? $cliente->dt_nasci_formatada : null));
-                    $templateProcessor->setValue("data_abertura#{$idx}",         (isset($cliente->dt_nasci_formatada) ? $cliente->dt_nasci_formatada : null));
-                    $templateProcessor->setValue("nome_escritorio#{$idx}",       ($escritorio ? $escritorio->nome : null));
-                    $templateProcessor->setValue("nacionalidade#{$idx}",         ($cliente && isset($cliente->nacionalidade) && isset($cliente->nacionalidade->nome)) ? $cliente->nacionalidade->nome : null);
-                    $templateProcessor->setValue("estado_civil#{$idx}",          ($cliente && isset($cliente->estado_civil) && isset($cliente->estado_civil->nome)) ? $cliente->estado_civil->nome : null);
-                    $templateProcessor->setValue("profissao#{$idx}",             (isset($cliente->profissao) ? $cliente->profissao : null));
-                    $templateProcessor->setValue("rg#{$idx}",                    (isset($cliente->rg_ie_formatado) ? $cliente->rg_ie_formatado : null));
-                    $templateProcessor->setValue("orgao_emissor#{$idx}",         (isset($cliente->orgao_emissor) ? $cliente->orgao_emissor : null));
-                    $templateProcessor->setValue("cpf#{$idx}",                   (isset($cliente->cpf_cnpj_formatado) ? $cliente->cpf_cnpj_formatado : null));
-                    $templateProcessor->setValue("cnpj#{$idx}",                  (isset($cliente->cpf_cnpj_formatado) ? $cliente->cpf_cnpj_formatado : null));
-                    $templateProcessor->setValue("objeto#{$idx}",                $objeto);
-                    $templateProcessor->setValue("informacoes_documento#{$idx}", $autenticador);
-                    $templateProcessor->setValue("autenticador#{$idx}",          $autenticador);
-
-                    if ($cliente_endereco) {
-                        $templateProcessor->setValue("rua#{$idx}",     (isset($cliente_endereco->rua) ? $cliente_endereco->rua : null));
-                        $templateProcessor->setValue("numero#{$idx}",  (!empty($cliente_endereco->numero) ? ", ".$cliente_endereco->numero : null));
-                        $templateProcessor->setValue("bairro#{$idx}",  (isset($cliente_endereco->bairro) ? $cliente_endereco->bairro : null));
-                        $templateProcessor->setValue(
-                            "cidade#{$idx}",
-                            ($cliente_endereco && isset($cliente_endereco->cidade) && isset($cliente_endereco->cidade->nome)) ? $cliente_endereco->cidade->nome : null
+                    if (!$cliente)
+                    {
+                        self::dbg(
+                            'Cliente não encontrado',
+                            $clienteId
                         );
-                        $templateProcessor->setValue(
-                            "uf#{$idx}",
-                            ($cliente_endereco && isset($cliente_endereco->cidade) && isset($cliente_endereco->cidade->estado) && isset($cliente_endereco->cidade->estado->sigla))
-                                ? "/".$cliente_endereco->cidade->estado->sigla
-                                : null
-                        );
-                        $templateProcessor->setValue("cep#{$idx}",     (isset($cliente_endereco->cep_formatado) ? $cliente_endereco->cep_formatado : null));
-                        $templateProcessor->setValue("complemento#{$idx}", (!empty($cliente_endereco->complemento) ? " - ".$cliente_endereco->complemento : null));
+
+                        return;
                     }
 
-                    // Representante
-                    if ($representante && isset($representante->representante)) {
-                        $rep = $representante->representante;
+                    // =====================================================
+                    // NOME PARA PASTA DE SAÍDA
+                    // =====================================================
 
-                        $templateProcessor->setValue("nome_representante#{$idx}",            (isset($rep->nome_formatado) ? $rep->nome_formatado : null));
-                        $templateProcessor->setValue("data_nascimento_representante#{$idx}", (isset($rep->dt_nasci_formatada) ? $rep->dt_nasci_formatada : null));
-                        $templateProcessor->setValue("nacionalidade_representante#{$idx}",   ($rep && isset($rep->nacionalidade) && isset($rep->nacionalidade->nome)) ? $rep->nacionalidade->nome : null);
-                        $templateProcessor->setValue("estado_civil_representante#{$idx}",    ($rep && isset($rep->estado_civil) && isset($rep->estado_civil->nome)) ? $rep->estado_civil->nome : null);
-                        $templateProcessor->setValue("profissao_representante#{$idx}",       (isset($rep->profissao) ? $rep->profissao : null));
-                        $templateProcessor->setValue("rg_representante#{$idx}",              (isset($rep->rg_ie_formatado) ? $rep->rg_ie_formatado : null));
-                        $templateProcessor->setValue("orgao_emissor_representante#{$idx}",   (isset($rep->orgao_emissor) ? $rep->orgao_emissor : null));
-                        $templateProcessor->setValue("cpf_representante#{$idx}",             (isset($rep->cpf_cnpj_formatado) ? $rep->cpf_cnpj_formatado : null));
+                    $nomeRaw =
+                        $cliente->nome_formatado
+                        ?? $cliente->nome
+                        ?? 'CLIENTE';
 
-                        $rep_end = PessoaEndereco::where('principal','=','S')
-                                                 ->where('pessoa_id','=',$rep->id)
-                                                 ->first();
-                        if ($rep_end) {
-                            $templateProcessor->setValue("rua_representante#{$idx}",     (isset($rep_end->rua) ? $rep_end->rua : null));
-                            $templateProcessor->setValue("numero_representante#{$idx}",  (!empty($rep_end->numero) ? ", ".$rep_end->numero : null));
-                            $templateProcessor->setValue("bairro_representante#{$idx}",  (isset($rep_end->bairro) ? $rep_end->bairro : null));
-                            $templateProcessor->setValue(
-                                "cidade_representante#{$idx}",
-                                ($rep_end && isset($rep_end->cidade) && isset($rep_end->cidade->nome)) ? $rep_end->cidade->nome : null
+                    $first = trim(
+                        preg_split('/\s+/u', $nomeRaw)[0]
+                        ?? 'CLIENTE'
+                    );
+
+                    $first = preg_replace(
+                        '/[^\pL\pN _\.-]+/u',
+                        '',
+                        $first
+                    );
+
+                    /*
+                    * No Misto o mesmo cliente pode aparecer em:
+                    *
+                    * CLONE_PF/PJ
+                    * e também em CLONE normal.
+                    *
+                    * Então usa ID como chave para não repetir nome
+                    * na pasta final.
+                    */
+                    $primeirosNomes[$cliente->id] =
+                        $first !== ''
+                            ? $first
+                            : 'CLIENTE';
+
+                    // =====================================================
+                    // REPRESENTANTE
+                    // =====================================================
+
+                    $representante =
+                        PessoaRepresentantesLegais::where(
+                            'pessoa_juridica_id',
+                            '=',
+                            $cliente->id
+                        )
+                        ->where(
+                            'principal',
+                            '=',
+                            'S'
+                        )
+                        ->first();
+
+                    // =====================================================
+                    // ENDEREÇO CLIENTE
+                    // =====================================================
+
+                    $cliente_endereco =
+                        PessoaEndereco::where(
+                            'principal',
+                            '=',
+                            'S'
+                        )
+                        ->where(
+                            'pessoa_id',
+                            '=',
+                            $cliente->id
+                        )
+                        ->first();
+
+                    // =====================================================
+                    // AUTENTICADOR
+                    // =====================================================
+                    //
+                    // No Misto a mesma pessoa pode aparecer em vários
+                    // blocos. Então gera apenas UMA VEZ por cliente.
+                    // =====================================================
+
+                    if (!isset($autenticadores[$cliente->id]))
+                    {
+                        $autenticador = null;
+                        $guard = 0;
+
+                        do
+                        {
+                            $autenticador = base64_encode(
+                                rand()
+                                . '-'
+                                . TSession::getValue('userid')
+                                . '-'
+                                . TSession::getValue('unitid')
                             );
+
+                            $existeA =
+                                Documento::where(
+                                    'autenticador',
+                                    '=',
+                                    $autenticador
+                                )
+                                ->count();
+
+                            $existeB =
+                                ContratoDocumento::where(
+                                    'autenticador',
+                                    '=',
+                                    $autenticador
+                                )
+                                ->count();
+
+                            $guard++;
+                        }
+                        while (
+                            ($existeA > 0 || $existeB > 0)
+                            && $guard < 5
+                        );
+
+                        $autenticadores[$cliente->id] =
+                            $autenticador;
+                    }
+                    else
+                    {
+                        $autenticador =
+                            $autenticadores[$cliente->id];
+                    }
+
+                    // =====================================================
+                    // TIPO DA PESSOA
+                    // =====================================================
+
+                    $clienteEhPf =
+                        $cliente->tipo_pessoa_id
+                        == TipoPessoa::FISICA;
+
+                    $clienteEhPj =
+                        $cliente->tipo_pessoa_id
+                        == TipoPessoa::JURIDICA;
+
+                    // =====================================================
+                    // DADOS PRINCIPAIS
+                    // =====================================================
+
+                    $templateProcessor->setValue(
+                        "nome_cliente#{$idx}",
+                        $cliente->nome_formatado
+                        ?? ''
+                    );
+
+                    $templateProcessor->setValue(
+                        "nome_profissional#{$idx}",
+                        $profissional
+                            ? ($profissional->nome_formatado ?? '')
+                            : ''
+                    );
+
+                    $templateProcessor->setValue(
+                        "data_nascimento#{$idx}",
+                        $clienteEhPf
+                            ? ($cliente->dt_nasci_formatada ?? '')
+                            : ''
+                    );
+
+                    $templateProcessor->setValue(
+                        "data_abertura#{$idx}",
+                        $clienteEhPj
+                            ? ($cliente->dt_nasci_formatada ?? '')
+                            : ''
+                    );
+
+                    $templateProcessor->setValue(
+                        "nome_escritorio#{$idx}",
+                        $escritorio
+                            ? ($escritorio->nome ?? '')
+                            : ''
+                    );
+
+                    // =====================================================
+                    // DADOS EXCLUSIVOS DE PF
+                    // =====================================================
+
+                    $templateProcessor->setValue(
+                        "nacionalidade#{$idx}",
+                        $clienteEhPf
+                        && isset($cliente->nacionalidade->nome)
+                            ? $cliente->nacionalidade->nome
+                            : ''
+                    );
+
+                    $templateProcessor->setValue(
+                        "estado_civil#{$idx}",
+                        $clienteEhPf
+                        && isset($cliente->estado_civil->nome)
+                            ? $cliente->estado_civil->nome
+                            : ''
+                    );
+
+                    $templateProcessor->setValue(
+                        "profissao#{$idx}",
+                        $clienteEhPf
+                            ? ($cliente->profissao ?? '')
+                            : ''
+                    );
+
+                    $templateProcessor->setValue(
+                        "rg#{$idx}",
+                        $clienteEhPf
+                            ? ($cliente->rg_ie_formatado ?? '')
+                            : ''
+                    );
+
+                    $templateProcessor->setValue(
+                        "orgao_emissor#{$idx}",
+                        $clienteEhPf
+                            ? ($cliente->orgao_emissor ?? '')
+                            : ''
+                    );
+
+                    $templateProcessor->setValue(
+                        "cpf#{$idx}",
+                        $clienteEhPf
+                            ? ($cliente->cpf_cnpj_formatado ?? '')
+                            : ''
+                    );
+
+                    // =====================================================
+                    // DADOS EXCLUSIVOS DE PJ
+                    // =====================================================
+
+                    $templateProcessor->setValue(
+                        "cnpj#{$idx}",
+                        $clienteEhPj
+                            ? ($cliente->cpf_cnpj_formatado ?? '')
+                            : ''
+                    );
+
+                    // =====================================================
+                    // CAMPOS GERAIS
+                    // =====================================================
+
+                    $templateProcessor->setValue(
+                        "objeto#{$idx}",
+                        $objeto ?? ''
+                    );
+
+                    $templateProcessor->setValue(
+                        "informacoes_documento#{$idx}",
+                        $autenticador ?? ''
+                    );
+
+                    $templateProcessor->setValue(
+                        "autenticador#{$idx}",
+                        $autenticador ?? ''
+                    );
+
+                    // =====================================================
+                    // ENDEREÇO CLIENTE
+                    // =====================================================
+
+                    if ($cliente_endereco)
+                    {
+                        $templateProcessor->setValue(
+                            "rua#{$idx}",
+                            $cliente_endereco->rua
+                            ?? ''
+                        );
+
+                        $templateProcessor->setValue(
+                            "numero#{$idx}",
+                            !empty($cliente_endereco->numero)
+                                ? ', ' . $cliente_endereco->numero
+                                : ''
+                        );
+
+                        $templateProcessor->setValue(
+                            "bairro#{$idx}",
+                            $cliente_endereco->bairro
+                            ?? ''
+                        );
+
+                        $templateProcessor->setValue(
+                            "cidade#{$idx}",
+                            isset($cliente_endereco->cidade->nome)
+                                ? $cliente_endereco->cidade->nome
+                                : ''
+                        );
+
+                        $templateProcessor->setValue(
+                            "uf#{$idx}",
+                            isset(
+                                $cliente_endereco
+                                    ->cidade
+                                    ->estado
+                                    ->sigla
+                            )
+                                ? '/'
+                                    . $cliente_endereco
+                                        ->cidade
+                                        ->estado
+                                        ->sigla
+                                : ''
+                        );
+
+                        $templateProcessor->setValue(
+                            "cep#{$idx}",
+                            $cliente_endereco
+                                ->cep_formatado
+                            ?? ''
+                        );
+
+                        $templateProcessor->setValue(
+                            "complemento#{$idx}",
+                            !empty(
+                                $cliente_endereco
+                                    ->complemento
+                            )
+                                ? ' - '
+                                    . $cliente_endereco
+                                        ->complemento
+                                : ''
+                        );
+                    }
+                    elseif ($ehMisto)
+                    {
+                        /*
+                        * No legado não alteramos esse comportamento.
+                        *
+                        * No Misto limpa as tags caso o endereço
+                        * seja opcional e não exista.
+                        */
+                        $camposEndereco = [
+                            'rua',
+                            'numero',
+                            'bairro',
+                            'cidade',
+                            'uf',
+                            'cep',
+                            'complemento'
+                        ];
+
+                        foreach (
+                            $camposEndereco
+                            as $campoEndereco
+                        )
+                        {
                             $templateProcessor->setValue(
-                                "uf_representante#{$idx}",
-                                ($rep_end && isset($rep_end->cidade) && isset($rep_end->cidade->estado) && isset($rep_end->cidade->estado->sigla))
-                                    ? "/".$rep_end->cidade->estado->sigla
-                                    : null
+                                "{$campoEndereco}#{$idx}",
+                                ''
                             );
-                            $templateProcessor->setValue("cep_representante#{$idx}",     (isset($rep_end->cep_formatado) ? $rep_end->cep_formatado : null));
-                            $templateProcessor->setValue("complemento_representante#{$idx}", (!empty($rep_end->complemento) ? " - ".$rep_end->complemento : null));
                         }
                     }
 
-                    // Validade (opcional)
-                    if (isset($param['dt_validade'])) {
-                        $templateProcessor->setValue("data_vencimento#{$idx}", "Data de validade: ".implode('/', array_reverse(explode('-', $param['dt_validade']))));
-                    } else {
-                        $templateProcessor->setValue("data_vencimento#{$idx}", null);
+                    // =====================================================
+                    // REPRESENTANTE
+                    // =====================================================
+
+                    /*
+                    * Legado:
+                    * mantém representante como já funcionava.
+                    *
+                    * Misto:
+                    * representante só é utilizado para PJ.
+                    */
+                    $usarRepresentanteNesteCliente =
+                        $representante
+                        && isset(
+                            $representante
+                                ->representante
+                        )
+                        && (
+                            !$ehMisto
+                            || $clienteEhPj
+                        );
+
+                    if ($usarRepresentanteNesteCliente)
+                    {
+                        $rep =
+                            $representante
+                                ->representante;
+
+                        $templateProcessor->setValue(
+                            "nome_representante#{$idx}",
+                            $rep->nome_formatado
+                            ?? ''
+                        );
+
+                        $templateProcessor->setValue(
+                            "data_nascimento_representante#{$idx}",
+                            $rep->dt_nasci_formatada
+                            ?? ''
+                        );
+
+                        $templateProcessor->setValue(
+                            "nacionalidade_representante#{$idx}",
+                            isset($rep->nacionalidade->nome)
+                                ? $rep->nacionalidade->nome
+                                : ''
+                        );
+
+                        $templateProcessor->setValue(
+                            "estado_civil_representante#{$idx}",
+                            isset($rep->estado_civil->nome)
+                                ? $rep->estado_civil->nome
+                                : ''
+                        );
+
+                        $templateProcessor->setValue(
+                            "profissao_representante#{$idx}",
+                            $rep->profissao
+                            ?? ''
+                        );
+
+                        $templateProcessor->setValue(
+                            "rg_representante#{$idx}",
+                            $rep->rg_ie_formatado
+                            ?? ''
+                        );
+
+                        $templateProcessor->setValue(
+                            "orgao_emissor_representante#{$idx}",
+                            $rep->orgao_emissor
+                            ?? ''
+                        );
+
+                        $templateProcessor->setValue(
+                            "cpf_representante#{$idx}",
+                            $rep->cpf_cnpj_formatado
+                            ?? ''
+                        );
+
+                        // =================================================
+                        // ENDEREÇO REPRESENTANTE
+                        // =================================================
+
+                        $rep_end =
+                            PessoaEndereco::where(
+                                'principal',
+                                '=',
+                                'S'
+                            )
+                            ->where(
+                                'pessoa_id',
+                                '=',
+                                $rep->id
+                            )
+                            ->first();
+
+                        if ($rep_end)
+                        {
+                            $templateProcessor->setValue(
+                                "rua_representante#{$idx}",
+                                $rep_end->rua
+                                ?? ''
+                            );
+
+                            $templateProcessor->setValue(
+                                "numero_representante#{$idx}",
+                                !empty($rep_end->numero)
+                                    ? ', ' . $rep_end->numero
+                                    : ''
+                            );
+
+                            $templateProcessor->setValue(
+                                "bairro_representante#{$idx}",
+                                $rep_end->bairro
+                                ?? ''
+                            );
+
+                            $templateProcessor->setValue(
+                                "cidade_representante#{$idx}",
+                                isset(
+                                    $rep_end
+                                        ->cidade
+                                        ->nome
+                                )
+                                    ? $rep_end
+                                        ->cidade
+                                        ->nome
+                                    : ''
+                            );
+
+                            $templateProcessor->setValue(
+                                "uf_representante#{$idx}",
+                                isset(
+                                    $rep_end
+                                        ->cidade
+                                        ->estado
+                                        ->sigla
+                                )
+                                    ? '/'
+                                        . $rep_end
+                                            ->cidade
+                                            ->estado
+                                            ->sigla
+                                    : ''
+                            );
+
+                            $templateProcessor->setValue(
+                                "cep_representante#{$idx}",
+                                $rep_end
+                                    ->cep_formatado
+                                ?? ''
+                            );
+
+                            $templateProcessor->setValue(
+                                "complemento_representante#{$idx}",
+                                !empty(
+                                    $rep_end
+                                        ->complemento
+                                )
+                                    ? ' - '
+                                        . $rep_end
+                                            ->complemento
+                                    : ''
+                            );
+                        }
+                        else
+                        {
+                            $camposEnderecoRepresentante = [
+                                'rua_representante',
+                                'numero_representante',
+                                'complemento_representante',
+                                'bairro_representante',
+                                'cidade_representante',
+                                'uf_representante',
+                                'cep_representante'
+                            ];
+
+                            foreach (
+                                $camposEnderecoRepresentante
+                                as $campoEnderecoRepresentante
+                            )
+                            {
+                                $templateProcessor->setValue(
+                                    "{$campoEnderecoRepresentante}#{$idx}",
+                                    ''
+                                );
+                            }
+                        }
+                    }
+                    else
+                    {
+                        /*
+                        * Sem representante.
+                        *
+                        * Também é usado para PF dentro do Misto.
+                        */
+                        $camposRepresentante = [
+                            'nome_representante',
+                            'data_nascimento_representante',
+                            'nacionalidade_representante',
+                            'estado_civil_representante',
+                            'profissao_representante',
+                            'rg_representante',
+                            'orgao_emissor_representante',
+                            'cpf_representante',
+                            'rua_representante',
+                            'numero_representante',
+                            'complemento_representante',
+                            'bairro_representante',
+                            'cidade_representante',
+                            'uf_representante',
+                            'cep_representante'
+                        ];
+
+                        foreach (
+                            $camposRepresentante
+                            as $campoRepresentante
+                        )
+                        {
+                            $templateProcessor->setValue(
+                                "{$campoRepresentante}#{$idx}",
+                                ''
+                            );
+                        }
                     }
 
-                    // Complementos
-                    if ($complemento && $tipo_complemento == 'Atendimento') {
-                        $templateProcessor->setValue("data_atendimento#{$idx}",   (isset($complemento->data_atendimento) ? $complemento->data_atendimento : null));
-                        $templateProcessor->setValue("inicio_atendimento#{$idx}", (isset($complemento->data_atendimento) ? $complemento->data_atendimento : null));
+                    // =====================================================
+                    // DATA DE VALIDADE
+                    // =====================================================
+
+                    if (isset($param['dt_validade']))
+                    {
+                        $templateProcessor->setValue(
+                            "data_vencimento#{$idx}",
+                            'Data de validade: '
+                            . implode(
+                                '/',
+                                array_reverse(
+                                    explode(
+                                        '-',
+                                        $param['dt_validade']
+                                    )
+                                )
+                            )
+                        );
+                    }
+                    else
+                    {
+                        $templateProcessor->setValue(
+                            "data_vencimento#{$idx}",
+                            ''
+                        );
                     }
 
-                    
+                    // =====================================================
+                    // ATENDIMENTO
+                    // =====================================================
 
-                    // “respiro” entre clientes (precisa existir ${espaco} no bloco)
-                    $espaco = new \PhpOffice\PhpWord\Element\TextRun();
+                    if (
+                        $complemento
+                        && $tipo_complemento
+                            == 'Atendimento'
+                    )
+                    {
+                        $templateProcessor->setValue(
+                            "data_atendimento#{$idx}",
+                            $complemento
+                                ->data_atendimento
+                            ?? ''
+                        );
+
+                        $templateProcessor->setValue(
+                            "inicio_atendimento#{$idx}",
+                            $complemento
+                                ->data_atendimento
+                            ?? ''
+                        );
+                    }
+
+                    // =====================================================
+                    // ESPAÇO ENTRE CLIENTES
+                    // =====================================================
+
+                    $espaco =
+                        new \PhpOffice\PhpWord\Element\TextRun();
+
                     $espaco->addTextBreak(2);
-                    $templateProcessor->setComplexValue("espaco#{$idx}", $espaco);
 
-                    self::dbg('Preenchido cliente', ['idx'=>$idx, 'id'=>$clienteId, 'nome'=> (isset($cliente->nome)?$cliente->nome:null)]);
-                    $idx++;
+                    $templateProcessor->setComplexValue(
+                        "espaco#{$idx}",
+                        $espaco
+                    );
+
+                    self::dbg(
+                        'Preenchido cliente',
+                        [
+                            'idx' => $idx,
+                            'id' => $clienteId,
+                            'nome' =>
+                                $cliente->nome
+                                ?? null,
+                            'misto' =>
+                                $ehMisto
+                                    ? 'S'
+                                    : 'N'
+                        ]
+                    );
+                };
+
+                // =========================================================
+                // CLONAGEM + PREENCHIMENTO
+                // =========================================================
+
+                if ($ehMisto)
+                {
+                    /*
+                    * MISTO
+                    *
+                    * ${CLONE1}
+                    *      = todos
+                    *
+                    * ${CLONE2_PF}
+                    *      = somente PF
+                    *
+                    * ${CLONE3_PJ}
+                    *      = somente PJ
+                    *
+                    * O número CLONE1, CLONE2, CLONE99...
+                    * NÃO possui regra de negócio.
+                    */
+                    self::cloneBlocosMisto(
+                        $templateProcessor,
+                        $idsClientes,
+                        $preencherCliente
+                    );
                 }
+                else
+                {
+                    /*
+                    * LEGADO INTACTO.
+                    *
+                    * Exemplo:
+                    *
+                    * 5 pessoas físicas no contrato
+                    *
+                    * CLONE1 = 5
+                    * CLONE2 = 5
+                    * CLONE3 = 5
+                    * CLONE4 = 5
+                    * CLONE5 = 5
+                    *
+                    * Exatamente como já funcionava antes.
+                    */
+                    self::cloneBlocosPadrao(
+                        $templateProcessor,
+                        $qtd
+                    );
 
+                    $idx = 1;
+
+                    foreach (
+                        $idsClientes
+                        as $clienteId
+                    )
+                    {
+                        $preencherCliente(
+                            $clienteId,
+                            $idx
+                        );
+
+                        $idx++;
+                    }
+                }
                 if ($complemento && $tipo_complemento == 'Contrato') {
                     $pagamentosContrato = ContratoPagamentoParcela::where('contrato_id','=',$complemento->id)
                         ->orderby('contrato_opcao_pagamento_id')
@@ -675,6 +1709,41 @@ class ModeloDocumentoService
         if (is_numeric($raw)) return [ (int)$raw ];
 
         return [];
+    }
+
+    private static function verificarTiposClientes(array $idsClientes): array
+    {
+        $temPf = false;
+        $temPj = false;
+
+        foreach ($idsClientes as $clienteId)
+        {
+            $cliente = Pessoa::find((int) $clienteId);
+
+            if (!$cliente) {
+                continue;
+            }
+
+            if ($cliente->tipo_pessoa_id == TipoPessoa::FISICA)
+            {
+                $temPf = true;
+            }
+            elseif ($cliente->tipo_pessoa_id == TipoPessoa::JURIDICA)
+            {
+                $temPj = true;
+            }
+
+            // Já sabemos que é misto, não precisa continuar consultando
+            if ($temPf && $temPj) {
+                break;
+            }
+        }
+
+        return [
+            'pf'    => $temPf,
+            'pj'    => $temPj,
+            'misto' => ($temPf && $temPj)
+        ];
     }
 
 }

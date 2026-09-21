@@ -308,10 +308,9 @@ class ProfissionalList extends TPage
     {
 
                 $param['globalSearch'] = true;
-            $this->onSearch($param);
+        $this->onSearch($param);
 
     }
-
     public static function onShowCurtainFilters($param = null) 
     {
         try 

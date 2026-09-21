@@ -626,6 +626,12 @@ class AssuntoProcessoList extends TPage
             $filters[] = new TFilter('unaccent(descricao)', 'ilike', "%{$data->descricao_col}%");// create the filter 
         }
 
+        if (isset($data->area_nome) AND ( (is_scalar($data->area_nome) AND $data->area_nome !== '') OR (is_array($data->area_nome) AND (!empty($data->area_nome)) )) )
+        {
+
+            $filters[] = new TFilter('area_id', '=', $data->area_nome);// create the filter 
+        }
+
         if (isset($data->nome) AND ( (is_scalar($data->nome) AND $data->nome !== '') OR (is_array($data->nome) AND (!empty($data->nome)) )) )
         {
             $data->nome = $nome;

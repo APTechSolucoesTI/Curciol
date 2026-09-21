@@ -1047,6 +1047,32 @@ FOREIGN KEY(criacao_user_id) REFERENCES system_users(id),
 FOREIGN KEY(modificacao_user_id) REFERENCES system_users(id),
 FOREIGN KEY(tipo_modelo_documento_id) REFERENCES tipo_modelo_documento(id)) ; 
 
+CREATE TABLE modelo_documento_misto( 
+      id  INTEGER    , 
+      modelo_documento_id int   NOT NULL  , 
+      filename varchar  (255)   , 
+      objeto char  (1)     DEFAULT 'N', 
+      informacoes_pagamento char  (1)     DEFAULT 'N', 
+      pf_cpf char  (1)     DEFAULT 'N', 
+      pf_rg char  (1)     DEFAULT 'N', 
+      pf_data_nascimento char  (1)     DEFAULT 'N', 
+      pf_nacionalidade char  (1)     DEFAULT 'N', 
+      pf_estado_civil char  (1)     DEFAULT 'N', 
+      pf_profissao char  (1)     DEFAULT 'N', 
+      pf_endereco char  (1)     DEFAULT 'N', 
+      pj_cnpj char  (1)     DEFAULT 'N', 
+      pj_data_abertura char  (1)     DEFAULT 'N', 
+      pj_endereco char  (1)     DEFAULT 'N', 
+      pj_rep_cpf char  (1)     DEFAULT 'N', 
+      pj_rep_rg char  (1)     DEFAULT 'N', 
+      pj_rep_data_nascimento char  (1)     DEFAULT 'N', 
+      pj_rep_nacionalidade char  (1)     DEFAULT 'N', 
+      pj_rep_estado_civil char  (1)     DEFAULT 'N', 
+      pj_rep_profissao char  (1)     DEFAULT 'N', 
+      pj_rep_endereco char  (1)     DEFAULT 'N', 
+ PRIMARY KEY (id),
+FOREIGN KEY(modelo_documento_id) REFERENCES modelo_documento(id)) ; 
+
 CREATE TABLE modelo_documento_pf( 
       id  INTEGER    NOT NULL  , 
       modelo_documento_id int   NOT NULL  , 
@@ -2006,6 +2032,7 @@ CREATE TABLE whatsapp_config(
 
  
  CREATE UNIQUE INDEX unique_idx_cep_cache_cep ON cep_cache(cep);
+ CREATE UNIQUE INDEX unique_idx_modelo_documento_misto_modelo_documento_id ON modelo_documento_misto(modelo_documento_id);
  
  CREATE VIEW cliente_tarefas AS SELECT
 	'Processo' as "origem",

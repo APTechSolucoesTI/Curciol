@@ -845,6 +845,31 @@ CREATE TABLE modelo_documento(
       modificacao_user_id integer   , 
  PRIMARY KEY (id)) ; 
 
+CREATE TABLE modelo_documento_misto( 
+      id  SERIAL    , 
+      modelo_documento_id integer   NOT NULL  , 
+      filename varchar  (255)   , 
+      objeto char  (1)     DEFAULT 'N', 
+      informacoes_pagamento char  (1)     DEFAULT 'N', 
+      pf_cpf char  (1)     DEFAULT 'N', 
+      pf_rg char  (1)     DEFAULT 'N', 
+      pf_data_nascimento char  (1)     DEFAULT 'N', 
+      pf_nacionalidade char  (1)     DEFAULT 'N', 
+      pf_estado_civil char  (1)     DEFAULT 'N', 
+      pf_profissao char  (1)     DEFAULT 'N', 
+      pf_endereco char  (1)     DEFAULT 'N', 
+      pj_cnpj char  (1)     DEFAULT 'N', 
+      pj_data_abertura char  (1)     DEFAULT 'N', 
+      pj_endereco char  (1)     DEFAULT 'N', 
+      pj_rep_cpf char  (1)     DEFAULT 'N', 
+      pj_rep_rg char  (1)     DEFAULT 'N', 
+      pj_rep_data_nascimento char  (1)     DEFAULT 'N', 
+      pj_rep_nacionalidade char  (1)     DEFAULT 'N', 
+      pj_rep_estado_civil char  (1)     DEFAULT 'N', 
+      pj_rep_profissao char  (1)     DEFAULT 'N', 
+      pj_rep_endereco char  (1)     DEFAULT 'N', 
+ PRIMARY KEY (id)) ; 
+
 CREATE TABLE modelo_documento_pf( 
       id  SERIAL    NOT NULL  , 
       modelo_documento_id integer   NOT NULL  , 
@@ -1650,6 +1675,7 @@ CREATE TABLE whatsapp_config(
 
  
  ALTER TABLE cep_cache ADD UNIQUE (cep);
+ ALTER TABLE modelo_documento_misto ADD UNIQUE (modelo_documento_id);
   
  ALTER TABLE agenda ADD CONSTRAINT fk_agenda_3 FOREIGN KEY (procedimento_id) references procedimento(id); 
 ALTER TABLE agenda ADD CONSTRAINT fk_agenda_1 FOREIGN KEY (escritorio_id) references escritorio(id); 
@@ -1851,6 +1877,7 @@ ALTER TABLE modelo_doc_aplicacao ADD CONSTRAINT fk_tipo_doc_aplicacao_2 FOREIGN 
 ALTER TABLE modelo_documento ADD CONSTRAINT fk_tipo_documento_1 FOREIGN KEY (criacao_user_id) references system_users(id); 
 ALTER TABLE modelo_documento ADD CONSTRAINT fk_tipo_documento_2 FOREIGN KEY (modificacao_user_id) references system_users(id); 
 ALTER TABLE modelo_documento ADD CONSTRAINT fk_modelo_documento_3 FOREIGN KEY (tipo_modelo_documento_id) references tipo_modelo_documento(id); 
+ALTER TABLE modelo_documento_misto ADD CONSTRAINT fk_modelo_documento_misto_1 FOREIGN KEY (modelo_documento_id) references modelo_documento(id); 
 ALTER TABLE modelo_documento_pf ADD CONSTRAINT fk_modelo_documento_pf_1 FOREIGN KEY (modelo_documento_id) references modelo_documento(id); 
 ALTER TABLE modelo_documento_pfrep ADD CONSTRAINT fk_modelo_documento_pfrep_1 FOREIGN KEY (modelo_documento_id) references modelo_documento(id); 
 ALTER TABLE modelo_documento_pj ADD CONSTRAINT fk_modelo_documento_pj_1 FOREIGN KEY (modelo_documento_id) references modelo_documento(id); 
@@ -2382,7 +2409,7 @@ CREATE index idx_classificacoes_cliente_pessoa_id on classificacoes_cliente(pess
 CREATE index idx_classificacoes_cliente_classificacoes_id on classificacoes_cliente(classificacoes_id); 
 CREATE index idx_classificacoes_contraparte_contraparte_id on classificacoes_contraparte(contraparte_id); 
 CREATE index idx_classificacoes_contraparte_pessoa_id on classificacoes_contraparte(pessoa_id); 
-CREATE index idx_classificacoes_contraparte_classificacoes_6a95d4a9223a4 on classificacoes_contraparte(classificacoes_contraparte_dados_id); 
+CREATE index idx_classificacoes_contraparte_classificacoes_6ab1325ac184e on classificacoes_contraparte(classificacoes_contraparte_dados_id); 
 CREATE index idx_classificacoes_contraparte_dados_criacao_user_id on classificacoes_contraparte_dados(criacao_user_id); 
 CREATE index idx_classificacoes_contraparte_dados_modificacao_user_id on classificacoes_contraparte_dados(modificacao_user_id); 
 CREATE index idx_comarca_criacao_user_id on comarca(criacao_user_id); 
@@ -2511,7 +2538,7 @@ CREATE index idx_lancamento_conta_id on lancamento(conta_id);
 CREATE index idx_lancamento_tipo_pagamento_id on lancamento(tipo_pagamento_id); 
 CREATE index idx_lancamento_profissional_lancamento_id on lancamento_profissional(lancamento_id); 
 CREATE index idx_lancamento_profissional_pessoa_id on lancamento_profissional(pessoa_id); 
-CREATE index idx_lancamento_profissional_ajuste_lancamento_6a95d4a930a70 on lancamento_profissional_ajuste(lancamento_profissional_id); 
+CREATE index idx_lancamento_profissional_ajuste_lancamento_6ab1325acc015 on lancamento_profissional_ajuste(lancamento_profissional_id); 
 CREATE index idx_log_crontab_system_unit_id on log_crontab(system_unit_id); 
 CREATE index idx_material_unidade_medida_id on material(unidade_medida_id); 
 CREATE index idx_mensagem_agendamento_id on mensagem(agendamento_id); 
@@ -2523,6 +2550,7 @@ CREATE index idx_modelo_doc_aplicacao_tipo_aplicacao_id on modelo_doc_aplicacao(
 CREATE index idx_modelo_documento_criacao_user_id on modelo_documento(criacao_user_id); 
 CREATE index idx_modelo_documento_modificacao_user_id on modelo_documento(modificacao_user_id); 
 CREATE index idx_modelo_documento_tipo_modelo_documento_id on modelo_documento(tipo_modelo_documento_id); 
+CREATE index idx_modelo_documento_misto_modelo_documento_id on modelo_documento_misto(modelo_documento_id); 
 CREATE index idx_modelo_documento_pf_modelo_documento_id on modelo_documento_pf(modelo_documento_id); 
 CREATE index idx_modelo_documento_pfrep_modelo_documento_id on modelo_documento_pfrep(modelo_documento_id); 
 CREATE index idx_modelo_documento_pj_modelo_documento_id on modelo_documento_pj(modelo_documento_id); 
@@ -2599,10 +2627,10 @@ CREATE index idx_requisicao_pagamento_tipos_requisicao_pagamento_id on requisica
 CREATE index idx_requisicao_pagamento_cliente_pessoa_id on requisicao_pagamento_cliente(pessoa_id); 
 CREATE index idx_requisicao_pagamento_cliente_entidade_devedora_id on requisicao_pagamento_cliente(entidade_devedora_id); 
 CREATE index idx_requisicao_pagamento_cliente_requisicao_pagamento_id on requisicao_pagamento_cliente(requisicao_pagamento_id); 
-CREATE index idx_requisicao_pagamento_cliente_status_requis_6a95d4a93bc7a on requisicao_pagamento_cliente(status_requisicao_pagamento_id); 
+CREATE index idx_requisicao_pagamento_cliente_status_requis_6ab1325ad37b8 on requisicao_pagamento_cliente(status_requisicao_pagamento_id); 
 CREATE index idx_requisicao_pagamento_etapa2_processo_filho_id on requisicao_pagamento_etapa2(processo_filho_id); 
-CREATE index idx_requisicao_pagamento_etapa2_requisicao_pag_6a95d4a93c18e on requisicao_pagamento_etapa2(requisicao_pagamento_cliente_id); 
-CREATE index idx_requisicao_pagamento_etapa3_requisicao_pag_6a95d4a93c5a5 on requisicao_pagamento_etapa3(requisicao_pagamento_cliente_id); 
+CREATE index idx_requisicao_pagamento_etapa2_requisicao_pag_6ab1325ad3aa4 on requisicao_pagamento_etapa2(requisicao_pagamento_cliente_id); 
+CREATE index idx_requisicao_pagamento_etapa3_requisicao_pag_6ab1325ad3d38 on requisicao_pagamento_etapa3(requisicao_pagamento_cliente_id); 
 CREATE index idx_requisicao_pagamento_etapa3_processo_filho_id on requisicao_pagamento_etapa3(processo_filho_id); 
 CREATE index idx_resposta_formulario_formulario_id on resposta_formulario(formulario_id); 
 CREATE index idx_resposta_formulario_atendimento_id on resposta_formulario(atendimento_id); 

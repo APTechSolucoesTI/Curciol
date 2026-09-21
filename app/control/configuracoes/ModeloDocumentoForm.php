@@ -36,6 +36,11 @@ class ModeloDocumentoForm extends TPage
         $variaveis_pj  = implode(' | ', array_keys(ModeloDocumento::VARIAVEIS_PJ));
         $variaveis_pfr = implode(' | ', array_keys(ModeloDocumento::VARIAVEIS_PFR));
 
+        $variaveis_misto = implode(
+            ' | ',
+            array_keys(ModeloDocumento::VARIAVEIS_MISTO)
+        );
+
         $id = new TEntry('id');
         $ativo = new TCheckButton('ativo');
         $nome = new TEntry('nome');
@@ -43,7 +48,7 @@ class ModeloDocumentoForm extends TPage
         $aplicacao_id = new TDBCheckGroup('aplicacao_id', 'escritorio', 'ModeloDocTipoAplicacao', 'id', '{nome}','nome asc' , $criteria_aplicacao_id );
         $pf_objeto = new TCheckButton('pf_objeto');
         $pf_pagamento = new TCheckButton('pf_pagamento');
-        $Selecionar = new TCheckButton('Selecionar');
+        $pf_cpf = new TCheckButton('pf_cpf');
         $pf_rg = new TCheckButton('pf_rg');
         $pf_nacionalidade = new TCheckButton('pf_nacionalidade');
         $pf_estado_civil = new TCheckButton('pf_estado_civil');
@@ -135,13 +140,13 @@ class ModeloDocumentoForm extends TPage
 
         $ativo->setUseSwitch(true, 'blue');
         $pf_rg->setUseSwitch(true, 'blue');
+        $pf_cpf->setUseSwitch(true, 'blue');
         $pfr_rg->setUseSwitch(true, 'blue');
         $pj_cnpj->setUseSwitch(true, 'blue');
         $pfr_cpf->setUseSwitch(true, 'blue');
         $pf_objeto->setUseSwitch(true, 'blue');
         $pj_objeto->setUseSwitch(true, 'blue');
         $pj_rep_rg->setUseSwitch(true, 'blue');
-        $Selecionar->setUseSwitch(true, 'blue');
         $pj_rep_cpf->setUseSwitch(true, 'blue');
         $pfr_objeto->setUseSwitch(true, 'blue');
         $pfr_rep_rg->setUseSwitch(true, 'blue');
@@ -174,13 +179,13 @@ class ModeloDocumentoForm extends TPage
 
         $ativo->setIndexValue("S");
         $pf_rg->setIndexValue("S");
+        $pf_cpf->setIndexValue("S");
         $pfr_rg->setIndexValue("S");
         $pj_cnpj->setIndexValue("S");
         $pfr_cpf->setIndexValue("S");
         $pf_objeto->setIndexValue("S");
         $pj_objeto->setIndexValue("S");
         $pj_rep_rg->setIndexValue("S");
-        $Selecionar->setIndexValue("S");
         $pj_rep_cpf->setIndexValue("S");
         $pfr_objeto->setIndexValue("S");
         $pfr_rep_rg->setIndexValue("S");
@@ -213,13 +218,13 @@ class ModeloDocumentoForm extends TPage
 
         $ativo->setInactiveIndexValue("N");
         $pf_rg->setInactiveIndexValue("N");
+        $pf_cpf->setInactiveIndexValue("N");
         $pfr_rg->setInactiveIndexValue("N");
         $pj_cnpj->setInactiveIndexValue("N");
         $pfr_cpf->setInactiveIndexValue("N");
         $pf_objeto->setInactiveIndexValue("N");
         $pj_objeto->setInactiveIndexValue("N");
         $pj_rep_rg->setInactiveIndexValue("N");
-        $Selecionar->setInactiveIndexValue("N");
         $pj_rep_cpf->setInactiveIndexValue("N");
         $pfr_objeto->setInactiveIndexValue("N");
         $pfr_rep_rg->setInactiveIndexValue("N");
@@ -250,6 +255,127 @@ class ModeloDocumentoForm extends TPage
         $pj_rep_data_nascimento->setInactiveIndexValue("N");
         $pfr_rep_data_nascimento->setInactiveIndexValue("N");
 
+        // ===========================
+        // CAMPOS DO MODELO MISTO
+        // ===========================
+
+        // Contrato
+        $misto_objeto    = new TCheckButton('misto_objeto');
+        $misto_pagamento = new TCheckButton('misto_pagamento');
+
+        // Pessoa Física
+        $misto_pf_cpf             = new TCheckButton('misto_pf_cpf');
+        $misto_pf_rg              = new TCheckButton('misto_pf_rg');
+        $misto_pf_data_nascimento = new TCheckButton('misto_pf_data_nascimento');
+        $misto_pf_nacionalidade   = new TCheckButton('misto_pf_nacionalidade');
+        $misto_pf_estado_civil    = new TCheckButton('misto_pf_estado_civil');
+        $misto_pf_profissao       = new TCheckButton('misto_pf_profissao');
+        $misto_pf_endereco        = new TCheckButton('misto_pf_endereco');
+
+        // Pessoa Jurídica
+        $misto_pj_cnpj          = new TCheckButton('misto_pj_cnpj');
+        $misto_pj_data_abertura = new TCheckButton('misto_pj_data_abertura');
+        $misto_pj_endereco      = new TCheckButton('misto_pj_endereco');
+
+        // Representante da PJ
+        $misto_pj_rep_cpf             = new TCheckButton('misto_pj_rep_cpf');
+        $misto_pj_rep_rg              = new TCheckButton('misto_pj_rep_rg');
+        $misto_pj_rep_data_nascimento = new TCheckButton('misto_pj_rep_data_nascimento');
+        $misto_pj_rep_nacionalidade   = new TCheckButton('misto_pj_rep_nacionalidade');
+        $misto_pj_rep_estado_civil    = new TCheckButton('misto_pj_rep_estado_civil');
+        $misto_pj_rep_profissao       = new TCheckButton('misto_pj_rep_profissao');
+        $misto_pj_rep_endereco        = new TCheckButton('misto_pj_rep_endereco');
+
+        // Arquivo DOCX do misto
+        $misto_filename = new TFile('misto_filename');
+
+        $misto_filename->enableFileHandling();
+        $misto_filename->setAllowedExtensions(['docx']);
+        $misto_filename->setSize('100%');
+
+        $misto_pf_data_nascimento->setValue('N');
+        $misto_pj_data_abertura->setValue('N');
+        $misto_pj_rep_data_nascimento->setValue('N');
+
+        // Configuração padrão dos switches S/N
+        $misto_switches = [
+            $misto_objeto,
+            $misto_pagamento,
+
+            $misto_pf_cpf,
+            $misto_pf_rg,
+            $misto_pf_data_nascimento,
+            $misto_pf_nacionalidade,
+            $misto_pf_estado_civil,
+            $misto_pf_profissao,
+            $misto_pf_endereco,
+
+            $misto_pj_cnpj,
+            $misto_pj_data_abertura,
+            $misto_pj_endereco,
+
+            $misto_pj_rep_cpf,
+            $misto_pj_rep_rg,
+            $misto_pj_rep_data_nascimento,
+            $misto_pj_rep_nacionalidade,
+            $misto_pj_rep_estado_civil,
+            $misto_pj_rep_profissao,
+            $misto_pj_rep_endereco,
+        ];
+
+        foreach ($misto_switches as $switch)
+        {
+            $switch->setUseSwitch(true, 'blue');
+            $switch->setIndexValue('S');
+            $switch->setInactiveIndexValue('N');
+        }
+
+        // =====================================================
+        // REGISTRA CAMPOS MISTO NO FORM PRINCIPAL
+        // =====================================================
+        //
+        // Os campos são renderizados dentro do BootstrapFormBuilder $misto,
+        // mas quem executa getData()/setData() é $this->form.
+        // Portanto o form principal também precisa conhecer esses campos.
+        //
+
+        $misto_form_fields = [
+            // Contrato
+            $misto_objeto,
+            $misto_pagamento,
+
+            // Pessoa Física
+            $misto_pf_cpf,
+            $misto_pf_rg,
+            $misto_pf_data_nascimento,
+            $misto_pf_nacionalidade,
+            $misto_pf_estado_civil,
+            $misto_pf_profissao,
+            $misto_pf_endereco,
+
+            // Pessoa Jurídica
+            $misto_pj_cnpj,
+            $misto_pj_data_abertura,
+            $misto_pj_endereco,
+
+            // Representante da PJ
+            $misto_pj_rep_cpf,
+            $misto_pj_rep_rg,
+            $misto_pj_rep_data_nascimento,
+            $misto_pj_rep_nacionalidade,
+            $misto_pj_rep_estado_civil,
+            $misto_pj_rep_profissao,
+            $misto_pj_rep_endereco,
+
+            // Arquivo
+            $misto_filename,
+        ];
+
+        foreach ($misto_form_fields as $field)
+        {
+            $this->form->addField($field);
+        }
+
         $this->form->appendPage("Dados cadastrais");
 
         $this->form->addFields([new THidden('current_tab')]);
@@ -267,104 +393,310 @@ class ModeloDocumentoForm extends TPage
 
         $row5 = $this->form->addContent([new TFormSeparator("", '#333', '18', '#eee')]);
 
-        $tab_67b72cfbbce07 = new BootstrapFormBuilder('tab_67b72cfbbce07');
-        $this->tab_67b72cfbbce07 = $tab_67b72cfbbce07;
-        $tab_67b72cfbbce07->setProperty('style', 'border:none; box-shadow:none;');
+        $misto = new BootstrapFormBuilder('misto');
+        $this->misto = $misto;
+        $misto->setProperty('style', 'border:none; box-shadow:none;');
 
-        $tab_67b72cfbbce07->appendPage("Pessoa Física");
+        $misto->appendPage("Pessoa Física");
 
-        $tab_67b72cfbbce07->addFields([new THidden('current_tab_tab_67b72cfbbce07')]);
-        $tab_67b72cfbbce07->setTabFunction("$('[name=current_tab_tab_67b72cfbbce07]').val($(this).attr('data-current_page'));");
+        $misto->addFields([new THidden('current_tab_misto')]);
+        $misto->setTabFunction("$('[name=current_tab_misto]').val($(this).attr('data-current_page'));");
 
-        $row6 = $tab_67b72cfbbce07->addFields([new TLabel("Variáveis", null, '14px', 'B', '100%'),new TLabel("<small>Use as variáveis abaixo para preencher o documento automaticamente</small>", null, '14px', null, '100%'),new TLabel("{$variaveis_pf}", null, '14px', 'B', '100%')]);
+        $row6 = $misto->addFields([new TLabel("Variáveis", null, '14px', 'B', '100%'),new TLabel("<small>Use as variáveis abaixo para preencher o documento automaticamente</small>", null, '14px', null, '100%'),new TLabel("{$variaveis_pf}", null, '14px', 'B', '100%')]);
         $row6->layout = [' col-sm-12'];
 
-        $row7 = $tab_67b72cfbbce07->addContent([new TFormSeparator("", '#333', '18', '#eee')]);
-        $row8 = $tab_67b72cfbbce07->addFields([new TLabel("Informações obrigatórias:", null, '14px', 'B', '100%'),new TLabel("<small>Selecione as informações necessárias para este modelo de documento. ATENÇÃO: Não será possível gerar o documento se alguma informação obrigatória estiver vazia.</small>", null, '14px', null)]);
+        $row7 = $misto->addContent([new TFormSeparator("", '#333', '18', '#eee')]);
+        $row8 = $misto->addFields([new TLabel("Informações obrigatórias:", null, '14px', 'B', '100%'),new TLabel("<small>Selecione as informações necessárias para este modelo de documento. ATENÇÃO: Não será possível gerar o documento se alguma informação obrigatória estiver vazia.</small>", null, '14px', null)]);
         $row8->layout = [' col-sm-12'];
 
-        $row9 = $tab_67b72cfbbce07->addFields([new TLabel("Do contrato:", null, '14px', 'B')]);
+        $row9 = $misto->addFields([new TLabel("Do contrato:", null, '14px', 'B')]);
         $row9->layout = [' col-sm-12'];
 
-        $row10 = $tab_67b72cfbbce07->addFields([new TLabel("Objeto:", null, '14px', null, '100%'),$pf_objeto],[new TLabel("Informações de Pagamento:", null, '14px', null, '100%'),$pf_pagamento]);
+        $row10 = $misto->addFields([new TLabel("Objeto:", null, '14px', null, '100%'),$pf_objeto],[new TLabel("Informações de Pagamento:", null, '14px', null, '100%'),$pf_pagamento]);
         $row10->layout = ['col-sm-2','col-sm-2'];
 
-        $row11 = $tab_67b72cfbbce07->addFields([new TLabel("Do cliente:", null, '14px', 'B')]);
+        $row11 = $misto->addFields([new TLabel("Do cliente:", null, '14px', 'B')]);
         $row11->layout = [' col-sm-12'];
 
-        $row12 = $tab_67b72cfbbce07->addFields([new TLabel("CPF:", null, '14px', null, '100%'),$Selecionar],[new TLabel("RG + Orgão emissor:", null, '14px', null, '100%'),$pf_rg],[new TLabel("Nacionalidade:", null, '14px', null, '100%'),$pf_nacionalidade],[new TLabel("Estado Civil:", null, '14px', null, '100%'),$pf_estado_civil],[new TLabel("Profissão:", null, '14px', null, '100%'),$pf_profissao],[new TLabel("Endereço:", null, '14px', null, '100%'),$pf_endereco],[new TLabel("Data de nascimento:", null, '14px', null, '100%'),$pf_data_nascimento]);
+        $row12 = $misto->addFields([new TLabel("CPF:", null, '14px', null, '100%'),$pf_cpf],[new TLabel("RG + Orgão emissor:", null, '14px', null, '100%'),$pf_rg],[new TLabel("Nacionalidade:", null, '14px', null, '100%'),$pf_nacionalidade],[new TLabel("Estado Civil:", null, '14px', null, '100%'),$pf_estado_civil],[new TLabel("Profissão:", null, '14px', null, '100%'),$pf_profissao],[new TLabel("Endereço:", null, '14px', null, '100%'),$pf_endereco],[new TLabel("Data de nascimento:", null, '14px', null, '100%'),$pf_data_nascimento]);
         $row12->layout = ['col-sm-2','col-sm-2','col-sm-2','col-sm-2','col-sm-2','col-sm-2','col-sm-2'];
 
-        $row13 = $tab_67b72cfbbce07->addContent([new TFormSeparator("", '#333', '18', '#eee')]);
-        $row14 = $tab_67b72cfbbce07->addFields([new TLabel("Arquivo:", '#FF0000', '14px', null, '100%'),$pf_filename]);
+        $row13 = $misto->addContent([new TFormSeparator("", '#333', '18', '#eee')]);
+        $row14 = $misto->addFields([new TLabel("Arquivo:", '#FF0000', '14px', null, '100%'),$pf_filename]);
         $row14->layout = [' col-sm-12'];
 
-        $tab_67b72cfbbce07->appendPage("Pessoa Jurídica");
-        $row15 = $tab_67b72cfbbce07->addFields([new TLabel("Variáveis", null, '14px', 'B', '100%'),new TLabel("<small>Use as variáveis abaixo para preencher o documento automaticamente</small>", null, '14px', null, '100%'),new TLabel("{$variaveis_pj}", null, '14px', 'B')]);
+        $misto->appendPage("Pessoa Jurídica");
+        $row15 = $misto->addFields([new TLabel("Variáveis", null, '14px', 'B', '100%'),new TLabel("<small>Use as variáveis abaixo para preencher o documento automaticamente</small>", null, '14px', null, '100%'),new TLabel("{$variaveis_pj}", null, '14px', 'B')]);
         $row15->layout = [' col-sm-12'];
 
-        $row16 = $tab_67b72cfbbce07->addContent([new TFormSeparator("", '#333', '18', '#eee')]);
-        $row17 = $tab_67b72cfbbce07->addFields([new TLabel("Informações obrigatórias:", null, '14px', 'B', '100%'),new TLabel("<small>Selecione as informações necessárias para este modelo de documento. ATENÇÃO: Não será possível gerar o documento se alguma informação obrigatória estiver vazia.</small>", null, '14px', null, '100%')]);
+        $row16 = $misto->addContent([new TFormSeparator("", '#333', '18', '#eee')]);
+        $row17 = $misto->addFields([new TLabel("Informações obrigatórias:", null, '14px', 'B', '100%'),new TLabel("<small>Selecione as informações necessárias para este modelo de documento. ATENÇÃO: Não será possível gerar o documento se alguma informação obrigatória estiver vazia.</small>", null, '14px', null, '100%')]);
         $row17->layout = [' col-sm-12'];
 
-        $row18 = $tab_67b72cfbbce07->addFields([new TLabel("Do contrato:", null, '14px', 'B')]);
+        $row18 = $misto->addFields([new TLabel("Do contrato:", null, '14px', 'B')]);
         $row18->layout = [' col-sm-12'];
 
-        $row19 = $tab_67b72cfbbce07->addFields([new TLabel("Objeto:", null, '12px', null, '100%'),$pj_objeto],[new TLabel("Informação de pagamento:", null, '12px', null, '100%'),$pj_pagamento]);
+        $row19 = $misto->addFields([new TLabel("Objeto:", null, '12px', null, '100%'),$pj_objeto],[new TLabel("Informação de pagamento:", null, '12px', null, '100%'),$pj_pagamento]);
         $row19->layout = ['col-sm-2','col-sm-2'];
 
-        $row20 = $tab_67b72cfbbce07->addFields([new TLabel("Do cliente:", null, '14px', 'B')]);
+        $row20 = $misto->addFields([new TLabel("Do cliente:", null, '14px', 'B')]);
         $row20->layout = [' col-sm-12'];
 
-        $row21 = $tab_67b72cfbbce07->addFields([new TLabel("CNPJ:", null, '12px', null, '100%'),$pj_cnpj],[new TLabel("Endereço:", null, '12px', null, '100%'),$pj_endereco],[new TLabel("Data de abertura:", null, '14px', null, '100%'),$pj_data_abertura]);
+        $row21 = $misto->addFields([new TLabel("CNPJ:", null, '12px', null, '100%'),$pj_cnpj],[new TLabel("Endereço:", null, '12px', null, '100%'),$pj_endereco],[new TLabel("Data de abertura:", null, '14px', null, '100%'),$pj_data_abertura]);
         $row21->layout = ['col-sm-2','col-sm-2','col-sm-2'];
 
-        $row22 = $tab_67b72cfbbce07->addFields([new TLabel("Do representante:", null, '14px', 'B')]);
+        $row22 = $misto->addFields([new TLabel("Do representante:", null, '14px', 'B')]);
         $row22->layout = [' col-sm-12'];
 
-        $row23 = $tab_67b72cfbbce07->addFields([new TLabel("<small>CPF:</small>", null, '12px', null, '100%'),$pj_rep_cpf],[new TLabel("RG + Orgão emissor:", null, '12px', null, '100%'),$pj_rep_rg],[new TLabel("Data de nascimento:", null, '14px', null, '100%'),$pj_rep_data_nascimento],[new TLabel("Nacionalidade:", null, '12px', null, '100%'),$pj_rep_nacionalidade],[new TLabel("Estado civil:", null, '12px', null, '100%'),$pj_rep_estado_civil],[new TLabel("Profissão:", null, '12px', null, '100%'),$pj_rep_profissao],[new TLabel("Endereço:", null, '12px', null, '100%'),$pj_rep_endereco]);
+        $row23 = $misto->addFields([new TLabel("<small>CPF:</small>", null, '12px', null, '100%'),$pj_rep_cpf],[new TLabel("RG + Orgão emissor:", null, '12px', null, '100%'),$pj_rep_rg],[new TLabel("Data de nascimento:", null, '14px', null, '100%'),$pj_rep_data_nascimento],[new TLabel("Nacionalidade:", null, '12px', null, '100%'),$pj_rep_nacionalidade],[new TLabel("Estado civil:", null, '12px', null, '100%'),$pj_rep_estado_civil],[new TLabel("Profissão:", null, '12px', null, '100%'),$pj_rep_profissao],[new TLabel("Endereço:", null, '12px', null, '100%'),$pj_rep_endereco]);
         $row23->layout = ['col-sm-2','col-sm-2','col-sm-2','col-sm-2','col-sm-2','col-sm-2','col-sm-2'];
 
-        $row24 = $tab_67b72cfbbce07->addContent([new TFormSeparator("", '#333', '18', '#eee')]);
-        $row25 = $tab_67b72cfbbce07->addFields([new TLabel("Arquivo:", '#FF0000', '14px', null, '100%'),$pj_filename]);
+        $row24 = $misto->addContent([new TFormSeparator("", '#333', '18', '#eee')]);
+        $row25 = $misto->addFields([new TLabel("Arquivo:", '#FF0000', '14px', null, '100%'),$pj_filename]);
         $row25->layout = [' col-sm-12'];
 
-        $tab_67b72cfbbce07->appendPage("Pessoa Física com Representante");
-        $row26 = $tab_67b72cfbbce07->addFields([new TLabel("Variáveis", null, '14px', 'B', '100%'),new TLabel("<small>Use as variáveis abaixo para preencher o documento automaticamente</small>", null, '14px', null, '100%'),new TLabel("{$variaveis_pfr}", null, '14px', 'B', '100%')]);
+        $misto->appendPage("Pessoa Física com Representante");
+        $row26 = $misto->addFields([new TLabel("Variáveis", null, '14px', 'B', '100%'),new TLabel("<small>Use as variáveis abaixo para preencher o documento automaticamente</small>", null, '14px', null, '100%'),new TLabel("{$variaveis_pfr}", null, '14px', 'B', '100%')]);
         $row26->layout = [' col-sm-12'];
 
-        $row27 = $tab_67b72cfbbce07->addContent([new TFormSeparator("", '#333', '18', '#eee')]);
-        $row28 = $tab_67b72cfbbce07->addFields([new TLabel("Informações obrigatórias:", null, '14px', 'B', '100%'),new TLabel("<small>Selecione as informações necessárias para este modelo de documento. ATENÇÃO: Não será possível gerar o documento se alguma informação obrigatória estiver vazia.</small>", null, '14px', null, '100%')]);
+        $row27 = $misto->addContent([new TFormSeparator("", '#333', '18', '#eee')]);
+        $row28 = $misto->addFields([new TLabel("Informações obrigatórias:", null, '14px', 'B', '100%'),new TLabel("<small>Selecione as informações necessárias para este modelo de documento. ATENÇÃO: Não será possível gerar o documento se alguma informação obrigatória estiver vazia.</small>", null, '14px', null, '100%')]);
         $row28->layout = [' col-sm-12'];
 
-        $row29 = $tab_67b72cfbbce07->addFields([new TLabel("Do contrato:", null, '14px', 'B')]);
+        $row29 = $misto->addFields([new TLabel("Do contrato:", null, '14px', 'B')]);
         $row29->layout = [' col-sm-12'];
 
-        $row30 = $tab_67b72cfbbce07->addFields([new TLabel("Objeto:", null, '14px', null, '100%'),$pfr_objeto],[new TLabel("Informações de pagamento:", null, '14px', null, '100%'),$pfr_pagamento]);
+        $row30 = $misto->addFields([new TLabel("Objeto:", null, '14px', null, '100%'),$pfr_objeto],[new TLabel("Informações de pagamento:", null, '14px', null, '100%'),$pfr_pagamento]);
         $row30->layout = ['col-sm-2','col-sm-2'];
 
-        $row31 = $tab_67b72cfbbce07->addFields([new TLabel("Do cliente:", null, '14px', 'B')]);
+        $row31 = $misto->addFields([new TLabel("Do cliente:", null, '14px', 'B')]);
         $row31->layout = [' col-sm-12'];
 
-        $row32 = $tab_67b72cfbbce07->addFields([new TLabel("CPF:", null, '14px', null, '100%'),$pfr_cpf],[new TLabel("RG + Orgão emissor:", null, '14px', null, '100%'),$pfr_rg],[new TLabel("Data de nascimento:", null, '14px', null, '100%'),$pfr_data_nascimento],[new TLabel("Nacionalidade:", null, '14px', null, '100%'),$pfr_nacionalidade],[new TLabel("Profissão:", null, '14px', null, '100%'),$pfr_profissao],[new TLabel("Estado civil:", null, '14px', null, '100%'),$pfr_estado_civil],[new TLabel("Endereço:", null, '14px', null, '100%'),$pfr_endereco]);
+        $row32 = $misto->addFields([new TLabel("CPF:", null, '14px', null, '100%'),$pfr_cpf],[new TLabel("RG + Orgão emissor:", null, '14px', null, '100%'),$pfr_rg],[new TLabel("Data de nascimento:", null, '14px', null, '100%'),$pfr_data_nascimento],[new TLabel("Nacionalidade:", null, '14px', null, '100%'),$pfr_nacionalidade],[new TLabel("Profissão:", null, '14px', null, '100%'),$pfr_profissao],[new TLabel("Estado civil:", null, '14px', null, '100%'),$pfr_estado_civil],[new TLabel("Endereço:", null, '14px', null, '100%'),$pfr_endereco]);
         $row32->layout = ['col-sm-2','col-sm-2','col-sm-2','col-sm-2','col-sm-2','col-sm-2','col-sm-2'];
 
-        $row33 = $tab_67b72cfbbce07->addFields([new TLabel("Do representante:", null, '14px', 'B', '100%')]);
+        $row33 = $misto->addFields([new TLabel("Do representante:", null, '14px', 'B', '100%')]);
         $row33->layout = [' col-sm-12'];
 
-        $row34 = $tab_67b72cfbbce07->addFields([new TLabel("CPF:", null, '14px', null, '100%'),$pfr_rep_cpf],[new TLabel("RG + Orgão emissor:", null, '14px', null),$pfr_rep_rg],[new TLabel("Data de nascimento:", null, '14px', null, '100%'),$pfr_rep_data_nascimento],[new TLabel("Nacionalidade:", null, '14px', null, '100%'),$pfr_rep_nacionalidade],[new TLabel("Profissão:", null, '14px', null, '100%'),$pfr_rep_profissao],[new TLabel("Estado civil:", null, '14px', null, '100%'),$pfr_rep_estado_civil],[new TLabel("Endereço:", null, '14px', null, '100%'),$pfr_rep_endereco]);
+        $row34 = $misto->addFields([new TLabel("CPF:", null, '14px', null, '100%'),$pfr_rep_cpf],[new TLabel("RG + Orgão emissor:", null, '14px', null),$pfr_rep_rg],[new TLabel("Data de nascimento:", null, '14px', null, '100%'),$pfr_rep_data_nascimento],[new TLabel("Nacionalidade:", null, '14px', null, '100%'),$pfr_rep_nacionalidade],[new TLabel("Profissão:", null, '14px', null, '100%'),$pfr_rep_profissao],[new TLabel("Estado civil:", null, '14px', null, '100%'),$pfr_rep_estado_civil],[new TLabel("Endereço:", null, '14px', null, '100%'),$pfr_rep_endereco]);
         $row34->layout = ['col-sm-2','col-sm-2','col-sm-2','col-sm-2','col-sm-2','col-sm-2','col-sm-2'];
 
-        $row35 = $tab_67b72cfbbce07->addContent([new TFormSeparator("", '#333', '18', '#eee')]);
-        $row36 = $tab_67b72cfbbce07->addFields([new TLabel("Arquivo:", '#FF0000', '14px', null, '100%'),$pfr_filename]);
+        $row35 = $misto->addContent([new TFormSeparator("", '#333', '18', '#eee')]);
+        $row36 = $misto->addFields([new TLabel("Arquivo:", '#FF0000', '14px', null, '100%'),$pfr_filename]);
         $row36->layout = [' col-sm-12'];
 
-        $row37 = $this->form->addFields([$tab_67b72cfbbce07]);
+        $row37 = $this->form->addFields([$misto]);
         $row37->layout = [' col-sm-12'];
 
         $this->form->appendPage("Informações de cadastro");
         $row38 = $this->form->addFields([new TLabel("Criado em:", null, '14px', null, '100%'),$data_criacao],[new TLabel("Criado por:", null, '14px', null, '100%'),$criacao_user_name],[new TLabel("Atualizado em:", null, '14px', null, '100%'),$data_modificacao],[new TLabel("Atualizado por:", null, '14px', null, '100%'),$modificacao_user_name]);
         $row38->layout = ['col-sm-3','col-sm-3',' col-sm-3',' col-sm-3'];
+
+        // ======================================================
+        // ABA MISTO - PF + PJ NO MESMO MODELO
+        // ======================================================
+
+        $misto->appendPage("Misto");
+
+        $row_misto_1 = $misto->addFields([
+            new TLabel("Variáveis", null, '14px', 'B', '100%'),
+            new TLabel(
+                "<small>Este modelo permite utilizar variáveis de Pessoa Física e Pessoa Jurídica no mesmo documento.</small>",
+                null,
+                '14px',
+                null,
+                '100%'
+            ),
+            new TLabel("{$variaveis_misto}", null, '14px', 'B', '100%')
+        ]);
+        $row_misto_1->layout = ['col-sm-12'];
+
+        $misto->addContent([
+            new TFormSeparator("", '#333', '18', '#eee')
+        ]);
+
+        $row_misto_2 = $misto->addFields([
+            new TLabel("Informações obrigatórias:", null, '14px', 'B', '100%'),
+            new TLabel(
+                "<small>
+                    Selecione as informações necessárias para este modelo.
+                    O documento misto poderá utilizar simultaneamente clientes PF e PJ vinculados ao contrato.
+                </small>",
+                null,
+                '14px',
+                null,
+                '100%'
+            )
+        ]);
+        $row_misto_2->layout = ['col-sm-12'];
+
+        // ---------------------------
+        // CONTRATO
+        // ---------------------------
+
+        $row_misto_3 = $misto->addFields([
+            new TLabel("Do contrato:", null, '14px', 'B')
+        ]);
+        $row_misto_3->layout = ['col-sm-12'];
+
+        $row_misto_4 = $misto->addFields(
+            [
+                new TLabel("Objeto:", null, '14px', null, '100%'),
+                $misto_objeto
+            ],
+            [
+                new TLabel("Informações de pagamento:", null, '14px', null, '100%'),
+                $misto_pagamento
+            ]
+        );
+        $row_misto_4->layout = ['col-sm-2', 'col-sm-2'];
+
+        // ---------------------------
+        // PESSOA FÍSICA
+        // ---------------------------
+
+        $row_misto_5 = $misto->addFields([
+            new TLabel("Pessoa Física:", null, '14px', 'B')
+        ]);
+        $row_misto_5->layout = ['col-sm-12'];
+
+        $row_misto_6 = $misto->addFields(
+            [
+                new TLabel("CPF:", null, '14px', null, '100%'),
+                $misto_pf_cpf
+            ],
+            [
+                new TLabel("RG + Órgão emissor:", null, '14px', null, '100%'),
+                $misto_pf_rg
+            ],
+            [
+                new TLabel("Data de nascimento:", null, '14px', null, '100%'),
+                $misto_pf_data_nascimento
+            ],
+            [
+                new TLabel("Nacionalidade:", null, '14px', null, '100%'),
+                $misto_pf_nacionalidade
+            ]
+        );
+        $row_misto_6->layout = [
+            'col-sm-3',
+            'col-sm-3',
+            'col-sm-3',
+            'col-sm-3'
+        ];
+
+        $row_misto_7 = $misto->addFields(
+            [
+                new TLabel("Estado civil:", null, '14px', null, '100%'),
+                $misto_pf_estado_civil
+            ],
+            [
+                new TLabel("Profissão:", null, '14px', null, '100%'),
+                $misto_pf_profissao
+            ],
+            [
+                new TLabel("Endereço:", null, '14px', null, '100%'),
+                $misto_pf_endereco
+            ]
+        );
+        $row_misto_7->layout = [
+            'col-sm-3',
+            'col-sm-3',
+            'col-sm-3'
+        ];
+
+        // ---------------------------
+        // PESSOA JURÍDICA
+        // ---------------------------
+
+        $row_misto_8 = $misto->addFields([
+            new TLabel("Pessoa Jurídica:", null, '14px', 'B')
+        ]);
+        $row_misto_8->layout = ['col-sm-12'];
+
+        $row_misto_9 = $misto->addFields(
+            [
+                new TLabel("CNPJ:", null, '14px', null, '100%'),
+                $misto_pj_cnpj
+            ],
+            [
+                new TLabel("Data de abertura:", null, '14px', null, '100%'),
+                $misto_pj_data_abertura
+            ],
+            [
+                new TLabel("Endereço:", null, '14px', null, '100%'),
+                $misto_pj_endereco
+            ]
+        );
+        $row_misto_9->layout = [
+            'col-sm-3',
+            'col-sm-3',
+            'col-sm-3'
+        ];
+
+        // ---------------------------
+        // REPRESENTANTE DA PJ
+        // ---------------------------
+
+        $row_misto_10 = $misto->addFields([
+            new TLabel("Representante da Pessoa Jurídica:", null, '14px', 'B')
+        ]);
+        $row_misto_10->layout = ['col-sm-12'];
+
+        $row_misto_11 = $misto->addFields(
+            [
+                new TLabel("CPF:", null, '14px', null, '100%'),
+                $misto_pj_rep_cpf
+            ],
+            [
+                new TLabel("RG + Órgão emissor:", null, '14px', null, '100%'),
+                $misto_pj_rep_rg
+            ],
+            [
+                new TLabel("Data de nascimento:", null, '14px', null, '100%'),
+                $misto_pj_rep_data_nascimento
+            ],
+            [
+                new TLabel("Nacionalidade:", null, '14px', null, '100%'),
+                $misto_pj_rep_nacionalidade
+            ]
+        );
+        $row_misto_11->layout = [
+            'col-sm-3',
+            'col-sm-3',
+            'col-sm-3',
+            'col-sm-3'
+        ];
+
+        $row_misto_12 = $misto->addFields(
+            [
+                new TLabel("Estado civil:", null, '14px', null, '100%'),
+                $misto_pj_rep_estado_civil
+            ],
+            [
+                new TLabel("Profissão:", null, '14px', null, '100%'),
+                $misto_pj_rep_profissao
+            ],
+            [
+                new TLabel("Endereço:", null, '14px', null, '100%'),
+                $misto_pj_rep_endereco
+            ]
+        );
+        $row_misto_12->layout = [
+            'col-sm-3',
+            'col-sm-3',
+            'col-sm-3'
+        ];
+
+        $misto->addContent([
+            new TFormSeparator("", '#333', '18', '#eee')
+        ]);
+
+        $row_misto_13 = $misto->addFields([
+            new TLabel("Arquivo:", '#FF0000', '14px', null, '100%'),
+            $misto_filename
+        ]);
+        $row_misto_13->layout = ['col-sm-12'];
 
         // create the form actions
         $btn_onsave = $this->form->addAction("Salvar", new TAction([$this, 'onSave']), 'fas:save #ffffff');
@@ -424,6 +756,8 @@ class ModeloDocumentoForm extends TPage
                 $new = false;
             }
             $object->store(); // save the object 
+
+            $this->salvarModeloMisto($object, $data);
 
             $repository = ModeloDocAplicacao::where('modelo_documento_id', '=', $object->id);
             $repository->delete(); 
@@ -555,6 +889,7 @@ class ModeloDocumentoForm extends TPage
 
                 $object = new ModeloDocumento($key); // instantiates the Active Record 
 
+                $this->carregarModeloMisto($object);
                                 $object->criacao_user_name = $object->criacao_user->name;
                 $object->modificacao_user_name = $object->modificacao_user->name;
 
@@ -653,6 +988,117 @@ class ModeloDocumentoForm extends TPage
     public static function getFormName()
     {
         return self::$formName;
+    }
+
+    private function salvarModeloMisto($modeloDocumento, $data)
+    {
+        // Salva/upload do DOCX
+        $this->saveFile(
+            $modeloDocumento,
+            $data,
+            'misto_filename',
+            'files/documents'
+        );
+
+        $misto = ModeloDocumentoMisto::where(
+            'modelo_documento_id',
+            '=',
+            $modeloDocumento->id
+        )->first();
+
+        if (!$misto)
+        {
+            $misto = new ModeloDocumentoMisto();
+            $misto->modelo_documento_id = $modeloDocumento->id;
+        }
+
+        /*
+        * Se foi enviado um arquivo novo, usa o novo.
+        * Se não foi, mantém o filename já armazenado.
+        */
+        if (
+            isset($data->misto_filename_file_data) &&
+            !empty($data->misto_filename_file_data->fileName)
+        )
+        {
+            $misto->filename = $data->misto_filename_file_data->fileName;
+        }
+        elseif (!empty($data->misto_filename))
+        {
+            $misto->filename = $data->misto_filename;
+        }
+
+        // Contrato
+        $misto->objeto = $data->misto_objeto ?? 'N';
+        $misto->informacoes_pagamento = $data->misto_pagamento ?? 'N';
+
+        // Pessoa Física
+        $misto->pf_cpf = $data->misto_pf_cpf ?? 'N';
+        $misto->pf_rg = $data->misto_pf_rg ?? 'N';
+        $misto->pf_data_nascimento = $data->misto_pf_data_nascimento ?? 'N';
+        $misto->pf_nacionalidade = $data->misto_pf_nacionalidade ?? 'N';
+        $misto->pf_estado_civil = $data->misto_pf_estado_civil ?? 'N';
+        $misto->pf_profissao = $data->misto_pf_profissao ?? 'N';
+        $misto->pf_endereco = $data->misto_pf_endereco ?? 'N';
+
+        // Pessoa Jurídica
+        $misto->pj_cnpj = $data->misto_pj_cnpj ?? 'N';
+        $misto->pj_data_abertura = $data->misto_pj_data_abertura ?? 'N';
+        $misto->pj_endereco = $data->misto_pj_endereco ?? 'N';
+
+        // Representante da PJ
+        $misto->pj_rep_cpf = $data->misto_pj_rep_cpf ?? 'N';
+        $misto->pj_rep_rg = $data->misto_pj_rep_rg ?? 'N';
+        $misto->pj_rep_data_nascimento = $data->misto_pj_rep_data_nascimento ?? 'N';
+        $misto->pj_rep_nacionalidade = $data->misto_pj_rep_nacionalidade ?? 'N';
+        $misto->pj_rep_estado_civil = $data->misto_pj_rep_estado_civil ?? 'N';
+        $misto->pj_rep_profissao = $data->misto_pj_rep_profissao ?? 'N';
+        $misto->pj_rep_endereco = $data->misto_pj_rep_endereco ?? 'N';
+
+        $misto->store();
+    }
+
+    private function carregarModeloMisto($object)
+    {
+        $misto = ModeloDocumentoMisto::where(
+            'modelo_documento_id',
+            '=',
+            $object->id
+        )->first();
+
+        if (!$misto)
+        {
+            return;
+        }
+
+        $object->misto_filename = $misto->filename;
+
+        // Contrato
+        $object->misto_objeto = $misto->objeto;
+        $object->misto_pagamento = $misto->informacoes_pagamento;
+
+        // Pessoa Física
+        $object->misto_pf_cpf = $misto->pf_cpf;
+        $object->misto_pf_rg = $misto->pf_rg;
+        $object->misto_pf_data_nascimento = $misto->pf_data_nascimento;
+        $object->misto_pf_nacionalidade = $misto->pf_nacionalidade;
+        $object->misto_pf_estado_civil = $misto->pf_estado_civil;
+        $object->misto_pf_profissao = $misto->pf_profissao;
+        $object->misto_pf_endereco = $misto->pf_endereco;
+
+        // Pessoa Jurídica
+        $object->misto_pj_cnpj = $misto->pj_cnpj;
+        $object->misto_pj_data_abertura = $misto->pj_data_abertura;
+        $object->misto_pj_endereco = $misto->pj_endereco;
+
+        // Representante
+        $object->misto_pj_rep_cpf = $misto->pj_rep_cpf;
+        $object->misto_pj_rep_rg = $misto->pj_rep_rg;
+        $object->misto_pj_rep_data_nascimento = $misto->pj_rep_data_nascimento;
+        $object->misto_pj_rep_nacionalidade = $misto->pj_rep_nacionalidade;
+        $object->misto_pj_rep_estado_civil = $misto->pj_rep_estado_civil;
+        $object->misto_pj_rep_profissao = $misto->pj_rep_profissao;
+        $object->misto_pj_rep_endereco = $misto->pj_rep_endereco;
     }
 
 }
