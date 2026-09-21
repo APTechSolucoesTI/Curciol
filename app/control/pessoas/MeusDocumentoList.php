@@ -84,7 +84,19 @@ class MeusDocumentoList extends TPage
         {
             // $container->add(new TXMLBreadCrumb('menu.xml', __CLASS__));
         }
-        $container->add($panel);
+        $container->class = trim(($container->class ?? '') . ' curciol-portal');
+
+        $titulo = new TElement('span');
+        $titulo->class = 'curciol-secao-titulo';
+        $titulo->add('Meus documentos');
+        $container->add($titulo);
+
+        /* ver app/lib/include/css/curciol-portal.css */
+        $lista = new TElement('div');
+        $lista->class = 'curciol-lista';
+        $lista->add($panel);
+
+        $container->add($lista);
 
         parent::add($container);
 
