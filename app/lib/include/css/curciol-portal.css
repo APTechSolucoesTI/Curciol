@@ -121,6 +121,30 @@ body.builder-template-login #adianti_content {
     box-sizing: border-box;
 }
 
+/* Os icones do tema sao glifos de fonte. A fonte do portal nao pode
+   cascatear sobre eles, senao o elemento renderiza vazio. */
+.curciol-portal .fa,
+.curciol-portal .fas,
+.curciol-portal .far,
+.curciol-portal .fab,
+.curciol-timeline-page .fa,
+.curciol-timeline-page .fas,
+.curciol-timeline-page .far {
+    font-family: FontAwesome, "Font Awesome 5 Free", "Font Awesome 5 Brands" !important;
+    font-style: normal !important;
+}
+
+.curciol-portal .fa,
+.curciol-portal .fas,
+.curciol-timeline-page .fa,
+.curciol-timeline-page .fas {
+    font-weight: 900 !important;
+}
+
+.curciol-portal .far {
+    font-weight: 400 !important;
+}
+
 .curciol-portal a:focus-visible,
 .curciol-portal button:focus-visible,
 .curciol-portal input:focus-visible,
@@ -703,31 +727,52 @@ body.builder-template-login .curciol-lista .tdatagrid_pagination {
     font-family: var(--p-font) !important;
 }
 
-/* a data mora no cartão, alinhada à direita e discreta */
+/*
+    Geometria da coluna esquerda. Os tres elementos usam a mesma referencia:
+      trilho    -> linha de 2px em x=15, centro em x=16
+      marcador  -> circulo de 26px em x=3, centro em x=16  (bate com o trilho)
+      conteudo  -> data e cartao comecam ambos em x=46
+    Mexer em um destes numeros exige mexer nos outros.
+*/
+
+/* A hora, quando existe, e uma linha propria no topo do cartao. Flutuar a
+   direita a deixava brigando com o titulo e com o botao de abrir. */
 .curciol-timeline-page .timeline > li > .timeline-item > .time {
-    float: right !important;
+    display: block !important;
+    float: none !important;
     margin: 0 !important;
-    padding: 16px 18px 0 0 !important;
+    padding: 12px 18px 0 18px !important;
     color: var(--p-fg-subtle) !important;
     font-size: 12px !important;
     font-weight: 400 !important;
     font-variant-numeric: tabular-nums;
 }
 
-.curciol-timeline-page .timeline > li > .timeline-item > .time .fa,
-.curciol-timeline-page .timeline > li > .timeline-item > .time i {
+/* sem hora o span vem vazio; nao pode ocupar espaco */
+.curciol-timeline-page .timeline > li > .timeline-item > .time:empty {
     display: none !important;
 }
 
-/* marcador na linha */
+.curciol-timeline-page .timeline > li > .timeline-item > .time + .timeline-header {
+    padding-top: 6px !important;
+}
+
+.curciol-timeline-page .timeline > li > .timeline-item > .time .fa,
+.curciol-timeline-page .timeline > li > .timeline-item > .time i {
+    margin-right: 5px !important;
+    font-size: 11px !important;
+}
+
+/* marcador: centro em x=16, alinhado com a primeira linha do cartao */
 .curciol-timeline-page .timeline > li > .fa,
 .curciol-timeline-page .timeline > li > .fas,
 .curciol-timeline-page .timeline > li > i {
     left: 3px !important;
-    top: 14px !important;
+    top: 11px !important;
     width: 26px !important;
     height: 26px !important;
     line-height: 22px !important;
+    text-align: center !important;
     background: var(--p-card) !important;
     border: 2px solid var(--p-brand) !important;
     border-radius: 50% !important;
@@ -736,14 +781,22 @@ body.builder-template-login .curciol-lista .tdatagrid_pagination {
     box-shadow: none !important;
 }
 
+/* a data comeca exatamente onde o cartao comeca */
+.curciol-timeline-page .timeline > li.time-label {
+    margin-bottom: var(--p-2) !important;
+}
+
 .curciol-timeline-page .time-label > span {
-    padding: 4px 11px !important;
-    background: var(--p-card) !important;
-    border: 1px solid var(--p-border) !important;
-    border-radius: var(--p-r-pill) !important;
-    color: var(--p-fg-muted) !important;
+    display: inline-block !important;
+    margin-left: 46px !important;
+    padding: 0 !important;
+    background: transparent !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    color: var(--p-fg-subtle) !important;
     font-size: 12px !important;
     font-weight: 500 !important;
+    font-variant-numeric: tabular-nums;
 }
 
 .curciol-timeline-title-row {

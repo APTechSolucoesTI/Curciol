@@ -411,20 +411,13 @@ class ProcessosFormViewInterno extends TPage
         $processo_view = new BPageContainer();
 
         $publicacao_etapa_id->setEditable(false);
-
-        /*
-            A coluna `cor` da etapa nao e usada aqui de proposito. Ela pinta
-            cada etapa de uma cor diferente, o que no portal do cliente briga
-            com a identidade e tira a leitura de progresso. A barra usa uma
-            cor so: preenchido = concluido, neutro = ainda por vir.
-            O cadastro de etapas segue usando a cor normalmente.
-        */
-        $publicacao_etapa_id->setFilledColor('#0D4069');
+        $publicacao_etapa_id->setColorColumn('cor');
+        $publicacao_etapa_id->setFilledColor('#fa931f');
         $publicacao_etapa_id->setFilledFontColor('#ffffff');
-        $publicacao_etapa_id->setUnfilledColor('#f2f4f7');
-        $publicacao_etapa_id->setUnfilledFontColor('#6b7280');
+        $publicacao_etapa_id->setUnfilledColor('#d3d3d3');
+        $publicacao_etapa_id->setUnfilledFontColor('#333333');
         $publicacao_etapa_id->setWidth('100%');
-        $publicacao_etapa_id->setHeight('52');
+        $publicacao_etapa_id->setHeight('60');
 
         /*
             Esse é o ponto principal:
