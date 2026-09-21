@@ -1,0 +1,13 @@
+# Configuração de banco por ambiente.
+#
+# Cada instalação (local, homologação, produção) mantém a sua própria cópia
+# destes arquivos. Eles continuam existindo em cada servidor, mas fora do
+# controle de versão, para que um git pull nunca sobrescreva as credenciais
+# do ambiente.
+#
+# Ao provisionar um ambiente novo, copie estes arquivos de um servidor
+# existente ou do cofre de senhas: eles não vêm mais do repositório.
+/app/config/escritorio.php
+/app/config/communication.php
+/app/config/log.php
+/app/config/permission.php
