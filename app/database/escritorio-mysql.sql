@@ -1155,6 +1155,7 @@ CREATE TABLE publicacao_etapa(
       `id`  INT  AUTO_INCREMENT    NOT NULL  , 
       `etapa_nome` text   , 
       `ordem_prioridade` int   , 
+      `detalhamento` text   , 
       `descricao` text   , 
       `cor` text   , 
       `data_criacao` datetime   , 

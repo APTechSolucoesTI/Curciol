@@ -24,6 +24,7 @@ class PublicacaoEtapa extends TRecord
         parent::__construct($id, $callObjectLoad);
         parent::addAttribute('etapa_nome');
         parent::addAttribute('ordem_prioridade');
+        parent::addAttribute('detalhamento');
         parent::addAttribute('descricao');
         parent::addAttribute('cor');
         parent::addAttribute('data_criacao');

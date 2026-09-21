@@ -1155,6 +1155,7 @@ CREATE TABLE publicacao_etapa(
       id  SERIAL    NOT NULL  , 
       etapa_nome text   , 
       ordem_prioridade integer   , 
+      detalhamento text   , 
       descricao text   , 
       cor text   , 
       data_criacao timestamp   , 

@@ -163,6 +163,7 @@ class ProcessoPublicacoesTimeLine extends TPage
 
                         $etapa_nome = 'Etapa não informada';
                         $etapa_obs = '-';
+                        $etapa_detalhamento = '';
                         $data_disponibilizacao = '-';
                         $data_evento = '-';
                         $titulo_publicacao = '-';
@@ -240,7 +241,7 @@ class ProcessoPublicacoesTimeLine extends TPage
                             continue;
                         }
 
-                        if (in_array((int) $etapa_id, [1, 10], true))
+                        if (in_array((int) $etapa_id, [1, 10, 8], true))
                         {
                             continue;
                         }
@@ -279,17 +280,38 @@ class ProcessoPublicacoesTimeLine extends TPage
 
                         $etapa_nome = $etapa->etapa_nome;
                         $etapa_obs  = $etapa->descricao ?: '-';
+                        $etapa_detalhamento = $etapa->detalhamento ?: '';
 
                         $detailId = 'timeline_detail_' . $object->id;
                         $iconId   = 'timeline_icon_' . $object->id;
 
                         $etapa_nome_html = htmlspecialchars((string) $etapa_nome, ENT_QUOTES, 'UTF-8');
                         $etapa_obs_html  = nl2br(htmlspecialchars((string) $etapa_obs, ENT_QUOTES, 'UTF-8'));
+                        $detalhamento_html = nl2br(htmlspecialchars((string) $etapa_detalhamento, ENT_QUOTES, 'UTF-8'));
                         $data_disp_html  = htmlspecialchars((string) $data_disponibilizacao, ENT_QUOTES, 'UTF-8');
 
                         $descricao_html = $etapa_obs_html;
                         $complemento_bloco_html = '';
                         $mobile_complemento_bloco_html = '';
+                        $detalhamento_bloco_html = '';
+                        $mobile_detalhamento_bloco_html = '';
+
+                        if (!empty(trim((string) $etapa_detalhamento)))
+                        {
+                            $detalhamento_bloco_html = "
+                                <div class='curciol-timeline-detail-line'>
+                                    <b>Detalhamento:</b>
+                                    <span>{$detalhamento_html}</span>
+                                </div>
+                            ";
+
+                            $mobile_detalhamento_bloco_html = "
+                                <div class='curciol-mobile-detail-block'>
+                                    <div class='curciol-mobile-detail-label'>Detalhamento</div>
+                                    <div class='curciol-mobile-detail-text'>{$detalhamento_html}</div>
+                                </div>
+                            ";
+                        }
 
                         if (!empty(trim((string) ($object->complemento ?? ''))))
                         {
@@ -297,14 +319,14 @@ class ProcessoPublicacoesTimeLine extends TPage
 
                             $complemento_bloco_html = "
                                 <div class='curciol-timeline-detail-line'>
-                                    <b>Complemento:</b>
+                                    <b>Informações Adicionais:</b>
                                     <span>{$complemento_html}</span>
                                 </div>
                             ";
 
                             $mobile_complemento_bloco_html = "
                                 <div class='curciol-mobile-detail-block'>
-                                    <div class='curciol-mobile-detail-label'>Complemento</div>
+                                    <div class='curciol-mobile-detail-label'>Informações Adicionais</div>
                                     <div class='curciol-mobile-detail-text'>{$complemento_html}</div>
                                 </div>
                             ";
@@ -378,17 +400,14 @@ class ProcessoPublicacoesTimeLine extends TPage
 
                        $htmlTemplate = "
                         <div id='{$detailId}' class='curciol-timeline-detail' style='display:none;'>
+                            {$detalhamento_bloco_html}
+
                             <div class='curciol-timeline-detail-line'>
-                                <b>Descrição:</b>
+                                <b>O que acontece nesta etapa?</b>
                                 <span>{$descricao_html}</span>
                             </div>
 
                             {$complemento_bloco_html}
-
-                            <div class='curciol-timeline-detail-line'>
-                                <b>Disponibilização:</b>
-                                <span>{$data_disp_html}</span>
-                            </div>
                         </div>
                     ";
 
@@ -435,17 +454,14 @@ class ProcessoPublicacoesTimeLine extends TPage
                                     </div>
 
                                     <div id='{$mobileDetailId}' class='curciol-mobile-timeline-detail' style='display:none;'>
+                                        {$mobile_detalhamento_bloco_html}
+
                                        <div class='curciol-mobile-detail-block'>
-                                            <div class='curciol-mobile-detail-label'>Descrição</div>
+                                            <div class='curciol-mobile-detail-label'>O que acontece nesta etapa?</div>
                                             <div class='curciol-mobile-detail-text'>{$descricao_html}</div>
                                         </div>
 
                                         {$mobile_complemento_bloco_html}
-
-                                        <div class='curciol-mobile-detail-block'>
-                                            <div class='curciol-mobile-detail-label'>Disponibilização</div>
-                                            <div class='curciol-mobile-detail-text'>{$data_disp_html}</div>
-                                        </div>
                                     </div>
                                 </div>
                             </div>

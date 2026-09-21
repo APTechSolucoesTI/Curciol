@@ -55,6 +55,7 @@ class PublicacaoEtapaForm extends TWindow
         $etapa_nome = new TEntry('etapa_nome');
         $ordem_prioridade = new TSpinner('ordem_prioridade');
         $cor = new TColor('cor');
+        $detalhamento = new TText('detalhamento');
         $descricao = new TText('descricao');
         $etapa_palavras_chaves_publicacao_etapa_id = new THidden('etapa_palavras_chaves_publicacao_etapa_id[]');
         $etapa_palavras_chaves_publicacao_etapa___row__id = new THidden('etapa_palavras_chaves_publicacao_etapa___row__id[]');
@@ -104,6 +105,7 @@ class PublicacaoEtapaForm extends TWindow
         $judicial->setSize('100%');
         $etapa_nome->setSize('100%');
         $ordem_prioridade->setSize(110);
+        $detalhamento->setSize('100%', 70);
         $descricao->setSize('100%', 70);
         $extrajudicial->setSize('100%');
         $etapa_palavras_chaves_publicacao_etapa_palavra_chave->setSize('100%');
@@ -112,8 +114,11 @@ class PublicacaoEtapaForm extends TWindow
         $row1 = $this->form->addFields([new TLabel("Id:", null, '14px', null, '100%'),$id],[new TLabel("Nome da etapa:", null, '14px', null, '100%'),$etapa_nome],[new TLabel("Prioridade:", null, '14px', null, '100%'),$ordem_prioridade],[new TLabel("Cor:", null, '14px', null, '100%'),$cor]);
         $row1->layout = ['col-sm-1',' col-sm-7',' col-sm-2',' col-sm-2'];
 
-        $row2 = $this->form->addFields([new TLabel("Explicação da etapa:", null, '14px', null, '100%'),$descricao]);
+        $row2 = $this->form->addFields([new TLabel("Detalhamento:", null, '14px', null, '100%'),$detalhamento]);
         $row2->layout = [' col-sm-12'];
+
+        $row2b = $this->form->addFields([new TLabel("Explicação:", null, '14px', null, '100%'),$descricao]);
+        $row2b->layout = [' col-sm-12'];
 
         $row3 = $this->form->addFields([$this->fieldList_69cd0d44bad25]);
         $row3->layout = [' col-sm-12'];

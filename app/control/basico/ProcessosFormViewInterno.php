@@ -120,6 +120,9 @@ class ProcessosFormViewInterno extends TPage
         $etapas_fixas = [];
         $etapas_ocultas = [1, 10];
 
+        $dados_processo = null;
+        $etapa_atual_nome = '-';
+
         if ($processo_id > 0)
         {
             $conn = TTransaction::get();
@@ -128,11 +131,22 @@ class ProcessosFormViewInterno extends TPage
             * Descobre se o processo é Judicial ou Extrajudicial.
             * 1 = Judicial
             * 2 = Extrajudicial
+            *
+            * A mesma consulta já traz os dados exibidos no cabeçalho
+            * do processo (tipo, assunto e número).
             */
             $stmt_tipo = $conn->prepare("
-                SELECT tipo_processo_id
-                FROM processo
-                WHERE id = :processo_id
+                SELECT
+                    p.tipo_processo_id,
+                    p.numero_cnj_numero,
+                    tp.nome AS tipo_nome,
+                    a.nome  AS assunto_nome
+                FROM processo p
+                LEFT JOIN tipo_processo tp
+                    ON tp.id = p.tipo_processo_id
+                LEFT JOIN assunto a
+                    ON a.id = p.assunto_id
+                WHERE p.id = :processo_id
                 LIMIT 1
             ");
 
@@ -140,7 +154,9 @@ class ProcessosFormViewInterno extends TPage
                 ':processo_id' => $processo_id
             ]);
 
-            $tipo_processo_id = (int) $stmt_tipo->fetchColumn();
+            $dados_processo = $stmt_tipo->fetch(PDO::FETCH_OBJ);
+
+            $tipo_processo_id = (int) ($dados_processo->tipo_processo_id ?? 0);
 
             if ($tipo_processo_id === 1)
             {
@@ -414,6 +430,26 @@ class ProcessosFormViewInterno extends TPage
             $publicacao_etapa_id->setValue((int) $etapa_atual_id);
         }
 
+        /*
+            Nome da etapa atual, exibido no cabeçalho do processo.
+            Reaproveita o id que já foi calculado para o setValue().
+        */
+        if (!empty($etapa_atual_id))
+        {
+            $stmt_nome_etapa = TTransaction::get()->prepare("
+                SELECT etapa_nome
+                FROM publicacao_etapa
+                WHERE id = :id
+                LIMIT 1
+            ");
+
+            $stmt_nome_etapa->execute([
+                ':id' => (int) $etapa_atual_id
+            ]);
+
+            $etapa_atual_nome = $stmt_nome_etapa->fetchColumn() ?: '-';
+        }
+
         $processo_view->setId('processo_publicacoes_timeline_container');
         $processo_view->setSize('100%');
 
@@ -433,6 +469,57 @@ class ProcessosFormViewInterno extends TPage
         $loadingContainer->add('<br>Carregando');
 
         $processo_view->add($loadingContainer);
+
+        /*
+            Cabeçalho com as informações do processo, exibido acima do ArrowStep.
+        */
+        if ($processo_id > 0)
+        {
+            $info_processo = [
+                'Tipo'         => $dados_processo->tipo_nome         ?? '',
+                'Assunto'      => $dados_processo->assunto_nome      ?? '',
+                'Número'       => $dados_processo->numero_cnj_numero ?? '',
+                'Última etapa' => $etapa_atual_nome,
+            ];
+
+            $info_html = '';
+
+            foreach ($info_processo as $rotulo => $valor)
+            {
+                $valor = trim((string) $valor);
+
+                if ($valor === '')
+                {
+                    $valor = '-';
+                }
+
+                $rotulo_html = htmlspecialchars((string) $rotulo, ENT_QUOTES, 'UTF-8');
+                $valor_html  = htmlspecialchars($valor, ENT_QUOTES, 'UTF-8');
+
+                /*
+                    numero_cnj_numero é text e pode estourar a coluna no mobile.
+                */
+                $quebra = ($rotulo === 'Número') ? 'word-break:break-all;' : 'word-break:normal;';
+
+                $info_html .= "
+                    <div style='min-width:0;'>
+                        <div style='font-size:10px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:#64748b; margin-bottom:2px;'>{$rotulo_html}</div>
+                        <div style='font-size:13px; font-weight:600; color:#0f172a; line-height:1.3; overflow-wrap:break-word; {$quebra}'>{$valor_html}</div>
+                    </div>
+                ";
+            }
+
+            $info_container = new TElement('div');
+            $info_container->style = 'display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:10px 16px; width:100%; box-sizing:border-box;';
+            $info_container->add($info_html);
+
+            $row0 = $this->form->addContent([$info_container]);
+            $row0->layout = [' col-sm-12'];
+
+            $row0->class = trim(($row0->class ?? '') . ' curciol-etapas-mobile');
+
+            $row0->style = 'margin-left:0; margin-right:0; padding:12px 8px 8px 8px; margin-bottom:10px; background:linear-gradient(180deg,#f8fafc 0%,#ffffff 100%); border:1px solid #e5e7eb; border-radius:14px; box-shadow:0 2px 10px rgba(15,23,42,.05); overflow:hidden;';
+        }
 
         $row1 = $this->form->addFields([$publicacao_etapa_id]);
         $row1->layout = [' col-sm-12'];
