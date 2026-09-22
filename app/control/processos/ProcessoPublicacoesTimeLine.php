@@ -73,6 +73,40 @@ class ProcessoPublicacoesTimeLine extends TPage
 
             $tipo_processo_id = (int) $processo->tipo_processo_id;
 
+            /*
+                Etapa de abertura da trilha deste processo: e a de menor
+                ordem_prioridade entre as que valem para o tipo do processo.
+                Hoje isso resolve para "Organizacao Documental" nas duas
+                trilhas (id 8 na extrajudicial, id 15 na judicial), mas sai
+                do cadastro em vez de id fixo, para acompanhar mudancas no
+                cadastro de etapas sem alteracao de codigo.
+
+                Ela abre a timeline por baixo, como secao mais antiga, e por
+                isso e excluida do laco das publicacoes: senao apareceria
+                duas vezes.
+            */
+            $repositorio_abertura = PublicacaoEtapa::where('id', 'not in', [1, 10]);
+
+            if ($tipo_processo_id === 1)
+            {
+                $repositorio_abertura->where('judicial', '=', 'S');
+            }
+            elseif ($tipo_processo_id === 2)
+            {
+                $repositorio_abertura->where('extrajudicial', '=', 'S');
+            }
+
+            $etapa_org_doc = $repositorio_abertura
+                ->orderBy('ordem_prioridade', 'asc')
+                ->first();
+
+            $etapas_ocultas_timeline = [1, 10];
+
+            if ($etapa_org_doc)
+            {
+                $etapas_ocultas_timeline[] = (int) $etapa_org_doc->id;
+            }
+
 /*
 
             $objects = ProcessoPublicacoes::getObjects($this->timelineCriteria);
@@ -241,7 +275,7 @@ class ProcessoPublicacoesTimeLine extends TPage
                             continue;
                         }
 
-                        if (in_array((int) $etapa_id, [1, 10, 8], true))
+                        if (in_array((int) $etapa_id, $etapas_ocultas_timeline, true))
                         {
                             continue;
                         }
@@ -476,12 +510,14 @@ class ProcessoPublicacoesTimeLine extends TPage
             }
 
             /*
-                Organização Documental é sempre a seção mais antiga da timeline.
-                Ela não nasce de uma publicação: é montada a partir do cadastro
-                da etapa 8, por isso entra depois do laço, no fim da lista.
-            */
-            $etapa_org_doc = PublicacaoEtapa::find(8);
+                A etapa de abertura e sempre a secao mais antiga da timeline.
+                Ela nao nasce de uma publicacao: e montada a partir do cadastro
+                da etapa, por isso entra depois do laco, no fim da lista.
 
+                $etapa_org_doc foi resolvido no inicio do metodo, ja filtrado
+                por Judicial / Extrajudicial. A verificacao de tipo abaixo e
+                redundante hoje e fica como guarda, caso a resolucao mude.
+            */
             if ($etapa_org_doc)
             {
                 $permite_org_doc = true;

@@ -172,23 +172,29 @@ class ProcessosFormViewInterno extends TPage
             }
 
             /*
-            * Etapas fixas 8 e 2 também respeitam
-            * Judicial / Extrajudicial.
+            * Etapas de abertura: aparecem sempre, mesmo sem publicacao, e ja
+            * contam como percorridas.
+            *
+            * Sao duas por trilha, e o proprio filtro Judicial/Extrajudicial
+            * escolhe o par certo:
+            *   extrajudicial -> 8  (Organizacao Documental) e 2  (Pedido Protocolado)
+            *   judicial      -> 15 (Organizacao Documental) e 16 (Protocolo Inicial)
+            *
+            * A ordem vem de ordem_prioridade, como no cadastro. Antes havia
+            * um CASE que fixava 8 e depois 2 por id; isso ignorava o valor
+            * cadastrado e desalinhava esta consulta do ordenamento usado
+            * pelo proprio ArrowStep.
             */
             $sql_etapas_fixas = "
                 SELECT pe.id
                 FROM publicacao_etapa pe
-                WHERE pe.id IN (8, 2)
+                WHERE pe.id IN (8, 2, 15, 16)
 
                 {$filtro_tipo_etapa_sql}
 
                 ORDER BY
-                    CASE
-                        WHEN pe.id = 8 THEN 0
-                        WHEN pe.id = 2 THEN 1
-                        ELSE 2
-                    END,
-                    pe.id
+                    pe.ordem_prioridade ASC,
+                    pe.id ASC
             ";
 
             $etapas_fixas = array_map(
@@ -351,7 +357,7 @@ class ProcessosFormViewInterno extends TPage
                     pe.id
                 FROM publicacao_etapa pe
                 WHERE pe.id NOT IN (1, 10)
-                AND pe.id NOT IN (8, 2)
+                AND pe.id NOT IN (8, 2, 15, 16)
 
                 {$filtro_tipo_etapa_sql}
 
@@ -400,11 +406,7 @@ class ProcessosFormViewInterno extends TPage
             'PublicacaoEtapa',
             'id',
             '{etapa_nome}',
-            "CASE 
-                WHEN id = 8 THEN 0
-                WHEN id = 2 THEN 1
-                ELSE 2
-            END, ordem_prioridade ASC, id ASC",
+            'ordem_prioridade ASC, id ASC',
             $criteria_etapas
         );
 
@@ -534,15 +536,10 @@ class ProcessosFormViewInterno extends TPage
             $ids_passos = implode(',', array_map('intval', $etapas_ids));
 
             $etapas_passos = TTransaction::get()->query("
-                SELECT id, etapa_nome
+                SELECT id, etapa_nome, cor
                 FROM publicacao_etapa
                 WHERE id IN ({$ids_passos})
                 ORDER BY
-                    CASE
-                        WHEN id = 8 THEN 0
-                        WHEN id = 2 THEN 1
-                        ELSE 2
-                    END,
                     ordem_prioridade ASC,
                     id ASC
             ")->fetchAll(PDO::FETCH_OBJ);
@@ -576,8 +573,24 @@ class ProcessosFormViewInterno extends TPage
                     'UTF-8'
                 );
 
+                /*
+                    A cor de cada etapa vem do cadastro, igual ao ArrowStep do
+                    desktop. Etapas ainda por vir ficam neutras, tambem como la:
+                    a cor marca o que ja foi percorrido.
+                */
+                $cor_passo = trim((string) ($etapa_passo->cor ?? ''));
+
+                $estilo_passo = '';
+
+                if ($estado_passo !== 'futura' && preg_match('/^#[0-9A-Fa-f]{3,8}$/', $cor_passo))
+                {
+                    $cor_passo_html = htmlspecialchars($cor_passo, ENT_QUOTES, 'UTF-8');
+
+                    $estilo_passo = " style='--passo-cor:{$cor_passo_html}'";
+                }
+
                 $passos_html .= "
-                    <li class='curciol-passo curciol-passo-{$estado_passo}'{$aria_passo}>
+                    <li class='curciol-passo curciol-passo-{$estado_passo}'{$aria_passo}{$estilo_passo}>
                         <span class='curciol-passo-marca'></span>
                         <span class='curciol-passo-nome'>{$nome_passo_html}</span>
                     </li>
