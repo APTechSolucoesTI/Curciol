@@ -65,6 +65,16 @@ class PublicacaoEtapaForm extends TWindow
         $extrajudicial = new TCombo('extrajudicial');
         $judicial = new TCombo('judicial');
 
+        /*
+            PRE-PROCESSO: marca esta etapa como a que abre um pre-processo.
+
+            Vale por trilha: no maximo uma etapa marcada para Judicial e uma
+            para Extrajudicial. Uma etapa que sirva as duas ocupa os dois
+            lugares. Ao criar um pre-processo, o andamento inicial nasce nesta
+            etapa, com o nome e a explicacao cadastrados aqui.
+        */
+        $padrao_pre_processo = new TCheckButton('padrao_pre_processo');
+
         $this->fieldList_69cd0d44bad25->addField(null, $etapa_palavras_chaves_publicacao_etapa_id, []);
         $this->fieldList_69cd0d44bad25->addField(null, $etapa_palavras_chaves_publicacao_etapa___row__id, ['uniqid' => true]);
         $this->fieldList_69cd0d44bad25->addField(null, $etapa_palavras_chaves_publicacao_etapa___row__data, []);
@@ -97,6 +107,12 @@ class PublicacaoEtapaForm extends TWindow
         $judicial->addItems(["S"=>"Sim","N"=>"Não"]);
         $extrajudicial->addItems(["S"=>"Sim","N"=>"Não"]);
 
+        /* PRE-PROCESSO */
+        $padrao_pre_processo->setUseSwitch(true, 'orange');
+        $padrao_pre_processo->setIndexValue("S");
+        $padrao_pre_processo->setInactiveIndexValue("N");
+        $padrao_pre_processo->setValue('N');
+
         $judicial->enableSearch();
         $extrajudicial->enableSearch();
 
@@ -123,8 +139,8 @@ class PublicacaoEtapaForm extends TWindow
         $row3 = $this->form->addFields([$this->fieldList_69cd0d44bad25]);
         $row3->layout = [' col-sm-12'];
 
-        $row4 = $this->form->addFields([new TLabel("Extrajudicial:", null, '14px', null, '100%'),$extrajudicial],[new TLabel("Judicial:", null, '14px', null, '100%'),$judicial]);
-        $row4->layout = [' col-sm-2','col-sm-2'];
+        $row4 = $this->form->addFields([new TLabel("Extrajudicial:", null, '14px', null, '100%'),$extrajudicial],[new TLabel("Judicial:", null, '14px', null, '100%'),$judicial],[new TLabel("Padrão pré-processo:", null, '14px', null, '100%'),$padrao_pre_processo]);
+        $row4->layout = [' col-sm-2','col-sm-2','col-sm-4'];
 
         // create the form actions
         $btn_onsave = $this->form->addAction("Salvar", new TAction([$this, 'onSave'],['static' => 1]), 'fas:save #ffffff');
@@ -167,11 +183,29 @@ class PublicacaoEtapaForm extends TWindow
                 return;
             }  
 
-            $object = new PublicacaoEtapa(); // create an empty object 
+            $object = new PublicacaoEtapa(); // create an empty object
 
             $object->fromArray( (array) $data); // load the object with data
 
-            $object->store(); // save the object 
+            /*
+                PRE-PROCESSO: somente uma etapa padrao por trilha.
+
+                A etapa que ocupava o lugar e desmarcada antes de gravar esta.
+                Sem isso o salvamento esbarraria nos indices unicos parciais do
+                banco, e o usuario veria um erro em vez de uma troca.
+
+                A troca e silenciosa no banco, entao a tela precisa dizer o que
+                saiu - senao alguem marca uma etapa nova sem perceber que
+                desligou outra.
+            */
+            $substituidas = [];
+
+            if (strtoupper(trim((string) $object->padrao_pre_processo)) === 'S')
+            {
+                $substituidas = PreProcessoService::liberarEtapaPadrao($object);
+            }
+
+            $object->store(); // save the object
 
             $loadPageParam = [];
 
@@ -196,6 +230,17 @@ class PublicacaoEtapaForm extends TWindow
             TTransaction::close(); // close the transaction
 
             TToast::show('success', "Registro salvo", 'topRight', 'far:check-circle');
+
+            if (!empty($substituidas))
+            {
+                TToast::show(
+                    'info',
+                    'Esta etapa passou a ser o padrão de pré-processo. Deixou de ser: ' . implode(', ', $substituidas) . '.',
+                    'topRight',
+                    'fas:info-circle'
+                );
+            }
+
             TApplication::loadPage('PublicacaoEtapaHeaderList', 'onShow', $loadPageParam); 
 
                 TWindow::closeWindow(parent::getId());

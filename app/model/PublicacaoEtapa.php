@@ -33,6 +33,7 @@ class PublicacaoEtapa extends TRecord
         parent::addAttribute('modificacao_user_id');
         parent::addAttribute('extrajudicial');
         parent::addAttribute('judicial');
+        parent::addAttribute('padrao_pre_processo');
             
     }
 

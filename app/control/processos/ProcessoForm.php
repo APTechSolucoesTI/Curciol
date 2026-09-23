@@ -40,11 +40,6 @@ class ProcessoForm extends TPage
         $criteria_responsavel_id = new TCriteria();
         $criteria_contraparte_processo_pessoa_id = new TCriteria();
 
-        /* PRE-PROCESSO: clientes ligados direto ao processo. Ver PreProcessoService. */
-        $criteria_clientes_processo = new TCriteria();
-        $filterVar = Grupo::CLIENTE;
-        $criteria_clientes_processo->add(new TFilter('id', 'in', "(SELECT pessoa_id FROM pessoa_grupo WHERE grupo_id = '{$filterVar}')"));
-
         $filterVar = Grupo::PROFISSIONAL;
         $criteria_responsavel_id->add(new TFilter('id', 'in', "(SELECT pessoa_id FROM pessoa_grupo WHERE grupo_id = '{$filterVar}')")); 
         $filterVar = Grupo::CONTRAPARTE;
@@ -59,7 +54,6 @@ class ProcessoForm extends TPage
         /* PRE-PROCESSO */
         $pre_processo = new TCheckButton('pre_processo');
         $descricao_pre_processo = new TEntry('descricao_pre_processo');
-        $clientes_processo = new TDBMultiSearch('clientes_processo', 'escritorio', 'Pessoa', 'id', 'nome', 'nome asc', $criteria_clientes_processo);
 
         $tipo_processo_id = new TDBCombo('tipo_processo_id', 'escritorio', 'TipoProcesso', 'id', '{nome}','nome asc' , $criteria_tipo_processo_id );
         $envolvimento_id = new TCombo('envolvimento_id');
@@ -136,9 +130,6 @@ class ProcessoForm extends TPage
         $pre_processo->setChangeAction(new TAction([$this, 'onChangePreProcesso'], ['static' => 1]));
         $descricao_pre_processo->setMaxLength(255);
         $descricao_pre_processo->placeholder = 'Ex.: Reclamação trabalhista — João da Silva';
-        $clientes_processo->setMinLength(3);
-        $clientes_processo->setMask('{nome}');
-        $clientes_processo->setFilterColumns(['nome', 'cpf_cnpj']);
         $tipo_processo_id->setDefaultOption(false);
         $gratuidade_processual->addItems(["T"=>"Sim","F"=>"Não"]);
         $gratuidade_processual->setLayout('horizontal');
@@ -193,7 +184,6 @@ class ProcessoForm extends TPage
 
         $id->setSize(100);
         $descricao_pre_processo->setSize('100%');
-        $clientes_processo->setSize('100%', 70);
         $vinculo->setSize(200);
         $publicacao->setSize(200);
         $foro_id->setSize('100%');
@@ -260,14 +250,11 @@ class ProcessoForm extends TPage
         $row1a->class = trim(($row1a->class ?? '') . ' linha-pre-processo');
 
         /*
-            Vinculo direto com o cliente. O portal descobria o dono do
-            processo so pelo contrato; um pre-processo pode existir antes do
-            contrato, e sem dono nenhum ele nao pode ficar visivel.
-            Os clientes que vem pelos contratos continuam valendo e nao
-            precisam ser repetidos aqui.
+            Nao ha campo de cliente aqui de proposito. Quem diz de quem e o
+            processo e o contrato, na aba "Contratos" - e todo processo tem
+            contrato. Um campo proprio criaria um segundo lugar para a mesma
+            verdade, que e como se produz divergencia.
         */
-        $row1b = $this->form->addFields([new TLabel("Cliente(s) vinculado(s) diretamente:", null, '14px', null, '100%'),$clientes_processo]);
-        $row1b->layout = [' col-sm-12'];
 
         $row2 = $this->form->addFields([new TLabel("Tipo de processo:", '#FF0000', '14px', null, '100%'),$tipo_processo_id],[new TLabel("Envolvimento:", null, '14px', null, '100%'),$envolvimento_id]);
         $row2->layout = ['col-sm-6',' col-sm-6'];
@@ -750,7 +737,18 @@ class ProcessoForm extends TPage
                 requisicao nao tiver passado pela tela.
             */
             PreProcessoService::normalizarDadosCadastro($data);
-            PreProcessoService::validarCadastro($data, $data->id ?? null);
+
+            /*
+                O contrato pode estar em dois lugares neste momento: nas linhas
+                que o usuario acabou de adicionar na aba "Contratos" (ainda nao
+                gravadas) ou ja no banco, se for edicao. As duas contam.
+            */
+            $tem_contrato = !empty($param['contrato_processo_processo_list___row__data'])
+                || PreProcessoService::temContrato($data->id ?? null);
+
+            PreProcessoService::validarCadastro($data, $data->id ?? null, $tem_contrato);
+
+            $eh_novo = empty($data->id);
 
             $object->fromArray( (array) $data); // load the object with data
 
@@ -764,16 +762,35 @@ class ProcessoForm extends TPage
             $object->store(); // save the object
 
             /*
-                PRE-PROCESSO: vinculo direto com o cliente, que e o que permite
-                ao portal saber de quem e o registro quando ainda nao ha
-                contrato. Sincroniza, entao salvar de novo com a mesma lista
-                nao duplica nada.
+                PRE-PROCESSO: andamento inicial.
+
+                Um pre-processo cadastrado a mao nasce com o mesmo andamento
+                que o wizard de contratos ja criava - a etapa marcada como
+                "Padrão pré-processo" para a trilha do processo. O cliente
+                passa a ver o acompanhamento sem ninguem precisar lancar nada.
+
+                So na inclusao: reabrir e salvar um registro existente nao
+                ressuscita um andamento que alguem apagou de proposito.
             */
-            PreProcessoService::sincronizarClientesDiretos(
-                $object->id,
-                (array) ($data->clientes_processo ?? []),
-                TSession::getValue('userid')
-            );
+            if ($eh_novo && PreProcessoService::ehPreProcesso($object))
+            {
+                $andamento_inicial = PreProcessoService::criarAndamentoInicial($object, TSession::getValue('userid'));
+
+                if (!$andamento_inicial)
+                {
+                    /*
+                        Nao e erro: o pre-processo esta gravado e valido. Falta
+                        cadastro, e o usuario precisa saber disso para ir
+                        marcar a etapa.
+                    */
+                    TToast::show(
+                        'warning',
+                        'O pré-processo foi salvo, mas nenhuma etapa está marcada como "Padrão pré-processo" para este tipo de processo. Marque uma em Configurações › Etapas para o andamento inicial ser criado.',
+                        'topRight',
+                        'fas:exclamation-triangle'
+                    );
+                }
+            }
 
             /*
                 PRE-PROCESSO: o bloco abaixo casa publicacoes pelo numero do
@@ -944,9 +961,6 @@ class ProcessoForm extends TPage
                     }
 
                 }); 
-
-                /* PRE-PROCESSO: clientes ligados direto ao processo. */
-                $object->clientes_processo = PreProcessoService::clientesDiretos($object->id);
 
                 $this->form->setData($object); // fill the form
 

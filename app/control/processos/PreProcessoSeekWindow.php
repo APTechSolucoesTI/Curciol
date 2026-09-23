@@ -212,16 +212,14 @@ class PreProcessoSeekWindow extends TWindow
             $cliente_id = (int) $data->cliente_id;
 
             /*
-                Procura o cliente pelos dois caminhos, igual ao portal: pelo
-                contrato e pelo vinculo direto.
+                Procura o cliente pelo contrato, que e o mesmo caminho que o
+                portal usa para decidir de quem e o processo.
             */
             $filters[] = new TFilter('id', 'in', "(
                 SELECT cp.processo_id
                 FROM contrato_processo cp
                 JOIN contrato_pessoa cpe ON cpe.contrato_id = cp.contrato_id
                 WHERE cpe.cliente_id = {$cliente_id}
-                UNION
-                SELECT pc.processo_id FROM processo_cliente pc WHERE pc.cliente_id = {$cliente_id}
             )");
         }
 

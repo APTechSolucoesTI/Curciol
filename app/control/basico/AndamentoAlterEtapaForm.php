@@ -30,7 +30,28 @@ class AndamentoAlterEtapaForm extends TWindow
         // define the form title
         $this->form->setFormTitle("Alterar etapa do andamento");
 
-        $criteria_publicacao_etapa_id = new TCriteria();
+        /*
+            Mesma correcao do cadastro de andamento: a lista de etapas segue a
+            trilha do processo. Aqui $param['key'] e o id do andamento.
+        */
+        $tipo_processo_do_andamento = null;
+
+        TTransaction::open(self::$database);
+
+        if (!empty($param['key']))
+        {
+            $andamento_em_edicao = Andamento::find((int) $param['key']);
+
+            if ($andamento_em_edicao)
+            {
+                $processo_do_andamento = Processo::find((int) $andamento_em_edicao->processo_id);
+                $tipo_processo_do_andamento = $processo_do_andamento->tipo_processo_id ?? null;
+            }
+        }
+
+        TTransaction::close();
+
+        $criteria_publicacao_etapa_id = PreProcessoService::criteriaEtapasDoTipo($tipo_processo_do_andamento);
 
         $id = new THidden('id');
         $publicacao_etapa_id = new TDBCombo('publicacao_etapa_id', 'escritorio', 'PublicacaoEtapa', 'id', '{etapa_nome}','ordem_prioridade asc' , $criteria_publicacao_etapa_id );

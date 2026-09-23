@@ -172,9 +172,10 @@ class PreProcessoService
      * dado opcional: a requisicao pode chegar sem passar pela tela.
      *
      * @param object   $data
-     * @param int|null $processo_id Id em edicao, para nao colidir consigo mesmo.
+     * @param int|null $processo_id  Id em edicao, para nao colidir consigo mesmo.
+     * @param bool     $tem_contrato Se ha contrato vinculado ao processo.
      */
-    public static function validarCadastro($data, $processo_id = null): void
+    public static function validarCadastro($data, $processo_id = null, $tem_contrato = true): void
     {
         $eh_pre = (($data->pre_processo ?? self::NAO) === self::SIM);
         $numero = $data->numero_cnj_numero ?? null;
@@ -189,6 +190,17 @@ class PreProcessoService
             if (empty(trim((string) ($data->descricao_pre_processo ?? ''))))
             {
                 throw new Exception('Informe a descrição do pré-processo. É por ela que o registro será encontrado enquanto não existir número.');
+            }
+
+            /*
+                O contrato e o que diz de quem e o processo - e, sem numero, e
+                tambem o unico vinculo que o pre-processo tem com o cliente.
+                Sem ele o registro nao chega ao portal e nao ha a quem
+                apresenta-lo.
+            */
+            if (!$tem_contrato)
+            {
+                throw new Exception('Vincule o contrato na aba "Contratos". É por ele que o cliente é identificado, e um pré-processo sem contrato não aparece no portal.');
             }
         }
         else
@@ -238,10 +250,15 @@ class PreProcessoService
     // =================================================================
 
     /**
-     * Clientes do processo pelos dois caminhos possiveis.
+     * Clientes do processo.
      *
-     * O caminho por contrato e o historico; o direto (processo_cliente)
-     * atende o pre-processo, que pode existir antes do contrato.
+     * O caminho e um so: contrato_processo -> contrato_pessoa. Um processo,
+     * pre ou definitivo, sempre nasce amarrado a um contrato, e e o contrato
+     * que diz de quem ele e.
+     *
+     * (Houve aqui, brevemente, uma tabela processo_cliente para o caso de um
+     * pre-processo existir antes do contrato. Esse caso nao existe no
+     * escritorio, e a tabela foi removida em 23/09/2026.)
      *
      * @return array [cliente_id => nome]
      */
@@ -260,19 +277,10 @@ class PreProcessoService
 
         $sql = "
             SELECT DISTINCT pe.id, pe.nome
-            FROM pessoa pe
-            WHERE pe.id IN (
-                SELECT cpe.cliente_id
-                FROM contrato_processo cp
-                JOIN contrato_pessoa cpe ON cpe.contrato_id = cp.contrato_id
-                WHERE cp.processo_id = :processo_id
-
-                UNION
-
-                SELECT pc.cliente_id
-                FROM processo_cliente pc
-                WHERE pc.processo_id = :processo_id
-            )
+            FROM contrato_processo cp
+            JOIN contrato_pessoa cpe ON cpe.contrato_id = cp.contrato_id
+            JOIN pessoa pe ON pe.id = cpe.cliente_id
+            WHERE cp.processo_id = :processo_id
             ORDER BY pe.nome
         ";
 
@@ -288,72 +296,21 @@ class PreProcessoService
     }
 
     /**
-     * Apenas os vinculos diretos, que sao os editaveis no cadastro.
+     * O processo tem contrato vinculado?
      *
-     * @return int[]
+     * E por ele que o cliente chega, entao e o que o cadastro de
+     * pre-processo exige antes de gravar.
      */
-    public static function clientesDiretos($processo_id): array
-    {
-        $ids = [];
-
-        foreach (ProcessoCliente::where('processo_id', '=', (int) $processo_id)->load() as $vinculo)
-        {
-            $ids[] = (int) $vinculo->cliente_id;
-        }
-
-        return $ids;
-    }
-
-    /**
-     * Sincroniza os vinculos diretos do processo com a lista informada.
-     *
-     * Reexecutar com a mesma lista nao muda nada: o indice unico
-     * (processo_id, cliente_id) e respeitado aqui em vez de estourar.
-     *
-     * @param int[] $clientes_ids
-     */
-    public static function sincronizarClientesDiretos($processo_id, array $clientes_ids, $user_id = null): void
+    public static function temContrato($processo_id): bool
     {
         $processo_id = (int) $processo_id;
 
-        $desejados = [];
-        foreach ($clientes_ids as $cliente_id)
+        if ($processo_id <= 0)
         {
-            $cliente_id = (int) $cliente_id;
-            if ($cliente_id > 0)
-            {
-                $desejados[$cliente_id] = $cliente_id;
-            }
+            return false;
         }
 
-        $atuais = [];
-        foreach (ProcessoCliente::where('processo_id', '=', $processo_id)->load() as $vinculo)
-        {
-            $atuais[(int) $vinculo->cliente_id] = $vinculo;
-        }
-
-        foreach ($desejados as $cliente_id)
-        {
-            if (isset($atuais[$cliente_id]))
-            {
-                continue;
-            }
-
-            $vinculo = new ProcessoCliente();
-            $vinculo->processo_id     = $processo_id;
-            $vinculo->cliente_id      = $cliente_id;
-            $vinculo->data_criacao    = date('Y-m-d H:i:s');
-            $vinculo->criacao_user_id = $user_id;
-            $vinculo->store();
-        }
-
-        foreach ($atuais as $cliente_id => $vinculo)
-        {
-            if (!isset($desejados[$cliente_id]))
-            {
-                $vinculo->delete();
-            }
-        }
+        return ContratoProcesso::where('processo_id', '=', $processo_id)->count() > 0;
     }
 
     /**
@@ -379,18 +336,22 @@ class PreProcessoService
     // =================================================================
 
     /**
-     * Localiza a etapa de organizacao documental ja cadastrada.
+     * A etapa marcada como "Padrão pré-processo" para a trilha do processo.
      *
-     * Busca pelo nome, respeitando a trilha do tipo de processo, porque a
-     * base tem uma etapa por trilha (judicial e extrajudicial) e o id nao
-     * pode ser presumido. Nada e criado aqui: se a etapa nao existir, quem
-     * chama decide o que fazer.
+     * Quem escolhe e o cadastro de etapas, nao o codigo. Antes esta rotina
+     * procurava a etapa pelo nome ("organiza...documental"): funcionava, mas
+     * bastava alguem renomear a etapa para a criacao automatica do andamento
+     * parar de acontecer, sem aviso nenhum.
+     *
+     * Ha no maximo uma etapa marcada por trilha - o banco garante isso com
+     * dois indices unicos parciais. Nada e criado aqui: se nenhuma etapa
+     * estiver marcada, quem chama decide o que fazer.
      */
-    public static function etapaOrganizacaoDocumental($tipo_processo_id): ?PublicacaoEtapa
+    public static function etapaPadraoPreProcesso($tipo_processo_id): ?PublicacaoEtapa
     {
         $tipo_processo_id = (int) $tipo_processo_id;
 
-        $repositorio = PublicacaoEtapa::where('etapa_nome', 'ilike', '%organiza%documental%');
+        $repositorio = PublicacaoEtapa::where('padrao_pre_processo', '=', self::SIM);
 
         if ($tipo_processo_id === (int) TipoProcesso::JUDICIAL)
         {
@@ -402,6 +363,71 @@ class PreProcessoService
         }
 
         return $repositorio->orderBy('ordem_prioridade', 'asc')->first();
+    }
+
+    /**
+     * Etapas validas para a trilha de um tipo de processo.
+     *
+     * Usada pelos combos de etapa: oferecer uma etapa de outra trilha e
+     * oferecer um caminho que a timeline depois vai ignorar.
+     */
+    public static function criteriaEtapasDoTipo($tipo_processo_id): TCriteria
+    {
+        $criteria = new TCriteria();
+        $tipo_processo_id = (int) $tipo_processo_id;
+
+        if ($tipo_processo_id === (int) TipoProcesso::JUDICIAL)
+        {
+            $criteria->add(new TFilter('judicial', '=', self::SIM));
+        }
+        elseif ($tipo_processo_id === (int) TipoProcesso::EXTRAJUDICIAL)
+        {
+            $criteria->add(new TFilter('extrajudicial', '=', self::SIM));
+        }
+
+        return $criteria;
+    }
+
+    /**
+     * Garante "somente uma etapa padrao por trilha".
+     *
+     * Desmarca as concorrentes antes de gravar a nova. O banco tem indice
+     * unico parcial para as duas trilhas; sem esta limpeza o salvamento
+     * esbarraria nele. Devolve os nomes das etapas que sairam, para a tela
+     * poder dizer ao usuario o que mudou.
+     *
+     * @return string[]
+     */
+    public static function liberarEtapaPadrao(PublicacaoEtapa $etapa): array
+    {
+        $substituidas = [];
+
+        foreach (['judicial', 'extrajudicial'] as $trilha)
+        {
+            if (strtoupper(trim((string) $etapa->{$trilha})) !== self::SIM)
+            {
+                continue;
+            }
+
+            $concorrentes = PublicacaoEtapa::where('padrao_pre_processo', '=', self::SIM)
+                                           ->where($trilha, '=', self::SIM)
+                                           ->load();
+
+            foreach ($concorrentes as $concorrente)
+            {
+                if ((int) $concorrente->id === (int) $etapa->id)
+                {
+                    continue;
+                }
+
+                $concorrente->padrao_pre_processo = self::NAO;
+                $concorrente->store();
+
+                $substituidas[$concorrente->id] = $concorrente->etapa_nome;
+            }
+        }
+
+        return array_values($substituidas);
     }
 
     /**
@@ -429,18 +455,27 @@ class PreProcessoService
     }
 
     /**
-     * Cria o andamento inicial de organizacao documental.
+     * Cria o andamento inicial do pre-processo.
      *
-     * Usa o modelo Andamento real e a mesma ponte processo_publicacoes que
-     * a timeline ja consome, para o registro nascer visivel sem nenhuma
+     * A etapa vem do cadastro - a que estiver marcada como "Padrão
+     * pré-processo" para a trilha do processo. O titulo e o texto saem da
+     * propria etapa, entao quem escreve o que o cliente le e quem cadastra a
+     * etapa, nao este codigo.
+     *
+     * Usa o modelo Andamento real e a mesma ponte processo_publicacoes que a
+     * timeline ja consome, para o registro nascer visivel sem nenhuma
      * estrutura paralela.
      *
      * Idempotente: se o processo ja tem um andamento nessa etapa, devolve o
      * que existe. Isso protege o duplo clique e o F5 no wizard.
+     *
+     * Devolve null quando nenhuma etapa esta marcada para a trilha. Nao e
+     * erro: o pre-processo continua valido, so nasce sem o andamento. Quem
+     * chama avisa o usuario.
      */
-    public static function criarAndamentoOrganizacaoDocumental(Processo $processo, $user_id = null): ?Andamento
+    public static function criarAndamentoInicial(Processo $processo, $user_id = null): ?Andamento
     {
-        $etapa = self::etapaOrganizacaoDocumental($processo->tipo_processo_id);
+        $etapa = self::etapaPadraoPreProcesso($processo->tipo_processo_id);
 
         if (!$etapa)
         {
@@ -470,8 +505,20 @@ class PreProcessoService
             judicial, e essa nao se inventa.
         */
         $andamento->data_andamento    = $agora;
-        $andamento->titulo            = 'Organização documental';
-        $andamento->texto             = 'O escritório iniciou a organização dos documentos necessários ao trabalho contratado.';
+
+        /*
+            Titulo e texto saem da etapa. "Explicação" (descricao) e o campo
+            que o escritorio escreve pensando no cliente - e exatamente o que
+            deve aparecer na timeline dele. Se estiver em branco, entra uma
+            frase neutra em vez de um andamento sem conteudo.
+        */
+        $andamento->titulo = trim((string) $etapa->etapa_nome);
+
+        $explicacao = trim((string) $etapa->descricao);
+        $andamento->texto = ($explicacao !== '')
+            ? $explicacao
+            : 'O escritório iniciou o trabalho contratado.';
+
         $andamento->etapa_verificada  = self::SIM;
         $andamento->criacao_user_id   = $user_id;
         $andamento->store();
@@ -597,19 +644,12 @@ class PreProcessoService
         $vinculo->store();
 
         /*
-            Os clientes tambem entram pelo vinculo direto. O caminho por
-            contrato ja daria acesso ao portal, mas o vinculo direto
-            sobrevive se o contrato for desvinculado depois.
+            Os clientes nao sao copiados para lugar nenhum: eles ja estao em
+            contrato_pessoa, e e de la que o portal os le. O vinculo com o
+            contrato, criado acima, e o que amarra tudo.
         */
-        $clientes_ids = [];
-        foreach (ContratoPessoa::where('contrato_id', '=', $contrato_id)->load() as $contrato_pessoa)
-        {
-            $clientes_ids[] = (int) $contrato_pessoa->cliente_id;
-        }
 
-        self::sincronizarClientesDiretos($processo->id, $clientes_ids, $user_id);
-
-        self::criarAndamentoOrganizacaoDocumental($processo, $user_id);
+        self::criarAndamentoInicial($processo, $user_id);
 
         return $processo;
     }

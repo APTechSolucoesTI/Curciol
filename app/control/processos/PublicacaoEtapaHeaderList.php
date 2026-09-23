@@ -128,11 +128,45 @@ class PublicacaoEtapaHeaderList extends TPage
             return '';    
         });        
 
+        /*
+            PRE-PROCESSO: qual etapa abre um pre-processo.
+
+            As colunas Judicial e Extrajudicial ao lado usam bolinha, que
+            responde "sim ou nao". Aqui a pergunta e outra - "qual delas e a
+            escolhida" - e so uma linha por trilha tem resposta. Por isso um
+            selo escrito, que se le sem legenda e sem comparar com as vizinhas.
+        */
+        $column_padrao_pre_processo = new TDataGridColumn('padrao_pre_processo', "Padrão pré-processo", 'left');
+
+        $column_padrao_pre_processo->setTransformer(function($value, $object, $row, $cell = null, $last_row = null)
+        {
+            if (strtoupper(trim((string) $value)) !== 'S') {
+                return '';
+            }
+
+            $trilhas = [];
+
+            if (strtoupper(trim((string) $object->judicial)) === 'S') {
+                $trilhas[] = 'Judicial';
+            }
+
+            if (strtoupper(trim((string) $object->extrajudicial)) === 'S') {
+                $trilhas[] = 'Extrajudicial';
+            }
+
+            $detalhe = empty($trilhas)
+                ? '<div class="curciol-pre-estado">sem trilha marcada</div>'
+                : '<div class="curciol-pre-estado">' . implode(' e ', $trilhas) . '</div>';
+
+            return "<span class='curciol-selo-pre'>PADRÃO</span>{$detalhe}";
+        });
+
         $this->datagrid->addColumn($column_ordem_prioridade);
         $this->datagrid->addColumn($column_cor_transformed);
         $this->datagrid->addColumn($column_etapa_nome);
         $this->datagrid->addColumn($column_extrajudicial_transformed);
         $this->datagrid->addColumn($column_judicial_transformed);
+        $this->datagrid->addColumn($column_padrao_pre_processo);
 
         $action_onEdit = new TDataGridAction(array('PublicacaoEtapaForm', 'onEdit'));
         $action_onEdit->setUseButton(false);

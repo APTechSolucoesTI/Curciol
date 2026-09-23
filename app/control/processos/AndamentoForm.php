@@ -29,7 +29,38 @@ class AndamentoForm extends TPage
 
         $criteria_processo_id = new TCriteria();
         $criteria_tipo_andamento_id = new TCriteria();
-        $criteria_publicacao_etapa_id = new TCriteria();
+        /*
+            O combo de etapas oferecia todas, de qualquer trilha. Escolher uma
+            etapa Extrajudicial num processo Judicial produz um andamento que a
+            timeline depois descarta, porque ela filtra por trilha - o lancamento
+            some sem explicacao.
+
+            O tipo vem do processo: em inclusao pelo parametro processo_id, em
+            edicao pelo andamento que esta sendo aberto.
+        */
+        $tipo_processo_do_andamento = null;
+
+        TTransaction::open(self::$database);
+
+        if (!empty($param['processo_id']))
+        {
+            $processo_do_andamento = Processo::find((int) $param['processo_id']);
+            $tipo_processo_do_andamento = $processo_do_andamento->tipo_processo_id ?? null;
+        }
+        elseif (!empty($param['key']))
+        {
+            $andamento_em_edicao = Andamento::find((int) $param['key']);
+
+            if ($andamento_em_edicao)
+            {
+                $processo_do_andamento = Processo::find((int) $andamento_em_edicao->processo_id);
+                $tipo_processo_do_andamento = $processo_do_andamento->tipo_processo_id ?? null;
+            }
+        }
+
+        TTransaction::close();
+
+        $criteria_publicacao_etapa_id = PreProcessoService::criteriaEtapasDoTipo($tipo_processo_do_andamento);
         $criteria_criacao_user_id = new TCriteria();
         $criteria_modificacao_user_id = new TCriteria();
 
