@@ -508,62 +508,83 @@ class ProcessoForm extends TPage
                 }
             }
 
-        }
-        catch (Exception $e) 
-        {
-            new TMessage('error', $e->getMessage());    
-        }
-    }
+            /*
+                PRE-PROCESSO: sempre por ultimo.
 
-    /*
-        PRE-PROCESSO: acerta a tela conforme o estado do registro.
+                Esta rotina e a dona dos campos judiciais - e quem decide o que
+                aparece para Judicial e para Extrajudicial. O estado de
+                pre-processo e uma camada por cima: ele so retira da tela o que
+                nao pode existir antes da distribuicao.
 
-        Isto e conforto visual, nao validacao. A regra de verdade esta em
-        PreProcessoService::validarCadastro(), no onSave, que roda mesmo se a
-        requisicao nao passar por esta tela.
-    */
-    public static function onChangePreProcesso($param = null)
-    {
-        try
-        {
-            $formulario = $param['formulario'] ?? self::$formName;
-            $eh_pre = (($param['pre_processo'] ?? 'N') === 'S');
+                Aplicar aqui, no fim, e o que resolve o conflito: nao importa se
+                o usuario mexeu primeiro na chave ou primeiro no tipo, a ultima
+                palavra sobre o numero e sempre do pre-processo.
+            */
+            self::aplicarEstadoPreProcesso($param);
 
-            if ($eh_pre)
-            {
-                /*
-                    Sem distribuicao nao ha numero. Os campos saem da tela e
-                    sao limpos, para nao restar valor digitado antes de marcar
-                    a chave. Os demais campos judiciais continuam disponiveis:
-                    comarca ou area ja podem ser conhecidas.
-                */
-                TScript::create("$('label:contains(\"Número padrão CNJ:\"), label:contains(\"Número:\")').hide();");
-                TScript::create("$(\"[name='numero_cnj_numero']\").val('').closest('.fb-inline-field-container').hide()");
-
-                TScript::create("$('label:contains(\"Número outro padrão:\")').hide();");
-                TScript::create("$(\"[name='numero_outro']\").val('').closest('.fb-inline-field-container').hide()");
-
-                TScript::create("$('.linha-pre-processo label:contains(\"Descrição do pré-processo:\")').css('color', '#ff0000');");
-                TScript::create("$(\"[name='descricao_pre_processo']\").closest('.fb-inline-field-container').show()");
-            }
-            else
-            {
-                TScript::create("$(\"[name='descricao_pre_processo']\").closest('.fb-inline-field-container').show()");
-                TScript::create("$('.linha-pre-processo label:contains(\"Descrição do pré-processo:\")').css('color', '');");
-
-                /*
-                    Quem devolve os campos judiciais e a propria rotina de tipo
-                    de processo: extrajudicial esconde outro conjunto, e repetir
-                    essa decisao aqui faria as duas brigarem.
-                */
-                $param['formulario'] = $formulario;
-                self::onSelectTipoProcesso($param);
-            }
         }
         catch (Exception $e)
         {
             new TMessage('error', $e->getMessage());
         }
+    }
+    /*
+        PRE-PROCESSO: reage a chave "E um pre-processo?".
+
+        Delega para onSelectTipoProcesso, que reconstroi a tela conforme o tipo
+        e, no fim dela, aplica o estado de pre-processo. Assim existe um unico
+        caminho que monta o formulario, em vez de duas rotinas disputando os
+        mesmos campos.
+    */
+    public static function onChangePreProcesso($param = null)
+    {
+        self::onSelectTipoProcesso($param);
+    }
+
+    /*
+        PRE-PROCESSO: camada que roda por cima da decisao do tipo de processo.
+
+        Isto e conforto visual, nao validacao. A regra de verdade esta em
+        PreProcessoService::validarCadastro(), no onSave, que roda mesmo se a
+        requisicao nao passar por esta tela.
+
+        Regra de convivencia com onSelectTipoProcesso: quando a chave esta
+        ligada, esta rotina retira da tela o que nao pode existir antes da
+        distribuicao. Quando esta desligada, ela devolve apenas o que ela
+        propria escondeu - o numero padrao CNJ. O restante (numero outro
+        padrao, tribunal, foro, comarca, vara) fica por conta do tipo de
+        processo, que ja decidiu antes; mexer neles aqui desfaria a escolha
+        de Extrajudicial.
+    */
+    private static function aplicarEstadoPreProcesso($param = null)
+    {
+        $eh_pre = (($param['pre_processo'] ?? 'N') === 'S');
+
+        if ($eh_pre)
+        {
+            /*
+                Sem distribuicao nao ha numero. Os campos saem da tela e sao
+                limpos, para nao restar valor digitado antes de marcar a chave.
+                Os demais campos judiciais continuam disponiveis: comarca ou
+                area ja podem ser conhecidas nesta fase.
+            */
+            TScript::create("$('label:contains(\"Número padrão CNJ:\"), label:contains(\"Número:\")').hide();");
+            TScript::create("$(\"[name='numero_cnj_numero']\").val('').closest('.fb-inline-field-container').hide()");
+
+            TScript::create("$('label:contains(\"Número outro padrão:\")').hide();");
+            TScript::create("$(\"[name='numero_outro']\").val('').closest('.fb-inline-field-container').hide()");
+
+            TScript::create("$('.linha-pre-processo label:contains(\"Descrição do pré-processo:\")').css('color', '#ff0000');");
+        }
+        else
+        {
+            TScript::create("$('label:contains(\"Número padrão CNJ:\"), label:contains(\"Número:\")').show();");
+            TScript::create("$(\"[name='numero_cnj_numero']\").closest('.fb-inline-field-container').show()");
+
+            TScript::create("$('.linha-pre-processo label:contains(\"Descrição do pré-processo:\")').css('color', '');");
+        }
+
+        TScript::create("$(\"[name='descricao_pre_processo']\").closest('.fb-inline-field-container').show()");
     }
 
     public  function onAddDetailContratoProcessoProcesso($param = null)
@@ -931,16 +952,14 @@ class ProcessoForm extends TPage
 
                 $this->fireEvents($object);
 
-                $param['tipo_processo_id'] = $object->tipo_processo_id;
-                $this->onSelectTipoProcesso($param);
-
                 /*
-                    PRE-PROCESSO: roda depois de onSelectTipoProcesso porque as
-                    duas mexem nos mesmos campos, e quem esta em fase
-                    pre-processual tem a ultima palavra sobre o numero.
+                    PRE-PROCESSO: uma chamada so. onSelectTipoProcesso monta a
+                    tela pelo tipo e aplica o estado de pre-processo no fim,
+                    entao basta que os dois valores cheguem juntos.
                 */
-                $param['pre_processo'] = $object->pre_processo;
-                self::onChangePreProcesso($param);
+                $param['tipo_processo_id'] = $object->tipo_processo_id;
+                $param['pre_processo']     = trim((string) $object->pre_processo);
+                $this->onSelectTipoProcesso($param);
 
                 TTransaction::close(); // close the transaction 
 

@@ -9,14 +9,27 @@
  *
  * Os dois ids chegam como parametro e sao revalidados aqui. Nada vem de
  * sessao.
+ *
+ * E TWindow, e nao TPage, para continuar a mesma conversa visual da janela
+ * de pesquisa que veio antes: o usuario escolhe o pre-processo num modal e
+ * confirma no mesmo formato, sem a tela de fundo trocar por baixo dele.
  */
-class PreProcessoConversaoForm extends TPage
+class PreProcessoConversaoForm extends TWindow
 {
     private static $database = 'escritorio';
 
     public function __construct($param = null)
     {
         parent::__construct();
+        parent::setSize(0.6, null);
+        parent::setTitle('Vincular pré-processo');
+        parent::setProperty('class', 'window_modal');
+
+        /*
+            A janela de pesquisa ja cumpriu o papel dela. Fecha-la evita dois
+            modais empilhados e deixa claro que a escolha foi feita.
+        */
+        TWindow::closeWindowByName('PreProcessoSeekWindow');
 
         $processo_id   = (int) ($param['processo_id'] ?? 0);
         $publicacao_id = (int) ($param['publicacao_id'] ?? 0);
@@ -97,9 +110,13 @@ class PreProcessoConversaoForm extends TPage
             );
             $btn_confirmar->addStyleClass('btn-primary');
 
+            /*
+                Cancelar apenas fecha o modal: a publicacao continua aberta
+                atras dele, exatamente como o usuario a deixou.
+            */
             $form->addAction(
                 'Cancelar',
-                new TAction(['PublicacaoFormView', 'onShow'], ['key' => $publicacao->id]),
+                new TAction(['PreProcessoConversaoForm', 'onCancelar'], ['static' => 1]),
                 'fas:times #dd5a43'
             );
 
@@ -115,12 +132,7 @@ class PreProcessoConversaoForm extends TPage
 
             TTransaction::close();
 
-            $container = new TVBox;
-            $container->style = 'width: 100%';
-            $container->add(TBreadCrumb::create(['Processos', 'Vincular pré-processo']));
-            $container->add($form);
-
-            parent::add($container);
+            parent::add($form);
         }
         catch (Exception $e)
         {
@@ -189,8 +201,9 @@ class PreProcessoConversaoForm extends TPage
 
             TTransaction::close();
 
-            TScript::create("$(\"[page_name='PreProcessoSeekWindow']\").remove()");
-            TWindow::closeWindow();
+            /* Fecha pelo nome: nao depende de qual modal esta por cima. */
+            TWindow::closeWindowByName('PreProcessoSeekWindow');
+            TWindow::closeWindowByName('PreProcessoConversaoForm');
 
             TToast::show(
                 'success',
@@ -214,6 +227,14 @@ class PreProcessoConversaoForm extends TPage
             TTransaction::rollback();
             new TMessage('error', $e->getMessage());
         }
+    }
+
+    /**
+     * Fecha o modal sem alterar nada.
+     */
+    public static function onCancelar($param = null)
+    {
+        TWindow::closeWindowByName('PreProcessoConversaoForm');
     }
 
     public function onShow($param = null)

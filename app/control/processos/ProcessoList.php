@@ -14,6 +14,13 @@ class ProcessoList extends TPage
     private $showMethods = ['onReload', 'onSearch', 'onRefresh', 'onClearFilters', 'onGlobalSearch'];
     private $limit = 20;
 
+    /*
+        PRE-PROCESSO: expressao de ordenacao por numero que nao esconde quem
+        ainda nao tem numero. Usada na ordem padrao e no clique do cabecalho
+        da coluna "Número", para os dois caminhos concordarem.
+    */
+    const ORDEM_PADRAO = 'CASE WHEN numero_cnj_numero IS NULL THEN 0 ELSE 1 END, numero_cnj_numero';
+
     use BuilderDatagridTrait;
 
     /**
@@ -306,7 +313,7 @@ class ProcessoList extends TPage
         $order_tipo_processo_nome->setParameter('order', 'sort_tipo_processo_nome');
         $column_tipo_processo_nome->setAction($order_tipo_processo_nome);
         $order_numero_cnj_numero = new TAction(array($this, 'onReload'));
-        $order_numero_cnj_numero->setParameter('order', 'numero_cnj_numero');
+        $order_numero_cnj_numero->setParameter('order', self::ORDEM_PADRAO);
         $column_numero_cnj_numero->setAction($order_numero_cnj_numero);
         $order_id_transformed = new TAction(array($this, 'onReload'));
         $order_id_transformed->setParameter('order', 'id');
@@ -1061,7 +1068,26 @@ class ProcessoList extends TPage
 
             if (empty($param['order']))
             {
-                $param['order'] = 'numero_cnj_numero';    
+                /*
+                    PRE-PROCESSO: ordem padrao.
+
+                    A lista sempre ordenou por numero_cnj_numero ASC. No
+                    PostgreSQL, ASC joga NULL para o fim - e pre-processo, por
+                    definicao, tem numero NULL. Medido em 23/09/2026: os
+                    pre-processos caiam nas linhas 10.543 a 10.547 de 10.547,
+                    ou seja, na pagina 528 de 528. Na pratica o registro
+                    recem-criado sumia.
+
+                    O CASE traz quem ainda nao tem numero para o topo, que e
+                    onde ele precisa estar: sao os registros que aguardam
+                    providencia. Depois disso a ordem por numero segue
+                    exatamente como era.
+
+                    Isto nao mexe em nada historico: ate esta funcionalidade a
+                    coluna era NOT NULL, entao nao existia uma linha sequer
+                    para o CASE reposicionar.
+                */
+                $param['order'] = self::ORDEM_PADRAO;
             }
 
             if (empty($param['direction']))
