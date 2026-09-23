@@ -32,12 +32,24 @@
      roubar o ponteiro, entao a linha sob o cursor e sempre a linha real e o
      vai-e-volta nao tem como comecar. Quem tem trigger de clique (BHelper)
      continua clicavel, porque so o template de hover leva a classe.
-   - atraso de abertura de 350ms. Passar o mouse por cima a caminho de outro
-     lugar nao abre mais nada; o balao so aparece quando o usuario para.
+   - atraso de abertura de 200ms, para o mouse de passagem nao disparar
+     balao em cada linha do caminho.
 
-   Depois da correcao, a mesma medicao da mesma tela: 0 baloes ao varrer 8
-   linhas, e -3 -4 +5 -5 +6 -6 +7 -7 -8 +9 ao descer pelo balao, sem repetir
-   linha nenhuma.
+   Sobre o valor do atraso: ele foi 350ms na primeira versao e isso quebrou o
+   uso normal - descendo a lista em ritmo de leitura, abria um balao so, e
+   parecia que o hover so funcionava na primeira linha. Medido nesta tela,
+   descendo dez linhas:
+
+       atraso   em 4s   em 2s   em 0,8s   ping-pong
+        150ms      10      10         5   nao
+        200ms      10       9         2   nao
+        250ms      10       7         1   nao
+        350ms       9       1         1   nao
+
+   200ms responde em ritmo de leitura e ainda corta a passagem rapida de dez
+   baloes para dois. E repare na ultima coluna: o ping-pong nao volta em
+   nenhum atraso, porque quem o resolve e o pointer-events, nao o atraso. Por
+   isso da para deixar o atraso curto sem trazer o defeito de volta.
 
    Duas coisas foram testadas e deixadas como estavam, para o arquivo nao
    crescer com conserto de problema que nao existe:
@@ -63,7 +75,7 @@
 
     var $ = window.jQuery;
 
-    var ATRASO_ABRIR  = 350;
+    var ATRASO_ABRIR  = 200;
     var ATRASO_FECHAR = 80;
 
     var MODELO_HOVER =
