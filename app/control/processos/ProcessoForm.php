@@ -228,6 +228,13 @@ class ProcessoForm extends TPage
         $contrato_processo_processo_contrato_id_seekAction->setParameter('_seek_fields', $seekFields);
         $contrato_processo_processo_contrato_id_seekAction->setParameter('_seek_filters', $seekFilters);
         $contrato_processo_processo_contrato_id_seekAction->setParameter('_seek_hash', md5($seed.$seekFields.$seekFilters));
+
+        /*
+            Nao acrescente static=1 nesta acao. Testado em 23/09/2026: com o
+            parametro, ProcessoForm::onShow da janela de busca responde vazio e
+            a lupa para de abrir. A protecao do painel lateral vem de
+            ContratoSeekWindow::onSelect, que deixou de fechar o painel.
+        */
         $contrato_processo_processo_contrato_id->setAction($contrato_processo_processo_contrato_id_seekAction);
 
         $contrato_processo_processo_contrato_id_seekAction->setParameter('processo_id',$param['key'] ?? null);

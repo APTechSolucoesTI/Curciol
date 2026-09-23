@@ -141,7 +141,22 @@ class ContratoSeekWindow extends TWindow
             $seekFields = self::getSeekFields($param);
             $formData = new stdClass();
 
-            if(!empty($param['key']))
+            /*
+                onSelect roda em duas situacoes: ao escolher uma linha na
+                janela de busca, e ao sair do campo de texto depois de digitar
+                nele. No segundo caso o que chega em 'key' e o que a pessoa
+                escreveu - texto livre, nao um id.
+
+                Sem esta verificacao o valor digitado ia direto para um filtro
+                sobre a chave primaria, que e inteira, e o usuario recebia o
+                erro cru do banco:
+                "invalid input syntax for type integer: XPTO".
+            */
+            $chave_valida = isset($param['key'])
+                && $param['key'] !== ''
+                && ctype_digit(ltrim((string) $param['key'], '+-'));
+
+            if($chave_valida)
             {
                 TTransaction::open(self::$database);
 
@@ -157,34 +172,56 @@ class ContratoSeekWindow extends TWindow
                     $object = $objects[0];
                     if($seekFields)
                     {
-                        foreach ($seekFields as $seek_field) 
+                        foreach ($seekFields as $seek_field)
                         {
 
                             $formData->{"{$seek_field['name']}"} = $object->render("{$seek_field['column']}");
                         }
                     }
                 }
-                elseif($seekFields)
+                else
                 {
-                    foreach ($seekFields as $seek_field) 
+                    $nao_encontrado = true;
+
+                    if($seekFields)
                     {
-                        $formData->{"{$seek_field['name']}"} = '';
-                    }   
+                        foreach ($seekFields as $seek_field)
+                        {
+                            $formData->{"{$seek_field['name']}"} = '';
+                        }
+                    }
                 }
                 TTransaction::close();
             }
             else
             {
+                $nao_encontrado = !empty($param['key']);
+
                 if($seekFields)
                 {
-                    foreach ($seekFields as $seek_field) 
+                    foreach ($seekFields as $seek_field)
                     {
                         $formData->{"{$seek_field['name']}"} = '';
-                    }   
+                    }
                 }
             }
 
             TForm::sendData($param['_form_name'], $formData);
+
+            /*
+                Limpar o campo sem dizer nada faz o usuario achar que o
+                sistema engoliu o que ele digitou. Se havia algo escrito e nada
+                casou, o motivo aparece.
+            */
+            if(!empty($nao_encontrado))
+            {
+                TToast::show(
+                    'info',
+                    'Nenhum contrato encontrado para "' . htmlspecialchars((string) $param['key'], ENT_QUOTES, 'UTF-8') . '". Use a lupa para pesquisar.',
+                    'topRight',
+                    'fas:info-circle'
+                );
+            }
 
             if(!empty($param['_seek_window_id']))
             {
@@ -192,7 +229,19 @@ class ContratoSeekWindow extends TWindow
             }
             else
             {
-                TScript::create("Template.closeRightPanel();");
+                /*
+                    Aqui havia Template.closeRightPanel().
+
+                    Este metodo tambem e chamado quando o usuario apenas sai do
+                    campo de texto, sem janela nenhuma aberta - e nesse caso o
+                    painel lateral que ele fechava era o proprio formulario em
+                    preenchimento, que sumia com tudo dentro. Era o que fazia o
+                    cadastro de processo "fechar sozinho" na aba Contratos.
+
+                    Fechar pelo nome resolve os dois casos: se a janela de busca
+                    estiver aberta ela fecha; se nao estiver, nada acontece.
+                */
+                TWindow::closeWindowByName('ContratoSeekWindow');
             }
         }
         catch (Exception $e) 
