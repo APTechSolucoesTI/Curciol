@@ -52,7 +52,11 @@ class Processo extends TRecord
         parent::addAttribute('data_modificacao');
         parent::addAttribute('modificacao_user_id');
         parent::addAttribute('exibir_cliente');
-    
+        parent::addAttribute('pre_processo');
+        parent::addAttribute('descricao_pre_processo');
+        parent::addAttribute('data_conversao');
+        parent::addAttribute('conversao_user_id');
+
     }
 
     /**

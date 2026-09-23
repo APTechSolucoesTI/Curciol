@@ -40,6 +40,11 @@ class ProcessoForm extends TPage
         $criteria_responsavel_id = new TCriteria();
         $criteria_contraparte_processo_pessoa_id = new TCriteria();
 
+        /* PRE-PROCESSO: clientes ligados direto ao processo. Ver PreProcessoService. */
+        $criteria_clientes_processo = new TCriteria();
+        $filterVar = Grupo::CLIENTE;
+        $criteria_clientes_processo->add(new TFilter('id', 'in', "(SELECT pessoa_id FROM pessoa_grupo WHERE grupo_id = '{$filterVar}')"));
+
         $filterVar = Grupo::PROFISSIONAL;
         $criteria_responsavel_id->add(new TFilter('id', 'in', "(SELECT pessoa_id FROM pessoa_grupo WHERE grupo_id = '{$filterVar}')")); 
         $filterVar = Grupo::CONTRAPARTE;
@@ -50,6 +55,12 @@ class ProcessoForm extends TPage
         $vinculo = new THidden('vinculo');
         $principal_id = new THidden('principal_id');
         $exibir_cliente = new TCheckButton('exibir_cliente');
+
+        /* PRE-PROCESSO */
+        $pre_processo = new TCheckButton('pre_processo');
+        $descricao_pre_processo = new TEntry('descricao_pre_processo');
+        $clientes_processo = new TDBMultiSearch('clientes_processo', 'escritorio', 'Pessoa', 'id', 'nome', 'nome asc', $criteria_clientes_processo);
+
         $tipo_processo_id = new TDBCombo('tipo_processo_id', 'escritorio', 'TipoProcesso', 'id', '{nome}','nome asc' , $criteria_tipo_processo_id );
         $envolvimento_id = new TCombo('envolvimento_id');
         $numero_cnj_numero = new TEntry('numero_cnj_numero');
@@ -103,12 +114,31 @@ class ProcessoForm extends TPage
         $area_id->setChangeAction(new TAction([$this,'onChangearea_id']));
         $tipo_processo_id->setChangeAction(new TAction([$this,'onSelectTipoProcesso']));
 
-        $tipo_processo_id->addValidation("Tipo de processo", new TRequiredValidator()); 
-        $numero_cnj_numero->addValidation("Número", new TRequiredValidator()); 
+        $tipo_processo_id->addValidation("Tipo de processo", new TRequiredValidator());
+
+        /*
+            PRE-PROCESSO: a obrigatoriedade do numero deixou de ser fixa.
+            Ela passou para PreProcessoService::validarCadastro(), chamado no
+            onSave, porque agora depende do estado do registro - e porque
+            esconder um campo no navegador nao torna o dado opcional no
+            servidor. Processo convencional continua exigindo o numero.
+        */
 
         $exibir_cliente->setUseSwitch(true, 'blue');
         $exibir_cliente->setIndexValue("S");
         $exibir_cliente->setInactiveIndexValue("N");
+
+        /* PRE-PROCESSO */
+        $pre_processo->setUseSwitch(true, 'orange');
+        $pre_processo->setIndexValue("S");
+        $pre_processo->setInactiveIndexValue("N");
+        $pre_processo->setValue('N');
+        $pre_processo->setChangeAction(new TAction([$this, 'onChangePreProcesso'], ['static' => 1]));
+        $descricao_pre_processo->setMaxLength(255);
+        $descricao_pre_processo->placeholder = 'Ex.: Reclamação trabalhista — João da Silva';
+        $clientes_processo->setMinLength(3);
+        $clientes_processo->setMask('{nome}');
+        $clientes_processo->setFilterColumns(['nome', 'cpf_cnpj']);
         $tipo_processo_id->setDefaultOption(false);
         $gratuidade_processual->addItems(["T"=>"Sim","F"=>"Não"]);
         $gratuidade_processual->setLayout('horizontal');
@@ -162,6 +192,8 @@ class ProcessoForm extends TPage
         $numero_cnj_numero->setValue($param['numero_processo'] ?? null);
 
         $id->setSize(100);
+        $descricao_pre_processo->setSize('100%');
+        $clientes_processo->setSize('100%', 70);
         $vinculo->setSize(200);
         $publicacao->setSize(200);
         $foro_id->setSize('100%');
@@ -217,6 +249,25 @@ class ProcessoForm extends TPage
 
         $row1 = $this->form->addFields([new TLabel("Id:", null, '14px', null, '100%'),$id,$publicacao,$vinculo,$principal_id],[new TLabel("Exibir processo para o cliente:", null, '14px', null, '100%'),$exibir_cliente]);
         $row1->layout = ['col-sm-6',' col-sm-6'];
+
+        /*
+            PRE-PROCESSO: trabalho iniciado para o cliente antes da
+            distribuicao judicial. Enquanto a chave estiver ligada o registro
+            vive sem numero; a descricao e o que permite encontra-lo.
+        */
+        $row1a = $this->form->addFields([new TLabel("É um pré-processo?", null, '14px', null, '100%'),$pre_processo],[new TLabel("Descrição do pré-processo:", null, '14px', null, '100%'),$descricao_pre_processo]);
+        $row1a->layout = ['col-sm-4',' col-sm-8'];
+        $row1a->class = trim(($row1a->class ?? '') . ' linha-pre-processo');
+
+        /*
+            Vinculo direto com o cliente. O portal descobria o dono do
+            processo so pelo contrato; um pre-processo pode existir antes do
+            contrato, e sem dono nenhum ele nao pode ficar visivel.
+            Os clientes que vem pelos contratos continuam valendo e nao
+            precisam ser repetidos aqui.
+        */
+        $row1b = $this->form->addFields([new TLabel("Cliente(s) vinculado(s) diretamente:", null, '14px', null, '100%'),$clientes_processo]);
+        $row1b->layout = [' col-sm-12'];
 
         $row2 = $this->form->addFields([new TLabel("Tipo de processo:", '#FF0000', '14px', null, '100%'),$tipo_processo_id],[new TLabel("Envolvimento:", null, '14px', null, '100%'),$envolvimento_id]);
         $row2->layout = ['col-sm-6',' col-sm-6'];
@@ -464,7 +515,58 @@ class ProcessoForm extends TPage
         }
     }
 
-    public  function onAddDetailContratoProcessoProcesso($param = null) 
+    /*
+        PRE-PROCESSO: acerta a tela conforme o estado do registro.
+
+        Isto e conforto visual, nao validacao. A regra de verdade esta em
+        PreProcessoService::validarCadastro(), no onSave, que roda mesmo se a
+        requisicao nao passar por esta tela.
+    */
+    public static function onChangePreProcesso($param = null)
+    {
+        try
+        {
+            $formulario = $param['formulario'] ?? self::$formName;
+            $eh_pre = (($param['pre_processo'] ?? 'N') === 'S');
+
+            if ($eh_pre)
+            {
+                /*
+                    Sem distribuicao nao ha numero. Os campos saem da tela e
+                    sao limpos, para nao restar valor digitado antes de marcar
+                    a chave. Os demais campos judiciais continuam disponiveis:
+                    comarca ou area ja podem ser conhecidas.
+                */
+                TScript::create("$('label:contains(\"Número padrão CNJ:\"), label:contains(\"Número:\")').hide();");
+                TScript::create("$(\"[name='numero_cnj_numero']\").val('').closest('.fb-inline-field-container').hide()");
+
+                TScript::create("$('label:contains(\"Número outro padrão:\")').hide();");
+                TScript::create("$(\"[name='numero_outro']\").val('').closest('.fb-inline-field-container').hide()");
+
+                TScript::create("$('.linha-pre-processo label:contains(\"Descrição do pré-processo:\")').css('color', '#ff0000');");
+                TScript::create("$(\"[name='descricao_pre_processo']\").closest('.fb-inline-field-container').show()");
+            }
+            else
+            {
+                TScript::create("$(\"[name='descricao_pre_processo']\").closest('.fb-inline-field-container').show()");
+                TScript::create("$('.linha-pre-processo label:contains(\"Descrição do pré-processo:\")').css('color', '');");
+
+                /*
+                    Quem devolve os campos judiciais e a propria rotina de tipo
+                    de processo: extrajudicial esconde outro conjunto, e repetir
+                    essa decisao aqui faria as duas brigarem.
+                */
+                $param['formulario'] = $formulario;
+                self::onSelectTipoProcesso($param);
+            }
+        }
+        catch (Exception $e)
+        {
+            new TMessage('error', $e->getMessage());
+        }
+    }
+
+    public  function onAddDetailContratoProcessoProcesso($param = null)
     {
         try
         {
@@ -612,21 +714,53 @@ class ProcessoForm extends TPage
             $object = new Processo(); // create an empty object 
 
             $data = $this->form->getData(); // get form data as array
+
+            /*
+                PRE-PROCESSO.
+
+                normalizarDadosCadastro grava o numero ausente como NULL, e
+                nao como '': o indice unico parcial do banco ignora NULL, entao
+                varios pre-processos convivem sem numero, mas duas strings
+                vazias colidiriam a partir do segundo registro.
+
+                validarCadastro substitui o TRequiredValidator que estava preso
+                ao campo numero e a checagem de duplicidade que vinha logo
+                abaixo. Ela cobre os dois estados e roda sempre, inclusive se a
+                requisicao nao tiver passado pela tela.
+            */
+            PreProcessoService::normalizarDadosCadastro($data);
+            PreProcessoService::validarCadastro($data, $data->id ?? null);
+
             $object->fromArray( (array) $data); // load the object with data
 
-            $object->numero_cnj_numero = trim($object->numero_cnj_numero);
-
-            $processo_numero = Processo::where('numero_cnj_numero','=',$object->numero_cnj_numero)->first();
-            if($processo_numero && $processo_numero->id != $data->id){
-                throw new Exception("Número já cadastrado em outro processo. Não é possível adicionar.");
-            }
+            $object->numero_cnj_numero = $data->numero_cnj_numero;
 
             if(!$data->id){
                 $object->criacao_user_id = TSession::getValue('userid');
             }else{
                 $object->modificacao_user_id = TSession::getValue('userid');
             }
-            $object->store(); // save the object 
+            $object->store(); // save the object
+
+            /*
+                PRE-PROCESSO: vinculo direto com o cliente, que e o que permite
+                ao portal saber de quem e o registro quando ainda nao ha
+                contrato. Sincroniza, entao salvar de novo com a mesma lista
+                nao duplica nada.
+            */
+            PreProcessoService::sincronizarClientesDiretos(
+                $object->id,
+                (array) ($data->clientes_processo ?? []),
+                TSession::getValue('userid')
+            );
+
+            /*
+                PRE-PROCESSO: o bloco abaixo casa publicacoes pelo numero do
+                processo. Um pre-processo nao tem numero, entao nao ha o que
+                casar - e as consultas com NULL nao encontrariam nada de
+                qualquer forma. Processo convencional segue igual.
+            */
+            if(!empty($object->numero_cnj_numero)){
 
             if($data->publicacao != null){
                 $publicacao = Publicacao::find($data->publicacao);
@@ -665,6 +799,8 @@ class ProcessoForm extends TPage
                     }
                 }
             }
+
+            } // fim do bloco que depende do numero (PRE-PROCESSO)
 
             if(isset($data->principal_id) && !empty($data->principal_id)){
                 $vinculo = new ProcessoVinculo();
@@ -788,12 +924,23 @@ class ProcessoForm extends TPage
 
                 }); 
 
-                $this->form->setData($object); // fill the form 
+                /* PRE-PROCESSO: clientes ligados direto ao processo. */
+                $object->clientes_processo = PreProcessoService::clientesDiretos($object->id);
+
+                $this->form->setData($object); // fill the form
 
                 $this->fireEvents($object);
 
                 $param['tipo_processo_id'] = $object->tipo_processo_id;
                 $this->onSelectTipoProcesso($param);
+
+                /*
+                    PRE-PROCESSO: roda depois de onSelectTipoProcesso porque as
+                    duas mexem nos mesmos campos, e quem esta em fase
+                    pre-processual tem a ultima palavra sobre o numero.
+                */
+                $param['pre_processo'] = $object->pre_processo;
+                self::onChangePreProcesso($param);
 
                 TTransaction::close(); // close the transaction 
 

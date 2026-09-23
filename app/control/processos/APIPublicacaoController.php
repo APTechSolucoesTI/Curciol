@@ -562,9 +562,24 @@ class APIPublicacaoController extends TPage
 
         $stmt = $conn->prepare($sqlUpdate);
 
+        /*
+            PRE-PROCESSO / idempotencia.
+
+            Antes era um INSERT puro. Se a mesma publicacao voltasse a ter
+            publicacao_etapa_id nulo - por reprocessamento ou por alteracao
+            manual da etapa - a rotina inseria outra linha e o evento aparecia
+            duas vezes na timeline.
+
+            O NOT EXISTS resolve na propria instrucao: rodar a sincronizacao
+            de novo nao cria evento repetido.
+        */
         $sqlInsert = "INSERT INTO processo_publicacoes
                       (processo_id, publicacao_id, publicacao_etapa_id, date_log)
-                      VALUES (:processo_id, :publicacao_id, :etapa_id, :date_log)";
+                      SELECT :processo_id, :publicacao_id, :etapa_id, :date_log
+                      WHERE NOT EXISTS (
+                          SELECT 1 FROM processo_publicacoes
+                          WHERE publicacao_id = :publicacao_id_existente
+                      )";
 
         $stmtInsert = $conn->prepare($sqlInsert);
 
@@ -599,6 +614,7 @@ class APIPublicacaoController extends TPage
                 $inserts[] = [
                     ':processo_id' => $processo_id,
                     ':publicacao_id' => $pub->id,
+                    ':publicacao_id_existente' => $pub->id,
                     ':etapa_id' => $etapa_id,
                     ':date_log' => $hoje
                 ];
@@ -638,6 +654,7 @@ class APIPublicacaoController extends TPage
             $inserts[] = [
                 ':processo_id' => $processo_id,
                 ':publicacao_id' => $pub->id,
+                ':publicacao_id_existente' => $pub->id,
                 ':etapa_id' => $etapa_id,
                 ':date_log' => $hoje
             ];
@@ -665,7 +682,7 @@ class APIPublicacaoController extends TPage
             TTransaction::open(self::$database);            
             $conn = TTransaction::get();              
 
-            $sqlUpdate = "UPDATE publicacao 
+            $sqlUpdate = "UPDATE publicacao
                             SET publicacao_etapa_id = null
                             WHERE publicacao_etapa_id IS NOT NULL";
 
@@ -674,13 +691,36 @@ class APIPublicacaoController extends TPage
                 throw new Exception('Erro ao desvincular etapa de publicações!');
             }
 
-            $result = $conn->exec("DELETE FROM processo_publicacoes");
+            /*
+                PRE-PROCESSO.
 
-            if ($result == false) {
+                Aqui havia um "DELETE FROM processo_publicacoes" sem clausula
+                nenhuma. Ele apagava a tabela inteira - e nela nao vivem so as
+                publicacoes classificadas: vivem tambem os andamentos lancados
+                a mao pelo escritorio, entre eles a organizacao documental do
+                pre-processo. Um clique nesta rotina apagava o historico que o
+                cliente acompanha, e a proxima sincronizacao nao o reconstruia,
+                porque ela so sabe recriar eventos de publicacao.
+                Conferido em 22/09/2026 na base de homologacao: 1.999 das
+                137.576 linhas vinham de andamento (2.000 de 137.577 depois
+                do primeiro registro de teste).
+
+                Agora a exclusao alcanca apenas o que a rotina sabe refazer: as
+                linhas originadas de publicacao. As de andamento ficam.
+            */
+            $stmtDelete = $conn->prepare("
+                DELETE FROM processo_publicacoes
+                WHERE publicacao_id IS NOT NULL
+                  AND andamento_id IS NULL
+            ");
+
+            if (!$stmtDelete->execute()) {
                 throw new Exception('Erro ao deletar processo_publicacoes!');
             }
 
-            TToast::show('success', "sincronização excluída", 'topRight', 'far:check-circle');
+            $removidas = $stmtDelete->rowCount();
+
+            TToast::show('success', "Sincronização excluída. {$removidas} evento(s) de publicação removido(s); andamentos preservados.", 'topRight', 'far:check-circle');
             TTransaction::close(); 
 
         } catch (Exception $e) {

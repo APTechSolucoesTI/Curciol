@@ -107,6 +107,33 @@ class ProcessoPublicacoesTimeLine extends TPage
                 $etapas_ocultas_timeline[] = (int) $etapa_org_doc->id;
             }
 
+            /*
+                PRE-PROCESSO.
+
+                A secao de abertura descrita acima e sintetica: ela e montada a
+                partir do cadastro da etapa, com a data da distribuicao. Isso
+                servia enquanto a organizacao documental era so um rotulo.
+
+                No pre-processo ela deixa de ser rotulo e vira trabalho real,
+                lancado como andamento, com data propria e texto proprio - e
+                anterior a distribuicao, que nem existe ainda. Esse andamento
+                nao pode ser escondido nem reescrito com outra data.
+
+                Entao: quando existe andamento de verdade nessa etapa, ele passa
+                pelo laco normalmente e a secao sintetica sai de cena, para o
+                evento nao aparecer duas vezes. Sem andamento, tudo continua
+                como era.
+            */
+            $org_doc_tem_andamento = false;
+
+            if ($etapa_org_doc)
+            {
+                $org_doc_tem_andamento = Andamento::where('processo_id', '=', $processo_id)
+                                                  ->where('publicacao_etapa_id', '=', (int) $etapa_org_doc->id)
+                                                  ->where('etapa_verificada', '=', 'S')
+                                                  ->count() > 0;
+            }
+
 /*
 
             $objects = ProcessoPublicacoes::getObjects($this->timelineCriteria);
@@ -275,7 +302,17 @@ class ProcessoPublicacoesTimeLine extends TPage
                             continue;
                         }
 
-                        if (in_array((int) $etapa_id, $etapas_ocultas_timeline, true))
+                        /*
+                            PRE-PROCESSO: o andamento manual de organizacao
+                            documental atravessa a lista de ocultas. Publicacoes
+                            nessa mesma etapa continuam ocultas, e as etapas 1 e
+                            10 seguem fora para todo mundo.
+                        */
+                        $eh_org_doc_manual = $eh_andamento
+                            && $etapa_org_doc
+                            && (int) $etapa_id === (int) $etapa_org_doc->id;
+
+                        if (!$eh_org_doc_manual && in_array((int) $etapa_id, $etapas_ocultas_timeline, true))
                         {
                             continue;
                         }
@@ -518,7 +555,7 @@ class ProcessoPublicacoesTimeLine extends TPage
                 por Judicial / Extrajudicial. A verificacao de tipo abaixo e
                 redundante hoje e fica como guarda, caso a resolucao mude.
             */
-            if ($etapa_org_doc)
+            if ($etapa_org_doc && !$org_doc_tem_andamento)
             {
                 $permite_org_doc = true;
 

@@ -24,7 +24,10 @@ class ProcessoView extends TRecord
         parent::addAttribute('exibir_cliente');
         parent::addAttribute('ultima_etapa_id');
         parent::addAttribute('ultima_etapa');
-            
+        parent::addAttribute('pre_processo');
+        parent::addAttribute('descricao_pre_processo');
+        parent::addAttribute('data_conversao');
+
     }
 
     

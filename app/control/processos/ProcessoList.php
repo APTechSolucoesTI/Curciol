@@ -56,6 +56,10 @@ class ProcessoList extends TPage
 
         $tipo_processo_id = new TDBCombo('tipo_processo_id', 'escritorio', 'TipoProcesso', 'id', '{nome}','nome asc' , $criteria_tipo_processo_id );
         $numero_cnj_numero = new TEntry('numero_cnj_numero');
+
+        /* PRE-PROCESSO: filtro de situacao e busca pela descricao. */
+        $situacao_pre_processo = new TCombo('situacao_pre_processo');
+        $descricao_pre_processo = new TEntry('descricao_pre_processo');
         $area_id = new TDBCombo('area_id', 'escritorio', 'Area', 'id', '{nome}','nome asc' , $criteria_area_id );
         $assunto_id = new TDBCombo('assunto_id', 'escritorio', 'Assunto', 'id', '{nome}','nome asc' , $criteria_assunto_id );
         $status_processual_id = new TCombo('status_processual_id');
@@ -87,6 +91,21 @@ class ProcessoList extends TPage
         $area_nome->setChangeAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
         $assunto_nome->setChangeAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
         $status_processual_nome->setChangeAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
+
+        /*
+            PRE-PROCESSO: o filtro comeca em "Todos" para nenhum processo
+            historico sumir da tela por causa de uma opcao nova.
+        */
+        $situacao_pre_processo->addItems([
+            PreProcessoService::SITUACAO_TODOS       => 'Todos',
+            PreProcessoService::SITUACAO_PENDENTES   => 'Somente pré-processos pendentes',
+            PreProcessoService::SITUACAO_DEFINITIVOS => 'Somente processos definitivos',
+        ]);
+        $situacao_pre_processo->setValue(PreProcessoService::SITUACAO_TODOS);
+        $situacao_pre_processo->setDefaultOption(false);
+        $situacao_pre_processo->setSize('100%');
+        $descricao_pre_processo->setSize('100%');
+        $descricao_pre_processo->placeholder = 'Parte da descrição do pré-processo';
 
         $tipo_processo_id->setValue(TipoProcesso::JUDICIAL);
         $numero_cnj_numero->setMaxLength(30);
@@ -122,6 +141,10 @@ class ProcessoList extends TPage
 
         $row1 = $this->form->addFields([new TLabel("Tipo de processo:", null, '14px', null, '100%'),$tipo_processo_id],[new TLabel("Número padrão CNJ:", null, '14px', null, '100%'),$numero_cnj_numero]);
         $row1->layout = ['col-sm-6','col-sm-6'];
+
+        /* PRE-PROCESSO */
+        $row1a = $this->form->addFields([new TLabel("Situação:", null, '14px', null, '100%'),$situacao_pre_processo],[new TLabel("Descrição do pré-processo:", null, '14px', null, '100%'),$descricao_pre_processo]);
+        $row1a->layout = ['col-sm-6','col-sm-6'];
 
         $row2 = $this->form->addFields([new TLabel("Área:", null, '14px', null, '100%'),$area_id],[new TLabel("Assunto:", null, '14px', null, '100%'),$assunto_id]);
         $row2->layout = ['col-sm-6','col-sm-6'];
@@ -236,6 +259,48 @@ class ProcessoList extends TPage
             TTransaction::close();
 
         });        
+
+        /*
+            PRE-PROCESSO: identificacao na coluna do numero.
+
+            Enquanto o registro nao foi distribuido nao ha numero para mostrar,
+            e uma celula vazia parece cadastro incompleto. No lugar entra o selo,
+            a descricao - que e o que identifica o registro nessa fase - e o
+            estado. Processo convencional continua exibindo so o numero.
+        */
+        $column_numero_cnj_numero->setTransformer(function($value, $object, $row, $cell = null, $last_row = null)
+        {
+            if (PreProcessoService::ehPreProcesso($object))
+            {
+                return PreProcessoService::selo($object);
+            }
+
+            $numero = trim((string) $value);
+
+            if ($numero === '')
+            {
+                return '-';
+            }
+
+            $html = htmlspecialchars($numero, ENT_QUOTES, 'UTF-8');
+
+            /*
+                Processo que nasceu como pre-processo mantem a descricao de
+                origem visivel: serve de auditoria e continua ajudando a achar
+                o registro por um nome que as pessoas lembram.
+            */
+            if (PreProcessoService::foiConvertido($object))
+            {
+                $descricao = trim((string) $object->descricao_pre_processo);
+
+                if ($descricao !== '')
+                {
+                    $html .= "<div class='curciol-pre-descricao'>" . htmlspecialchars($descricao, ENT_QUOTES, 'UTF-8') . '</div>';
+                }
+            }
+
+            return $html;
+        });
 
         $order_tipo_processo_nome = new TAction(array($this, 'onReload'));
         $order_tipo_processo_nome->setParameter('order', 'sort_tipo_processo_nome');
@@ -816,10 +881,33 @@ class ProcessoList extends TPage
             $filters[] = new TFilter('numero_cnj_numero', 'like', "%{$data->numero_cnj_numero}%");// create the filter 
         }
 
+        /*
+            PRE-PROCESSO: situacao e descricao.
+
+            "Todos" nao acrescenta filtro nenhum, entao a listagem continua
+            trazendo exatamente o que trazia antes desta funcionalidade.
+        */
+        if (!empty($data->situacao_pre_processo) && $data->situacao_pre_processo !== PreProcessoService::SITUACAO_TODOS)
+        {
+            if ($data->situacao_pre_processo === PreProcessoService::SITUACAO_PENDENTES)
+            {
+                $filters[] = new TFilter('pre_processo', '=', PreProcessoService::SIM);
+            }
+            else
+            {
+                $filters[] = new TFilter('pre_processo', '=', PreProcessoService::NAO);
+            }
+        }
+
+        if (isset($data->descricao_pre_processo) AND is_scalar($data->descricao_pre_processo) AND $data->descricao_pre_processo !== '')
+        {
+            $filters[] = new TFilter('descricao_pre_processo', 'ilike', "%{$data->descricao_pre_processo}%");
+        }
+
         if (isset($data->area_id) AND ( (is_scalar($data->area_id) AND $data->area_id !== '') OR (is_array($data->area_id) AND (!empty($data->area_id)) )) )
         {
 
-            $filters[] = new TFilter('area_id', '=', $data->area_id);// create the filter 
+            $filters[] = new TFilter('area_id', '=', $data->area_id);// create the filter
         }
 
         if (isset($data->assunto_id) AND ( (is_scalar($data->assunto_id) AND $data->assunto_id !== '') OR (is_array($data->assunto_id) AND (!empty($data->assunto_id)) )) )

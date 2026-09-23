@@ -848,7 +848,29 @@ class GerarContratoForm extends TPage
 
                             TApplication::loadPage('GerarContratoForm','onShow');
                             sleep(0.2);
-                            TApplication::loadPage('ContratoFormView','onShow',['key'=>$contrato->id]);
+
+                            /*
+                                PRE-PROCESSO.
+
+                                O contrato ja esta gravado neste ponto. A
+                                pergunta e opcional e nao refaz nada do que veio
+                                antes: as duas respostas apenas escolhem para
+                                onde ir.
+
+                                O id do contrato viaja explicito na acao. Nao ha
+                                sessao nem "ultimo contrato criado" no meio -
+                                dois usuarios gerando contratos ao mesmo tempo
+                                nao se cruzam, e recarregar a pagina nao
+                                reexecuta o wizard.
+                            */
+                            new TQuestion(
+                                "O contrato {$contrato->numero} foi gerado. Deseja gerar um Pré-Processo para acompanhar a preparação do trabalho antes da distribuição judicial?",
+                                new TAction(['GerarContratoForm', 'onGerarPreProcesso'], ['contrato_id' => $contrato->id, 'static' => 1]),
+                                new TAction(['ContratoFormView', 'onShow'], ['key' => $contrato->id]),
+                                'Pré-Processo',
+                                'Sim, gerar pré-processo',
+                                'Não, concluir'
+                            );
                         }else{
                             BootstrapFormBuilder::hideField(self::$formName, 'numero');
                             BootstrapFormBuilder::hideField(self::$formName, 'cliente_id');
@@ -934,8 +956,69 @@ class GerarContratoForm extends TPage
         }
     }
 
+    /**
+     * PRE-PROCESSO: resposta "Sim" da pergunta ao fim do wizard.
+     *
+     * Chega com o id do contrato que acabou de ser gerado. Nao descobre o
+     * contrato sozinho e nao le sessao: se o id nao vier, nao faz nada.
+     *
+     * A criacao inteira - processo, vinculo com o contrato, clientes e
+     * andamento inicial - acontece em uma transacao so. Se qualquer parte
+     * falhar, nada fica pela metade e o contrato, que ja estava salvo antes
+     * desta tela, continua intacto.
+     */
+    public static function onGerarPreProcesso($param = null)
+    {
+        $contrato_id = (int) ($param['contrato_id'] ?? 0);
+
+        try
+        {
+            if ($contrato_id <= 0)
+            {
+                throw new Exception('Contrato não informado.');
+            }
+
+            TTransaction::open(self::$database);
+
+            /*
+                Duplo clique, F5 ou voltar no navegador chegam aqui de novo.
+                Se o contrato ja tem processo, apresenta o que existe em vez de
+                criar outro.
+            */
+            $existente = PreProcessoService::processoDoContrato($contrato_id);
+
+            if ($existente)
+            {
+                TTransaction::close();
+
+                TToast::show('info', "Este contrato já possui o processo #{$existente->id}.", 'topRight', 'fas:info-circle');
+                TApplication::loadPage('ProcessoFormView', 'onShow', ['key' => $existente->id]);
+
+                return;
+            }
+
+            $processo = PreProcessoService::criarAPartirDoContrato($contrato_id, TSession::getValue('userid'));
+
+            TTransaction::close();
+
+            TToast::show('success', "Pré-processo #{$processo->id} criado com a organização documental registrada.", 'topRight', 'far:check-circle');
+            TApplication::loadPage('ProcessoFormView', 'onShow', ['key' => $processo->id]);
+        }
+        catch (Exception $e)
+        {
+            TTransaction::rollback();
+
+            new TMessage('error', 'O contrato foi gerado e continua salvo. O pré-processo não pôde ser criado: ' . $e->getMessage());
+
+            if ($contrato_id > 0)
+            {
+                TApplication::loadPage('ContratoFormView', 'onShow', ['key' => $contrato_id]);
+            }
+        }
+    }
+
     public function onShow($param = null)
-    {               
+    {
 
         TTransaction::open(self::$database);
         $object = new stdClass();

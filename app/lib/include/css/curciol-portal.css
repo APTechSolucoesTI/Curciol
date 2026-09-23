@@ -1200,3 +1200,55 @@ body.builder-template-login .curciol-lista .tdatagrid_pagination {
         font-size: 13.5px;
     }
 }
+
+/* ==========================================================================
+   10. Pré-processo
+   --------------------------------------------------------------------------
+   Trabalho iniciado para o cliente antes da distribuição judicial. Aparece
+   na listagem do escritório e na lista do portal, sempre na coluna onde o
+   número estaria.
+
+   O selo precisa ser reconhecível de relance numa tabela densa e, ao mesmo
+   tempo, não competir com o conteúdo da linha: por isso cor sólida discreta
+   em vez do amarelo do .label-warning do tema, tipografia pequena em caixa
+   alta e a mesma borda-antes-de-sombra do resto da folha.
+
+   Estas classes não levam prefixo de body porque o nome curciol-* só existe
+   aqui — e a marcação é a mesma nos dois lados do sistema.
+   ========================================================================== */
+
+.curciol-selo-pre {
+    display: inline-block;
+    padding: 2px 7px;
+    border-radius: 4px;
+
+    /* Sobrepõe .label-warning, que o tema pinta de amarelo. */
+    background-color: var(--p-navy) !important;
+    color: #fff !important;
+
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: .04em;
+    line-height: 1.5;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+/*
+    A descrição é o que identifica o registro enquanto não há número, então
+    ela recebe o peso que o número teria.
+*/
+.curciol-pre-descricao {
+    margin-top: 4px;
+    color: var(--p-fg);
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 1.35;
+}
+
+.curciol-pre-estado {
+    margin-top: 2px;
+    color: var(--p-fg-muted);
+    font-size: 11.5px;
+    line-height: 1.35;
+}

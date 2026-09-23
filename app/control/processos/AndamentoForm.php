@@ -35,7 +35,13 @@ class AndamentoForm extends TPage
 
         $id = new TEntry('id');
         $tela = new THidden('tela');
-        $processo_id = new TDBCombo('processo_id', 'escritorio', 'Processo', 'id', '{numero_cnj_numero}','numero_cnj_numero asc' , $criteria_processo_id );
+        /*
+            PRE-PROCESSO: o combo identificava o processo so pelo CNJ, e um
+            pre-processo nao tem CNJ - a linha vinha em branco. ProcessoIdentificado
+            le a mesma tabela e monta um rotulo que funciona nos tres estados
+            (com numero, sem numero, e convertido). Ver app/model/ProcessoIdentificado.php.
+        */
+        $processo_id = new TDBCombo('processo_id', 'escritorio', 'ProcessoIdentificado', 'id', '{identificacao}','numero_cnj_numero asc nulls first, id asc' , $criteria_processo_id );
         $tipo_andamento_id = new TDBCombo('tipo_andamento_id', 'escritorio', 'TipoAndamento', 'id', '{nome}','nome asc' , $criteria_tipo_andamento_id );
         $data_andamento = new TDateTime('data_andamento');
         $publicacao_etapa_id = new TDBCombo('publicacao_etapa_id', 'escritorio', 'PublicacaoEtapa', 'id', '{etapa_nome}','ordem_prioridade asc' , $criteria_publicacao_etapa_id );

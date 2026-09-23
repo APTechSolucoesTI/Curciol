@@ -37,34 +37,54 @@ class ProcessosFormViewInterno extends TPage
         $this->form = new BootstrapFormBuilder(self::$formName);
         $this->form->setTagName('div');
 
-        if (empty($param['key']) && !empty($param['processo_id']))
+        /*
+            PRE-PROCESSO: dono do registro e autorizacao.
+
+            Antes o cliente era descoberto so pela ponte contrato_processo ->
+            contrato_pessoa. Um pre-processo pode existir antes do contrato, e
+            nesse caso a consulta nao achava ninguem e a tela caia. Agora a
+            pergunta passa pelo servico, que conhece os dois caminhos.
+
+            A checagem de acesso e a segunda mudanca e vale para qualquer
+            processo, nao so para pre-processo. Esta classe esta em
+            public_classes e recebe processo_id direto da requisicao: sem
+            conferir de quem e o registro, trocar o numero na URL mostrava o
+            processo de outra pessoa. Com sessao de portal aberta, agora so
+            passa o que pertence a quem esta logado. Sem sessao de portal - o
+            caso do back-office - o comportamento e o mesmo de antes.
+        */
+        $processo_id_pedido = (int) ($param['processo_id'] ?? 0);
+        $cliente_logado     = (int) (TSession::getValue('portal_cliente_id') ?? 0);
+
+        if ($processo_id_pedido > 0)
         {
-            $conn = TTransaction::get();
+            $clientes_do_processo = PreProcessoService::clientesDoProcesso($processo_id_pedido);
 
-            $processo_id = (int) $param['processo_id'];
-
-            $result = $conn->query("
-                SELECT pe.id AS pessoa_id
-                FROM processo p
-                JOIN contrato_processo cp
-                    ON cp.processo_id = p.id
-                JOIN contrato_pessoa cpe
-                    ON cpe.contrato_id = cp.contrato_id
-                JOIN pessoa pe
-                    ON pe.id = cpe.cliente_id
-                WHERE p.id = {$processo_id}
-                ORDER BY pe.id
-                LIMIT 1
-            ");
-
-            $dados = $result->fetch(PDO::FETCH_OBJ);
-
-            if (empty($dados) || empty($dados->pessoa_id))
+            if (empty($clientes_do_processo))
             {
-                throw new Exception('Não foi possível localizar o cliente vinculado a este processo.');
+                throw new Exception('Este processo ainda não tem cliente vinculado. Vincule o cliente no cadastro do processo para que ele apareça no portal.');
             }
 
-            $param['key'] = $dados->pessoa_id;
+            if ($cliente_logado > 0)
+            {
+                if (!array_key_exists($cliente_logado, $clientes_do_processo))
+                {
+                    throw new Exception('Você não tem acesso a este processo.');
+                }
+
+                $processo_pedido = Processo::find($processo_id_pedido);
+
+                if (!$processo_pedido || strtoupper(trim((string) $processo_pedido->exibir_cliente)) !== 'S')
+                {
+                    throw new Exception('Este processo não está disponível para acompanhamento.');
+                }
+
+                $param['key'] = $cliente_logado;
+            }
+            elseif (empty($param['key']))
+            {
+                $param['key'] = array_key_first($clientes_do_processo);
+            }
         }
 
         if (empty($param['key']))
@@ -139,6 +159,8 @@ class ProcessosFormViewInterno extends TPage
                 SELECT
                     p.tipo_processo_id,
                     p.numero_cnj_numero,
+                    p.pre_processo,
+                    p.descricao_pre_processo,
                     tp.nome AS tipo_nome,
                     a.nome  AS assunto_nome
                 FROM processo p
@@ -320,8 +342,25 @@ class ProcessosFormViewInterno extends TPage
                     /*
                     * Usa como base a última etapa fixa permitida
                     * para esse tipo de processo.
+                    *
+                    * PRE-PROCESSO: menos uma.
+                    *
+                    * As duas etapas de abertura sao "Organizacao Documental" e
+                    * "Protocolo Inicial" (ou "Pedido Protocolado", na trilha
+                    * extrajudicial), e o padrao marca as duas como percorridas.
+                    * Num pre-processo isso afirmaria que a peca foi
+                    * protocolada - exatamente a movimentacao oficial que ainda
+                    * nao aconteceu.
+                    *
+                    * Enquanto o registro estiver pendente, a trilha para na
+                    * primeira: organizacao documental e o que de fato esta
+                    * sendo feito. O protocolo continua na trilha, mas como
+                    * etapa futura. Na conversao, o numero chega e a etapa
+                    * avanca sozinha.
                     */
-                    $etapa_base_id = end($etapas_fixas);
+                    $etapa_base_id = PreProcessoService::ehPreProcesso($dados_processo)
+                        ? reset($etapas_fixas)
+                        : end($etapas_fixas);
 
                     $stmt_base = $conn->prepare("
                         SELECT ordem_prioridade
@@ -477,12 +516,32 @@ class ProcessosFormViewInterno extends TPage
         */
         if ($processo_id > 0)
         {
+            /*
+                PRE-PROCESSO: o cabecalho conta o que esta acontecendo.
+
+                Antes da distribuicao nao ha numero, e deixar o campo em branco
+                faz o cliente achar que falta informacao. O texto diz o estado
+                de verdade, e a descricao entra porque nessa fase e ela que
+                identifica o trabalho. Nenhuma movimentacao oficial e inventada.
+
+                Depois da conversao a mesma tela passa a mostrar o numero real,
+                sem nenhuma troca de pagina.
+            */
+            $eh_pre_processo = PreProcessoService::ehPreProcesso($dados_processo);
+
             $info_processo = [
-                'Tipo'         => $dados_processo->tipo_nome         ?? '',
-                'Assunto'      => $dados_processo->assunto_nome      ?? '',
-                'Número'       => $dados_processo->numero_cnj_numero ?? '',
-                'Última etapa' => $etapa_atual_nome,
+                'Tipo'    => $dados_processo->tipo_nome    ?? '',
+                'Assunto' => $dados_processo->assunto_nome ?? '',
             ];
+
+            if ($eh_pre_processo)
+            {
+                $info_processo['Status']    = 'Em preparação';
+                $info_processo['Descrição'] = $dados_processo->descricao_pre_processo ?? '';
+            }
+
+            $info_processo['Número']       = PreProcessoService::rotuloNumero($dados_processo);
+            $info_processo['Última etapa'] = $etapa_atual_nome;
 
             $info_html = '';
 

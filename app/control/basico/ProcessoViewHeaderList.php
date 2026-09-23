@@ -79,7 +79,17 @@ class ProcessoViewHeaderList extends TPage
             A etapa vira um selo, para o olho achar o estado do processo sem
             ler a linha inteira. Ver app/lib/include/css/curciol-portal.css.
         */
-        $column_numero->setTransformer(function ($value) {
+        $column_numero->setTransformer(function ($value, $object = null) {
+            /*
+                PRE-PROCESSO: antes da distribuicao nao ha numero. No lugar de
+                um traco, que parece dado faltando, o cliente ve o selo, a
+                descricao do trabalho e o estado. Depois da conversao esta mesma
+                coluna volta a mostrar o numero real.
+            */
+            if (PreProcessoService::ehPreProcesso($object)) {
+                return PreProcessoService::selo($object);
+            }
+
             $value = trim((string) $value);
 
             if ($value === '') {
