@@ -1,0 +1,22 @@
+/* ==========================================================================
+   Curciol - popover de linha
+   --------------------------------------------------------------------------
+   Par do curciol-popover.js. A regra abaixo e a peca central da correcao,
+   nao um acabamento.
+
+   O balao de hover e montado no <body>, por cima do grid, e cobre varias
+   linhas da propria listagem. Enquanto ele aceitar o ponteiro, mover o mouse
+   na direcao do texto tira o cursor da linha de origem: o balao fecha, o
+   cursor cai na linha que estava escondida embaixo, aquela linha abre o seu
+   balao, e o ciclo recomeca. E esse vai-e-volta que o usuario ve piscando.
+
+   Tornando o balao transparente ao ponteiro, a linha sob o cursor passa a ser
+   sempre a linha real do grid, e o ciclo nao tem como comecar.
+
+   A classe so e aplicada ao template de hover. Popover de clique (BHelper)
+   nao recebe a regra, porque o conteudo dele precisa ser clicavel.
+   ========================================================================== */
+
+.popover.curciol-popover-hover {
+    pointer-events: none;
+}
