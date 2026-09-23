@@ -1,22 +1,20 @@
 <?php
 
 /**
- * Janela de pesquisa de pre-processos, aberta a partir de uma publicacao.
+ * Escolha do pre-processo que a publicacao vai completar.
  *
- * Existe porque a publicacao deixou de criar processo: agora o escritorio
- * cadastra o pre-processo antes e, quando a publicacao chega, escolhe qual
- * deles ela completa.
+ * Renderiza dentro da propria "Consulta de publicacao", numa area que a tela
+ * reserva para este fluxo. Nao e janela: abrir um modal sobre o modal da
+ * publicacao empilhava duas camadas e, ao terminar, as duas fechavam e a
+ * consulta reabria - tres transicoes para uma acao so.
  *
- * Enquanto nao ha numero, quem identifica o registro e a descricao, o
- * cliente, o contrato e o id interno - por isso todos aparecem na lista.
+ * Aqui a publicacao nunca sai da tela. Ela continua visivel acima enquanto a
+ * lista, a confirmacao e o resultado se sucedem no mesmo lugar.
  *
- * A publicacao de origem viaja em todas as acoes como parametro
- * (publicacao_id e nivel), nunca em sessao. O caminho antigo, em
- * ProcessoSeekWindow, guarda nivel_processo e publicacao_id em
- * TSession: com duas abas abertas a segunda sobrescreve a primeira e a
- * associacao sai errada. Aqui isso nao acontece.
+ * A publicacao de origem viaja como parametro (publicacao_id e nivel), nunca
+ * em sessao: com duas abas abertas, sessao cruza os registros.
  */
-class PreProcessoSeekWindow extends TWindow
+class PreProcessoVincularList extends TPage
 {
     private $form;
     private $datagrid;
@@ -24,44 +22,61 @@ class PreProcessoSeekWindow extends TWindow
     private $loaded;
     private $publicacao_id;
     private $nivel;
+    private $container;
     private static $database = 'escritorio';
     private static $activeRecord = 'Processo';
     private static $primaryKey = 'id';
-    private static $formName = 'form_PreProcessoSeekWindow';
-    private $showMethods = ['onReload', 'onSearch'];
-    private $limit = 20;
+    private static $formName = 'form_PreProcessoVincularList';
+    private $showMethods = ['onReload', 'onSearch', 'onClearFilters'];
+    private $limit = 10;
+
+    /** Id do elemento, dentro da consulta de publicacao, que hospeda o fluxo. */
+    const CONTAINER = 'publicacao_vincular_pre_processo';
 
     public function __construct($param = null)
     {
         parent::__construct();
-        parent::setSize(0.9, null);
-        parent::setTitle('Vincular pré-processo');
-        parent::setProperty('class', 'window_modal');
 
         $this->publicacao_id = (int) ($param['publicacao_id'] ?? 0);
         $this->nivel = (($param['nivel'] ?? '') === PreProcessoService::NIVEL_PRINCIPAL)
             ? PreProcessoService::NIVEL_PRINCIPAL
             : PreProcessoService::NIVEL_PROCESSO;
 
+        $this->container = $param['target_container'] ?? self::CONTAINER;
+        $this->adianti_target_container = $this->container;
+
+        /* Viaja em toda acao desta tela, para tudo voltar ao mesmo lugar. */
         $contexto = [
-            'publicacao_id' => $this->publicacao_id,
-            'nivel'         => $this->nivel,
+            'publicacao_id'    => $this->publicacao_id,
+            'nivel'            => $this->nivel,
+            'target_container' => $this->container,
         ];
 
         $this->form = new BootstrapFormBuilder(self::$formName);
-        $this->form->setFormTitle(
+
+        /*
+            O titulo vai como conteudo, e nao por setFormTitle: dentro da
+            janela da publicacao o cabecalho do BootstrapFormBuilder nao e
+            renderizado, e o passo ficaria sem nome nenhum.
+        */
+        $titulo = new TElement('div');
+        $titulo->class = 'curciol-passo-vinculo-titulo';
+        $titulo->add(
             $this->nivel === PreProcessoService::NIVEL_PRINCIPAL
                 ? 'Escolha o pré-processo que será o processo principal'
                 : 'Escolha o pré-processo que esta publicação completa'
         );
 
+        $linha_titulo = $this->form->addContent([$titulo]);
+        $linha_titulo->layout = [' col-sm-12'];
+
         $criteria_cliente = new TCriteria();
         $filterVar = Grupo::CLIENTE;
         $criteria_cliente->add(new TFilter('id', 'in', "(SELECT pessoa_id FROM pessoa_grupo WHERE grupo_id = '{$filterVar}')"));
 
-        $descricao   = new TEntry('descricao_pre_processo');
-        $cliente_id  = new TDBUniqueSearch('cliente_id', 'escritorio', 'Pessoa', 'id', 'nome', 'nome asc', $criteria_cliente);
-        $area_id     = new TDBCombo('area_id', 'escritorio', 'Area', 'id', '{nome}', 'nome asc');
+        $descricao  = new TEntry('descricao_pre_processo');
+        $cliente_id = new TDBUniqueSearch('cliente_id', 'escritorio', 'Pessoa', 'id', 'nome', 'nome asc', $criteria_cliente);
+        $area_id    = new TDBCombo('area_id', 'escritorio', 'Area', 'id', '{nome}', 'nome asc');
 
         $descricao->setSize('100%');
         $cliente_id->setSize('100%');
@@ -70,28 +85,32 @@ class PreProcessoSeekWindow extends TWindow
         $cliente_id->setMask('{nome}');
         $cliente_id->setFilterColumns(['nome', 'cpf_cnpj']);
         $area_id->enableSearch();
+        $descricao->placeholder = 'Parte da descrição';
 
-        $row1 = $this->form->addFields(
-            [new TLabel('Descrição:', null, '14px', null, '100%'), $descricao],
-            [new TLabel('Cliente:', null, '14px', null, '100%'), $cliente_id]
+        $linha = $this->form->addFields(
+            [new TLabel('Descrição:', null, '13px', null, '100%'), $descricao],
+            [new TLabel('Cliente:', null, '13px', null, '100%'), $cliente_id],
+            [new TLabel('Área:', null, '13px', null, '100%'), $area_id]
         );
-        $row1->layout = ['col-sm-6', 'col-sm-6'];
-
-        $row2 = $this->form->addFields([new TLabel('Área:', null, '14px', null, '100%'), $area_id]);
-        $row2->layout = ['col-sm-6'];
+        $linha->layout = ['col-sm-4', 'col-sm-4', 'col-sm-4'];
 
         $this->form->setData(TSession::getValue(__CLASS__ . '_filter_data'));
 
-        $btn_onsearch = $this->form->addAction('Buscar', new TAction([$this, 'onSearch'], $contexto), 'fas:search #ffffff');
-        $btn_onsearch->addStyleClass('btn-primary');
+        $btn_buscar = $this->form->addAction('Buscar', new TAction([$this, 'onSearch'], $contexto), 'fas:search #ffffff');
+        $btn_buscar->addStyleClass('btn-primary');
 
-        $btn_limpar = $this->form->addAction('Limpar filtros', new TAction([$this, 'onClearFilters'], $contexto), 'fas:eraser #dd5a43');
+        $this->form->addAction('Limpar filtros', new TAction([$this, 'onClearFilters'], $contexto), 'fas:eraser #dd5a43');
+
+        /*
+            Sair do fluxo e apenas esvaziar esta area: a publicacao ja esta
+            aberta atras e nao precisa ser recarregada.
+        */
+        $this->form->addAction('Cancelar', new TAction([__CLASS__, 'onFechar'], ['target_container' => $this->container, 'static' => 1]), 'fas:times #666666');
 
         $this->datagrid = new TDataGrid;
         $this->datagrid->setId(__CLASS__ . '_datagrid');
         $this->datagrid = new BootstrapDatagridWrapper($this->datagrid);
         $this->datagrid->style = 'width: 100%';
-        $this->datagrid->setHeight(320);
 
         $col_id        = new TDataGridColumn('id', 'Id', 'left', '60px');
         $col_descricao = new TDataGridColumn('descricao_pre_processo', 'Descrição do pré-processo', 'left');
@@ -100,8 +119,7 @@ class PreProcessoSeekWindow extends TWindow
         $col_area      = new TDataGridColumn('area->nome', 'Área', 'left');
         $col_assunto   = new TDataGridColumn('assunto->nome', 'Assunto', 'left');
         $col_resp      = new TDataGridColumn('responsavel->nome', 'Responsável', 'left');
-        $col_criacao   = new TDataGridColumn('data_criacao', 'Criado em', 'left', '120px');
-        $col_estado    = new TDataGridColumn('pre_processo', 'Estado', 'left', '170px');
+        $col_criacao   = new TDataGridColumn('data_criacao', 'Criado em', 'left', '110px');
 
         $col_descricao->setTransformer(function ($value) {
             $value = trim((string) $value);
@@ -109,10 +127,6 @@ class PreProcessoSeekWindow extends TWindow
             return $value === '' ? '<i>sem descrição</i>' : htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
         });
 
-        /*
-            Clientes e contrato saem das duas pontes possiveis. Rodam dentro
-            da transacao ja aberta pelo onReload, e a pagina tem 20 linhas.
-        */
         $col_clientes->setTransformer(function ($value) {
             $clientes = PreProcessoService::clientesDoProcesso($value);
 
@@ -141,21 +155,12 @@ class PreProcessoSeekWindow extends TWindow
             return empty($value) ? '-' : date('d/m/Y', strtotime($value));
         });
 
-        $col_estado->setTransformer(function ($value, $object) {
-            return PreProcessoService::estado($object);
-        });
+        foreach ([$col_id, $col_descricao, $col_clientes, $col_contrato, $col_area, $col_assunto, $col_resp, $col_criacao] as $coluna)
+        {
+            $this->datagrid->addColumn($coluna);
+        }
 
-        $this->datagrid->addColumn($col_id);
-        $this->datagrid->addColumn($col_descricao);
-        $this->datagrid->addColumn($col_clientes);
-        $this->datagrid->addColumn($col_contrato);
-        $this->datagrid->addColumn($col_area);
-        $this->datagrid->addColumn($col_assunto);
-        $this->datagrid->addColumn($col_resp);
-        $this->datagrid->addColumn($col_criacao);
-        $this->datagrid->addColumn($col_estado);
-
-        $action_selecionar = new TDataGridAction(['PreProcessoConversaoForm', 'onShow']);
+        $action_selecionar = new TDataGridAction(['PreProcessoVincularConfirmacao', 'onShow']);
         $action_selecionar->setUseButton(true);
         $action_selecionar->setButtonClass('btn btn-default btn-sm');
         $action_selecionar->setLabel('Selecionar');
@@ -164,6 +169,7 @@ class PreProcessoSeekWindow extends TWindow
         $action_selecionar->setParameter('processo_id', '{id}');
         $action_selecionar->setParameter('publicacao_id', $this->publicacao_id);
         $action_selecionar->setParameter('nivel', $this->nivel);
+        $action_selecionar->setParameter('target_container', $this->container);
         $this->datagrid->addAction($action_selecionar);
 
         $this->datagrid->createModel();
@@ -173,21 +179,46 @@ class PreProcessoSeekWindow extends TWindow
         $this->pageNavigation->setAction(new TAction([$this, 'onReload'], $contexto));
         $this->pageNavigation->setWidth($this->datagrid->getWidth());
 
-        $panel = new TPanelGroup();
-        $panel->datagrid = 'datagrid-container';
-        $panel->add($this->datagrid);
-        $panel->getBody()->class .= ' table-responsive';
-        $panel->addFooter($this->pageNavigation);
+        /*
+            Grid e paginacao entram no mesmo formulario, e nao num TPanelGroup
+            separado: dois cartoes empilhados dentro da publicacao produziam
+            duas faixas cinza escuras, uma do rodape de cada um.
+        */
+        $envolucro = new TElement('div');
+        $envolucro->class = 'table-responsive';
+        $envolucro->add($this->datagrid);
 
-        parent::add($this->form);
-        parent::add($panel);
+        $linha_grid = $this->form->addContent([$envolucro]);
+        $linha_grid->layout = [' col-sm-12'];
+
+        $linha_paginacao = $this->form->addContent([$this->pageNavigation]);
+        $linha_paginacao->layout = [' col-sm-12'];
+
+        /*
+            A area do fluxo precisa se ler como um passo inserido na tela, e
+            nao como mais um campo da publicacao. A aparencia esta em
+            app/lib/include/css/curciol-portal.css, secao 11.
+        */
+        $caixa = new TElement('div');
+        $caixa->class = 'curciol-passo-vinculo';
+        $caixa->add($this->form);
+
+        parent::add($caixa);
     }
 
     /**
-     * Somente pre-processos pendentes.
-     *
-     * Registros ja convertidos nao aparecem: eles nao estao disponiveis para
-     * receber outro numero.
+     * Esvazia a area do fluxo. A publicacao continua como estava.
+     */
+    public static function onFechar($param = null)
+    {
+        $container = $param['target_container'] ?? self::CONTAINER;
+
+        TScript::create("$('#" . addslashes($container) . "').html('');");
+    }
+
+    /**
+     * Somente pre-processos pendentes: registros ja convertidos nao estao
+     * disponiveis para receber outro numero.
      */
     private function criteriaBase(): TCriteria
     {
@@ -211,10 +242,6 @@ class PreProcessoSeekWindow extends TWindow
         {
             $cliente_id = (int) $data->cliente_id;
 
-            /*
-                Procura o cliente pelo contrato, que e o mesmo caminho que o
-                portal usa para decidir de quem e o processo.
-            */
             $filters[] = new TFilter('id', 'in', "(
                 SELECT cp.processo_id
                 FROM contrato_processo cp
@@ -234,10 +261,11 @@ class PreProcessoSeekWindow extends TWindow
         TSession::setValue(__CLASS__ . '_filters', $filters);
 
         $this->onReload([
-            'offset'        => 0,
-            'first_page'    => 1,
-            'publicacao_id' => $param['publicacao_id'] ?? $this->publicacao_id,
-            'nivel'         => $param['nivel'] ?? $this->nivel,
+            'offset'           => 0,
+            'first_page'       => 1,
+            'publicacao_id'    => $param['publicacao_id'] ?? $this->publicacao_id,
+            'nivel'            => $param['nivel'] ?? $this->nivel,
+            'target_container' => $param['target_container'] ?? $this->container,
         ]);
     }
 
@@ -303,14 +331,27 @@ class PreProcessoSeekWindow extends TWindow
             $this->loaded = true;
 
             /*
-                Lista vazia nao pode virar beco sem saida: o usuario precisa
-                saber que o caminho e cadastrar o pre-processo antes.
+                O TPageNavigation deste tema desenha dez botoes de pagina
+                mesmo quando tudo cabe numa. Numa listagem inteira isso passa;
+                dentro deste cartao, dez numeros para duas linhas dominam a
+                area. Cabendo em uma pagina, sobra so a contagem.
+            */
+            if ($count <= $this->limit)
+            {
+                $area = addslashes($this->container);
+
+                TScript::create("$('#{$area} .tpagenavigation ul, #{$area} .tpagenavigation .pagination').hide();");
+            }
+
+            /*
+                Lista vazia nao pode virar beco sem saida: o caminho e
+                cadastrar o pre-processo antes, e o usuario precisa saber.
             */
             if ($count == 0)
             {
                 TToast::show(
                     'info',
-                    'Nenhum pré-processo disponível para vincular. Cadastre o pré-processo em Processos, marcando "É um pré-processo?", e volte a esta publicação.',
+                    'Nenhum pré-processo disponível. Cadastre-o em Processos, marcando "É um pré-processo?", e volte a esta publicação.',
                     'topRight',
                     'fas:info-circle'
                 );

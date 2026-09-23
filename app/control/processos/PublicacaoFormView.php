@@ -211,6 +211,12 @@ class PublicacaoFormView extends TWindow
 
         $label14 = new TLabel("Número do processo:", '', '13px', 'B', '100%');
         $text14 = new TTextDisplay($publicacao->numero_unico_processo, '', '12px', '');
+
+        /*
+            PRE-PROCESSO: o numero ganha id para poder ser atualizado no lugar
+            quando a publicacao e vinculada, sem recarregar esta tela.
+        */
+        $text14->{'id'} = 'publicacao_numero_processo';
         $btnCriarProcesso = new TButton('btnCriarProcesso');
         $btnVincularProcesso = new TButton('btnVincularProcesso');
         $btnVerProcesso = new TButton('btnVerProcesso');
@@ -276,8 +282,8 @@ class PublicacaoFormView extends TWindow
             nascer antes, como pre-processo, e a publicacao passa a completa-lo.
             A acao definitiva e montada mais abaixo, ja com o id da publicacao.
         */
-        $btnCriarProcesso->setAction(new TAction(['PreProcessoSeekWindow', 'onShow'],['nivel' => PreProcessoService::NIVEL_PROCESSO]), "Vincular pré-processo");
-        $btnCriarPrincipal->setAction(new TAction(['PreProcessoSeekWindow', 'onShow'],['nivel' => PreProcessoService::NIVEL_PRINCIPAL]), "Vincular pré-processo principal");
+        $btnCriarProcesso->setAction(new TAction(['PreProcessoVincularList', 'onShow'],['nivel' => PreProcessoService::NIVEL_PROCESSO]), "Vincular pré-processo");
+        $btnCriarPrincipal->setAction(new TAction(['PreProcessoVincularList', 'onShow'],['nivel' => PreProcessoService::NIVEL_PRINCIPAL]), "Vincular pré-processo principal");
 
         $tbutton4->addStyleClass('btn-default');
         $btnAddPrazo->addStyleClass('btn-default');
@@ -335,19 +341,27 @@ class PublicacaoFormView extends TWindow
             entre abas; com o id no parametro, duas publicacoes abertas ao
             mesmo tempo nao se misturam.
         */
+        /*
+            O fluxo acontece dentro desta propria tela, na area reservada mais
+            abaixo. Antes abria uma janela sobre esta janela e, ao terminar, as
+            duas fechavam e a consulta reabria - tres transicoes para uma acao
+            so. Agora a publicacao nunca sai da tela.
+        */
         $paramVincularPreProcesso = [
-            'publicacao_id' => $publicacao->id,
-            'nivel'         => PreProcessoService::NIVEL_PROCESSO,
+            'publicacao_id'    => $publicacao->id,
+            'nivel'            => PreProcessoService::NIVEL_PROCESSO,
+            'target_container' => PreProcessoVincularList::CONTAINER,
         ];
 
-        $btnCriarProcesso->setAction(new TAction(['PreProcessoSeekWindow', 'onShow'], $paramVincularPreProcesso), "Vincular pré-processo");
+        $btnCriarProcesso->setAction(new TAction(['PreProcessoVincularList', 'onShow'], $paramVincularPreProcesso), "Vincular pré-processo");
 
         $paramVincularPrincipal = [
-            'publicacao_id' => $publicacao->id,
-            'nivel'         => PreProcessoService::NIVEL_PRINCIPAL,
+            'publicacao_id'    => $publicacao->id,
+            'nivel'            => PreProcessoService::NIVEL_PRINCIPAL,
+            'target_container' => PreProcessoVincularList::CONTAINER,
         ];
 
-        $btnCriarPrincipal->setAction(new TAction(['PreProcessoSeekWindow', 'onShow'], $paramVincularPrincipal), "Vincular pré-processo principal");
+        $btnCriarPrincipal->setAction(new TAction(['PreProcessoVincularList', 'onShow'], $paramVincularPrincipal), "Vincular pré-processo principal");
 
         $btnVincularProcesso->setAction(new TAction([$this, 'onVincularProcesso'],['key' => $param['key']]), "Vincular processo");
 
@@ -435,6 +449,23 @@ class PublicacaoFormView extends TWindow
 
         $row2 = $this->form->addFields([$label223,$text101,$btnCriarPrincipal,$btnVincularPrincipal,$btnVerPrincipal],[$labelPrazo,$datetext2,$btnAddPrazo,$btnRemoverPrazo,$labelAtencao,$btnConfirmarPrazo,$btnSugestaoPrazo],[$Etapa,$etapa_nome,$label23434,$text923,$labelvazia,$tbuttonalteretapa,$tbuttonaddcomplemento],[$labeldtEntrega,$text13],[$complementoLabel,$text31]);
         $row2->layout = ['col-sm-3',' col-sm-3',' col-sm-3',' col-sm-3',' col-sm-12'];
+
+        /*
+            PRE-PROCESSO: area que hospeda o fluxo de vinculo.
+
+            Nasce vazia e nao ocupa espaco. Ao clicar em "Vincular
+            pré-processo" ela recebe a lista; depois a confirmacao; depois o
+            resultado - sempre no mesmo lugar, logo abaixo dos dados da
+            publicacao, que continuam visiveis o tempo todo.
+
+            Fica entre os dados e as abas de baixo de proposito: e onde o olho
+            ja esta depois de clicar no botao.
+        */
+        $areaVinculo = new TElement('div');
+        $areaVinculo->{'id'} = PreProcessoVincularList::CONTAINER;
+
+        $rowVinculo = $this->form->addContent([$areaVinculo]);
+        $rowVinculo->layout = [' col-sm-12'];
 
         $row3 = $this->form->addFields([$tbutton4]);
         $row3->layout = [' col-sm-12'];
@@ -917,7 +948,7 @@ class PublicacaoFormView extends TWindow
      * a nova regra de negocio elimina: o processo tem que nascer antes, como
      * pre-processo, e a publicacao so o completa.
      *
-     * Os botoes da tela ja apontam para PreProcessoSeekWindow. O metodo
+     * Os botoes da tela ja apontam para PreProcessoVincularList. O metodo
      * continua existindo, e recusando, porque uma acao antiga guardada em
      * favorito, historico ou aba aberta ainda consegue chama-lo - e essa
      * porta dos fundos nao pode ficar aberta.

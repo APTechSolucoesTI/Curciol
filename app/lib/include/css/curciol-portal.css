@@ -1252,3 +1252,91 @@ body.builder-template-login .curciol-lista .tdatagrid_pagination {
     font-size: 11.5px;
     line-height: 1.35;
 }
+
+/* ==========================================================================
+   11. Vincular pré-processo, dentro da consulta de publicação
+   --------------------------------------------------------------------------
+   Este fluxo acontece numa área que a própria consulta reserva: a lista, a
+   confirmação e o resultado se sucedem ali, sem abrir janela sobre janela.
+
+   O desafio visual é que a área fica no meio dos campos da publicação. Ela
+   precisa se ler como um passo inserido na tela — algo que começou e vai
+   terminar — e não como mais uma seção do cadastro. Daí a faixa de acento à
+   esquerda e o respiro em volta: é a mesma ideia de citação em bloco.
+
+   O tema pinta rodapés de formulário e de paginação com o cinza escuro da
+   barra de título da janela. Dentro de um modal isso vira duas tarjas
+   pesadas no meio do conteúdo, então aqui elas voltam a ser neutras.
+   ========================================================================== */
+
+.curciol-passo-vinculo {
+    margin: 18px 0;
+    border: 1px solid var(--p-border, #e6e8ec);
+    border-left: 3px solid var(--p-brand, #0D4069);
+    border-radius: 6px;
+    background: var(--p-card, #fff);
+    overflow: hidden;
+}
+
+.curciol-passo-vinculo-titulo {
+    margin-bottom: 10px;
+    color: var(--p-fg, #0f1729);
+    font-size: 14.5px;
+    font-weight: 600;
+    line-height: 1.3;
+}
+
+/* O cartão já é o contêiner; o do formulário dentro dele vira redundante. */
+.curciol-passo-vinculo .card,
+.curciol-passo-vinculo .panel {
+    margin: 0;
+    border: 0;
+    box-shadow: none;
+    background: transparent;
+}
+
+/*
+    Rodapés de ação e de paginação: sem a tarja escura, apenas uma linha
+    separando-os do conteúdo.
+*/
+.curciol-passo-vinculo .panel-footer,
+.curciol-passo-vinculo .card-footer,
+.curciol-passo-vinculo .tformactions,
+.curciol-passo-vinculo .tpagenavigation {
+    border-top: 1px solid var(--p-border, #e6e8ec);
+    background: transparent !important;
+    color: inherit;
+}
+
+.curciol-passo-vinculo .tpagenavigation {
+    padding-top: 8px;
+    font-size: 12.5px;
+}
+
+/* Tabela mais leve: é uma lista de escolha, não o conteúdo principal. */
+.curciol-passo-vinculo table {
+    margin-bottom: 0;
+    font-size: 13px;
+}
+
+.curciol-passo-vinculo thead th {
+    border-top: 0;
+    font-size: 12px;
+    letter-spacing: .01em;
+}
+
+/* Painel de resultado, depois de vincular. */
+.curciol-passo-vinculo-ok {
+    padding: 14px 16px;
+}
+
+.curciol-passo-vinculo-ok h5 {
+    margin: 0 0 6px 0;
+    font-size: 14.5px;
+    font-weight: 600;
+}
+
+.curciol-passo-vinculo-ok p {
+    margin: 0;
+    color: var(--p-fg-muted, #6b7280);
+}
