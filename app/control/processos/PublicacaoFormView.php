@@ -218,7 +218,6 @@ class PublicacaoFormView extends TWindow
         */
         $text14->{'id'} = 'publicacao_numero_processo';
         $btnCriarProcesso = new TButton('btnCriarProcesso');
-        $btnVincularProcesso = new TButton('btnVincularProcesso');
         $btnVerProcesso = new TButton('btnVerProcesso');
         $label2 = new TLabel("Jornal", '', '13px', 'B', '100%');
         $text11asdsadsadsa = new TTextDisplay($publicacao->jornal->nome, '', '12px', '');
@@ -265,7 +264,6 @@ class PublicacaoFormView extends TWindow
         $btnAddTarefa = new TButton('btnAddTarefa');
 
         $btnAddTarefa->setAction(new TAction([$this, 'onAddTarefa']), "Adicionar tarefa");
-        $btnVincularProcesso->setAction(new TAction([$this, 'onVincularProcesso']), "Vincular processo");
         $btnVincularPrincipal->setAction(new TAction([$this, 'onVincularPrincipal']), "Vincular principal");
         $btnRemoverPrazo->setAction(new TAction([$this, 'onRemoverPrazo'],['key' => 'key']), "Remover prazo");
         $btnVerPrincipal->setAction(new TAction(['ProcessoFormView', 'onShow'],['key' => 'id']), "Ver principal");
@@ -296,7 +294,6 @@ class PublicacaoFormView extends TWindow
         $btnCriarPrincipal->addStyleClass('btn-default');
         $btnConfirmarPrazo->addStyleClass('btn-default');
         $tbuttonalteretapa->addStyleClass('btn-default');
-        $btnVincularProcesso->addStyleClass('btn-default');
         $btnVincularPrincipal->addStyleClass('btn-default');
         $tbuttonaddcomplemento->addStyleClass('btn-default');
 
@@ -312,7 +309,6 @@ class PublicacaoFormView extends TWindow
         $tbuttonalteretapa->setImage('fas:pencil-alt #000000');
         $btnRemoverPrazo->setImage('fas:calendar-times #000000');
         $btnConfirmarPrazo->setImage('fas:check-circle #4CAF50');
-        $btnVincularProcesso->setImage('fas:exchange-alt #03A9F4');
         $btnVincularPrincipal->setImage('fas:exchange-alt #03A9F4');
 
 
@@ -363,7 +359,6 @@ class PublicacaoFormView extends TWindow
 
         $btnCriarPrincipal->setAction(new TAction(['PreProcessoVincularList', 'onShow'], $paramVincularPrincipal), "Vincular pré-processo principal");
 
-        $btnVincularProcesso->setAction(new TAction([$this, 'onVincularProcesso'],['key' => $param['key']]), "Vincular processo");
 
         $btnVincularPrincipal->setAction(new TAction([$this, 'onVincularPrincipal'],['key' => $param['key']]), "Vincular principal");
 
@@ -444,7 +439,7 @@ class PublicacaoFormView extends TWindow
             }
         }
 
-        $row1 = $this->form->addFields([$label14,$text14,$btnCriarProcesso,$btnVincularProcesso,$btnVerProcesso],[$label2,$text11asdsadsadsa],[$label28,$text15asdasda],[$label4,$text13adsdadas]);
+        $row1 = $this->form->addFields([$label14,$text14,$btnCriarProcesso,$btnVerProcesso],[$label2,$text11asdsadsadsa],[$label28,$text15asdasda],[$label4,$text13adsdadas]);
         $row1->layout = [' col-sm-3',' col-sm-3',' col-sm-3',' col-sm-3'];
 
         $row2 = $this->form->addFields([$label223,$text101,$btnCriarPrincipal,$btnVincularPrincipal,$btnVerPrincipal],[$labelPrazo,$datetext2,$btnAddPrazo,$btnRemoverPrazo,$labelAtencao,$btnConfirmarPrazo,$btnSugestaoPrazo],[$Etapa,$etapa_nome,$label23434,$text923,$labelvazia,$tbuttonalteretapa,$tbuttonaddcomplemento],[$labeldtEntrega,$text13],[$complementoLabel,$text31]);
@@ -702,6 +697,10 @@ class PublicacaoFormView extends TWindow
 
     }
 
+    /*
+        Sem botao na tela desde que o fluxo passou a ser pelo pre-processo.
+        Continua existindo para acao antiga guardada em aba ou historico.
+    */
     public  function onVincularProcesso($param = null) 
     {
         try 
@@ -887,7 +886,6 @@ class PublicacaoFormView extends TWindow
             TScript::create("$('label:contains(\"Processo principal:\")').show();");
             TScript::create("$(\"[name='btnVerProcesso']\").closest('.fb-inline-field-container').show()");
             TScript::create("$(\"[name='btnCriarProcesso']\").closest('.fb-inline-field-container').hide()");
-            TScript::create("$(\"[name='btnVincularProcesso']\").closest('.fb-inline-field-container').hide()");
 
             $vinculo = ProcessoVinculo::where('processo_incidente_id','=',$publicacao->processo_id)->first();
 
@@ -916,8 +914,14 @@ class PublicacaoFormView extends TWindow
 
             /*
                 Sem vinculo, mas o numero da publicacao ja existe como processo
-                no sistema: o caminho e "Vincular processo". Vincular um
-                pre-processo aqui criaria um segundo processo com o mesmo numero.
+                no sistema: vincular um pre-processo aqui criaria um segundo
+                processo com o mesmo numero.
+
+                O botao "Vincular processo" saiu desta tela. Publicacao de
+                processo ja existente e vinculada sozinha na importacao
+                (APIPublicacaoController::vincularProcesso), e as que chegaram
+                antes da conversao sao adotadas por
+                PreProcessoService::adotarPublicacoesOrfas.
             */
             $numero_publicacao = trim((string) $publicacao->numero_unico_processo);
             $processo_existente = ($numero_publicacao !== '')
@@ -925,7 +929,6 @@ class PublicacaoFormView extends TWindow
 
             TScript::create("$(\"[name='btnVerProcesso']\").closest('.fb-inline-field-container').hide()");
             TScript::create("$(\"[name='btnCriarProcesso']\").closest('.fb-inline-field-container')." . ($processo_existente ? 'hide' : 'show') . "()");
-            TScript::create("$(\"[name='btnVincularProcesso']\").closest('.fb-inline-field-container').show()");
 
             TScript::create("$(\"[name='btnVerPrincipal']\").closest('.fb-inline-field-container').hide()");
             TScript::create("$(\"[name='btnCriarPrincipal']\").closest('.fb-inline-field-container').hide()");
