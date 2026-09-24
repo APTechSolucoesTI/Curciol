@@ -128,6 +128,9 @@
             trigger: 'hover',
             container: 'body',
             template: MODELO_HOVER,
+            // Mantem o balao inteiro na area visivel: sem isso, um balao alto
+            // aberto ao lado de um item perto do topo saia pela borda da tela.
+            boundary: 'viewport',
             delay: { show: ATRASO_ABRIR, hide: ATRASO_FECHAR },
             content: conteudo,
             html: true,
