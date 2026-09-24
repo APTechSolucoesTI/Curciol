@@ -34,7 +34,6 @@ class ViewAndamentosPublicacoesProcesso extends TPage
 
         $this->datagrid->style = 'width: 100%';
         $this->datagrid->setHeight(320);
-        $this->datagrid->enablePopover("", " {texto_caracteres} ");
 
         $column_origem = new TDataGridColumn('origem', "Origem", 'left');
         $column_id_transformed = new TDataGridColumn('id', "Etapa", 'left');
@@ -102,25 +101,32 @@ class ViewAndamentosPublicacoesProcesso extends TPage
                 $nome = htmlspecialchars($etapa->etapa_nome ?? '-', ENT_QUOTES, 'UTF-8');
 
                 /*
-                    A explicacao da etapa ("O que acontece nesta etapa?") nao
-                    aparece na linha. O balao de hover traz o nome da etapa no
-                    titulo e o texto da publicacao/andamento no corpo.
+                    O balao da etapa abre so sobre a bolinha verde, nao na linha
+                    inteira: mesmo conteudo da timeline, na mesma ordem.
                 */
+                $balao = ViewAndamentosPublicacoesProcesso::balaoEtapa($etapa, $object);
+
+                if ($balao === '')
+                {
+                    $bolinha_attrs = "title='Etapa verificada'";
+                }
+                else
+                {
+                    $bolinha_attrs = "popover='true' poptitle='{$nome}' popcontent='"
+                        . htmlspecialchars($balao, ENT_QUOTES, 'UTF-8') . "'";
+                }
+
                 return "
-                    <div style='display:flex; align-items:flex-start; gap:8px;'>
-                        <span
-                            title='Etapa verificada'
-                            style='
-                                display:inline-block;
+                    <div style='display:flex; align-items:flex-start; gap:4px;'>
+                        <span class='curciol-etapa-bolinha' {$bolinha_attrs}>
+                            <span style='
+                                display:block;
                                 width:10px;
                                 height:10px;
-                                min-width:10px;
                                 border-radius:50%;
                                 background:#22c55e;
-                                margin-top:4px;
-                                cursor:help;
-                            '
-                        ></span>
+                            '></span>
+                        </span>
 
                         <div style='font-weight:600;'>{$nome}</div>
                     </div>
@@ -160,13 +166,6 @@ class ViewAndamentosPublicacoesProcesso extends TPage
 
         $column_id_transformed->disableHtmlConversion();
 
-        $this->datagrid->enablePopover("{popover_titulo}", "{texto_caracteres}", null, function($object){
-            if(!$object->texto_caracteres)
-            {
-                return false;
-            }
-            return true;
-        });
         $this->datagrid->addColumn($column_origem);
         $this->datagrid->addColumn($column_titulo_transformed);
         $this->datagrid->addColumn($column_dt_transformed);
@@ -265,6 +264,48 @@ class ViewAndamentosPublicacoesProcesso extends TPage
 
         parent::add($container);
 
+    }
+
+    /**
+     * Conteudo do balao da bolinha verde: o que esta cadastrado na etapa
+     * ("O que acontece nesta etapa?" e Detalhamento) e o complemento lancado
+     * para esta publicacao/andamento (Informacoes adicionais). String vazia
+     * quando nao ha nada para mostrar.
+     */
+    public static function balaoEtapa($etapa, $object): string
+    {
+        $secoes = [
+            'O que acontece nesta etapa?' => (string) ($etapa->descricao ?? ''),
+            'Detalhamento'                => (string) ($etapa->detalhamento ?? ''),
+            'Informações adicionais'      => '',
+        ];
+
+        $chave = self::equalsPT($object->origem ?? '', 'Andamento') ? 'andamento_id' : 'publicacao_id';
+        $ponte = ProcessoPublicacoes::where($chave, '=', $object->id)->first();
+
+        if ($ponte)
+        {
+            $secoes['Informações adicionais'] = (string) $ponte->complemento;
+        }
+
+        $html = '';
+
+        foreach ($secoes as $rotulo => $texto)
+        {
+            $texto = trim($texto);
+
+            if ($texto === '')
+            {
+                continue;
+            }
+
+            $html .= "<div class='curciol-etapa-pop-secao'>"
+                   . "<div class='curciol-etapa-pop-rotulo'>{$rotulo}</div>"
+                   . "<div class='curciol-etapa-pop-texto'>" . nl2br(htmlspecialchars($texto, ENT_QUOTES, 'UTF-8')) . "</div>"
+                   . "</div>";
+        }
+
+        return $html === '' ? '' : "<div class='curciol-etapa-pop'>{$html}</div>";
     }
 
     public static function canViewPublicacao($object)

@@ -171,13 +171,14 @@ class PublicacaoFormView extends TWindow
                 return '-';
             }
 
-            $processoPublicacao = ProcessoPublicacoes::where('publicacao_id', '=', $object->publicacao_id)->first();
+            // $object e a propria publicacao: a chave e o id dela.
+            $processoPublicacao = ProcessoPublicacoes::where('publicacao_id', '=', $object->id)->first();
 
-            if(!$processoPublicacao || empty($processoPublicacao->complemento)){
+            if(!$processoPublicacao || trim((string) $processoPublicacao->complemento) === ''){
                 return '-';
             }
 
-            return $processoPublicacao->complemento;
+            return nl2br(htmlspecialchars((string) $processoPublicacao->complemento, ENT_QUOTES, 'UTF-8'));
 
         }, $publicacao->processo_publicacoes_processo_to_string, $publicacao, null);    
 

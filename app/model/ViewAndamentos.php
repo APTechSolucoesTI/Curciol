@@ -61,25 +61,5 @@ class ViewAndamentos extends TRecord
             return $this->texto;
         }
     }
-
-    /*
-        Titulo do balao de hover da aba Andamentos: o nome da etapa, com o
-        texto da publicacao/andamento logo abaixo. Sem etapa verificada
-        continua "Texto", como era antes.
-    */
-    public function get_popover_titulo(){
-        if(strtoupper(trim((string) $this->etapa_verificada)) == 'S' && !empty($this->publicacao_etapa_id))
-        {
-            $etapa = PublicacaoEtapa::find($this->publicacao_etapa_id);
-
-            if($etapa && trim((string) $etapa->etapa_nome) !== '')
-            {
-                return htmlspecialchars(trim((string) $etapa->etapa_nome), ENT_QUOTES, 'UTF-8');
-            }
-        }
-
-        return 'Texto';
-    }
-
 }
 

@@ -89,17 +89,18 @@ class AndamentoFormView extends TWindow
 
         $transformed_andamento_tipo_andamento_criacao_user_system_unit_name = call_user_func(function($value, $object, $row)
         {
-           if(empty($object->andamento_id)){
+           // $object e o proprio andamento: a chave e o id dele.
+           if(empty($object->id)){
                 return '-';
             }
 
-            $processoPublicacao = ProcessoPublicacao::where('andamento_id', '=', $object->andamento_id)->first();
+            $processoPublicacao = ProcessoPublicacoes::where('andamento_id', '=', $object->id)->first();
 
-            if(!$processoPublicacao || empty($processoPublicacao->complemento)){
+            if(!$processoPublicacao || trim((string) $processoPublicacao->complemento) === ''){
                 return '-';
             }
 
-            return $processoPublicacao->complemento;
+            return nl2br(htmlspecialchars((string) $processoPublicacao->complemento, ENT_QUOTES, 'UTF-8'));
 
         }, $andamento->tipo_andamento->criacao_user->system_unit->name, $andamento, null);    
 
