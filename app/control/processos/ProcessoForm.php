@@ -982,6 +982,17 @@ class ProcessoForm extends TPage
                 $param['pre_processo']     = trim((string) $object->pre_processo);
                 $this->onSelectTipoProcesso($param);
 
+                /*
+                    Processo ja convertido: a descricao do pre-processo nao
+                    aparece mais. O campo so sai da tela - o valor continua no
+                    formulario e e gravado igual ao salvar.
+                */
+                if (PreProcessoService::foiConvertido($object))
+                {
+                    TScript::create("$('.linha-pre-processo label:contains(\"Descrição do pré-processo:\")').hide();");
+                    TScript::create("$(\"[name='descricao_pre_processo']\").closest('.fb-inline-field-container').hide()");
+                }
+
                 TTransaction::close(); // close the transaction 
 
             }

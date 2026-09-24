@@ -896,13 +896,14 @@ class PublicacaoFormView extends TWindow
                 TScript::create("$(\"[name='btnCriarPrincipal']\").closest('.fb-inline-field-container').hide()");
                 TScript::create("$(\"[name='btnVincularPrincipal']\").closest('.fb-inline-field-container').hide()");
             }else{
+                /*
+                    A publicacao ja tem processo: o principal so pode ser um
+                    processo existente ("Vincular principal"). Completar um
+                    pre-processo como principal daqui nao faz mais sentido.
+                */
                 TScript::create("$(\"[name='btnVerPrincipal']\").closest('.fb-inline-field-container').hide()");
-                TScript::create("$(\"[name='btnCriarPrincipal']\").closest('.fb-inline-field-container').show()");
+                TScript::create("$(\"[name='btnCriarPrincipal']\").closest('.fb-inline-field-container').hide()");
                 TScript::create("$(\"[name='btnVincularPrincipal']\").closest('.fb-inline-field-container').show()");
-
-                if($publicacao->numero_processo_principal){
-                    TScript::create("$(\"[name='btnCriarPrincipal']\").closest('.fb-inline-field-container').show()");
-                }
             }
 
         }else{
@@ -913,8 +914,17 @@ class PublicacaoFormView extends TWindow
                 TScript::create("$('label:contains(\"Processo principal:\")').hide();");
             }
 
+            /*
+                Sem vinculo, mas o numero da publicacao ja existe como processo
+                no sistema: o caminho e "Vincular processo". Vincular um
+                pre-processo aqui criaria um segundo processo com o mesmo numero.
+            */
+            $numero_publicacao = trim((string) $publicacao->numero_unico_processo);
+            $processo_existente = ($numero_publicacao !== '')
+                && Processo::where('numero_cnj_numero', '=', $numero_publicacao)->count() > 0;
+
             TScript::create("$(\"[name='btnVerProcesso']\").closest('.fb-inline-field-container').hide()");
-            TScript::create("$(\"[name='btnCriarProcesso']\").closest('.fb-inline-field-container').show()");
+            TScript::create("$(\"[name='btnCriarProcesso']\").closest('.fb-inline-field-container')." . ($processo_existente ? 'hide' : 'show') . "()");
             TScript::create("$(\"[name='btnVincularProcesso']\").closest('.fb-inline-field-container').show()");
 
             TScript::create("$(\"[name='btnVerPrincipal']\").closest('.fb-inline-field-container').hide()");

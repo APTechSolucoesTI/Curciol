@@ -123,11 +123,10 @@ class PreProcessoService
         $numero    = trim((string) ($processo->numero_cnj_numero ?? ''));
         $descricao = trim((string) ($processo->descricao_pre_processo ?? ''));
 
+        // Com numero, a descricao do pre-processo deixa de aparecer.
         if ($numero !== '')
         {
-            return $descricao !== ''
-                ? "#{$processo->id} - {$numero} ({$descricao})"
-                : "#{$processo->id} - {$numero}";
+            return "#{$processo->id} - {$numero}";
         }
 
         return $descricao !== ''
@@ -896,7 +895,7 @@ class PreProcessoService
      * A folha de estilo de cada contexto define a aparencia; aqui so sai a
      * marcacao, com as classes que o tema ja conhece.
      */
-    public static function selo($processo, $com_descricao = true): string
+    public static function selo($processo, $com_descricao = true, $com_estado = true): string
     {
         if (!self::ehPreProcesso($processo))
         {
@@ -914,7 +913,10 @@ class PreProcessoService
                 $html .= "<div class='curciol-pre-descricao'>" . htmlspecialchars($descricao, ENT_QUOTES, 'UTF-8') . '</div>';
             }
 
-            $html .= "<div class='curciol-pre-estado'>Aguardando distribuição</div>";
+            if ($com_estado)
+            {
+                $html .= "<div class='curciol-pre-estado'>Aguardando distribuição</div>";
+            }
         }
 
         return $html;

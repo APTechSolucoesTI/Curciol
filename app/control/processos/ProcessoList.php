@@ -271,15 +271,16 @@ class ProcessoList extends TPage
             PRE-PROCESSO: identificacao na coluna do numero.
 
             Enquanto o registro nao foi distribuido nao ha numero para mostrar,
-            e uma celula vazia parece cadastro incompleto. No lugar entra o selo,
-            a descricao - que e o que identifica o registro nessa fase - e o
-            estado. Processo convencional continua exibindo so o numero.
+            e uma celula vazia parece cadastro incompleto. No lugar entra o selo
+            e a descricao - que e o que identifica o registro nessa fase.
+            Depois de convertido, o processo exibe so o numero, como qualquer
+            outro: a descricao do pre-processo deixa de aparecer.
         */
         $column_numero_cnj_numero->setTransformer(function($value, $object, $row, $cell = null, $last_row = null)
         {
             if (PreProcessoService::ehPreProcesso($object))
             {
-                return PreProcessoService::selo($object);
+                return PreProcessoService::selo($object, true, false);
             }
 
             $numero = trim((string) $value);
@@ -289,24 +290,7 @@ class ProcessoList extends TPage
                 return '-';
             }
 
-            $html = htmlspecialchars($numero, ENT_QUOTES, 'UTF-8');
-
-            /*
-                Processo que nasceu como pre-processo mantem a descricao de
-                origem visivel: serve de auditoria e continua ajudando a achar
-                o registro por um nome que as pessoas lembram.
-            */
-            if (PreProcessoService::foiConvertido($object))
-            {
-                $descricao = trim((string) $object->descricao_pre_processo);
-
-                if ($descricao !== '')
-                {
-                    $html .= "<div class='curciol-pre-descricao'>" . htmlspecialchars($descricao, ENT_QUOTES, 'UTF-8') . '</div>';
-                }
-            }
-
-            return $html;
+            return htmlspecialchars($numero, ENT_QUOTES, 'UTF-8');
         });
 
         $order_tipo_processo_nome = new TAction(array($this, 'onReload'));

@@ -26,7 +26,7 @@ class ProcessoIdentificado extends Processo
      *
      *   convencional .... 0001234-56.2026.5.15.0001 (#150)
      *   pre-processo .... Reclamação trabalhista — João da Silva (#150)
-     *   convertido ...... 0001234-56.2026.5.15.0001 — Reclamação trabalhista (#150)
+     *   convertido ...... 0001234-56.2026.5.15.0001 (#150)
      *
      * O id interno aparece sempre: e o unico identificador que existe em
      * qualquer um dos tres.
@@ -43,7 +43,8 @@ class ProcessoIdentificado extends Processo
             $partes[] = $numero;
         }
 
-        if ($descricao !== '')
+        // Depois de ter numero, a descricao do pre-processo nao aparece mais.
+        if ($numero === '' && $descricao !== '')
         {
             $partes[] = $descricao;
         }
