@@ -63,40 +63,22 @@ class ViewAndamentos extends TRecord
     }
 
     /*
-        Conteudo do balao de hover da aba Andamentos: a explicacao da etapa
-        ("O que acontece nesta etapa?"), que saiu da linha da listagem, e o
-        texto da publicacao/andamento. String vazia quando nao ha nenhum dos
-        dois - a listagem usa isso para nao abrir balao vazio.
+        Titulo do balao de hover da aba Andamentos: o nome da etapa, com o
+        texto da publicacao/andamento logo abaixo. Sem etapa verificada
+        continua "Texto", como era antes.
     */
-    private $popover_conteudo_cache = null;
-
-    public function get_popover_conteudo(){
-        if($this->popover_conteudo_cache !== null)
-        {
-            return $this->popover_conteudo_cache;
-        }
-
-        $partes = [];
-
+    public function get_popover_titulo(){
         if(strtoupper(trim((string) $this->etapa_verificada)) == 'S' && !empty($this->publicacao_etapa_id))
         {
             $etapa = PublicacaoEtapa::find($this->publicacao_etapa_id);
-            $explicacao = $etapa ? trim((string) $etapa->descricao) : '';
 
-            if($explicacao !== '')
+            if($etapa && trim((string) $etapa->etapa_nome) !== '')
             {
-                $partes[] = "<b>O que acontece nesta etapa?</b><br>" . htmlspecialchars($explicacao, ENT_QUOTES, 'UTF-8'); // quebras de linha: o datagrid ja aplica nl2br
+                return htmlspecialchars(trim((string) $etapa->etapa_nome), ENT_QUOTES, 'UTF-8');
             }
         }
 
-        $texto = (string) $this->texto_caracteres;
-
-        if(trim($texto) !== '')
-        {
-            $partes[] = "<b>Texto</b><br>" . $texto;
-        }
-
-        return $this->popover_conteudo_cache = implode("<hr style='margin:8px 0'>", $partes);
+        return 'Texto';
     }
 
 }

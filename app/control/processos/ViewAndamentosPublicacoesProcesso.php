@@ -103,8 +103,8 @@ class ViewAndamentosPublicacoesProcesso extends TPage
 
                 /*
                     A explicacao da etapa ("O que acontece nesta etapa?") nao
-                    aparece mais na linha: vai para o balao de hover, montado
-                    em ViewAndamentos::get_popover_conteudo().
+                    aparece na linha. O balao de hover traz o nome da etapa no
+                    titulo e o texto da publicacao/andamento no corpo.
                 */
                 return "
                     <div style='display:flex; align-items:flex-start; gap:8px;'>
@@ -160,8 +160,12 @@ class ViewAndamentosPublicacoesProcesso extends TPage
 
         $column_id_transformed->disableHtmlConversion();
 
-        $this->datagrid->enablePopover("", "{popover_conteudo}", null, function($object){
-            return $object->popover_conteudo !== '';
+        $this->datagrid->enablePopover("{popover_titulo}", "{texto_caracteres}", null, function($object){
+            if(!$object->texto_caracteres)
+            {
+                return false;
+            }
+            return true;
         });
         $this->datagrid->addColumn($column_origem);
         $this->datagrid->addColumn($column_titulo_transformed);
