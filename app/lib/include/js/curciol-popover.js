@@ -157,4 +157,43 @@
             }
         }).attr('data-popover-processed', true);
     };
+
+    /* Celula de botoes (lupa, editar...) fica fora do hover.
+
+       O balao e da linha inteira, entao abria tambem com o mouse sobre os
+       botoes e, aberto, cobria os botoes da linha vizinha. Ao entrar na
+       celula de acoes o balao da linha e desligado e fechado - inclusive o
+       que ja estava na tela - e o atraso de abertura pendente morre junto,
+       porque o show() do Bootstrap checa se o popover esta habilitado. Ao
+       voltar para o resto da mesma linha o balao e religado e reabre com o
+       atraso normal. Vale para todas as listagens; popover de clique fica
+       de fora. */
+    var LINHA_HOVER = 'tr[data-popover="true"]:not([poptrigger])';
+
+    function popoverDaLinha(celula) {
+        var linha = $(celula).closest(LINHA_HOVER);
+        return (linha.length && linha.data('bs.popover')) ? linha : null;
+    }
+
+    $(document).on('mouseenter', LINHA_HOVER + ' > td.action', function () {
+        var linha = popoverDaLinha(this);
+        if (linha) {
+            linha.popover('disable').popover('hide');
+        }
+    });
+
+    $(document).on('mouseleave', LINHA_HOVER + ' > td.action', function (evento) {
+        var linha = popoverDaLinha(this);
+        if (!linha) {
+            return;
+        }
+        linha.popover('enable');
+
+        // Saiu dos botoes mas continua na mesma linha: reabre com o atraso
+        // normal. triggerHandler chama so o handler da propria linha, sem
+        // borbulhar um mouseover falso pela pagina.
+        if (evento.relatedTarget && $.contains(linha[0], evento.relatedTarget)) {
+            linha.triggerHandler('mouseenter');
+        }
+    });
 })();

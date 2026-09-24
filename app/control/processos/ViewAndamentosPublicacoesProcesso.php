@@ -100,12 +100,16 @@ class ViewAndamentosPublicacoesProcesso extends TPage
                 }
 
                 $nome = htmlspecialchars($etapa->etapa_nome ?? '-', ENT_QUOTES, 'UTF-8');
-                $descricao = htmlspecialchars($etapa->descricao ?? '', ENT_QUOTES, 'UTF-8');
 
+                /*
+                    A explicacao da etapa ("O que acontece nesta etapa?") nao
+                    aparece mais na linha: vai para o balao de hover, montado
+                    em ViewAndamentos::get_popover_conteudo().
+                */
                 return "
                     <div style='display:flex; align-items:flex-start; gap:8px;'>
                         <span
-                            title='{$descricao}'
+                            title='Etapa verificada'
                             style='
                                 display:inline-block;
                                 width:10px;
@@ -118,10 +122,7 @@ class ViewAndamentosPublicacoesProcesso extends TPage
                             '
                         ></span>
 
-                        <div>
-                            <div style='font-weight:600;'>{$nome}</div>
-                            <div style='font-size:11px; color:#777;'>{$descricao}</div>
-                        </div>
+                        <div style='font-weight:600;'>{$nome}</div>
                     </div>
                 ";
 
@@ -159,18 +160,14 @@ class ViewAndamentosPublicacoesProcesso extends TPage
 
         $column_id_transformed->disableHtmlConversion();
 
-        $this->datagrid->enablePopover("Texto", "{texto_caracteres}", null, function($object){
-            if(!$object->texto_caracteres)
-            {
-                return false;
-            }
-            return true;
+        $this->datagrid->enablePopover("", "{popover_conteudo}", null, function($object){
+            return $object->popover_conteudo !== '';
         });
         $this->datagrid->addColumn($column_origem);
-        $this->datagrid->addColumn($column_id_transformed);
+        $this->datagrid->addColumn($column_titulo_transformed);
         $this->datagrid->addColumn($column_dt_transformed);
         $this->datagrid->addColumn($column_jornal_tipo);
-        $this->datagrid->addColumn($column_titulo_transformed);
+        $this->datagrid->addColumn($column_id_transformed);
 
         $action_onShow = new TDataGridAction(array('PublicacaoFormView', 'onShow'));
         $action_onShow->setUseButton(false);

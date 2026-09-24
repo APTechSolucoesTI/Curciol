@@ -40,6 +40,7 @@ class ContratoList extends TPage
         $criteria_contrato_profissional_profissional_id = new TCriteria();
         $criteria_area_id = new TCriteria();
         $criteria_contrato_status_nome = new TCriteria();
+        $criteria_assunto_nome = new TCriteria();
 
         $filterVar = Grupo::CLIENTE;
         $criteria_contrato_pessoa_pessoa_id->add(new TFilter('id', 'in', "(SELECT pessoa_id FROM pessoa_grupo WHERE grupo_id = '{$filterVar}')")); 
@@ -52,7 +53,7 @@ class ContratoList extends TPage
         $objeto = new TText('objeto');
         $numero_col = new TEntry('numero_col');
         $cliente_col = new TEntry('cliente_col');
-        $assunto_nome = new TEntry('assunto_nome');
+        $assunto_nome = new BDBSelectCheck('assunto_nome', 'escritorio', 'Assunto', 'id', '{nome}','nome asc' , $criteria_assunto_nome );
         $parceiro_col = new TEntry('parceiro_col');
         $contrato_status_nome = new TDBCombo('contrato_status_nome', 'escritorio', 'ContratoStatus', 'id', '{nome}','nome asc' , $criteria_contrato_status_nome );
 
@@ -60,14 +61,13 @@ class ContratoList extends TPage
 
         $numero_col->exitOnEnter();
         $cliente_col->exitOnEnter();
-        $assunto_nome->exitOnEnter();
         $parceiro_col->exitOnEnter();
 
         $numero_col->setExitAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
         $cliente_col->setExitAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
-        $assunto_nome->setExitAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
         $parceiro_col->setExitAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
 
+        $assunto_nome->setChangeAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
         $contrato_status_nome->setChangeAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
 
         $numero->setMaxLength(30);
@@ -763,7 +763,7 @@ class ContratoList extends TPage
         if (isset($data->assunto_nome) AND ( (is_scalar($data->assunto_nome) AND $data->assunto_nome !== '') OR (is_array($data->assunto_nome) AND (!empty($data->assunto_nome)) )) )
         {
 
-            $filters[] = new TFilter('assunto_id', 'in', "(SELECT id FROM assunto WHERE nome ilike '%{$data->assunto_nome}%')");// create the filter 
+            $filters[] = new TFilter('assunto_id', 'in', $data->assunto_nome);// create the filter 
         }
 
         $this->fireEvents($data);
