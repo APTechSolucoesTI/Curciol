@@ -371,7 +371,7 @@ class ProcessoPublicacoesTimeLine extends TPage
                         {
                             $detalhamento_bloco_html = "
                                 <div class='curciol-timeline-detail-line'>
-                                    <b>Detalhamento:</b>
+                                    <b>Detalhamento</b>
                                     <span>{$detalhamento_html}</span>
                                 </div>
                             ";
@@ -471,12 +471,12 @@ class ProcessoPublicacoesTimeLine extends TPage
 
                        $htmlTemplate = "
                         <div id='{$detailId}' class='curciol-timeline-detail' style='display:none;'>
-                            {$detalhamento_bloco_html}
-
                             <div class='curciol-timeline-detail-line'>
                                 <b>O que acontece nesta etapa?</b>
                                 <span>{$descricao_html}</span>
                             </div>
+
+                            {$detalhamento_bloco_html}
 
                             {$complemento_bloco_html}
                         </div>
@@ -525,12 +525,12 @@ class ProcessoPublicacoesTimeLine extends TPage
                                     </div>
 
                                     <div id='{$mobileDetailId}' class='curciol-mobile-timeline-detail' style='display:none;'>
-                                        {$mobile_detalhamento_bloco_html}
-
-                                       <div class='curciol-mobile-detail-block'>
+                                        <div class='curciol-mobile-detail-block'>
                                             <div class='curciol-mobile-detail-label'>O que acontece nesta etapa?</div>
                                             <div class='curciol-mobile-detail-text'>{$descricao_html}</div>
                                         </div>
+
+                                        {$mobile_detalhamento_bloco_html}
 
                                         {$mobile_complemento_bloco_html}
                                     </div>
@@ -614,7 +614,7 @@ class ProcessoPublicacoesTimeLine extends TPage
                     {
                         $org_doc_det_bloco = "
                             <div class='curciol-timeline-detail-line'>
-                                <b>Detalhamento:</b>
+                                <b>Detalhamento</b>
                                 <span>{$org_doc_det_html}</span>
                             </div>
                         ";
@@ -699,12 +699,12 @@ class ProcessoPublicacoesTimeLine extends TPage
 
                     $org_doc_template = "
                         <div id='{$orgDocDetailId}' class='curciol-timeline-detail' style='display:none;'>
-                            {$org_doc_det_bloco}
-
                             <div class='curciol-timeline-detail-line'>
                                 <b>O que acontece nesta etapa?</b>
                                 <span>{$org_doc_desc_html}</span>
                             </div>
+
+                            {$org_doc_det_bloco}
                         </div>
                     ";
 
@@ -760,12 +760,12 @@ class ProcessoPublicacoesTimeLine extends TPage
                                 </div>
 
                                 <div id='{$mobileOrgDocDetailId}' class='curciol-mobile-timeline-detail' style='display:none;'>
-                                    {$org_doc_det_bloco_mobile}
-
                                     <div class='curciol-mobile-detail-block'>
                                         <div class='curciol-mobile-detail-label'>O que acontece nesta etapa?</div>
                                         <div class='curciol-mobile-detail-text'>{$org_doc_desc_html}</div>
                                     </div>
+
+                                    {$org_doc_det_bloco_mobile}
                                 </div>
                             </div>
                         </div>
