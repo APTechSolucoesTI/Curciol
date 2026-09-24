@@ -578,7 +578,40 @@ class ProcessoForm extends TPage
             TScript::create("$('.linha-pre-processo label:contains(\"Descrição do pré-processo:\")').css('color', '');");
         }
 
-        TScript::create("$(\"[name='descricao_pre_processo']\").closest('.fb-inline-field-container').show()");
+        /*
+            Processo ja convertido: a descricao do pre-processo nao aparece
+            mais. O campo so sai da tela - o valor continua no formulario e e
+            gravado igual ao salvar. Fica aqui, e nao no onEdit, porque o
+            fireEvents do onEdit dispara onSelectTipoProcesso por ajax, que
+            passa por esta rotina depois e reexibiria o campo.
+        */
+        $convertido = !$eh_pre && self::processoConvertido($param['id'] ?? $param['key'] ?? null);
+        $acao = $convertido ? 'hide' : 'show';
+
+        TScript::create("$('.linha-pre-processo label:contains(\"Descrição do pré-processo:\")').{$acao}();");
+        TScript::create("$(\"[name='descricao_pre_processo']\").closest('.fb-inline-field-container').{$acao}()");
+    }
+
+    private static function processoConvertido($id): bool
+    {
+        if (empty($id) || !is_numeric($id))
+        {
+            return false;
+        }
+
+        try
+        {
+            TTransaction::open(self::$database);
+            $convertido = PreProcessoService::foiConvertido(Processo::find((int) $id));
+            TTransaction::close();
+
+            return $convertido;
+        }
+        catch (Exception $e)
+        {
+            TTransaction::rollback();
+            return false;
+        }
     }
 
     public  function onAddDetailContratoProcessoProcesso($param = null)
@@ -981,17 +1014,6 @@ class ProcessoForm extends TPage
                 $param['tipo_processo_id'] = $object->tipo_processo_id;
                 $param['pre_processo']     = trim((string) $object->pre_processo);
                 $this->onSelectTipoProcesso($param);
-
-                /*
-                    Processo ja convertido: a descricao do pre-processo nao
-                    aparece mais. O campo so sai da tela - o valor continua no
-                    formulario e e gravado igual ao salvar.
-                */
-                if (PreProcessoService::foiConvertido($object))
-                {
-                    TScript::create("$('.linha-pre-processo label:contains(\"Descrição do pré-processo:\")').hide();");
-                    TScript::create("$(\"[name='descricao_pre_processo']\").closest('.fb-inline-field-container').hide()");
-                }
 
                 TTransaction::close(); // close the transaction 
 
