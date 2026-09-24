@@ -113,7 +113,7 @@ class ViewAndamentosPublicacoesProcesso extends TPage
                 else
                 {
                     $bolinha_attrs = "popover='true' poptitle='{$nome}' popcontent='"
-                        . htmlspecialchars($balao, ENT_QUOTES, 'UTF-8') . "'";
+                        . htmlspecialchars($balao, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "'";
                 }
 
                 return "
@@ -277,7 +277,7 @@ class ViewAndamentosPublicacoesProcesso extends TPage
         $secoes = [
             'O que acontece nesta etapa?' => (string) ($etapa->descricao ?? ''),
             'Detalhamento'                => (string) ($etapa->detalhamento ?? ''),
-            'Informações adicionais'      => '',
+            'InformaÃ§Ãµes adicionais'      => '',
         ];
 
         $chave = self::equalsPT($object->origem ?? '', 'Andamento') ? 'andamento_id' : 'publicacao_id';
@@ -285,7 +285,7 @@ class ViewAndamentosPublicacoesProcesso extends TPage
 
         if ($ponte)
         {
-            $secoes['Informações adicionais'] = (string) $ponte->complemento;
+            $secoes['InformaÃ§Ãµes adicionais'] = (string) $ponte->complemento;
         }
 
         $html = '';
@@ -301,7 +301,7 @@ class ViewAndamentosPublicacoesProcesso extends TPage
 
             $html .= "<div class='curciol-etapa-pop-secao'>"
                    . "<div class='curciol-etapa-pop-rotulo'>{$rotulo}</div>"
-                   . "<div class='curciol-etapa-pop-texto'>" . nl2br(htmlspecialchars($texto, ENT_QUOTES, 'UTF-8')) . "</div>"
+                   . "<div class='curciol-etapa-pop-texto'>" . nl2br(htmlspecialchars($texto, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')) . "</div>"
                    . "</div>";
         }
 
