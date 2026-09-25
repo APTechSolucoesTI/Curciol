@@ -219,6 +219,7 @@ class PublicacaoFormView extends TWindow
         */
         $text14->{'id'} = 'publicacao_numero_processo';
         $btnCriarProcesso = new TButton('btnCriarProcesso');
+        $btnNovoProcesso = new TButton('btnNovoProcesso');
         $btnVerProcesso = new TButton('btnVerProcesso');
         $label2 = new TLabel("Jornal", '', '13px', 'B', '100%');
         $text11asdsadsadsa = new TTextDisplay($publicacao->jornal->nome, '', '12px', '');
@@ -291,6 +292,7 @@ class PublicacaoFormView extends TWindow
         $btnVerPrincipal->addStyleClass('btn-default');
         $btnRemoverPrazo->addStyleClass('btn-default');
         $btnCriarProcesso->addStyleClass('btn-default');
+        $btnNovoProcesso->addStyleClass('btn-default');
         $btnSugestaoPrazo->addStyleClass('btn-default');
         $btnCriarPrincipal->addStyleClass('btn-default');
         $btnConfirmarPrazo->addStyleClass('btn-default');
@@ -301,6 +303,7 @@ class PublicacaoFormView extends TWindow
         $btnAddTarefa->setImage('fas:plus #4CAF50');
         $btnVerProcesso->setImage('fas:gavel #000000');
         $btnCriarProcesso->setImage('fas:link #03A9F4');
+        $btnNovoProcesso->setImage('fas:plus #4CAF50');
         $btnVerPrincipal->setImage('fas:gavel #000000');
         $btnCriarPrincipal->setImage('fas:link #03A9F4');
         $tbutton4->setImage('far:money-bill-alt #8BC34A');
@@ -351,6 +354,26 @@ class PublicacaoFormView extends TWindow
         ];
 
         $btnCriarProcesso->setAction(new TAction(['PreProcessoVincularList', 'onShow'], $paramVincularPreProcesso), "Vincular pré-processo");
+
+        /*
+            "Criar processo": cria o processo a partir dos dados da publicacao
+            e ja vincula. Convive com "Vincular pré-processo" - quando nao ha
+            pre-processo cadastrado para esta publicacao, o caminho e este.
+            Se o processo principal da publicacao existe no sistema, o novo
+            processo nasce como incidente dele (onCriarProcesso).
+        */
+        $paramCriarProcesso = [
+            'key'             => $publicacao->id,
+            'publicacao'      => $publicacao->id,
+            'numero_processo' => $publicacao->numero_unico_processo ?? null,
+        ];
+
+        if(isset($principal) && $publicacao->processo_id == null && !empty($publicacao->numero_unico_processo)){
+            $paramCriarProcesso['principal'] = $principal->id;
+            $paramCriarProcesso['vinculo'] = "INCIDENTE";
+        }
+
+        $btnNovoProcesso->setAction(new TAction(['PublicacaoFormView', 'onCriarProcesso'], $paramCriarProcesso), "Criar processo");
 
         $paramVincularPrincipal = [
             'publicacao_id'    => $publicacao->id,
@@ -440,7 +463,7 @@ class PublicacaoFormView extends TWindow
             }
         }
 
-        $row1 = $this->form->addFields([$label14,$text14,$btnCriarProcesso,$btnVerProcesso],[$label2,$text11asdsadsadsa],[$label28,$text15asdasda],[$label4,$text13adsdadas]);
+        $row1 = $this->form->addFields([$label14,$text14,$btnNovoProcesso,$btnCriarProcesso,$btnVerProcesso],[$label2,$text11asdsadsadsa],[$label28,$text15asdasda],[$label4,$text13adsdadas]);
         $row1->layout = [' col-sm-3',' col-sm-3',' col-sm-3',' col-sm-3'];
 
         $row2 = $this->form->addFields([$label223,$text101,$btnCriarPrincipal,$btnVincularPrincipal,$btnVerPrincipal],[$labelPrazo,$datetext2,$btnAddPrazo,$btnRemoverPrazo,$labelAtencao,$btnConfirmarPrazo,$btnSugestaoPrazo],[$Etapa,$etapa_nome,$label23434,$text923,$labelvazia,$tbuttonalteretapa,$tbuttonaddcomplemento],[$labeldtEntrega,$text13],[$complementoLabel,$text31]);
@@ -887,6 +910,7 @@ class PublicacaoFormView extends TWindow
             TScript::create("$('label:contains(\"Processo principal:\")').show();");
             TScript::create("$(\"[name='btnVerProcesso']\").closest('.fb-inline-field-container').show()");
             TScript::create("$(\"[name='btnCriarProcesso']\").closest('.fb-inline-field-container').hide()");
+            TScript::create("$(\"[name='btnNovoProcesso']\").closest('.fb-inline-field-container').hide()");
 
             $vinculo = ProcessoVinculo::where('processo_incidente_id','=',$publicacao->processo_id)->first();
 
@@ -931,6 +955,9 @@ class PublicacaoFormView extends TWindow
             TScript::create("$(\"[name='btnVerProcesso']\").closest('.fb-inline-field-container').hide()");
             TScript::create("$(\"[name='btnCriarProcesso']\").closest('.fb-inline-field-container')." . ($processo_existente ? 'hide' : 'show') . "()");
 
+            // "Criar processo" aparece sempre que a publicacao ainda nao tem processo vinculado
+            TScript::create("$(\"[name='btnNovoProcesso']\").closest('.fb-inline-field-container').show()");
+
             TScript::create("$(\"[name='btnVerPrincipal']\").closest('.fb-inline-field-container').hide()");
             TScript::create("$(\"[name='btnCriarPrincipal']\").closest('.fb-inline-field-container').hide()");
             TScript::create("$(\"[name='btnVincularPrincipal']\").closest('.fb-inline-field-container').hide()");
@@ -955,26 +982,114 @@ class PublicacaoFormView extends TWindow
     }
 
     /**
-     * PRE-PROCESSO: rota desativada.
+     * Botao "Criar processo": cria o processo a partir da publicacao e ja
+     * vincula.
      *
-     * Este metodo criava um processo judicial a partir da publicacao - seja
-     * do zero, seja clonando o processo principal. E exatamente o caminho que
-     * a nova regra de negocio elimina: o processo tem que nascer antes, como
-     * pre-processo, e a publicacao so o completa.
-     *
-     * Os botoes da tela ja apontam para PreProcessoVincularList. O metodo
-     * continua existindo, e recusando, porque uma acao antiga guardada em
-     * favorito, historico ou aba aberta ainda consegue chama-lo - e essa
-     * porta dos fundos nao pode ficar aberta.
+     * Com 'principal' (o processo principal da publicacao existe no sistema),
+     * o novo processo e uma copia do principal com o numero da publicacao,
+     * vinculado a ele como incidente. Sem 'principal', abre o cadastro de
+     * processo com o numero preenchido; ProcessoForm::onSave vincula as
+     * publicacoes desse numero.
      */
     public  function onCriarProcesso($param = null) 
     {
-        new TMessage(
-            'info',
-            'Não é mais possível criar um processo diretamente pela publicação.<br><br>'
-            . 'Cadastre o pré-processo em <b>Processos</b>, marcando <b>"É um pré-processo?"</b>, '
-            . 'e depois use <b>Vincular pré-processo</b> nesta publicação para completá-lo com o número recebido.'
-        );
+        try
+        {
+            TTransaction::open(self::$database);
+
+            $numero = trim((string) ($param['numero_processo'] ?? ''));
+            if($numero !== ''){
+                PreProcessoService::validarNumeroDisponivel($numero);
+            }
+
+            if(isset($param['principal'])){
+
+                $principal = Processo::find($param['principal']);
+                $principalContrato = ContratoProcesso::where('processo_id', '=', $principal->id)->getIndexedArray('contrato_id', 'contrato_id');
+                $principalContraparte = Contraparte::where('processo_id', '=', $principal->id)->getIndexedArray('pessoa_id', 'pessoa_id');
+
+                unset($principal->id);
+                unset($principal->data_criacao);
+                unset($principal->criacao_user_id);
+                unset($principal->data_modificacao);
+                unset($principal->modificacao_user_id);
+
+                // A copia nasce como processo convencional, mesmo que o principal tenha vindo de um pre-processo
+                unset($principal->data_conversao);
+                unset($principal->descricao_pre_processo);
+
+                $processo = clone $principal;
+                $processo->pre_processo = 'N';
+                $processo->numero_cnj_numero = $param['numero_processo'];
+                $processo->criacao_user_id = TSession::getValue('userid');
+                $processo->store();
+
+                $vinculo = new ProcessoVinculo();
+                $vinculo->processo_principal_id = $param['principal'];
+                $vinculo->processo_incidente_id = $processo->id;
+                $vinculo->store();
+
+                $publicacoes = Publicacao::where('numero_unico_processo','=',$processo->numero_cnj_numero)->load();
+
+                foreach ($publicacoes as $publicacao) {
+                    $publicacao->processo_id = $processo->id;
+                    $publicacao->store();
+
+                    APIPublicacaoController::adicionarMovimentacao($publicacao->id, "Processo adicionado.", null, $processo->id);
+                }
+
+                $publicacoes = Publicacao::where('numero_processo_principal','=',$processo->numero_cnj_numero)->load();
+                foreach ($publicacoes as $publicacao) {
+                    if($publicacao->processo_id){
+                        $vinculo = ProcessoVinculo::where('processo_principal_id','=',$processo->id)
+                                                  ->where('processo_incidente_id','=',$publicacao->processo_id)
+                                                  ->count();
+                        if($vinculo<1){
+                            $vinculo = new ProcessoVinculo();
+                            $vinculo->processo_principal_id = $processo->id;
+                            $vinculo->processo_incidente_id = $publicacao->processo_id;
+                            $vinculo->store();
+                        }
+                    }
+                }
+
+                foreach($principalContrato as $key=>$value){
+                    $processoContrato = new ContratoProcesso();
+                    $processoContrato->processo_id = $processo->id;
+                    $processoContrato->contrato_id = $key;
+                    $processoContrato->store();
+                }
+
+                foreach($principalContraparte as $key=>$value){
+                    $processoContraparte = new Contraparte();
+                    $processoContraparte->processo_id = $processo->id;
+                    $processoContraparte->pessoa_id = $key;
+                    $processoContraparte->store();
+                }
+
+                TTransaction::close();
+
+                if(!empty($principalContrato)){
+                    TApplication::loadPage('ContratoProcessoSimpleList', 'onShow', ['processo_id'=>$processo->id]);
+                }else{
+                    TApplication::loadPage('ProcessoForm', 'onEdit', ['key' => $processo->id]);
+                }
+            }else{
+                TTransaction::close();
+
+                TApplication::loadPage('ProcessoForm', 'onShow', $param);
+            }
+
+            TWindow::closeWindow();
+
+            APIPublicacaoController::onVerificaPublicacaoEtapa();
+
+        }
+        catch (Exception $e)
+        {
+            TTransaction::rollback();
+            new TMessage('error', $e->getMessage());
+        }
     }
 
     public static function onAlternarEtapaVerificada($param = null)
