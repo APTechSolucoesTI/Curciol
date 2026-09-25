@@ -282,14 +282,6 @@ class ModalQuitarParcela extends TWindow
                 throw new Exception("O desconto não pode ser negativo.");
             }
 
-            if($valorMovimentado <= 0){
-                throw new Exception("O valor total da quitação deve ser maior que zero.");
-            }
-
-            if($novoValorTotal <= 0){
-                throw new Exception("O valor total do lançamento deve ser maior que zero.");
-            }
-
             if(!$confirmouProfissionalNegativo){
                 $profissionaisNegativos = self::verificarProfissionaisNegativos($lancamento, $object, $acrescimo, $desconto);
 
