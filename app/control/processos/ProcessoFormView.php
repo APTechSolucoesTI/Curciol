@@ -35,7 +35,26 @@ class ProcessoFormView extends TPage
 
             return $value == 'S' ? 'Sim' : 'Não';
 
-        }, $processo->exibir_cliente, $processo, null);    
+        }, $processo->exibir_cliente, $processo, null);
+
+        /*
+            PROCESSOS VINCULADOS: com um processo acima oculto, este tambem
+            fica oculto, qualquer que seja o valor gravado nele.
+        */
+        $processo_oculto_acima_id = ProcessoFamiliaService::primeiroAncestralOculto($processo->id);
+
+        if ($processo_oculto_acima_id)
+        {
+            $processo_oculto_acima = Processo::find($processo_oculto_acima_id);
+
+            $transformed_processo_exibir_cliente = 'Não (oculto pelo processo '
+                . htmlspecialchars(
+                    $processo_oculto_acima ? PreProcessoService::identificacao($processo_oculto_acima) : "#{$processo_oculto_acima_id}",
+                    ENT_QUOTES,
+                    'UTF-8'
+                )
+                . ')';
+        }
 
         $transformed_processo_gratuidade_processual = call_user_func(function($value, $object, $row) 
         {

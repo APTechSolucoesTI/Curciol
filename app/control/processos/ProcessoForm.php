@@ -4,6 +4,8 @@ class ProcessoForm extends TPage
 {
     protected BootstrapFormBuilder $form;
     private $formFields = [];
+    private $campo_exibir_cliente;
+    private $aviso_exibir_cliente;
     private static $database = 'escritorio';
     private static $activeRecord = 'Processo';
     private static $primaryKey = 'id';
@@ -244,7 +246,16 @@ class ProcessoForm extends TPage
         $this->form->addFields([new THidden('current_tab')]);
         $this->form->setTabFunction("$('[name=current_tab]').val($(this).attr('data-current_page'));");
 
-        $row1 = $this->form->addFields([new TLabel("Id:", null, '14px', null, '100%'),$id,$publicacao,$vinculo,$principal_id],[new TLabel("Exibir processo para o cliente:", null, '14px', null, '100%'),$exibir_cliente]);
+        /*
+            PROCESSOS VINCULADOS: com um processo acima oculto para o cliente,
+            o switch fica travado e este aviso diz qual. Preenchido em
+            travarExibirCliente().
+        */
+        $this->campo_exibir_cliente = $exibir_cliente;
+        $this->aviso_exibir_cliente = new TElement('div');
+        $this->aviso_exibir_cliente->style = 'font-size:12px; color:#8a6d3b; margin-top:4px;';
+
+        $row1 = $this->form->addFields([new TLabel("Id:", null, '14px', null, '100%'),$id,$publicacao,$vinculo,$principal_id],[new TLabel("Exibir processo para o cliente:", null, '14px', null, '100%'),$exibir_cliente,$this->aviso_exibir_cliente]);
         $row1->layout = ['col-sm-6',' col-sm-6'];
 
         /*
@@ -790,6 +801,24 @@ class ProcessoForm extends TPage
 
             $eh_novo = empty($data->id);
 
+            /*
+                PROCESSOS VINCULADOS: com um processo acima oculto, o valor de
+                "Exibir processo para o cliente" nao muda por aqui. O switch
+                chega travado na tela, e um campo travado pode vir vazio no
+                post; o que vale e o que esta gravado (ou 'N', num incidente
+                novo). Religar o processo de cima devolve o valor guardado.
+            */
+            $oculto_acima = $eh_novo
+                ? ProcessoFamiliaService::primeiroOcultoAPartirDe($data->principal_id ?? null)
+                : ProcessoFamiliaService::primeiroAncestralOculto($data->id);
+
+            if ($oculto_acima)
+            {
+                $gravado = $eh_novo ? null : Processo::find((int) $data->id);
+
+                $data->exibir_cliente = $gravado ? $gravado->exibir_cliente : 'N';
+            }
+
             $object->fromArray( (array) $data); // load the object with data
 
             $object->numero_cnj_numero = $data->numero_cnj_numero;
@@ -1004,6 +1033,8 @@ class ProcessoForm extends TPage
 
                 $this->form->setData($object); // fill the form
 
+                $this->travarExibirCliente(ProcessoFamiliaService::primeiroAncestralOculto($object->id));
+
                 $this->fireEvents($object);
 
                 /*
@@ -1084,6 +1115,8 @@ class ProcessoForm extends TPage
                 $pessoas[] = $contraparte->pessoa_id;
             }
 
+            $this->travarExibirCliente(ProcessoFamiliaService::primeiroOcultoAPartirDe($object->id));
+
             $contratos_processo = ContratoProcesso::where('processo_id','=',$object->id)->load();
 
             foreach ($contratos_processo as $contrato_processo)
@@ -1120,6 +1153,29 @@ class ProcessoForm extends TPage
         }
 
     } 
+
+    /**
+     * Trava o switch "Exibir processo para o cliente" quando um processo acima
+     * deste esta oculto, e diz qual. Sem processo oculto acima, nada muda.
+     */
+    private function travarExibirCliente($processo_oculto_id)
+    {
+        if (empty($processo_oculto_id))
+        {
+            return;
+        }
+
+        $oculto = Processo::find((int) $processo_oculto_id);
+        $rotulo = $oculto ? PreProcessoService::identificacao($oculto) : "#{$processo_oculto_id}";
+
+        $this->campo_exibir_cliente->setEditable(false);
+
+        $this->aviso_exibir_cliente->add(
+            'Oculto para o cliente porque o processo '
+            . htmlspecialchars($rotulo, ENT_QUOTES, 'UTF-8')
+            . ' não está exibido.'
+        );
+    }
 
     public function fireEvents( $object )
     {

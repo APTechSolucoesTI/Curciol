@@ -71,6 +71,43 @@ class ProcessoPublicacoesTimeLine extends TPage
                 throw new Exception('Processo não encontrado');
             }
 
+            /*
+                PROCESSOS VINCULADOS: a timeline e da familia, nao so deste
+                processo. Os itens de todos os processos que o cliente ve
+                entram misturados, do mais recente ao mais antigo, sem dizer
+                de qual processo vieram: o numero de um incidente e dado que o
+                cliente nao precisa ter. Quem explica o item e o campo
+                "Informacoes Adicionais".
+
+                A familia e sempre recalculada aqui, a partir do cliente da
+                sessao. Nenhuma lista de ids vem da requisicao, e um processo
+                que nao e topo deste cliente nao mostra nada.
+            */
+            if (!empty($param['cliente_id']))
+            {
+                TSession::setValue(__CLASS__.'load_filter_cliente_id', (int) $param['cliente_id']);
+            }
+
+            $cliente_id = ProcessoFamiliaService::clienteDaRequisicao(
+                TSession::getValue(__CLASS__.'load_filter_cliente_id')
+            );
+
+            $familia_ids = ProcessoFamiliaService::familiaVisivel($processo_id, $cliente_id);
+
+            if (empty($familia_ids))
+            {
+                throw new Exception('Este processo não está disponível para acompanhamento.');
+            }
+
+            $this->timelineCriteria = new TCriteria;
+            $this->timelineCriteria->add(new TFilter('processo_id', 'in', $familia_ids));
+            $this->timelineCriteria->setProperty('limit', 0);
+            $this->timelineCriteria->setProperty('order', 'id desc');
+
+            /*
+                Trilha, etapa de abertura e secao sintetica sao do topo (este
+                processo), para a familia toda.
+            */
             $tipo_processo_id = (int) $processo->tipo_processo_id;
 
             /*

@@ -60,10 +60,15 @@ class ProcessoViewHeaderList extends TPage
         {
             TSession::setValue(__CLASS__.'load_filter_pessoa_id', $param["key"] ?? "");
         }
-        $filterVar = TSession::getValue(__CLASS__.'load_filter_pessoa_id');
+        $filterVar = ProcessoFamiliaService::clienteDaRequisicao(TSession::getValue(__CLASS__.'load_filter_pessoa_id'));
         $this->filter_criteria->add(new TFilter('pessoa_id', '=', $filterVar));
-        $filterVar = "S";
-        $this->filter_criteria->add(new TFilter('exibir_cliente', '=', $filterVar));
+
+        /*
+            PROCESSOS VINCULADOS: o filtro exibir_cliente = 'S' saiu daqui. A
+            lista agora mostra so os topos de cada familia para este cliente,
+            e quem decide isso (exibicao do processo e dos ancestrais, cliente
+            no contrato) e o ProcessoFamiliaService, no onReload.
+        */
 
         $this->datagrid->style = 'width: 100%';
         $this->datagrid->setHeight(320);
@@ -281,11 +286,15 @@ class ProcessoViewHeaderList extends TPage
 
             if($filters = TSession::getValue(__CLASS__.'_filters'))
             {
-                foreach ($filters as $filter) 
+                foreach ($filters as $filter)
                 {
-                    $criteria->add($filter);       
+                    $criteria->add($filter);
                 }
             }
+
+            $cliente_id = ProcessoFamiliaService::clienteDaRequisicao(TSession::getValue(__CLASS__.'load_filter_pessoa_id'));
+            $topos = ProcessoFamiliaService::toposDoCliente($cliente_id);
+            $criteria->add(new TFilter('id', 'in', $topos ?: [0]));
 
             // load the objects according to criteria
             $objects = $repository->load($criteria, FALSE);
@@ -296,6 +305,7 @@ class ProcessoViewHeaderList extends TPage
                 // iterate the collection of active records
                 foreach ($objects as $object)
                 {
+                    self::aplicarEtapaDaFamilia($object, $cliente_id);
 
                     $row = $this->datagrid->addItem($object);
                     $row->id = "row_{$object->id}";
@@ -363,6 +373,8 @@ class ProcessoViewHeaderList extends TPage
 
         $object = new ProcessoView($id);
 
+        self::aplicarEtapaDaFamilia($object, ProcessoFamiliaService::clienteDaRequisicao(TSession::getValue(__CLASS__.'load_filter_pessoa_id')));
+
         $row = $list->datagrid->addItem($object);
         $row->id = "row_{$object->id}";
 
@@ -372,6 +384,22 @@ class ProcessoViewHeaderList extends TPage
         }
 
         TDataGrid::replaceRowById(__CLASS__.'_datagrid', $row->id, $row);
+    }
+
+    /**
+     * "Ultima etapa" da linha = etapa atual da familia que este cliente ve,
+     * pela ordem de prioridade - a mesma do cabecalho ao abrir o processo.
+     * Antes vinha de processo_view, que pega a movimentacao mais recente por
+     * data e so do proprio processo.
+     */
+    private static function aplicarEtapaDaFamilia($object, $cliente_id)
+    {
+        $topo = Processo::find((int) $object->id);
+
+        $familia = ProcessoFamiliaService::familiaVisivel((int) $object->id, $cliente_id);
+        $etapa   = ProcessoFamiliaService::etapaAtual($familia, $topo);
+
+        $object->ultima_etapa = $etapa->etapa_nome ?? '';
     }
 
 }

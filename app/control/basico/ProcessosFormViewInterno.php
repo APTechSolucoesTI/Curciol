@@ -56,6 +56,15 @@ class ProcessosFormViewInterno extends TPage
         $processo_id_pedido = (int) ($param['processo_id'] ?? 0);
         $cliente_logado     = (int) (TSession::getValue('portal_cliente_id') ?? 0);
 
+        /*
+            PROCESSOS VINCULADOS: o processo aberto aqui e o topo de uma
+            familia, e a tela mostra a familia que este cliente pode ver
+            (ProcessoFamiliaService). A checagem de exibir_cliente, que era
+            so do proprio processo, passa a ser feita pelo servico, junto com
+            a dos ancestrais e a do cliente em cada processo da familia.
+        */
+        $familia_ids = [];
+
         if ($processo_id_pedido > 0)
         {
             $clientes_do_processo = PreProcessoService::clientesDoProcesso($processo_id_pedido);
@@ -72,18 +81,31 @@ class ProcessosFormViewInterno extends TPage
                     throw new Exception('Você não tem acesso a este processo.');
                 }
 
-                $processo_pedido = Processo::find($processo_id_pedido);
-
-                if (!$processo_pedido || strtoupper(trim((string) $processo_pedido->exibir_cliente)) !== 'S')
-                {
-                    throw new Exception('Este processo não está disponível para acompanhamento.');
-                }
-
                 $param['key'] = $cliente_logado;
+            }
+            elseif (!TSession::getValue('logged'))
+            {
+                /*
+                    Sem cliente no portal e sem usuario do back-office: ninguem
+                    a quem mostrar. Antes, qualquer processo_id na URL abria.
+                */
+                throw new Exception('Você não tem acesso a este processo.');
             }
             elseif (empty($param['key']))
             {
                 $param['key'] = array_key_first($clientes_do_processo);
+            }
+
+            /*
+                Vazio quando o processo nao e um topo deste cliente: oculto,
+                debaixo de um processo oculto, ou incidente de um processo que
+                ele ja ve - nesse caso ele entra pela familia do topo.
+            */
+            $familia_ids = ProcessoFamiliaService::familiaVisivel($processo_id_pedido, (int) $param['key']);
+
+            if (empty($familia_ids))
+            {
+                throw new Exception('Este processo não está disponível para acompanhamento.');
             }
         }
 
@@ -180,18 +202,12 @@ class ProcessosFormViewInterno extends TPage
 
             $tipo_processo_id = (int) ($dados_processo->tipo_processo_id ?? 0);
 
-            if ($tipo_processo_id === 1)
-            {
-                $filtro_tipo_etapa_sql = "
-                    AND COALESCE(UPPER(TRIM(pe.judicial)), 'N') = 'S'
-                ";
-            }
-            elseif ($tipo_processo_id === 2)
-            {
-                $filtro_tipo_etapa_sql = "
-                    AND COALESCE(UPPER(TRIM(pe.extrajudicial)), 'N') = 'S'
-                ";
-            }
+            /*
+                PROCESSOS VINCULADOS: a trilha e sempre a do topo (este
+                processo). Movimentacoes dos incidentes em etapas de outra
+                trilha ficam fora da faixa.
+            */
+            $filtro_tipo_etapa_sql = ProcessoFamiliaService::filtroTrilhaSql($tipo_processo_id);
 
             /*
             * Etapas de abertura: aparecem sempre, mesmo sem publicacao, e ja
@@ -206,23 +222,11 @@ class ProcessosFormViewInterno extends TPage
             * um CASE que fixava 8 e depois 2 por id; isso ignorava o valor
             * cadastrado e desalinhava esta consulta do ordenamento usado
             * pelo proprio ArrowStep.
+            *
+            * A consulta mora em ProcessoFamiliaService::etapasFixas, que a
+            * lista "Meus processos" tambem usa.
             */
-            $sql_etapas_fixas = "
-                SELECT pe.id
-                FROM publicacao_etapa pe
-                WHERE pe.id IN (8, 2, 15, 16)
-
-                {$filtro_tipo_etapa_sql}
-
-                ORDER BY
-                    pe.ordem_prioridade ASC,
-                    pe.id ASC
-            ";
-
-            $etapas_fixas = array_map(
-                'intval',
-                $conn->query($sql_etapas_fixas)->fetchAll(PDO::FETCH_COLUMN)
-            );
+            $etapas_fixas = ProcessoFamiliaService::etapasFixas($tipo_processo_id);
         }
 
         if ($processo_id > 0)
@@ -232,67 +236,11 @@ class ProcessosFormViewInterno extends TPage
             /*
                 Busca TODAS as etapas que realmente apareceram nas publicações.
                 Essas etapas vão aparecer e ficar pintadas, desde que estejam antes ou sejam a etapa atual.
+
+                PROCESSOS VINCULADOS: de todos os processos da familia que o
+                cliente ve, e nao so deste.
             */
-            $sql_etapas_aparecidas = "
-                SELECT 
-                    pe.id,
-                    pe.ordem_prioridade
-                FROM processo_publicacoes pp
-
-                LEFT JOIN publicacao pub
-                    ON pub.id = pp.publicacao_id
-
-                LEFT JOIN andamento andam
-                    ON andam.id = pp.andamento_id
-
-                INNER JOIN publicacao_etapa pe
-                    ON pe.id = COALESCE(
-                        pp.publicacao_etapa_id,
-                        pub.publicacao_etapa_id,
-                        andam.publicacao_etapa_id
-                    )
-
-                WHERE pp.processo_id = :processo_id
-
-                AND COALESCE(
-                    pp.publicacao_etapa_id,
-                    pub.publicacao_etapa_id,
-                    andam.publicacao_etapa_id
-                ) IS NOT NULL
-
-               AND pe.id NOT IN (1, 10)
-
-                {$filtro_tipo_etapa_sql}
-
-                AND (
-                    (
-                        pp.publicacao_id IS NOT NULL
-                        AND pp.andamento_id IS NULL
-                        AND COALESCE(UPPER(TRIM(pub.etapa_verificada)), 'N') = 'S'
-                    )
-                    OR
-                    (
-                        pp.andamento_id IS NOT NULL
-                        AND pp.publicacao_id IS NULL
-                        AND COALESCE(UPPER(TRIM(andam.etapa_verificada)), 'N') = 'S'
-                    )
-                )
-
-                GROUP BY
-                    pe.id,
-                    pe.ordem_prioridade
-
-                ORDER BY
-                    pe.ordem_prioridade ASC,
-                    pe.id ASC
-            ";
-
-            $stmt_aparecidas = $conn->prepare($sql_etapas_aparecidas);
-            $stmt_aparecidas->execute([
-                ':processo_id' => $processo_id
-            ]);
-
-            $etapas_aparecidas = $stmt_aparecidas->fetchAll(PDO::FETCH_OBJ);
+            $etapas_aparecidas = ProcessoFamiliaService::etapasAparecidas($familia_ids, $tipo_processo_id);
 
             /*
                 Sempre começa com 8 e 2.
@@ -310,78 +258,35 @@ class ProcessosFormViewInterno extends TPage
                 foreach ($etapas_aparecidas as $etapa)
                 {
                     $id_etapa = (int) $etapa->id;
-                    $ordem_etapa = (int) $etapa->ordem_prioridade;
 
                     if (!in_array($id_etapa, $etapas_ocultas))
                     {
                         $etapas_ids[] = $id_etapa;
                     }
-
-                    /*
-                        Pega a maior etapa pela ordem_prioridade.
-                        Essa será o setValue() do ArrowStep.
-                    */
-                    if (!in_array($id_etapa, $etapas_fixas))
-                    {
-                        if ($ordem_etapa_atual === null || $ordem_etapa > $ordem_etapa_atual)
-                        {
-                            $etapa_atual_id = $id_etapa;
-                            $ordem_etapa_atual = $ordem_etapa;
-                        }
-                    }
                 }
             }
 
             /*
-                Se não encontrou nenhuma etapa dinâmica, usa Protocolo Inicial como base.
+                Etapa atual = a maior pela ordem_prioridade, fora as de
+                abertura. Essa será o setValue() do ArrowStep.
+
+                Sem nenhuma etapa dinâmica, a base é a última etapa de abertura
+                da trilha ("Protocolo Inicial" / "Pedido Protocolado").
+
+                PRE-PROCESSO: menos uma. Marcar o protocolo como percorrido
+                afirmaria que a peça foi protocolada - a movimentação oficial
+                que ainda não aconteceu. Enquanto o registro estiver pendente,
+                a trilha para na organização documental; na conversão o
+                número chega e a etapa avança sozinha.
+
+                A conta mora em ProcessoFamiliaService::etapaAtual, a mesma que
+                a coluna "Última etapa" da lista usa: os dois lugares mostram
+                sempre a mesma etapa.
             */
-           if ($ordem_etapa_atual === null)
-            {
-                if (!empty($etapas_fixas))
-                {
-                    /*
-                    * Usa como base a última etapa fixa permitida
-                    * para esse tipo de processo.
-                    *
-                    * PRE-PROCESSO: menos uma.
-                    *
-                    * As duas etapas de abertura sao "Organizacao Documental" e
-                    * "Protocolo Inicial" (ou "Pedido Protocolado", na trilha
-                    * extrajudicial), e o padrao marca as duas como percorridas.
-                    * Num pre-processo isso afirmaria que a peca foi
-                    * protocolada - exatamente a movimentacao oficial que ainda
-                    * nao aconteceu.
-                    *
-                    * Enquanto o registro estiver pendente, a trilha para na
-                    * primeira: organizacao documental e o que de fato esta
-                    * sendo feito. O protocolo continua na trilha, mas como
-                    * etapa futura. Na conversao, o numero chega e a etapa
-                    * avanca sozinha.
-                    */
-                    $etapa_base_id = PreProcessoService::ehPreProcesso($dados_processo)
-                        ? reset($etapas_fixas)
-                        : end($etapas_fixas);
+            $etapa_atual = ProcessoFamiliaService::etapaAtual($familia_ids, $dados_processo);
 
-                    $stmt_base = $conn->prepare("
-                        SELECT ordem_prioridade
-                        FROM publicacao_etapa
-                        WHERE id = :id
-                        LIMIT 1
-                    ");
-
-                    $stmt_base->execute([
-                        ':id' => $etapa_base_id
-                    ]);
-
-                    $ordem_etapa_atual = (int) $stmt_base->fetchColumn();
-                    $etapa_atual_id = $etapa_base_id;
-                }
-                else
-                {
-                    $ordem_etapa_atual = 0;
-                    $etapa_atual_id = null;
-                }
-            }
+            $etapa_atual_id    = $etapa_atual ? (int) $etapa_atual->id : null;
+            $ordem_etapa_atual = $etapa_atual ? (int) $etapa_atual->ordem_prioridade : 0;
 
             /*
                 Agora busca as etapas futuras depois da maior etapa encontrada.
@@ -496,6 +401,12 @@ class ProcessosFormViewInterno extends TPage
 
         $action_timeline = new TAction(['ProcessoPublicacoesTimeLine', 'onShow']);
         $action_timeline->setParameter('processo_id', $param['processo_id'] ?? '');
+
+        /*
+            So conta sem sessao de portal (back-office). Com cliente logado,
+            a timeline ignora este parametro e usa a sessao.
+        */
+        $action_timeline->setParameter('cliente_id', $param['key'] ?? '');
         $action_timeline->setParameter('target_container', 'processo_publicacoes_timeline_container');
 
         $processo_view->setAction($action_timeline);
