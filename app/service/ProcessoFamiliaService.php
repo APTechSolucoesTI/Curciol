@@ -124,6 +124,63 @@ class ProcessoFamiliaService
     }
 
     /**
+     * O processo acima que esta oculto e que da para reexibir: o botao dele
+     * esta livre, porque todos os processos acima dele estao exibidos. E esse
+     * que o aviso do back-office cita - o mais proximo pode estar travado
+     * tambem (pai e avo ocultos: o botao do pai so destrava depois do avo).
+     *
+     * Null quando nenhum processo acima esta oculto.
+     */
+    public static function ancestralOcultoParaReexibir($processo_id): ?int
+    {
+        return self::ocultoLiberavel(self::ancestraisComNivel($processo_id));
+    }
+
+    /**
+     * O mesmo, para um incidente que ainda vai ser criado debaixo de $pai_id:
+     * o proprio pai entra na conta.
+     */
+    public static function ocultoParaReexibirAPartirDe($pai_id): ?int
+    {
+        $pai = Processo::find((int) $pai_id);
+
+        if (!$pai)
+        {
+            return null;
+        }
+
+        $linhas = array_merge(
+            [['id' => (int) $pai->id, 'nivel' => 0, 'exibir_cliente' => $pai->exibir_cliente]],
+            self::ancestraisComNivel($pai->id)
+        );
+
+        return self::ocultoLiberavel($linhas);
+    }
+
+    /**
+     * Como o processo e citado nos avisos: o numero; sem numero (pre-processo),
+     * a descricao. O id interno nao diz nada a quem le.
+     */
+    public static function rotuloProcesso($processo): string
+    {
+        if (empty($processo))
+        {
+            return '';
+        }
+
+        $numero = trim((string) ($processo->numero_cnj_numero ?? ''));
+
+        if ($numero !== '')
+        {
+            return $numero;
+        }
+
+        $descricao = trim((string) ($processo->descricao_pre_processo ?? ''));
+
+        return $descricao !== '' ? "pré-processo \"{$descricao}\"" : 'sem número';
+    }
+
+    /**
      * O processo pode aparecer no portal (para quem estiver no contrato)?
      */
     public static function exibicaoLiberada($processo_id): bool
@@ -815,6 +872,35 @@ class ProcessoFamiliaService
     private static function semJit(): void
     {
         TTransaction::get()->exec('SET LOCAL jit = off');
+    }
+
+    /**
+     * Entre os ocultos de $linhas (do mais proximo ao mais distante), o
+     * primeiro cujo botao esta livre - nenhum oculto acima dele. Num ciclo
+     * todos ficam travados entre si; ai vale o mais distante.
+     *
+     * @param array[] $linhas ['id', 'nivel', 'exibir_cliente']
+     */
+    private static function ocultoLiberavel(array $linhas): ?int
+    {
+        $ocultos = array_values(array_filter($linhas, function ($linha) {
+            return !self::flagExibir($linha['exibir_cliente']);
+        }));
+
+        if (empty($ocultos))
+        {
+            return null;
+        }
+
+        foreach ($ocultos as $linha)
+        {
+            if (self::primeiroAncestralOculto($linha['id']) === null)
+            {
+                return (int) $linha['id'];
+            }
+        }
+
+        return (int) end($ocultos)['id'];
     }
 
     private static function flagExibir($valor): bool

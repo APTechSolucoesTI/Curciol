@@ -39,17 +39,16 @@ class ProcessoFormView extends TPage
 
         /*
             PROCESSOS VINCULADOS: com um processo acima oculto, este tambem
-            fica oculto, qualquer que seja o valor gravado nele.
+            fica oculto, qualquer que seja o valor gravado nele. Cita o processo
+            que da para reexibir, pelo numero (mesma regra do cadastro).
         */
-        $processo_oculto_acima_id = ProcessoFamiliaService::primeiroAncestralOculto($processo->id);
+        $processo_oculto_acima_id = ProcessoFamiliaService::ancestralOcultoParaReexibir($processo->id);
 
         if ($processo_oculto_acima_id)
         {
-            $processo_oculto_acima = Processo::find($processo_oculto_acima_id);
-
             $transformed_processo_exibir_cliente = 'Não (oculto pelo processo '
                 . htmlspecialchars(
-                    $processo_oculto_acima ? PreProcessoService::identificacao($processo_oculto_acima) : "#{$processo_oculto_acima_id}",
+                    ProcessoFamiliaService::rotuloProcesso(Processo::find($processo_oculto_acima_id)),
                     ENT_QUOTES,
                     'UTF-8'
                 )

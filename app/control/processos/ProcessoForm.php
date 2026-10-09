@@ -1033,7 +1033,7 @@ class ProcessoForm extends TPage
 
                 $this->form->setData($object); // fill the form
 
-                $this->travarExibirCliente(ProcessoFamiliaService::primeiroAncestralOculto($object->id));
+                $this->travarExibirCliente(ProcessoFamiliaService::ancestralOcultoParaReexibir($object->id));
 
                 $this->fireEvents($object);
 
@@ -1115,7 +1115,7 @@ class ProcessoForm extends TPage
                 $pessoas[] = $contraparte->pessoa_id;
             }
 
-            $this->travarExibirCliente(ProcessoFamiliaService::primeiroOcultoAPartirDe($object->id));
+            $this->travarExibirCliente(ProcessoFamiliaService::ocultoParaReexibirAPartirDe($object->id));
 
             $contratos_processo = ContratoProcesso::where('processo_id','=',$object->id)->load();
 
@@ -1156,7 +1156,9 @@ class ProcessoForm extends TPage
 
     /**
      * Trava o switch "Exibir processo para o cliente" quando um processo acima
-     * deste esta oculto, e diz qual. Sem processo oculto acima, nada muda.
+     * deste esta oculto. O aviso cita o processo que o usuario consegue
+     * reexibir (ProcessoFamiliaService::ancestralOcultoParaReexibir), pelo
+     * numero. Sem processo oculto acima, nada muda.
      */
     private function travarExibirCliente($processo_oculto_id)
     {
@@ -1165,8 +1167,7 @@ class ProcessoForm extends TPage
             return;
         }
 
-        $oculto = Processo::find((int) $processo_oculto_id);
-        $rotulo = $oculto ? PreProcessoService::identificacao($oculto) : "#{$processo_oculto_id}";
+        $rotulo = ProcessoFamiliaService::rotuloProcesso(Processo::find((int) $processo_oculto_id));
 
         $this->campo_exibir_cliente->setEditable(false);
 
