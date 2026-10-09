@@ -157,6 +157,13 @@ class AndamentoForm extends TPage
         $this->btn_onsave = $btn_onsave;
         $btn_onsave->addStyleClass('btn-primary'); 
 
+        /*
+            Trava o "Salvar" do clique ate a resposta do onSave, para um
+            clique repetido nao mandar o mesmo salvamento duas vezes. Se a
+            resposta voltar com erro (validacao), o botao destrava.
+        */
+        $btn_onsave->addFunction("if (this.disabled) { return false; } this.disabled = true; var botao = this; $(document).on('ajaxComplete.travarSalvar', function (e, xhr, s) { if (s.url && s.url.indexOf('method=onSave') >= 0) { botao.disabled = false; $(document).off('ajaxComplete.travarSalvar'); } })");
+
         $btn_onclear = $this->form->addAction("Limpar formulário", new TAction([$this, 'onClear']), 'fas:eraser #dd5a43');
         $this->btn_onclear = $btn_onclear;
 
