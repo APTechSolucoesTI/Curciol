@@ -305,7 +305,7 @@ class ProcessoViewHeaderList extends TPage
                 // iterate the collection of active records
                 foreach ($objects as $object)
                 {
-                    self::aplicarEtapaDaFamilia($object, $cliente_id);
+                    self::aplicarEtapaDaFamilia($object, $cliente_id, $topos);
 
                     $row = $this->datagrid->addItem($object);
                     $row->id = "row_{$object->id}";
@@ -392,11 +392,11 @@ class ProcessoViewHeaderList extends TPage
      * Antes vinha de processo_view, que pega a movimentacao mais recente por
      * data e so do proprio processo.
      */
-    private static function aplicarEtapaDaFamilia($object, $cliente_id)
+    private static function aplicarEtapaDaFamilia($object, $cliente_id, ?array $topos = null)
     {
         $topo = Processo::find((int) $object->id);
 
-        $familia = ProcessoFamiliaService::familiaVisivel((int) $object->id, $cliente_id);
+        $familia = ProcessoFamiliaService::familiaVisivel((int) $object->id, $cliente_id, $topos);
         $etapa   = ProcessoFamiliaService::etapaAtual($familia, $topo);
 
         $object->ultima_etapa = $etapa->etapa_nome ?? '';

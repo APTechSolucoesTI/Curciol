@@ -237,6 +237,8 @@ class ProcessoFamiliaService
             ORDER BY l.id
         ";
 
+        self::semJit();
+
         $stmt = TTransaction::get()->prepare($sql);
         $stmt->execute([':cliente_id' => $cliente_id]);
 
@@ -248,9 +250,11 @@ class ProcessoFamiliaService
      * processo nao e um topo desse cliente - e isso que barra o acesso por
      * URL a um processo alheio ou a um incidente solto.
      *
+     * @param int[]|null $topos_do_cliente toposDoCliente($cliente_id), quando
+     *        quem chama ja tem (a lista, que monta uma linha por topo)
      * @return int[]
      */
-    public static function familiaVisivel($topo_id, $cliente_id): array
+    public static function familiaVisivel($topo_id, $cliente_id, ?array $topos_do_cliente = null): array
     {
         $topo_id    = (int) $topo_id;
         $cliente_id = (int) $cliente_id;
@@ -260,7 +264,12 @@ class ProcessoFamiliaService
             return [];
         }
 
-        if (!in_array($topo_id, self::toposDoCliente($cliente_id), true))
+        if ($topos_do_cliente === null)
+        {
+            $topos_do_cliente = self::toposDoCliente($cliente_id);
+        }
+
+        if (!in_array($topo_id, array_map('intval', $topos_do_cliente), true))
         {
             return [];
         }
@@ -303,6 +312,8 @@ class ProcessoFamiliaService
               )
             ORDER BY d.id
         ";
+
+        self::semJit();
 
         $stmt = TTransaction::get()->prepare($sql);
         $stmt->execute([
@@ -377,44 +388,59 @@ class ProcessoFamiliaService
 
         $ocultas = implode(',', self::ETAPAS_OCULTAS);
 
+        /*
+            As movimentacoes da familia sao lidas primeiro, numa passada so
+            (MATERIALIZED), e so depois cruzadas com as etapas.
+
+            processo_publicacoes nao tem indice em processo_id. Com a trilha
+            no mesmo nivel, o planejador estimava 1 etapa e montava um nested
+            loop que varria a tabela inteira (137 mil linhas) uma vez por
+            etapa: ~85 ms. Separado, e uma varredura so: ~12 ms. Medido em
+            09/10/2026 em homologacao.
+        */
         $sql = "
+            WITH mov AS MATERIALIZED (
+                SELECT
+                    COALESCE(
+                        pp.publicacao_etapa_id,
+                        pub.publicacao_etapa_id,
+                        andam.publicacao_etapa_id
+                    ) AS etapa_id
+                FROM processo_publicacoes pp
+
+                LEFT JOIN publicacao pub
+                    ON pub.id = pp.publicacao_id
+
+                LEFT JOIN andamento andam
+                    ON andam.id = pp.andamento_id
+
+                WHERE pp.processo_id = ANY(CAST(:ids AS INTEGER[]))
+
+                AND (
+                    (
+                        pp.publicacao_id IS NOT NULL
+                        AND pp.andamento_id IS NULL
+                        AND COALESCE(UPPER(TRIM(pub.etapa_verificada)), 'N') = 'S'
+                    )
+                    OR
+                    (
+                        pp.andamento_id IS NOT NULL
+                        AND pp.publicacao_id IS NULL
+                        AND COALESCE(UPPER(TRIM(andam.etapa_verificada)), 'N') = 'S'
+                    )
+                )
+            )
             SELECT
                 pe.id,
                 pe.ordem_prioridade
-            FROM processo_publicacoes pp
-
-            LEFT JOIN publicacao pub
-                ON pub.id = pp.publicacao_id
-
-            LEFT JOIN andamento andam
-                ON andam.id = pp.andamento_id
+            FROM mov
 
             INNER JOIN publicacao_etapa pe
-                ON pe.id = COALESCE(
-                    pp.publicacao_etapa_id,
-                    pub.publicacao_etapa_id,
-                    andam.publicacao_etapa_id
-                )
+                ON pe.id = mov.etapa_id
 
-            WHERE pp.processo_id = ANY(CAST(:ids AS INTEGER[]))
-
-            AND pe.id NOT IN ({$ocultas})
+            WHERE pe.id NOT IN ({$ocultas})
 
             " . self::filtroTrilhaSql($tipo_processo_id) . "
-
-            AND (
-                (
-                    pp.publicacao_id IS NOT NULL
-                    AND pp.andamento_id IS NULL
-                    AND COALESCE(UPPER(TRIM(pub.etapa_verificada)), 'N') = 'S'
-                )
-                OR
-                (
-                    pp.andamento_id IS NOT NULL
-                    AND pp.publicacao_id IS NULL
-                    AND COALESCE(UPPER(TRIM(andam.etapa_verificada)), 'N') = 'S'
-                )
-            )
 
             GROUP BY
                 pe.id,
@@ -424,6 +450,8 @@ class ProcessoFamiliaService
                 pe.ordem_prioridade ASC,
                 pe.id ASC
         ";
+
+        self::semJit();
 
         $stmt = TTransaction::get()->prepare($sql);
         $stmt->execute([':ids' => self::arrayPg($processo_ids)]);
@@ -539,6 +567,8 @@ class ProcessoFamiliaService
             ORDER BY MIN(anc.nivel), anc.id
         ";
 
+        self::semJit();
+
         $stmt = TTransaction::get()->prepare($sql);
         $stmt->execute([
             ':processo_id'         => $processo_id,
@@ -546,6 +576,19 @@ class ProcessoFamiliaService
         ]);
 
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * Desliga o JIT do PostgreSQL ate o fim da transacao corrente.
+     *
+     * O planejador nao sabe estimar quantas linhas uma recursao devolve e
+     * chuta milhoes; com esse custo estimado ele liga o JIT e gasta ~800 ms
+     * compilando uma consulta que roda em ~10 ms. Medido em 09/10/2026 em
+     * homologacao: familiaVisivel caiu de ~770 ms para ~25 ms.
+     */
+    private static function semJit(): void
+    {
+        TTransaction::get()->exec('SET LOCAL jit = off');
     }
 
     private static function flagExibir($valor): bool
