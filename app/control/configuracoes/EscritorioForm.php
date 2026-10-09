@@ -57,6 +57,7 @@ class EscritorioForm extends TPage
         $api_key = new TPassword('api_key');
         $whatsapp_config_id = new THidden('whatsapp_config_id');
         $api_token = new TPassword('api_token');
+        $token_apchat = new TPassword('token_apchat');
         $phone = new TEntry('phone');
         $status = new TEntry('status');
         $device = new TEntry('device');
@@ -265,6 +266,22 @@ class EscritorioForm extends TPage
 
         $row15 = $this->form->addFields([$mail_container]);
         $row15->layout = [' col-sm-12'];
+
+        /*
+            APCHAT: token da API externa (Bearer), usado pela sincronizacao
+            dos clientes que autorizaram WhatsApp (APChatContactService).
+        */
+        $token_apchat->setSize('100%');
+
+        $apchat_container = new BContainer('apchat_container');
+        $apchat_container->setTitle("APChat", '#25D366', '13px', 'B', '#fff');
+        $apchat_container->setBorderColor('#25D366');
+
+        $row15b = $apchat_container->addFields([new TLabel("Token da API:", null, '14px', null, '100%'), $token_apchat]);
+        $row15b->layout = [' col-sm-12'];
+
+        $row15c = $this->form->addFields([$apchat_container]);
+        $row15c->layout = [' col-sm-12'];
 
         $this->form->appendPage("Informações de cadastro");
         $row16 = $this->form->addFields([new TLabel("Criado em:", null, '14px', null, '100%'),$data_criacao],[new TLabel("Criado por:", null, '14px', null, '100%'),$criacao_user_name],[new TLabel("Atualizado em:", null, '14px', null, '100%'),$data_modificacao],[new TLabel("Atualizado por:", null, '14px', null, '100%'),$modificacao_user_name]);

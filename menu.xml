@@ -207,6 +207,10 @@
             <icon>fas:id-card fa-fw </icon>
             <action>ParceirosHeaderList#method=onShow</action>
             </menuitem>
+            <menuitem label="Integração Contatos APChat">
+            <icon>fab:whatsapp fa-fw </icon>
+            <action>ApchatContatoList#method=onShow</action>
+            </menuitem>
             <menuitem label="Template">
             <icon>fab:html5 fa-fw </icon>
             <action>TemplateEscritorioHeaderList#method=onShow</action>

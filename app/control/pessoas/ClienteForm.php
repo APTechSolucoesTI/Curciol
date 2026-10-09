@@ -1328,6 +1328,19 @@ class ClienteForm extends TPage
                 $object->modificacao_user_id = TSession::getValue('userid');
             }
 
+            /*
+                APCHAT: o telefone gravado antes desta edicao. Se ele mudou e
+                o contato estiver no numero antigo, o servico atualiza esse
+                contato em vez de criar outro (ver APChatContactService).
+            */
+            $telefone_anterior_apchat = null;
+
+            if (!empty($data->id))
+            {
+                $pessoa_gravada = Pessoa::find((int) $data->id);
+                $telefone_anterior_apchat = $pessoa_gravada->telefone ?? null;
+            }
+
             $object->store(); // save the object 
 
             $repository = ClassificacoesCliente::where('pessoa_id', '=', $object->id);
@@ -1427,6 +1440,19 @@ class ClienteForm extends TPage
             $this->form->setData($data); // fill form data
 
             TTransaction::close(); // close the transaction
+
+            /*
+                APCHAT: sincronizacao do contato, so depois do commit. O
+                servico confere o consentimento (sem 'T' nao chama a API),
+                nunca lanca excecao e grava o resultado em apchat_contato_log.
+                Falha la nao desfaz nem impede este cadastro - so avisa.
+            */
+            $sincronizacao_apchat = APChatContactService::sincronizarPessoa($object->id, [$telefone_anterior_apchat]);
+
+            if (in_array($sincronizacao_apchat->situacao, [ApchatContatoLog::SITUACAO_ERRO, ApchatContatoLog::SITUACAO_PENDENTE]))
+            {
+                TToast::show('warning', 'Cliente salvo. APChat: ' . $sincronizacao_apchat->mensagem, 'topRight', 'fas:exclamation-triangle');
+            }
 
             $atendimento = TSession::getValue('atendimento');
 
