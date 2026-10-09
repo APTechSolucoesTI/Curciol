@@ -260,4 +260,25 @@ div[page-name="ValidarDocumentoForm"] {
 
 .fc-event, .fc-event-dot {
     background: #fdfdfd;
+}/*
+    Janela que rola por dentro (TWindow::setDialogClass('curciol-janela-rolavel')).
+
+    Com o painel lateral aberto o tema poe overflow:hidden no body, e uma
+    janela mais alta que a tela ficava cortada, sem barra e sem rolagem
+    pelo mouse. Aqui a janela se limita a altura da tela e o conteudo rola.
+*/
+.ui-dialog.curciol-janela-rolavel {
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100vh - 16px);
+}
+
+.ui-dialog.curciol-janela-rolavel .ui-dialog-titlebar {
+    flex: 0 0 auto;
+}
+
+.ui-dialog.curciol-janela-rolavel .ui-dialog-content {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto !important;
 }

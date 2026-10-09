@@ -34,7 +34,31 @@ class Home extends TPage
 
             if (empty($pessoa))
             {
-                throw new Exception('Você ainda não é um cliente registrado. Verifique os dados informados!');
+                /*
+                    "Nao e cliente registrado" so quando o usuario existe e
+                    ainda nao tem senha cadastrada. Usuario digitado errado ou
+                    senha errada caem na mensagem generica: antes, um erro de
+                    digitacao fazia o cliente achar que nao tinha acesso.
+                */
+                $tem_senha = false;
+                $existe    = false;
+
+                foreach (Pessoa::where('usuario', '=', $usuario)->load() as $cadastro)
+                {
+                    $existe = true;
+
+                    if (trim((string) $cadastro->senha) !== '')
+                    {
+                        $tem_senha = true;
+                    }
+                }
+
+                if ($existe && !$tem_senha)
+                {
+                    throw new Exception('Você ainda não é um cliente registrado. Verifique os dados informados!');
+                }
+
+                throw new Exception('Usuário ou senha incorretos.');
             }
 
             TSession::setValue('portal_cliente_id', $pessoa->id);

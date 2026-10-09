@@ -150,8 +150,6 @@ class ProcessosFormViewInterno extends TPage
 
 */      $processo_id = (int) ($param['processo_id'] ?? 0);
 
-        $criteria_etapas = new TCriteria;
-
         $tipo_processo_id = null;
         $filtro_tipo_etapa_sql = '';
 
@@ -336,49 +334,13 @@ class ProcessosFormViewInterno extends TPage
                 Remove duplicados.
             */
             $etapas_ids = array_values(array_unique($etapas_ids));
-
-            $criteria_etapas->add(new TFilter('id', 'in', $etapas_ids));
         }
-        else
-        {
-            $criteria_etapas->add(new TFilter('id', '=', 0));
-        }
-
-        $publicacao_etapa_id = new TDBArrowStep(
-            'etapa_atual_processo',
-            'escritorio',
-            'PublicacaoEtapa',
-            'id',
-            '{etapa_nome}',
-            'ordem_prioridade ASC, id ASC',
-            $criteria_etapas
-        );
 
         $processo_view = new BPageContainer();
 
-        $publicacao_etapa_id->setEditable(false);
-        $publicacao_etapa_id->setColorColumn('cor');
-        $publicacao_etapa_id->setFilledColor('#fa931f');
-        $publicacao_etapa_id->setFilledFontColor('#ffffff');
-        $publicacao_etapa_id->setUnfilledColor('#d3d3d3');
-        $publicacao_etapa_id->setUnfilledFontColor('#333333');
-        $publicacao_etapa_id->setWidth('100%');
-        $publicacao_etapa_id->setHeight('60');
-
         /*
-            Esse é o ponto principal:
-            o ArrowStep precisa receber a maior etapa que apareceu.
-            Assim ele pinta 8, 2 e todas as etapas aparecidas antes dela.
-            As futuras ficam cinzas.
-        */
-        if (!empty($etapa_atual_id) && in_array((int) $etapa_atual_id, $etapas_ids))
-        {
-            $publicacao_etapa_id->setValue((int) $etapa_atual_id);
-        }
-
-        /*
-            Nome da etapa atual, exibido no cabeçalho do processo.
-            Reaproveita o id que já foi calculado para o setValue().
+            Nome da etapa atual, exibido no cabeçalho do processo e no resumo
+            da jornada ("Etapa X de N · ...").
         */
         if (!empty($etapa_atual_id))
         {
@@ -491,15 +453,19 @@ class ProcessosFormViewInterno extends TPage
             $row0->class = trim(($row0->class ?? '') . ' curciol-info-processo');
         }
 
-        $row1 = $this->form->addFields([$publicacao_etapa_id]);
-        $row1->layout = [' col-sm-12'];
-
         /*
-            No celular a faixa de setas não cabe na largura da tela e obrigava o
-            cliente a arrastar para os lados. As mesmas etapas, na mesma ordem,
-            são remontadas aqui como uma lista vertical.
+            JORNADA DO PROCESSO: a faixa de etapas.
+
+            Um componente so para desktop e celular - no desktop as etapas
+            ficam lado a lado, no celular uma embaixo da outra; quem decide e
+            o CSS (app/lib/include/css/curciol-portal.css, secao 6). Substitui
+            o TDBArrowStep, que no celular nao cabia na tela.
+
+            Etapas percorridas e a atual levam a cor do cadastro; as futuras
+            ficam neutras, com o numero. A linha entre duas etapas tem metade
+            da cor de cada uma.
         */
-        $passos_html = '';
+        $jornada_html = '';
 
         if ($processo_id > 0 && !empty($etapas_ids))
         {
@@ -514,9 +480,12 @@ class ProcessosFormViewInterno extends TPage
                     id ASC
             ")->fetchAll(PDO::FETCH_OBJ);
 
+            $total_passos = count($etapas_passos);
+            $posicao_atual = 0;
             $passou_etapa_atual = false;
+            $passos_html = '';
 
-            foreach ($etapas_passos as $etapa_passo)
+            foreach ($etapas_passos as $indice => $etapa_passo)
             {
                 $eh_etapa_atual = !empty($etapa_atual_id)
                     && (int) $etapa_passo->id === (int) $etapa_atual_id;
@@ -529,63 +498,84 @@ class ProcessosFormViewInterno extends TPage
                 {
                     $estado_passo = 'atual';
                     $passou_etapa_atual = true;
+                    $posicao_atual = $indice + 1;
                 }
                 else
                 {
                     $estado_passo = 'concluida';
                 }
 
-                $aria_passo = ($estado_passo === 'atual') ? " aria-current='step'" : '';
+                $nome_passo_html = htmlspecialchars((string) $etapa_passo->etapa_nome, ENT_QUOTES, 'UTF-8');
 
-                $nome_passo_html = htmlspecialchars(
-                    (string) $etapa_passo->etapa_nome,
-                    ENT_QUOTES,
-                    'UTF-8'
-                );
-
-                /*
-                    A cor de cada etapa vem do cadastro, igual ao ArrowStep do
-                    desktop. Etapas ainda por vir ficam neutras, tambem como la:
-                    a cor marca o que ja foi percorrido.
-                */
                 $cor_passo = trim((string) ($etapa_passo->cor ?? ''));
 
                 $estilo_passo = '';
 
-                if ($estado_passo !== 'futura' && preg_match('/^#[0-9A-Fa-f]{3,8}$/', $cor_passo))
+                if ($estado_passo !== 'futura' && preg_match('/^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$/', $cor_passo))
                 {
-                    $cor_passo_html = htmlspecialchars($cor_passo, ENT_QUOTES, 'UTF-8');
-
-                    $estilo_passo = " style='--passo-cor:{$cor_passo_html}'";
+                    $estilo_passo = " style='--passo-cor:{$cor_passo}; --passo-tinta:" . self::tintaSobre($cor_passo) . "'";
                 }
 
+                if ($estado_passo === 'concluida')
+                {
+                    $marca_html = "<svg viewBox='0 0 16 16' aria-hidden='true' focusable='false'><path d='M3.5 8.5l3 3 6-7' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/></svg>";
+                    $estado_texto = 'concluída';
+                }
+                elseif ($estado_passo === 'atual')
+                {
+                    $marca_html = "<span class='curciol-jornada-ponto'></span>";
+                    $estado_texto = 'etapa atual';
+                }
+                else
+                {
+                    $marca_html = (string) ($indice + 1);
+                    $estado_texto = 'próxima';
+                }
+
+                $aria_passo = ($estado_passo === 'atual') ? " aria-current='step'" : '';
+                $selo_atual = ($estado_passo === 'atual') ? "<span class='curciol-jornada-selo'>Atual</span>" : '';
+
                 $passos_html .= "
-                    <li class='curciol-passo curciol-passo-{$estado_passo}'{$aria_passo}{$estilo_passo}>
-                        <span class='curciol-passo-marca'></span>
-                        <span class='curciol-passo-nome'>{$nome_passo_html}</span>
+                    <li class='curciol-jornada-passo curciol-jornada-{$estado_passo}'{$aria_passo}{$estilo_passo}>
+                        <span class='curciol-jornada-marca'>{$marca_html}</span>
+                        <span class='curciol-jornada-texto'>
+                            <span class='curciol-jornada-nome'>{$nome_passo_html}</span>
+                            <span class='curciol-sr'>({$estado_texto})</span>
+                            {$selo_atual}
+                        </span>
                     </li>
                 ";
             }
+
+            $resumo_html = ($posicao_atual > 0)
+                ? "Etapa {$posicao_atual} de {$total_passos} · " . htmlspecialchars((string) $etapa_atual_nome, ENT_QUOTES, 'UTF-8')
+                : "{$total_passos} etapas";
+
+            $jornada_html = "
+                <div class='curciol-jornada-cabecalho'>
+                    <span class='curciol-jornada-rotulo'>Jornada do processo</span>
+                    <span class='curciol-jornada-resumo'>{$resumo_html}</span>
+                </div>
+                <ol class='curciol-jornada-passos' aria-label='Etapas do processo'>
+                    {$passos_html}
+                </ol>
+            ";
         }
 
-        if (!empty($passos_html))
+        if (!empty($jornada_html))
         {
-            $lista_passos = new TElement('ol');
-            $lista_passos->class = 'curciol-passos';
-            $lista_passos->add($passos_html);
+            $jornada = new TElement('div');
+            $jornada->class = 'curciol-jornada';
+            $jornada->add($jornada_html);
 
-            $row1b = $this->form->addContent([$lista_passos]);
-            $row1b->layout = [' col-sm-12'];
+            $row1 = $this->form->addContent([$jornada]);
+            $row1->layout = [' col-sm-12'];
 
-            $row1b->class = trim(($row1b->class ?? '') . ' curciol-passos-row');
-
-            $row1b->style = 'display:none; margin-left:0; margin-right:0;';
+            $row1->class = trim(($row1->class ?? '') . ' curciol-jornada-row');
         }
 
         $row2 = $this->form->addFields([$processo_view]);
         $row2->layout = [' col-sm-12'];
-
-        $row1->class = trim(($row1->class ?? '') . ' curciol-arrowstep-row');
 
         $row2->class = trim(($row2->class ?? '') . ' curciol-timeline-mobile');
 
@@ -623,6 +613,37 @@ class ProcessosFormViewInterno extends TPage
     public function onShow($param = null)
     {     
 
+    }
+
+    /**
+     * Cor do icone sobre o circulo da etapa: escura ou branca, a que tiver
+     * mais contraste com a cor do cadastro (WCAG, luminancia relativa).
+     */
+    private static function tintaSobre($cor_hex)
+    {
+        $hex = ltrim((string) $cor_hex, '#');
+
+        if (strlen($hex) === 3)
+        {
+            $hex = $hex[0] . $hex[0] . $hex[1] . $hex[1] . $hex[2] . $hex[2];
+        }
+
+        $canal = function ($valor) {
+            $c = $valor / 255;
+            return ($c <= 0.03928) ? $c / 12.92 : pow(($c + 0.055) / 1.055, 2.4);
+        };
+
+        $luminancia = 0.2126 * $canal(hexdec(substr($hex, 0, 2)))
+                    + 0.7152 * $canal(hexdec(substr($hex, 2, 2)))
+                    + 0.0722 * $canal(hexdec(substr($hex, 4, 2)));
+
+        $escura = '#0f1729';
+        $luminancia_escura = 0.0093;
+
+        $contraste_branco = 1.05 / ($luminancia + 0.05);
+        $contraste_escuro = ($luminancia + 0.05) / ($luminancia_escura + 0.05);
+
+        return ($contraste_escuro >= $contraste_branco) ? $escura : '#ffffff';
     }
 
     public static function buscarEtapaMaisAvancadaDoProcesso($processo_id)

@@ -20,6 +20,15 @@ class PublicacaoFormView extends TWindow
         parent::setTitle("Consulta de publicação");
         parent::setProperty('class', 'window_modal');
 
+        /*
+            Aberta a partir do painel lateral (processo), o tema poe
+            overflow:hidden no body e a janela, mais alta que a tela, ficava
+            sem barra e sem rolagem pelo mouse. Com esta classe ela fica do
+            tamanho da tela e rola por dentro. Regra em
+            app/lib/include/css/bescritorio.css.
+        */
+        parent::setDialogClass('curciol-janela-rolavel');
+
         if(!empty($param['target_container']))
         {
             $this->adianti_target_container = $param['target_container'];
