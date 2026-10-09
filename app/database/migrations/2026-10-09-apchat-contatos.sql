@@ -11,8 +11,9 @@
 --    usado e o id do contato no APChat.
 -- 3. apchat_contato_view: clientes com consentimento 'T' e o resultado da
 --    ultima sincronizacao. Base da tela "Integracao Contatos APChat".
--- 4. Programa ApchatContatoList liberado para os grupos Admin e
---    Configuracoes (os mesmos de "Parceiros").
+-- 4. Programas ApchatContatoList (tela) e ApchatContatoFormView (lupa)
+--    liberados para os grupos Admin e Configuracoes (os mesmos de
+--    "Parceiros").
 --
 -- Script idempotente. Rollback comentado no fim.
 -- =====================================================================
@@ -68,10 +69,14 @@ INSERT INTO system_program (id, name, controller)
 SELECT (SELECT COALESCE(MAX(id), 0) + 1 FROM system_program), 'Integração Contatos APChat', 'ApchatContatoList'
  WHERE NOT EXISTS (SELECT 1 FROM system_program WHERE controller = 'ApchatContatoList');
 
+INSERT INTO system_program (id, name, controller)
+SELECT (SELECT COALESCE(MAX(id), 0) + 1 FROM system_program), 'Contato APChat (visualização)', 'ApchatContatoFormView'
+ WHERE NOT EXISTS (SELECT 1 FROM system_program WHERE controller = 'ApchatContatoFormView');
+
 INSERT INTO system_group_program (id, system_group_id, system_program_id)
-SELECT (SELECT COALESCE(MAX(id), 0) FROM system_group_program) + ROW_NUMBER() OVER (ORDER BY g.id), g.id, p.id
+SELECT (SELECT COALESCE(MAX(id), 0) FROM system_group_program) + ROW_NUMBER() OVER (ORDER BY g.id, p.id), g.id, p.id
   FROM system_group g
-  JOIN system_program p ON p.controller = 'ApchatContatoList'
+  JOIN system_program p ON p.controller IN ('ApchatContatoList', 'ApchatContatoFormView')
  WHERE g.name IN ('Admin', 'Configurações')
    AND NOT EXISTS (SELECT 1 FROM system_group_program gp WHERE gp.system_group_id = g.id AND gp.system_program_id = p.id);
 
@@ -80,8 +85,8 @@ COMMIT;
 -- =====================================================================
 -- ROLLBACK
 -- =====================================================================
--- DELETE FROM system_group_program WHERE system_program_id = (SELECT id FROM system_program WHERE controller = 'ApchatContatoList');
--- DELETE FROM system_program WHERE controller = 'ApchatContatoList';
+-- DELETE FROM system_group_program WHERE system_program_id IN (SELECT id FROM system_program WHERE controller IN ('ApchatContatoList', 'ApchatContatoFormView'));
+-- DELETE FROM system_program WHERE controller IN ('ApchatContatoList', 'ApchatContatoFormView');
 -- DROP VIEW IF EXISTS apchat_contato_view;
 -- DROP TABLE IF EXISTS apchat_contato_log;
 -- ALTER TABLE escritorio DROP COLUMN IF EXISTS token_apchat;
