@@ -244,6 +244,52 @@ class ProcessoPublicacoesTimeLine extends TPage
                         return $dataB <=> $dataA;
                     });
 
+                    /*
+                        Cada publicacao e cada andamento aparecem uma vez so.
+
+                        Salvar o andamento com cliques repetidos e rapidos cria
+                        mais de uma ponte em processo_publicacoes para o mesmo
+                        andamento (as requisicoes chegam juntas e nenhuma ve a
+                        ponte da outra). Na familia, a mesma publicacao tambem
+                        pode estar ligada a mais de um processo.
+
+                        Fica a ponte salva por ultimo (date_log, e depois o id
+                        maior): e a que o AndamentoForm atualiza com a etapa.
+                    */
+                    $ponte_escolhida = [];
+
+                    foreach ($objects as $object)
+                    {
+                        if (!empty($object->andamento_id) && empty($object->publicacao_id))
+                        {
+                            $chave = 'a' . (int) $object->andamento_id;
+                        }
+                        elseif (!empty($object->publicacao_id) && empty($object->andamento_id))
+                        {
+                            $chave = 'p' . (int) $object->publicacao_id;
+                        }
+                        else
+                        {
+                            continue;
+                        }
+
+                        $atual = $ponte_escolhida[$chave] ?? null;
+
+                        if ($atual === null
+                            || [(string) $object->date_log, (int) $object->id] > [(string) $atual->date_log, (int) $atual->id])
+                        {
+                            $ponte_escolhida[$chave] = $object;
+                        }
+                    }
+
+                    $ids_escolhidos = array_map(function ($ponte) {
+                        return (int) $ponte->id;
+                    }, $ponte_escolhida);
+
+                    $objects = array_values(array_filter($objects, function ($object) use ($ids_escolhidos) {
+                        return in_array((int) $object->id, $ids_escolhidos, true);
+                    }));
+
                     foreach ($objects as $object)
                     {
                         $id = $object->id;
@@ -578,7 +624,13 @@ class ProcessoPublicacoesTimeLine extends TPage
                         $icon = 'fas:gavel bg-blue';
                         $position = 'left';
 
-                    $this->timeline->addItem($id, $title, $htmlTemplate, $date, $icon, $position, $object);
+                    /*
+                        So a data (yyyy-mm-dd): com hora, o TTimeline mostra o
+                        relogio e o horario em cada item, e para o cliente
+                        basta o dia. A ordem nao muda - os itens ja chegam
+                        ordenados e o TTimeline respeita a ordem de entrada.
+                    */
+                    $this->timeline->addItem($id, $title, $htmlTemplate, substr((string) $date, 0, 10), $icon, $position, $object);
 
                 }
             }
@@ -812,7 +864,7 @@ class ProcessoPublicacoesTimeLine extends TPage
                         'org_doc',
                         $org_doc_title,
                         $org_doc_template,
-                        $org_doc_date,
+                        substr((string) $org_doc_date, 0, 10),
                         'fas:folder-open bg-blue',
                         'left'
                     );
