@@ -299,13 +299,32 @@ class ProcessoViewHeaderList extends TPage
             // load the objects according to criteria
             $objects = $repository->load($criteria, FALSE);
 
+            /*
+                Etapa da familia de todas as linhas de uma vez (duas consultas),
+                e nao uma conta por linha: com 10 processos, ~280 ms viravam
+                ~30 ms. As linhas carregadas sao topos deste cliente - o filtro
+                acima garante.
+            */
+            $etapas_das_familias = [];
+
+            if ($objects)
+            {
+                $ids_carregados = array_map(function ($object) {
+                    return (int) $object->id;
+                }, $objects);
+
+                $etapas_das_familias = ProcessoFamiliaService::etapasAtuaisDasFamilias(
+                    ProcessoFamiliaService::familiasVisiveis($cliente_id, $ids_carregados)
+                );
+            }
+
             $this->datagrid->clear();
             if ($objects)
             {
                 // iterate the collection of active records
                 foreach ($objects as $object)
                 {
-                    self::aplicarEtapaDaFamilia($object, $cliente_id, $topos);
+                    $object->ultima_etapa = $etapas_das_familias[(int) $object->id]->etapa_nome ?? '';
 
                     $row = $this->datagrid->addItem($object);
                     $row->id = "row_{$object->id}";
@@ -391,12 +410,15 @@ class ProcessoViewHeaderList extends TPage
      * pela ordem de prioridade - a mesma do cabecalho ao abrir o processo.
      * Antes vinha de processo_view, que pega a movimentacao mais recente por
      * data e so do proprio processo.
+     *
+     * Para uma linha so (manageRow). A lista inteira usa a versao em lote,
+     * no onReload.
      */
-    private static function aplicarEtapaDaFamilia($object, $cliente_id, ?array $topos = null)
+    private static function aplicarEtapaDaFamilia($object, $cliente_id)
     {
         $topo = Processo::find((int) $object->id);
 
-        $familia = ProcessoFamiliaService::familiaVisivel((int) $object->id, $cliente_id, $topos);
+        $familia = ProcessoFamiliaService::familiaVisivel((int) $object->id, $cliente_id);
         $etapa   = ProcessoFamiliaService::etapaAtual($familia, $topo);
 
         $object->ultima_etapa = $etapa->etapa_nome ?? '';

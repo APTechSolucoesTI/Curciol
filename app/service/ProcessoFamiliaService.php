@@ -274,23 +274,56 @@ class ProcessoFamiliaService
             return [];
         }
 
+        return self::familiasVisiveis($cliente_id, [$topo_id])[$topo_id] ?? [];
+    }
+
+    /**
+     * A familia visivel de varios topos do cliente numa consulta so - e o
+     * que a lista "Meus processos" usa, em vez de uma consulta por linha.
+     *
+     * So recebe topos que ja sao do cliente: os de toposDoCliente(). Sem
+     * $topos, usa todos os topos dele.
+     *
+     * @param int[]|null $topos
+     * @return array<int, int[]> topo => ids da familia (o topo incluido)
+     */
+    public static function familiasVisiveis($cliente_id, ?array $topos = null): array
+    {
+        $cliente_id = (int) $cliente_id;
+
+        if ($cliente_id <= 0)
+        {
+            return [];
+        }
+
+        $topos = self::idsValidos($topos ?? self::toposDoCliente($cliente_id));
+
+        if (empty($topos))
+        {
+            return [];
+        }
+
         $sql = "
             WITH RECURSIVE
             " . self::CTE_VINCULOS . ",
             " . self::CTE_MEUS . ",
-            descendente(id) AS (
-                SELECT CAST(:topo_id AS INTEGER)
+            descendente(topo, id) AS (
+                SELECT t, t
+                FROM UNNEST(CAST(:topos AS INTEGER[])) AS t
 
                 UNION
 
-                SELECT v.filho
+                SELECT d.topo, v.filho
                 FROM descendente d
                 JOIN v ON v.pai = d.id
             ),
+            membro AS (
+                SELECT DISTINCT id FROM descendente
+            ),
             anc(id, a) AS (
-                SELECT d.id, v.pai
-                FROM descendente d
-                JOIN v ON v.filho = d.id
+                SELECT m.id, v.pai
+                FROM membro m
+                JOIN v ON v.filho = m.id
 
                 UNION
 
@@ -298,7 +331,7 @@ class ProcessoFamiliaService
                 FROM anc
                 JOIN v ON v.filho = anc.a
             )
-            SELECT d.id
+            SELECT d.topo, d.id
             FROM descendente d
             JOIN meus m ON m.id = d.id
             JOIN processo p ON p.id = d.id
@@ -310,18 +343,25 @@ class ProcessoFamiliaService
                   WHERE anc.id = d.id
                     AND COALESCE(UPPER(TRIM(pa.exibir_cliente)), 'N') <> 'S'
               )
-            ORDER BY d.id
+            ORDER BY d.topo, d.id
         ";
 
         self::semJit();
 
         $stmt = TTransaction::get()->prepare($sql);
         $stmt->execute([
-            ':topo_id'    => $topo_id,
+            ':topos'      => self::arrayPg($topos),
             ':cliente_id' => $cliente_id,
         ]);
 
-        return array_map('intval', $stmt->fetchAll(PDO::FETCH_COLUMN));
+        $familias = [];
+
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $linha)
+        {
+            $familias[(int) $linha['topo']][] = (int) $linha['id'];
+        }
+
+        return $familias;
     }
 
     // =================================================================
@@ -388,48 +428,8 @@ class ProcessoFamiliaService
 
         $ocultas = implode(',', self::ETAPAS_OCULTAS);
 
-        /*
-            As movimentacoes da familia sao lidas primeiro, numa passada so
-            (MATERIALIZED), e so depois cruzadas com as etapas.
-
-            processo_publicacoes nao tem indice em processo_id. Com a trilha
-            no mesmo nivel, o planejador estimava 1 etapa e montava um nested
-            loop que varria a tabela inteira (137 mil linhas) uma vez por
-            etapa: ~85 ms. Separado, e uma varredura so: ~12 ms. Medido em
-            09/10/2026 em homologacao.
-        */
         $sql = "
-            WITH mov AS MATERIALIZED (
-                SELECT
-                    COALESCE(
-                        pp.publicacao_etapa_id,
-                        pub.publicacao_etapa_id,
-                        andam.publicacao_etapa_id
-                    ) AS etapa_id
-                FROM processo_publicacoes pp
-
-                LEFT JOIN publicacao pub
-                    ON pub.id = pp.publicacao_id
-
-                LEFT JOIN andamento andam
-                    ON andam.id = pp.andamento_id
-
-                WHERE pp.processo_id = ANY(CAST(:ids AS INTEGER[]))
-
-                AND (
-                    (
-                        pp.publicacao_id IS NOT NULL
-                        AND pp.andamento_id IS NULL
-                        AND COALESCE(UPPER(TRIM(pub.etapa_verificada)), 'N') = 'S'
-                    )
-                    OR
-                    (
-                        pp.andamento_id IS NOT NULL
-                        AND pp.publicacao_id IS NULL
-                        AND COALESCE(UPPER(TRIM(andam.etapa_verificada)), 'N') = 'S'
-                    )
-                )
-            )
+            WITH " . self::sqlMovimentos() . "
             SELECT
                 pe.id,
                 pe.ordem_prioridade
@@ -460,6 +460,55 @@ class ProcessoFamiliaService
     }
 
     /**
+     * CTE "mov": as movimentacoes verificadas dos processos em :ids, com a
+     * etapa de cada uma. Lida primeiro, numa passada so (MATERIALIZED), e so
+     * depois cruzada com as etapas.
+     *
+     * processo_publicacoes nao tem indice em processo_id. Com a trilha no
+     * mesmo nivel, o planejador estimava 1 etapa e montava um nested loop que
+     * varria a tabela inteira (137 mil linhas) uma vez por etapa: ~85 ms.
+     * Separado, e uma varredura so: ~12 ms. Medido em 09/10/2026 em
+     * homologacao.
+     */
+    private static function sqlMovimentos(): string
+    {
+        return "
+            mov AS MATERIALIZED (
+                SELECT
+                    pp.processo_id,
+                    COALESCE(
+                        pp.publicacao_etapa_id,
+                        pub.publicacao_etapa_id,
+                        andam.publicacao_etapa_id
+                    ) AS etapa_id
+                FROM processo_publicacoes pp
+
+                LEFT JOIN publicacao pub
+                    ON pub.id = pp.publicacao_id
+
+                LEFT JOIN andamento andam
+                    ON andam.id = pp.andamento_id
+
+                WHERE pp.processo_id = ANY(CAST(:ids AS INTEGER[]))
+
+                AND (
+                    (
+                        pp.publicacao_id IS NOT NULL
+                        AND pp.andamento_id IS NULL
+                        AND COALESCE(UPPER(TRIM(pub.etapa_verificada)), 'N') = 'S'
+                    )
+                    OR
+                    (
+                        pp.andamento_id IS NOT NULL
+                        AND pp.publicacao_id IS NULL
+                        AND COALESCE(UPPER(TRIM(andam.etapa_verificada)), 'N') = 'S'
+                    )
+                )
+            )
+        ";
+    }
+
+    /**
      * A etapa atual da familia: a de maior ordem_prioridade entre as que
      * apareceram, sem contar as de abertura. Sem nenhuma, vale a ultima etapa
      * de abertura da trilha do topo - ou a primeira, se o topo for
@@ -480,12 +529,152 @@ class ProcessoFamiliaService
         }
 
         $tipo_processo_id = (int) ($topo->tipo_processo_id ?? 0);
-        $fixas = self::etapasFixas($tipo_processo_id);
+
+        $etapa_id = self::escolherEtapaAtual(
+            self::etapasAparecidas($processo_ids, $tipo_processo_id),
+            self::etapasFixas($tipo_processo_id),
+            $topo
+        );
+
+        if ($etapa_id === null)
+        {
+            return null;
+        }
+
+        return self::etapasPorId([$etapa_id])[$etapa_id] ?? null;
+    }
+
+    /**
+     * etapaAtual() de varias familias de uma vez, para a lista "Meus
+     * processos": uma leitura das movimentacoes de todas as familias, em vez
+     * de uma por linha. A regra de escolha e a mesma (escolherEtapaAtual).
+     *
+     * @param array<int, int[]> $familias topo => ids, como em familiasVisiveis()
+     * @return array<int, object|null> topo => {id, etapa_nome, ordem_prioridade}
+     */
+    public static function etapasAtuaisDasFamilias(array $familias): array
+    {
+        if (empty($familias))
+        {
+            return [];
+        }
+
+        $todos = self::idsValidos(array_merge(...array_values($familias)));
+        $topos = self::idsValidos(array_keys($familias));
+
+        $ocultas = implode(',', self::ETAPAS_OCULTAS);
+
+        $sql = "
+            WITH " . self::sqlMovimentos() . "
+            SELECT DISTINCT
+                mov.processo_id,
+                pe.id,
+                pe.ordem_prioridade,
+                pe.judicial,
+                pe.extrajudicial
+            FROM mov
+
+            INNER JOIN publicacao_etapa pe
+                ON pe.id = mov.etapa_id
+
+            WHERE pe.id NOT IN ({$ocultas})
+        ";
+
+        self::semJit();
+
+        $stmt = TTransaction::get()->prepare($sql);
+        $stmt->execute([':ids' => self::arrayPg($todos)]);
+
+        $movimentos_por_processo = [];
+
+        foreach ($stmt->fetchAll(PDO::FETCH_OBJ) as $linha)
+        {
+            $movimentos_por_processo[(int) $linha->processo_id][] = $linha;
+        }
+
+        $stmt_topos = TTransaction::get()->prepare("
+            SELECT id, tipo_processo_id, pre_processo
+            FROM processo
+            WHERE id = ANY(CAST(:ids AS INTEGER[]))
+        ");
+
+        $stmt_topos->execute([':ids' => self::arrayPg($topos)]);
+
+        $dados_topos = [];
+
+        foreach ($stmt_topos->fetchAll(PDO::FETCH_OBJ) as $linha)
+        {
+            $dados_topos[(int) $linha->id] = $linha;
+        }
+
+        $fixas_por_tipo = [];
+        $escolhidas = [];
+
+        foreach ($familias as $topo_id => $ids)
+        {
+            $topo = $dados_topos[(int) $topo_id] ?? null;
+
+            if (!$topo)
+            {
+                $escolhidas[$topo_id] = null;
+                continue;
+            }
+
+            $tipo = (int) $topo->tipo_processo_id;
+
+            if (!isset($fixas_por_tipo[$tipo]))
+            {
+                $fixas_por_tipo[$tipo] = self::etapasFixas($tipo);
+            }
+
+            // Mesma filtragem de etapasAparecidas(): trilha do topo, sem repetir etapa.
+            $aparecidas = [];
+
+            foreach ($ids as $id)
+            {
+                foreach ($movimentos_por_processo[(int) $id] ?? [] as $etapa)
+                {
+                    if (self::etapaNaTrilha($etapa, $tipo))
+                    {
+                        $aparecidas[(int) $etapa->id] = $etapa;
+                    }
+                }
+            }
+
+            $escolhidas[$topo_id] = self::escolherEtapaAtual(array_values($aparecidas), $fixas_por_tipo[$tipo], $topo);
+        }
+
+        $etapas = self::etapasPorId(array_values($escolhidas));
+
+        $resultado = [];
+
+        foreach ($escolhidas as $topo_id => $etapa_id)
+        {
+            $resultado[$topo_id] = $etapa_id !== null ? ($etapas[$etapa_id] ?? null) : null;
+        }
+
+        return $resultado;
+    }
+
+    /**
+     * A regra da etapa atual, num lugar so: a de maior ordem_prioridade entre
+     * as aparecidas, fora as de abertura (desempate pela que vem primeiro na
+     * lista); sem nenhuma, a ultima de abertura - ou a primeira, num
+     * pre-processo.
+     *
+     * @param object[] $aparecidas {id, ordem_prioridade}
+     * @param int[] $fixas etapasFixas() da trilha
+     */
+    private static function escolherEtapaAtual(array $aparecidas, array $fixas, $topo): ?int
+    {
+        usort($aparecidas, function ($a, $b) {
+            return [(int) $a->ordem_prioridade, (int) $a->id] <=> [(int) $b->ordem_prioridade, (int) $b->id];
+        });
 
         $etapa_id = null;
         $maior_ordem = null;
 
-        foreach (self::etapasAparecidas($processo_ids, $tipo_processo_id) as $etapa)
+        foreach ($aparecidas as $etapa)
         {
             if (in_array((int) $etapa->id, $fixas, true))
             {
@@ -506,21 +695,58 @@ class ProcessoFamiliaService
                 : end($fixas);
         }
 
-        if ($etapa_id === null)
+        return $etapa_id;
+    }
+
+    /**
+     * Mesmo criterio de filtroTrilhaSql(), aplicado a uma linha ja lida.
+     */
+    private static function etapaNaTrilha($etapa, $tipo_processo_id): bool
+    {
+        if ((int) $tipo_processo_id === 1)
         {
-            return null;
+            return self::flagExibir($etapa->judicial);
+        }
+
+        if ((int) $tipo_processo_id === 2)
+        {
+            return self::flagExibir($etapa->extrajudicial);
+        }
+
+        return true;
+    }
+
+    /**
+     * @param array<int|null> $ids
+     * @return array<int, object> id => {id, etapa_nome, ordem_prioridade}
+     */
+    private static function etapasPorId(array $ids): array
+    {
+        $ids = self::idsValidos(array_filter($ids, function ($id) {
+            return $id !== null;
+        }));
+
+        if (empty($ids))
+        {
+            return [];
         }
 
         $stmt = TTransaction::get()->prepare("
             SELECT id, etapa_nome, ordem_prioridade
             FROM publicacao_etapa
-            WHERE id = :id
-            LIMIT 1
+            WHERE id = ANY(CAST(:ids AS INTEGER[]))
         ");
 
-        $stmt->execute([':id' => $etapa_id]);
+        $stmt->execute([':ids' => self::arrayPg($ids)]);
 
-        return $stmt->fetch(PDO::FETCH_OBJ) ?: null;
+        $etapas = [];
+
+        foreach ($stmt->fetchAll(PDO::FETCH_OBJ) as $etapa)
+        {
+            $etapas[(int) $etapa->id] = $etapa;
+        }
+
+        return $etapas;
     }
 
     // =================================================================
