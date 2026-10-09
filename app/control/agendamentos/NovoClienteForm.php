@@ -68,7 +68,7 @@ class NovoClienteForm extends TPage
         $row2 = $this->form->addFields([new TLabel("Telefone:", '#FF0000', '12px', null, '100%'),$telefone],[new TLabel("E-mail:", '#FF0000', '12px', null, '100%'),$email]);
         $row2->layout = [' col-sm-6','col-sm-6'];
 
-        $row3 = $this->form->addFields([new TLabel("Aceita receber informações sobre atualizações do seus agendamentos por whatsapp", null, '12px', null, '100%'),$aceita_receber_mensagen_whatsapp,new TLabel(new TImage('fas:info-circle #03A9F4')."Alguns exemplos de interação são lembrete de consulta, confirmação de agendamento", '#607D8B', '8px', 'I', '100%')]);
+        $row3 = $this->form->addFields([new TLabel("Autorizo receber mensagens do escritório pelo WhatsApp", null, '12px', null, '100%'),$aceita_receber_mensagen_whatsapp,new TLabel(new TImage('fas:info-circle #03A9F4')."Por exemplo, lembretes e confirmações de agendamento. Seu contato também é cadastrado no APChat, o atendimento do escritório pelo WhatsApp.", '#607D8B', '8px', 'I', '100%')]);
         $row3->layout = [' col-sm-12'];
 
         // create the form actions
