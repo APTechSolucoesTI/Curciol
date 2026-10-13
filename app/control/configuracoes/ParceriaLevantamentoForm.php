@@ -258,32 +258,48 @@ class ParceriaLevantamentoForm extends TPage
         TScript::create("setTimeout(function () { $('#" . self::$formName . "').removeClass('pl-fixa pl-temporal').addClass('{$classe}'); $('#ajuda_participantes').text(" . json_encode($ajuda) . "); if (window.plSomar) { window.plSomar(); } }, 250);");
     }
 
-    /** "12,5" ou "12.5" ou "" -> float|null */
-    private static function numero($valor): ?float
+    /**
+     * "12,5" ou "12.5" -> float; vazio -> null; qualquer outra coisa (1,2,3, abc, 1e2, negativo) -> excecao.
+     * $rotulo identifica a linha na mensagem.
+     */
+    private static function numero($valor, string $rotulo): ?float
     {
-        if ($valor === null || $valor === '') { return null; }
-        if (is_numeric($valor)) { return (float) $valor; }
+        $texto = trim((string) $valor);
 
-        $limpo = str_replace(['.', ' '], '', (string) $valor);
-        $limpo = str_replace(',', '.', $limpo);
+        if ($texto === '') { return null; }
 
-        return is_numeric($limpo) ? (float) $limpo : null;
+        if (!preg_match('/^d+([.,]d+)?$/', $texto))
+        {
+            throw new Exception("Percentual inválido para {$rotulo}: '{$texto}'. Use apenas números com vírgula ou ponto.");
+        }
+
+        return (float) str_replace(',', '.', $texto);
     }
 
     /** Linhas da lista -> array para o servico (so linhas preenchidas). */
     private function participantesDoPost(string $tipo): array
     {
         $saida = [];
+        $fixa = ($tipo === ParceriaLevantamento::TIPO_FIXA);
+        $n = 0;
 
         foreach ((array) $this->fieldList_participantes->getPostData() as $linha)
         {
+            $n++;
             $l = (array) $linha;
             $pessoa = $l['pessoa_id'] ?? null;
             $pessoa = is_array($pessoa) ? reset($pessoa) : $pessoa;
 
-            $pct    = self::numero($l['percentual'] ?? null);
-            $antes  = self::numero($l['percentual_antes'] ?? null);
-            $depois = self::numero($l['percentual_depois'] ?? null);
+            $rotulo = "a linha {$n}";
+            if (!empty($pessoa))
+            {
+                $obj = Pessoa::find((int) $pessoa);
+                $rotulo = $obj ? $obj->nome : $rotulo;
+            }
+
+            $pct    = self::numero($l['percentual'] ?? null, $rotulo);
+            $antes  = self::numero($l['percentual_antes'] ?? null, $rotulo);
+            $depois = self::numero($l['percentual_depois'] ?? null, $rotulo);
 
             if (empty($pessoa) && $pct === null && $antes === null && $depois === null)
             {
@@ -292,17 +308,25 @@ class ParceriaLevantamentoForm extends TPage
 
             if (empty($pessoa))
             {
-                throw new Exception('Informe a pessoa de cada participante (ou remova a linha em branco).');
+                throw new Exception("Informe a pessoa de cada participante (linha {$n}) ou remova a linha em branco.");
             }
 
-            $fixa = ($tipo === ParceriaLevantamento::TIPO_FIXA);
+            // vazio nao vale 0: o servico nao define isso; o usuario informa 0 explicitamente
+            if ($fixa && $pct === null)
+            {
+                throw new Exception("Informe o percentual de {$rotulo} (use 0 se não participa).");
+            }
+            if (!$fixa && ($antes === null || $depois === null))
+            {
+                throw new Exception("Informe os percentuais \"antes\" e \"depois\" do marco de {$rotulo} (use 0 se não participa).");
+            }
 
             $saida[] = [
                 'pessoa_id'         => (int) $pessoa,
                 'nivel'             => $fixa ? ParceriaLevantamentoParticipante::NIVEL_FIXO : ($l['nivel'] ?? ParceriaLevantamentoParticipante::NIVEL_FIXO),
-                'percentual'        => $fixa ? (float) $pct : null,
-                'percentual_antes'  => $fixa ? null : (float) $antes,
-                'percentual_depois' => $fixa ? null : (float) $depois,
+                'percentual'        => $fixa ? $pct : null,
+                'percentual_antes'  => $fixa ? null : $antes,
+                'percentual_depois' => $fixa ? null : $depois,
                 'recebe_diferenca'  => (($l['recebe_diferenca'] ?? 'N') === 'S') ? 'S' : 'N',
             ];
         }
@@ -498,7 +522,7 @@ class ParceriaLevantamentoForm extends TPage
 
     private static function formatar($valor): ?string
     {
-        return ($valor === null || $valor === '') ? null : rtrim(rtrim(number_format((float) $valor, 4, ',', ''), '0'), ',');
+        return ($valor === null || $valor === '') ? null : rtrim(rtrim(number_format((float) $valor, 8, ',', ''), '0'), ',');
     }
 
     public function onEdit( $param )
