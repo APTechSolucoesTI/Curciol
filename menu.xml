@@ -211,6 +211,10 @@
             <icon>fab:whatsapp fa-fw </icon>
             <action>ApchatContatoList#method=onShow</action>
             </menuitem>
+            <menuitem label="Beneficiários do crédito">
+            <icon>fas:hand-holding-usd fa-fw </icon>
+            <action>BeneficiarioCreditoList#method=onShow</action>
+            </menuitem>
             <menuitem label="Template">
             <icon>fab:html5 fa-fw </icon>
             <action>TemplateEscritorioHeaderList#method=onShow</action>
