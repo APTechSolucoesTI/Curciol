@@ -419,7 +419,7 @@ class LevantamentoFinanceiroForm extends TWindow
         $t = trim((string) $texto);
         if ($t === '') { return null; }
         if (preg_match('#^(\d{2})/(\d{2})/(\d{4})$#', $t, $m)) { $y = $m[3]; $mo = $m[2]; $d = $m[1]; }
-        elseif (preg_match('#^(\d{4})-(\d{2})-(\d{2})#', $t, $m)) { $y = $m[1]; $mo = $m[2]; $d = $m[3]; }
+        elseif (preg_match('#^(\d{4})-(\d{2})-(\d{2})$#', $t, $m)) { $y = $m[1]; $mo = $m[2]; $d = $m[3]; }
         else { throw new Exception("Data inválida em {$rotulo}: '{$t}'."); }
         if (!checkdate((int) $mo, (int) $d, (int) $y)) { throw new Exception("Data inválida em {$rotulo}: '{$t}'."); }
         return "{$y}-{$mo}-{$d}";
