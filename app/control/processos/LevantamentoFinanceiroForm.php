@@ -54,7 +54,6 @@ class LevantamentoFinanceiroForm extends TWindow
     private function montarFormulario(object $ctx, array $param): void
     {
         $this->form = new BootstrapFormBuilder(self::$formName);
-        $this->form->setTagName('div');
         $this->form->setFormTitle('');
 
         $contas      = self::opcoes('SELECT id, nome FROM conta_caixa WHERE COALESCE(ativo, \'S\') <> \'N\' ORDER BY nome');
@@ -175,7 +174,7 @@ class LevantamentoFinanceiroForm extends TWindow
         $row->layout = ['col-sm-3', 'col-sm-4', 'col-sm-2', 'col-sm-3'];
 
         $row = $this->form->addFields(
-            [self::rotulo('% honorários'), $pctHon],
+            [self::rotulo($ctx->pct_honorarios_sugerido !== null ? '% honorários (do contrato) *' : '% honorários (informado) *'), $pctHon],
             [self::rotulo('% custo de NF *'), $pctNf],
             [self::rotulo('Parceria de repasse'), $parceria],
             [self::rotulo('Data de distribuição'), $dataDist]
@@ -284,7 +283,7 @@ class LevantamentoFinanceiroForm extends TWindow
             $zPositivo = ((float) $sim['resultado']['z'] > 0);
             $html = self::htmlPrevia($sim, $d);
         } catch (Exception $e) {
-            $html = self::caixaAviso(htmlspecialchars($e->getMessage(), ENT_QUOTES, 'UTF-8'), 'aviso');
+            $html = self::avisoHtml(htmlspecialchars($e->getMessage(), ENT_QUOTES, 'UTF-8'), 'aviso');
         }
 
         // visibilidade e rotulos dos campos
@@ -630,6 +629,12 @@ class LevantamentoFinanceiroForm extends TWindow
         $d->class = 'lf-aviso lf-aviso-' . $tipo;
         $d->add($htmlSeguro);
         return $d;
+    }
+
+    /** O mesmo aviso, como texto HTML (para trocar o conteudo da previa). */
+    public static function avisoHtml(string $htmlSeguro, string $tipo = 'info'): string
+    {
+        return '<div class="lf-aviso lf-aviso-' . $tipo . '">' . $htmlSeguro . '</div>';
     }
 
     public static function moeda($v): string
