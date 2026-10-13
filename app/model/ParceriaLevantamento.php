@@ -11,6 +11,11 @@ class ParceriaLevantamento extends TRecord
     const TIPO_FIXA     = 'FIXA';
     const TIPO_TEMPORAL = 'TEMPORAL';
 
+    public static function tipos(): array
+    {
+        return [self::TIPO_FIXA => 'Fixa', self::TIPO_TEMPORAL => 'Por tempo'];
+    }
+
     public function __construct($id = NULL, $callObjectLoad = TRUE)
     {
         parent::__construct($id, $callObjectLoad);
