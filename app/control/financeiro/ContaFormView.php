@@ -505,6 +505,7 @@ class ContaFormView extends TPage
             TTransaction::open(self::$database);
 
             $lancamento = Lancamento::find($param['id']);
+            LevantamentoFinanceiroService::exigirContaNaoGerada((int) $lancamento->conta_id, false);
 
             $lancamento->extrato->lancamento_id = null;
             $lancamento->extrato->store();
@@ -577,6 +578,8 @@ class ContaFormView extends TPage
                 TTransaction::open(self::$database);
 
                 $object = new Conta($key, FALSE); 
+
+                LevantamentoFinanceiroService::exigirContaNaoGerada((int) $object->id);
 
                 if($object->tipo_conta_id == 2){
                     $tela = 'ContaPagarList';
@@ -691,6 +694,7 @@ class ContaFormView extends TPage
             $tela = ($object->tipo_conta_id == 2) ? 'ContaPagarForm' : 'ContaForm';
 
             $conta_id = $object->id;
+            LevantamentoFinanceiroService::exigirContaNaoGerada((int) $conta_id);
 
             TTransaction::close();
 

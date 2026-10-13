@@ -569,6 +569,10 @@ class ExtratoList extends TPage
 
                 // instantiates object
                 $object = new Extrato($key, FALSE); 
+                if ($object->lancamento_id) {
+                    $lancGerado = Lancamento::find($object->lancamento_id);
+                    if ($lancGerado) { LevantamentoFinanceiroService::exigirContaNaoGerada((int) $lancGerado->conta_id, false); }
+                }
 
                 if($object->extrato_vinculado){
                     $objectVinculado = new Extrato($object->extrato_vinculado, FALSE);

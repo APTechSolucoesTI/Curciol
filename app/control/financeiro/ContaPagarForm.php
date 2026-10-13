@@ -1090,6 +1090,10 @@ class ContaPagarForm extends TPage
                 $data->pessoa_id = $data->cliente_id;
             }
 
+            if (!empty($data->id)) {
+                LevantamentoFinanceiroService::exigirContaNaoGerada((int) $data->id);
+            }
+
             if (!empty($data->id) && self::contaEstaQuitada($data->id)) {
                 throw new Exception('Conta quitada, não é possível editar.');
             }
@@ -1332,6 +1336,7 @@ class ContaPagarForm extends TPage
 
                 $key = $param['key'];  // get the parameter $key
                 TTransaction::open(self::$database); // open a transaction
+                LevantamentoFinanceiroService::exigirContaNaoGerada((int) $key);
 
                 $object = new Conta($key); // instantiates the Active Record 
                 if($object->tipo_documento_financeiro_id != TipoDocumentoFinanceiro::NOTA){

@@ -630,6 +630,7 @@ if ($pagamentoSolidario === 'S')
         $conta = new Conta();
     } else {
         $conta = Conta::find($buscaContaContrato->id);
+        LevantamentoFinanceiroService::exigirContaNaoGerada((int) $conta->id);
     }
 
     $conta->fromArray((array) $data);
@@ -871,6 +872,7 @@ else
             $contaCliente = new Conta();
         } else {
             $contaCliente = Conta::find($buscaContaCliente->id);
+            LevantamentoFinanceiroService::exigirContaNaoGerada((int) $contaCliente->id);
         }
 
         $totalAnteriorConta = self::valorBrParaFloat(

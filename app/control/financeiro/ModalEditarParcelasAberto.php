@@ -159,6 +159,7 @@ class ModalEditarParcelasAberto extends TWindow
             TTransaction::open('escritorio');
 
             $id = TSession::getValue('conta_id');
+            LevantamentoFinanceiroService::exigirContaNaoGerada((int) $id);
 
             if(str_replace(',', '.', str_replace('.', '', $param['diferenca'])) != 0){
                 throw new Exception('A Soma dos valores informados é diferente do valor em aberto.');

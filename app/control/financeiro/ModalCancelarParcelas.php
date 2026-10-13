@@ -63,6 +63,7 @@ class ModalCancelarParcelas extends TWindow
         try
         {
             TTransaction::open('escritorio');;
+            LevantamentoFinanceiroService::exigirContaNaoGerada((int) $param['conta_id']);
 
             $lancamentos = Lancamento::where('conta_id','=',$param['conta_id'])
                                 ->load();
