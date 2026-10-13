@@ -71,7 +71,7 @@ try {
     $lf4 = $S::gerar($f4['etapa3_id'], ['beneficiario_credito_id'=>$cli, 'pct_honorarios'=>null, 'contrato_id'=>$f4['contrato_id'], 'conta_caixa_id'=>$f4['conta_caixa_id']] + $d);
     igual('somente cliente: AA = 0', 0.0, (float) $lf4->aa);
     igual('somente cliente: Z = Y', 12019.57, (float) $lf4->z);
-    igual('somente cliente: sem repasses', 0, count($lf4->repasses()));
+    TTransaction::open('escritorio'); igual('somente cliente: sem repasses', 0, count($lf4->repasses())); TTransaction::close();
     ok('somente cliente: tem conta a pagar', !empty($lf4->conta_pagar_id));
 } finally { Fixtures::limpar($f4); }
 

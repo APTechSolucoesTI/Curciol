@@ -85,15 +85,16 @@ class LevantamentoFinanceiroService
             if ($ccId <= 0 || !$cc || $cc->ativo === 'N') { throw new Exception('Conta-caixa inválida.'); }
 
             // demais dados do formulario
-            if (empty($d['tipo_pagamento_id'])) { throw new Exception('Informe o tipo de pagamento.'); }
-            if (empty($d['categoria_conta_id'])) { throw new Exception('Informe a categoria da conta.'); }
-            if (empty($d['tipo_documento_receber_id'])) { throw new Exception('Informe o tipo de documento da conta a receber.'); }
+            self::exigirCadastro($c, 'tipo_pagamento', $d['tipo_pagamento_id'] ?? null, 'Informe um tipo de pagamento válido.');
+            self::exigirCadastro($c, 'categoria_conta', $d['categoria_conta_id'] ?? null, 'Informe uma categoria da conta válida.');
+            self::exigirCadastro($c, 'tipo_documento_financeiro', $d['tipo_documento_receber_id'] ?? null, 'Informe um tipo de documento válido para a conta a receber.');
             if (!in_array($d['compensado'] ?? null, ['S', 'N'], true)) { throw new Exception('Informe se o valor já está compensado.'); }
             $compensado = ($d['compensado'] === 'S');
             $vencimento = substr((string) ($d['vencimento_cliente'] ?? ''), 0, 10);
             if ($z > 0) {
-                if ($vencimento === '') { throw new Exception('Informe o vencimento do pagamento ao cliente.'); }
-                if (empty($d['tipo_documento_pagar_id'])) { throw new Exception('Informe o tipo de documento da conta a pagar ao cliente.'); }
+                $dv = DateTime::createFromFormat('Y-m-d', $vencimento);
+                if ($vencimento === '' || !$dv || $dv->format('Y-m-d') !== $vencimento) { throw new Exception('Informe uma data de vencimento válida para o pagamento ao cliente.'); }
+                self::exigirCadastro($c, 'tipo_documento_financeiro', $d['tipo_documento_pagar_id'] ?? null, 'Informe um tipo de documento válido para a conta a pagar ao cliente.');
             }
 
             $st = $c->prepare('SELECT escritorio_id FROM contrato WHERE id = ?');
@@ -129,6 +130,8 @@ class LevantamentoFinanceiroService
             $parcela->valor = $y;
             $parcela->valor_total = $y;
             $parcela->saldo = 0;
+            $parcela->acrescimo = 0;
+            $parcela->desconto = 0;
             $parcela->dt_vencimento = $x;
             $parcela->dt_pagamento = $x;
             $parcela->tipo_pagamento_id = (int) $d['tipo_pagamento_id'];
@@ -303,8 +306,10 @@ class LevantamentoFinanceiroService
 
             $contas = array_values(array_filter([(int) $ficha->conta_receber_id, (int) $ficha->conta_pagar_id]));
             $lista  = $contas ? implode(',', $contas) : '0';
-            $parcelas = self::ids($c, "SELECT id FROM lancamento WHERE conta_id IN ({$lista})");
+            $parcelas = self::ids($c, 'SELECT id FROM lancamento WHERE conta_id = ' . (int) $ficha->conta_receber_id);
             $lancs    = $parcelas ? implode(',', $parcelas) : '0';
+            $todas    = self::ids($c, "SELECT id FROM lancamento WHERE conta_id IN ({$lista})");
+            $todasLista = $todas ? implode(',', $todas) : '0';
 
             // devolve o saldo conforme o estado ATUAL de cada extrato das parcelas a receber
             $st = $c->query("SELECT id, conta_caixa_id, compensado, COALESCE(entrada_valor, 0) - COALESCE(saida_valor, 0) AS liquido
@@ -316,15 +321,14 @@ class LevantamentoFinanceiroService
 
             $c->exec("UPDATE lancamento SET extrato_id = NULL WHERE conta_id IN ({$lista})");
             $c->exec("DELETE FROM extrato WHERE lancamento_id IN ({$lancs})");
-            $c->exec("DELETE FROM lancamento_profissional_ajuste WHERE lancamento_profissional_id IN (SELECT id FROM lancamento_profissional WHERE lancamento_id IN ({$lancs}))");
-            $c->exec("DELETE FROM lancamento_profissional WHERE lancamento_id IN ({$lancs})");
+            $c->exec("DELETE FROM lancamento_profissional_ajuste WHERE lancamento_profissional_id IN (SELECT id FROM lancamento_profissional WHERE lancamento_id IN ({$todasLista}))");
+            $c->exec("DELETE FROM lancamento_profissional WHERE lancamento_id IN ({$todasLista})");
             $c->exec("DELETE FROM lancamento WHERE conta_id IN ({$lista})");
             $c->exec("DELETE FROM conta_profissional WHERE conta_id IN ({$lista})");
 
-            // a conta a pagar aponta para a conta a receber (conta_origem_id): apagar primeiro
-            $c->exec("UPDATE conta SET conta_origem_id = NULL WHERE id IN ({$lista})");
             $c->prepare('DELETE FROM levantamento_financeiro WHERE id = ?')->execute([(int) $ficha->id]);
-            $c->exec("DELETE FROM conta WHERE id IN ({$lista})");
+            // a conta a pagar aponta para a conta a receber (conta_origem_id): pagar antes de receber
+            foreach (array_reverse($contas) as $contaId) { $c->exec('DELETE FROM conta WHERE id = ' . $contaId); }
 
             TTransaction::close();
         } catch (Throwable $e) {
@@ -414,10 +418,14 @@ class LevantamentoFinanceiroService
         if (!$ficha) { return 'Este pagamento não tem financeiro gerado.'; }
 
         if ($ficha->conta_pagar_id) {
-            $st = $c->prepare('SELECT COUNT(*) FROM lancamento WHERE conta_id = ? AND (dt_pagamento IS NOT NULL OR extrato_id IS NOT NULL)');
+            // pago (dt_pagamento/extrato_id) ou parcialmente (saldo menor que o valor, ou extrato de saida da parcela)
+            $st = $c->prepare('SELECT COUNT(*) FROM lancamento l WHERE l.conta_id = ?
+                AND (l.dt_pagamento IS NOT NULL OR l.extrato_id IS NOT NULL
+                     OR (l.saldo IS NOT NULL AND l.saldo <> l.valor)
+                     OR EXISTS (SELECT 1 FROM extrato x WHERE x.lancamento_id = l.id))');
             $st->execute([(int) $ficha->conta_pagar_id]);
             if ((int) $st->fetchColumn() > 0) {
-                return 'A conta a pagar ao cliente já foi paga. Estorne o pagamento ao cliente antes de desfazer.';
+                return 'A conta a pagar ao cliente já foi paga (total ou parcialmente). Estorne o pagamento ao cliente antes de desfazer.';
             }
         }
         return null;
@@ -430,6 +438,14 @@ class LevantamentoFinanceiroService
         $st = $c->prepare("UPDATE conta_caixa SET {$coluna} = COALESCE({$coluna}, 0) + CAST(:valor AS numeric), modificacao_user_id = :usuario WHERE id = :id");
         $st->execute([':valor' => sprintf('%.2f', $delta), ':usuario' => $userId, ':id' => $contaCaixaId]);
         if ($st->rowCount() !== 1) { throw new Exception('Conta-caixa inválida.'); }
+    }
+
+    private static function exigirCadastro(PDO $c, string $tabela, $id, string $mensagem): void
+    {
+        if (!is_numeric($id) || (int) $id <= 0) { throw new Exception($mensagem); }
+        $st = $c->prepare("SELECT 1 FROM {$tabela} WHERE id = ?");
+        $st->execute([(int) $id]);
+        if (!$st->fetchColumn()) { throw new Exception($mensagem); }
     }
 
     private static function ids(PDO $c, string $sql): array
