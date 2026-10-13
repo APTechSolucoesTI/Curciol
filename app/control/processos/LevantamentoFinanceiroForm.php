@@ -316,7 +316,7 @@ class LevantamentoFinanceiroForm extends TWindow
 
             LevantamentoFinanceiroService::gerar($etapa3Id, $d);
 
-            TWindow::closeWindow();
+            self::fecharJanela();
             TToast::show('success', 'Financeiro gerado', 'topRight', 'far:check-circle');
             self::recarregarOrigem($param);
         } catch (Exception $e) {
@@ -654,7 +654,7 @@ class LevantamentoFinanceiroForm extends TWindow
             return "<a href='javascript:void(0)' class='btn btn-sm btn-" . ($existe ? 'success' : 'primary') . "' style='" . $estilo . "' title='" . $titulo . "' onclick=\""
                 . htmlspecialchars($onclick, ENT_QUOTES, 'UTF-8') . "\"><i class='" . $icone . "'></i> " . $titulo . "</a>";
         }
-        return "<a href='javascript:void(0)' class='req-action-btn' title='" . $titulo . "' style='" . ($existe ? 'color:#16a34a;' : '') . "' onclick=\""
+        return "<a href='javascript:void(0)' class='req-action-btn' title='" . $titulo . "' style='" . ($existe ? 'background:#16a34a;border-color:#16a34a;color:#fff;' : '') . "' onclick=\""
             . htmlspecialchars($onclick, ENT_QUOTES, 'UTF-8') . "\"><i class='" . $icone . "'></i></a>";
     }
 
@@ -753,18 +753,37 @@ class LevantamentoFinanceiroForm extends TWindow
     }
 
     /**
-     * Quando a janela abre por cima de outra que forca z-index alto (Visualizar lancamento),
-     * leva esta janela para a frente.
+     * Fecha a janela do financeiro (Gerar ou Ver). Nao usa TWindow::closeWindow(): esta janela pode abrir
+     * por baixo/ao lado de outra (historico da requisicao), e "a ultima" nao e necessariamente a nossa.
+     */
+    public static function fecharJanela(): void
+    {
+        TScript::create('$("#' . self::$formName . ', #' . LevantamentoFinanceiroView::NOME_FORM . '").closest(".ui-dialog").remove();');
+    }
+
+    /**
+     * Abre a janela por cima das outras: as telas de origem (requisicao: z-index 20000; detalhe do
+     * pagamento: 60000) forcam um z-index alto e esconderiam esta janela.
      */
     public static function trazerParaFrente(TWindow $janela): void
     {
+        $marca = 'lf_marca_' . uniqid();
+        $span = new TElement('span');
+        $span->id = $marca;
+        $span->style = 'display:none';
+        $janela->add($span);
+
         TScript::create("
-            setTimeout(function () {
-                var d = $('.ui-dialog').last();
-                var maior = 0;
-                $('.ui-dialog').not(d).each(function () { maior = Math.max(maior, parseInt($(this).css('z-index'), 10) || 0); });
-                if (maior >= (parseInt(d.css('z-index'), 10) || 0)) { d.css('z-index', maior + 10); }
-            }, 150);
+            (function () {
+                function frente() {
+                    var d = $('#{$marca}').closest('.ui-dialog');
+                    if (!d.length) { return; }
+                    var maior = 0;
+                    $('.ui-dialog').not(d).each(function () { maior = Math.max(maior, parseInt($(this).css('z-index'), 10) || 0); });
+                    if (maior >= (parseInt(d.css('z-index'), 10) || 0)) { d.css('z-index', maior + 10); }
+                }
+                setTimeout(frente, 100); setTimeout(frente, 600); setTimeout(frente, 1500);
+            })();
         ");
     }
 }

@@ -12,7 +12,8 @@
 class LevantamentoFinanceiroView extends TWindow
 {
     private static $database = 'escritorio';
-    private static $formName = 'formView_LevantamentoFinanceiro';
+    const NOME_FORM = 'formView_LevantamentoFinanceiro';
+    private static $formName = self::NOME_FORM;
 
     public function __construct($param)
     {
@@ -88,7 +89,7 @@ class LevantamentoFinanceiroView extends TWindow
         try {
             LevantamentoFinanceiroService::desfazer((int) ($param['etapa3_id'] ?? 0));
 
-            TWindow::closeWindow();
+            LevantamentoFinanceiroForm::fecharJanela();
             TToast::show('success', 'Financeiro desfeito', 'topRight', 'far:check-circle');
             LevantamentoFinanceiroForm::recarregarOrigem($param);
         } catch (Exception $e) {
