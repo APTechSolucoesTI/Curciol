@@ -151,15 +151,16 @@ SELECT (SELECT COALESCE(MAX(id),0) FROM system_program) + ROW_NUMBER() OVER (ORD
  WHERE NOT EXISTS (SELECT 1 FROM system_program sp WHERE sp.controller = n.controller);
 
 INSERT INTO system_group_program (id, system_group_id, system_program_id)
-SELECT (SELECT COALESCE(MAX(id),0) FROM system_group_program) + ROW_NUMBER() OVER (ORDER BY g.system_group_id, p.id), g.system_group_id, p.id
-  FROM system_program p
-  JOIN (SELECT DISTINCT gp.system_group_id, sp.controller AS origem
-          FROM system_group_program gp JOIN system_program sp ON sp.id = gp.system_program_id
-         WHERE sp.controller IN ('RequisicaoPagamentoListagemHeaderList', 'ContaFormView', 'ParceirosHeaderList')) g
-    ON (p.controller LIKE 'Levantamento%' AND g.origem IN ('RequisicaoPagamentoListagemHeaderList', 'ContaFormView'))
-    OR (p.controller NOT LIKE 'Levantamento%' AND g.origem = 'ParceirosHeaderList')
- WHERE p.controller IN ('BeneficiarioCreditoList','BeneficiarioCreditoForm','ParceriaLevantamentoList','ParceriaLevantamentoForm','LevantamentoFinanceiroForm','LevantamentoFinanceiroView')
-   AND NOT EXISTS (SELECT 1 FROM system_group_program x WHERE x.system_group_id = g.system_group_id AND x.system_program_id = p.id);
+SELECT (SELECT COALESCE(MAX(id),0) FROM system_group_program) + ROW_NUMBER() OVER (ORDER BY par.system_group_id, par.program_id), par.system_group_id, par.program_id
+  FROM (SELECT DISTINCT g.system_group_id, p.id AS program_id   -- DISTINCT: grupo com as duas telas de origem entra uma vez so
+          FROM system_program p
+          JOIN (SELECT gp.system_group_id, sp.controller AS origem
+                  FROM system_group_program gp JOIN system_program sp ON sp.id = gp.system_program_id
+                 WHERE sp.controller IN ('RequisicaoPagamentoListagemHeaderList', 'ContaFormView', 'ParceirosHeaderList')) g
+            ON (p.controller LIKE 'Levantamento%' AND g.origem IN ('RequisicaoPagamentoListagemHeaderList', 'ContaFormView'))
+            OR (p.controller NOT LIKE 'Levantamento%' AND g.origem = 'ParceirosHeaderList')
+         WHERE p.controller IN ('BeneficiarioCreditoList','BeneficiarioCreditoForm','ParceriaLevantamentoList','ParceriaLevantamentoForm','LevantamentoFinanceiroForm','LevantamentoFinanceiroView')
+           AND NOT EXISTS (SELECT 1 FROM system_group_program x WHERE x.system_group_id = g.system_group_id AND x.system_program_id = p.id)) par;
 
 -- Validacao da carga: pessoa que nao casou e descartada em silencio pelo INSERT acima; aqui falha alto.
 DO $$
