@@ -268,7 +268,7 @@ class ParceriaLevantamentoForm extends TPage
 
         if ($texto === '') { return null; }
 
-        if (!preg_match('/^d+([.,]d+)?$/', $texto))
+        if (!preg_match('/^\d+([.,]\d+)?$/', $texto))
         {
             throw new Exception("Percentual inválido para {$rotulo}: '{$texto}'. Use apenas números com vírgula ou ponto.");
         }
