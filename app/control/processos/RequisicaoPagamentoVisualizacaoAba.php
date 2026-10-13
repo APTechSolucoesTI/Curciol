@@ -449,6 +449,19 @@ class RequisicaoPagamentoVisualizacaoAba extends TPage
     }
 
     private function montarVisualizacao($requisicao_id, $pessoaSelecionadaId = null, $modoEmbutido = false, $processoOrigemId = null, $exibirVoltarListagem = false){
+        // tela para recarregar depois de gerar/desfazer financeiro (ver LevantamentoFinanceiroForm::recarregarOrigem)
+        $urlRecarga = 'engine.php?' . http_build_query(array_filter([
+            'class' => 'RequisicaoPagamentoVisualizacaoAba',
+            'method' => 'onShow',
+            'key' => $requisicao_id,
+            'pessoa_id' => $pessoaSelecionadaId,
+            'processo_origem_id' => $processoOrigemId,
+            'exibir_voltar' => $exibirVoltarListagem ? '1' : null,
+            'target_container' => $this->adianti_target_container,
+            'register_state' => 'false',
+            'show_loading' => 'false',
+        ]));
+
         try {
             TTransaction::open(self::$database);
 
@@ -804,7 +817,7 @@ class RequisicaoPagamentoVisualizacaoAba extends TPage
                 $historico = $pagamentosPorCliente[$rpcId] ?? [];
 
                 if (!empty($historico)) {
-                    $this->form->addContent([self::criarHistoricoPagamentos($historico)]);
+                    $this->form->addContent([self::criarHistoricoPagamentos($historico, $urlRecarga)]);
                 }
 
                 $data->{'etapa3_id_' . $rpcId} = $abrirNovoPagamento ? null : $cliente->etapa3_id;
@@ -2078,8 +2091,10 @@ class RequisicaoPagamentoVisualizacaoAba extends TPage
         return $div;
     }
 
-    private static function criarHistoricoPagamentos($pagamentos)
+    private static function criarHistoricoPagamentos($pagamentos, $urlRecarga = '')
     {
+        $comFinanceiro = LevantamentoFinanceiroForm::idsComFinanceiro(array_map(function ($p) { return (int) $p->id; }, (array) $pagamentos));
+
         $html = "
             <details class='req-payment-history'>
                 <summary>Ver pagamentos lançados</summary>
@@ -2122,6 +2137,8 @@ class RequisicaoPagamentoVisualizacaoAba extends TPage
                         <i class='fa fa-search'></i>
                     </a>
                 ";
+            $botaoFinanceiro = LevantamentoFinanceiroForm::botaoFinanceiro($pagamento, $comFinanceiro, 'aba', $urlRecarga);
+
             $html .= "
                 <tr>
                     <td>" . self::h($contador . 'º lançamento') . "</td>
@@ -2134,7 +2151,7 @@ class RequisicaoPagamentoVisualizacaoAba extends TPage
                     <td>" . ($possuiSaldo
                         ? "<span class='req-badge req-badge-open'>Saldo em aberto</span>"
                         : "<span class='req-badge req-badge-ok'>Sem saldo</span>") . "</td>
-                    <td class='req-actions-cell'>{$botaoVisualizar}</td>
+                    <td class='req-actions-cell'>{$botaoVisualizar} {$botaoFinanceiro}</td>
                 </tr>
             ";
 

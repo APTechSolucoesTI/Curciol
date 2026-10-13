@@ -221,6 +221,17 @@ class RequisicaoPagamentoVisualizacao extends TWindow
 
     private function montarVisualizacao($requisicao_id, $pessoaSelecionadaId = null, $modoEmbutido = false, $processoOrigemId = null, $rpcSelecionadoId = null)
     {
+        // tela para recarregar depois de gerar/desfazer financeiro (ver LevantamentoFinanceiroForm::recarregarOrigem)
+        $urlRecarga = 'engine.php?' . http_build_query(array_filter([
+            'class' => 'RequisicaoPagamentoVisualizacao',
+            'method' => 'onShow',
+            'key' => $requisicao_id,
+            'pessoa_id' => $pessoaSelecionadaId,
+            'requisicao_pagamento_cliente_id' => $rpcSelecionadoId,
+            'modo_embutido' => $modoEmbutido ? '1' : null,
+            'register_state' => 'false',
+        ]));
+
         try {
             TTransaction::open(self::$database);
 
@@ -581,7 +592,7 @@ class RequisicaoPagamentoVisualizacao extends TWindow
                 $historico = $pagamentosPorCliente[$rpcId] ?? [];
 
                 if (!empty($historico)) {
-                    $this->form->addContent([self::criarHistoricoPagamentos($historico)]);
+                    $this->form->addContent([self::criarHistoricoPagamentos($historico, $urlRecarga)]);
                 }
 
                 $data->{'etapa3_id_' . $rpcId} = $abrirNovoPagamento ? null : $cliente->etapa3_id;
@@ -1749,8 +1760,10 @@ class RequisicaoPagamentoVisualizacao extends TWindow
         return $div;
     }
 
-    private static function criarHistoricoPagamentos($pagamentos)
+    private static function criarHistoricoPagamentos($pagamentos, $urlRecarga = '')
     {
+        $comFinanceiro = LevantamentoFinanceiroForm::idsComFinanceiro(array_map(function ($p) { return (int) $p->id; }, (array) $pagamentos));
+
         $html = "
             <details class='req-payment-history'>
                 <summary>Ver pagamentos lançados</summary>
@@ -1794,6 +1807,8 @@ class RequisicaoPagamentoVisualizacao extends TWindow
                     </a>
                 ";
 
+            $botaoFinanceiro = LevantamentoFinanceiroForm::botaoFinanceiro($pagamento, $comFinanceiro, 'janela', $urlRecarga);
+
             $html .= "
                 <tr>
                     <td>" . self::h($contador . 'º lançamento') . "</td>
@@ -1806,7 +1821,7 @@ class RequisicaoPagamentoVisualizacao extends TWindow
                     <td>" . ($possuiSaldo
                         ? "<span class='req-badge req-badge-open'>Saldo em aberto</span>"
                         : "<span class='req-badge req-badge-ok'>Sem saldo</span>") . "</td>
-                    <td class='req-actions-cell'>{$botaoVisualizar}</td>
+                    <td class='req-actions-cell'>{$botaoVisualizar} {$botaoFinanceiro}</td>
                 </tr>
             ";
 

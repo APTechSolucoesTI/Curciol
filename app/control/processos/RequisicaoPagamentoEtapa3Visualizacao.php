@@ -39,6 +39,18 @@ class RequisicaoPagamentoEtapa3Visualizacao extends TWindow
 
             $uidJanela = 'e3_view_' . $id . '_' . uniqid();
 
+            // botao Gerar / Ver financeiro (o detalhe se recarrega sozinho depois)
+            $botaoFinanceiro = LevantamentoFinanceiroForm::botaoFinanceiro(
+                $lancamento,
+                LevantamentoFinanceiroForm::idsComFinanceiro([$id]),
+                'detalhe',
+                'engine.php?class=RequisicaoPagamentoEtapa3Visualizacao&method=onShow&key=' . $id . '&register_state=false',
+                true
+            );
+            if ($botaoFinanceiro !== '') {
+                $botaoFinanceiro = "<div class='e3-section' style='padding: 10px 14px; text-align: right;'>{$botaoFinanceiro}</div>";
+            }
+
             $html = "
                     <div id='{$uidJanela}' class='e3-wrap'>
 
@@ -96,7 +108,7 @@ class RequisicaoPagamentoEtapa3Visualizacao extends TWindow
                         </div>
                     </div>
 
-                   
+                    " . $botaoFinanceiro . "
 
                 </div>
             ";

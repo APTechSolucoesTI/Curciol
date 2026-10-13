@@ -602,6 +602,63 @@ class LevantamentoFinanceiroForm extends TWindow
     }
 
     // ---------------------------------------------------------------
+    // Botoes nas outras telas (historico de pagamentos e detalhe do pagamento)
+    // ---------------------------------------------------------------
+
+    /** Ids (Etapa 3) que ja tem financeiro gerado: uma consulta so para a lista inteira. @return array id => true */
+    public static function idsComFinanceiro(array $etapa3Ids): array
+    {
+        $ids = array_values(array_unique(array_filter(array_map('intval', $etapa3Ids))));
+        if (!$ids) { return []; }
+
+        $propria = (TTransaction::get() === null);
+        if ($propria) { TTransaction::open(self::$database); }
+        try {
+            $st = TTransaction::get()->prepare('SELECT requisicao_pagamento_etapa3_id FROM levantamento_financeiro WHERE requisicao_pagamento_etapa3_id = ANY(?::int[])');
+            $st->execute(['{' . implode(',', $ids) . '}']);
+            $r = array_fill_keys(array_map('intval', $st->fetchAll(PDO::FETCH_COLUMN)), true);
+            if ($propria) { TTransaction::close(); }
+            return $r;
+        } catch (Throwable $e) {
+            if ($propria) { TTransaction::rollback(); }
+            throw $e;
+        }
+    }
+
+    /**
+     * HTML do botao "Gerar financeiro" / "Ver financeiro" de um pagamento, ou '' quando nao cabe
+     * (pagamento sem deposito/MLE lancado e sem financeiro). $botaoTexto = false: so o icone (linha da tabela).
+     *
+     * @param object $pagamento  precisa de id, data_deposito, valor_bruto_depositado, valor_mle
+     * @param array  $comFinanceiro resultado de idsComFinanceiro()
+     * @param string $origem     janela | aba | detalhe
+     * @param string $urlRecarga URL (engine.php?class=...) da tela de origem, para recarregar depois
+     */
+    public static function botaoFinanceiro(object $pagamento, array $comFinanceiro, string $origem, string $urlRecarga, bool $botaoTexto = false): string
+    {
+        $id = (int) $pagamento->id;
+        $existe = isset($comFinanceiro[$id]);
+        if (!$existe && (empty($pagamento->data_deposito) || (float) $pagamento->valor_bruto_depositado <= 0 || (float) $pagamento->valor_mle <= 0)) {
+            return '';
+        }
+
+        $classe = $existe ? 'LevantamentoFinanceiroView' : 'LevantamentoFinanceiroForm';
+        $url = 'engine.php?class=' . $classe . '&method=onShow&etapa3_id=' . $id . '&origem=' . urlencode($origem)
+             . '&url_recarga=' . urlencode($urlRecarga) . '&register_state=false';
+        $titulo = $existe ? 'Ver financeiro' : 'Gerar financeiro';
+        $icone = $existe ? 'fas fa-file-invoice-dollar' : 'fas fa-hand-holding-usd';
+        $onclick = 'Adianti.waitMessage = false; __adianti_load_page(' . json_encode($url) . '); return false;';
+
+        if ($botaoTexto) {
+            $estilo = $existe ? 'background:#16a34a;border-color:#16a34a;color:#fff;' : '';
+            return "<a href='javascript:void(0)' class='btn btn-sm btn-" . ($existe ? 'success' : 'primary') . "' style='" . $estilo . "' title='" . $titulo . "' onclick=\""
+                . htmlspecialchars($onclick, ENT_QUOTES, 'UTF-8') . "\"><i class='" . $icone . "'></i> " . $titulo . "</a>";
+        }
+        return "<a href='javascript:void(0)' class='req-action-btn' title='" . $titulo . "' style='" . ($existe ? 'color:#16a34a;' : '') . "' onclick=\""
+            . htmlspecialchars($onclick, ENT_QUOTES, 'UTF-8') . "\"><i class='" . $icone . "'></i></a>";
+    }
+
+    // ---------------------------------------------------------------
     // Apresentacao
     // ---------------------------------------------------------------
 
