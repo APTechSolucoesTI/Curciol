@@ -32,6 +32,9 @@ class LevantamentoCalculoService
         if ($lev === '' || $lev < $dep) {
             throw new Exception('A data do levantamento não pode ser anterior à data do depósito.');
         }
+        if ($lev > date('Y-m-d')) {
+            throw new Exception('A data do levantamento não pode ser futura.');
+        }
         if ($nf < 0 || $nf > 100) { throw new Exception('O % de custo de NF deve estar entre 0 e 100.'); }
 
         $s = $n - $mle;

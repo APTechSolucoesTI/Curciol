@@ -150,7 +150,7 @@ class LevantamentoFinanceiroService
 
             // conta-caixa
             $ccId = (int) ($d['conta_caixa_id'] ?? 0);
-            $st = $c->prepare('SELECT ativo FROM conta_caixa WHERE id = ? FOR UPDATE');
+            $st = $c->prepare('SELECT ativo, nome, dt_inicial FROM conta_caixa WHERE id = ? FOR UPDATE');
             $st->execute([$ccId]);
             $cc = $st->fetch(PDO::FETCH_OBJ);
             if ($ccId <= 0 || !$cc || $cc->ativo === 'N') { throw new Exception('Conta-caixa inválida.'); }
@@ -161,6 +161,9 @@ class LevantamentoFinanceiroService
             self::exigirCadastro($c, 'tipo_documento_financeiro', $d['tipo_documento_receber_id'] ?? null, 'Informe um tipo de documento válido para a conta a receber.');
             if (!in_array($d['compensado'] ?? null, ['S', 'N'], true)) { throw new Exception('Informe se o valor já está compensado.'); }
             $compensado = ($d['compensado'] === 'S');
+            if ($compensado && $cc->dt_inicial && $x < substr((string) $cc->dt_inicial, 0, 10)) {
+                throw new Exception('A data do levantamento é anterior ao início da conta-caixa ' . $cc->nome . ' (' . date('d/m/Y', strtotime($cc->dt_inicial)) . ').');
+            }
             $vencimento = substr((string) ($d['vencimento_cliente'] ?? ''), 0, 10);
             if ($z > 0) {
                 $dv = DateTime::createFromFormat('Y-m-d', $vencimento);

@@ -20,12 +20,12 @@ class ContaRequisicaoFiltro
 
         $cliente = (int) ($data->cliente_requisicao_id ?? 0);
         if ($cliente > 0) {
-            $filters[] = new TFilter('requisicao_pagamento_id', 'in', "(SELECT requisicao_pagamento_id FROM requisicao_pagamento_cliente WHERE pessoa_id = {$cliente})");
+            $filters[] = new TFilter('id', 'in', self::subqueryFicha('rpc.pessoa_id', $cliente));
         }
 
         $devedor = (int) ($data->entidade_devedora_id ?? 0);
         if ($devedor > 0) {
-            $filters[] = new TFilter('requisicao_pagamento_id', 'in', "(SELECT requisicao_pagamento_id FROM requisicao_pagamento_cliente WHERE entidade_devedora_id = {$devedor})");
+            $filters[] = new TFilter('id', 'in', self::subqueryFicha('rpc.entidade_devedora_id', $devedor));
         }
 
         $processo = trim((string) ($data->processo_requisicao ?? ''));
@@ -34,6 +34,17 @@ class ContaRequisicaoFiltro
         }
 
         return $filters;
+    }
+
+    /**
+     * Contas (a receber e a pagar) das fichas de levantamento cujo cliente da requisicao (rpc) casa com o filtro.
+     * $coluna e fixa (nunca vem do usuario); $id e inteiro.
+     */
+    private static function subqueryFicha(string $coluna, int $id): string
+    {
+        $id = (int) $id;
+        $de = "SELECT lf.%s FROM levantamento_financeiro lf JOIN requisicao_pagamento_cliente rpc ON rpc.id = lf.requisicao_pagamento_cliente_id WHERE {$coluna} = {$id}";
+        return '(' . sprintf($de, 'conta_receber_id') . ' UNION ' . sprintf($de, 'conta_pagar_id') . ')';
     }
 
     /**
