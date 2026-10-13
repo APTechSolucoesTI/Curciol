@@ -87,7 +87,7 @@ ON CONFLICT (nome) DO NOTHING;
 INSERT INTO pessoa (tipo_pessoa_id, nome, nome_busca, aceita_receber_mensagen_whatsapp, observacao, data_criacao)
 SELECT n.tipo, n.nome, lower(n.nome), 'F', 'Parceiro de levantamento (cadastro inicial do financeiro de levantamentos).', now()
   FROM (VALUES (1, 'KBÇA'), (1, 'CAMPOS'), (2, 'ALLIANCE'), (2, 'ESTRUTURA')) n(tipo, nome)
- WHERE NOT EXISTS (SELECT 1 FROM pessoa p JOIN pessoa_grupo g ON g.pessoa_id = p.id AND g.grupo_id = 6 WHERE p.nome = n.nome);
+ WHERE NOT EXISTS (SELECT 1 FROM pessoa p JOIN pessoa_grupo g ON g.pessoa_id = p.id AND g.grupo_id = 6 WHERE normalize(p.nome, NFC) = n.nome);
 
 INSERT INTO pessoa_grupo (pessoa_id, grupo_id)
 SELECT p.id, 6 FROM pessoa p
@@ -129,7 +129,7 @@ SELECT p.id, pe.id, c.nivel, c.pct, c.antes, c.depois, c.dif, c.ordem
   JOIN parceria_levantamento p ON p.nome = c.parceria
   -- pessoa por nome; para os parceiros novos, so a do grupo Parceiro (evita homonimos de clientes)
   JOIN LATERAL (SELECT pp.id FROM pessoa pp
-                 WHERE pp.nome = c.pessoa
+                 WHERE normalize(pp.nome, NFC) = c.pessoa  -- cadastros antigos tem acento decomposto (NFD)
                    AND (c.pessoa NOT IN ('KBÇA','CAMPOS','ALLIANCE','ESTRUTURA')
                         OR EXISTS (SELECT 1 FROM pessoa_grupo g WHERE g.pessoa_id = pp.id AND g.grupo_id = 6))
                  ORDER BY pp.id LIMIT 1) pe ON TRUE
