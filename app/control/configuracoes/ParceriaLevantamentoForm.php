@@ -222,6 +222,7 @@ class ParceriaLevantamentoForm extends TPage
                 $('#soma_participantes').html(h);
             };
             $(document).off('input.plpct').on('input.plpct', '{$f} table.tfieldlist input[name^=\"participante_percentual\"]', function () { var v = this.value.replace(/[^0-9,.]/g, ''); if (v !== this.value) { this.value = v; } });
+            $(document).off('click.plsoma').on('click.plsoma', '{$f} table.tfieldlist .fa-times', function () { setTimeout(window.plSomar, 400); });
             $(document).off('input.plsoma change.plsoma keyup.plsoma').on('input.plsoma change.plsoma keyup.plsoma', '{$f} table.tfieldlist :input', function () { window.plSomar(); });
         ");
     }
