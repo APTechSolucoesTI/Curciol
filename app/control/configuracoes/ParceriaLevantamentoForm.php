@@ -144,7 +144,6 @@ class ParceriaLevantamentoForm extends TPage
         $btnNovaPessoa->setLabel("Nova pessoa parceira");
         $btnNovaPessoa->setImage('fas:plus #69aa46');
         $btnNovaPessoa->onClick = "window.open('index.php?class=ParceiroForm&method=onShow', '_blank'); return false;";
-        $this->form->addField($btnNovaPessoa);
 
         $row3 = $this->form->addFields([new TFormSeparator("Participantes", '#333', '18', '#eee')]);
         $row3->layout = [' col-sm-12'];
