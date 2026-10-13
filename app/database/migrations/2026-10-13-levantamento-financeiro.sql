@@ -1,7 +1,7 @@
 -- =====================================================================
 -- Curciol - Financeiro do levantamento judicial
 -- Banco: escritorio | PostgreSQL | Data: 2026-10-13
--- Idempotente. Rollback comentado no fim.
+-- Idempotente enquanto os cadastros semeados nao forem renomeados. Rollback comentado no fim.
 -- =====================================================================
 BEGIN;
 
@@ -87,11 +87,11 @@ ON CONFLICT (nome) DO NOTHING;
 INSERT INTO pessoa (tipo_pessoa_id, nome, nome_busca, aceita_receber_mensagen_whatsapp, observacao, data_criacao)
 SELECT n.tipo, n.nome, lower(n.nome), 'F', 'Parceiro de levantamento (cadastro inicial do financeiro de levantamentos).', now()
   FROM (VALUES (1, 'KBÇA'), (1, 'CAMPOS'), (2, 'ALLIANCE'), (2, 'ESTRUTURA')) n(tipo, nome)
- WHERE NOT EXISTS (SELECT 1 FROM pessoa p JOIN pessoa_grupo g ON g.pessoa_id = p.id AND g.grupo_id = 6 WHERE normalize(p.nome, NFC) = n.nome);
+ WHERE NOT EXISTS (SELECT 1 FROM pessoa p JOIN pessoa_grupo g ON g.pessoa_id = p.id AND g.grupo_id = 6 WHERE normalize(p.nome, NFC) = normalize(n.nome, NFC));
 
 INSERT INTO pessoa_grupo (pessoa_id, grupo_id)
 SELECT p.id, 6 FROM pessoa p
- WHERE p.nome IN ('KBÇA', 'CAMPOS', 'ALLIANCE', 'ESTRUTURA')
+ WHERE normalize(p.nome, NFC) IN (normalize('KBÇA', NFC), 'CAMPOS', 'ALLIANCE', 'ESTRUTURA')
    AND p.observacao = 'Parceiro de levantamento (cadastro inicial do financeiro de levantamentos).'
    AND NOT EXISTS (SELECT 1 FROM pessoa_grupo g WHERE g.pessoa_id = p.id AND g.grupo_id = 6);
 
@@ -129,8 +129,8 @@ SELECT p.id, pe.id, c.nivel, c.pct, c.antes, c.depois, c.dif, c.ordem
   JOIN parceria_levantamento p ON p.nome = c.parceria
   -- pessoa por nome; para os parceiros novos, so a do grupo Parceiro (evita homonimos de clientes)
   JOIN LATERAL (SELECT pp.id FROM pessoa pp
-                 WHERE normalize(pp.nome, NFC) = c.pessoa  -- cadastros antigos tem acento decomposto (NFD)
-                   AND (c.pessoa NOT IN ('KBÇA','CAMPOS','ALLIANCE','ESTRUTURA')
+                 WHERE normalize(pp.nome, NFC) = normalize(c.pessoa, NFC)  -- cadastros antigos tem acento decomposto (NFD)
+                   AND (normalize(c.pessoa, NFC) NOT IN (normalize('KBÇA', NFC),'CAMPOS','ALLIANCE','ESTRUTURA')
                         OR EXISTS (SELECT 1 FROM pessoa_grupo g WHERE g.pessoa_id = pp.id AND g.grupo_id = 6))
                  ORDER BY pp.id LIMIT 1) pe ON TRUE
 ON CONFLICT (parceria_levantamento_id, pessoa_id) DO NOTHING;
@@ -151,6 +151,31 @@ SELECT (SELECT COALESCE(MAX(id),0) FROM system_group_program) + ROW_NUMBER() OVE
  WHERE p.controller IN ('BeneficiarioCreditoList','BeneficiarioCreditoForm','ParceriaLevantamentoList','ParceriaLevantamentoForm','LevantamentoFinanceiroForm','LevantamentoFinanceiroView')
    AND NOT EXISTS (SELECT 1 FROM system_group_program x WHERE x.system_group_id = gp.system_group_id AND x.system_program_id = p.id);
 
+-- Validacao da carga: pessoa que nao casou e descartada em silencio pelo INSERT acima; aqui falha alto.
+DO $$
+DECLARE r RECORD; total INTEGER;
+BEGIN
+  FOR r IN
+    SELECT e.nome, e.n, e.soma, e.m2_antes, e.m2_depois,
+           (SELECT count(*) FROM parceria_levantamento_participante x WHERE x.parceria_levantamento_id = p.id) AS n_real,
+           (SELECT COALESCE(sum(x.percentual), 0) FROM parceria_levantamento_participante x WHERE x.parceria_levantamento_id = p.id) AS soma_real,
+           (SELECT COALESCE(sum(x.percentual_antes), 0) FROM parceria_levantamento_participante x WHERE x.parceria_levantamento_id = p.id AND x.nivel = 'MARCO2') AS m2_antes_real,
+           (SELECT COALESCE(sum(x.percentual_depois), 0) FROM parceria_levantamento_participante x WHERE x.parceria_levantamento_id = p.id AND x.nivel = 'MARCO2') AS m2_depois_real
+      FROM (VALUES ('Curciol',4,100,0,0), ('Custas',1,100,0,0), ('Parceria Ivan',5,100,0,0), ('Parceria Juan',5,100,0,0),
+                   ('Parceria Juan Estágio',5,100,0,0), ('Parceria Kleber Andre Ferreira',7,0,100,100), ('Parceria Campos',7,0,100,100))
+           e(nome, n, soma, m2_antes, m2_depois)
+      LEFT JOIN parceria_levantamento p ON normalize(p.nome, NFC) = normalize(e.nome, NFC)
+  LOOP
+    IF r.n_real IS NULL OR r.n_real <> r.n OR r.soma_real <> r.soma OR r.m2_antes_real <> r.m2_antes OR r.m2_depois_real <> r.m2_depois THEN
+      RAISE EXCEPTION 'Parceria "%" incompleta: % participantes (esperado %), soma % (esperado %), marco2 antes/depois %/% (esperado %/%). Alguma pessoa nao foi encontrada pelo nome.',
+        r.nome, r.n_real, r.n, r.soma_real, r.soma, r.m2_antes_real, r.m2_depois_real, r.m2_antes, r.m2_depois;
+    END IF;
+  END LOOP;
+  SELECT count(*) INTO total FROM parceria_levantamento_participante pp JOIN parceria_levantamento p ON p.id = pp.parceria_levantamento_id
+   WHERE normalize(p.nome, NFC) IN ('Curciol','Custas','Parceria Ivan','Parceria Juan',normalize('Parceria Juan Estágio', NFC),'Parceria Kleber Andre Ferreira','Parceria Campos');
+  IF total <> 34 THEN RAISE EXCEPTION 'Carga de participantes incompleta: % linhas (esperado 34).', total; END IF;
+END $$;
+
 COMMIT;
 
 -- ROLLBACK (de cima para baixo)
@@ -158,3 +183,5 @@ COMMIT;
 -- DELETE FROM system_program WHERE controller IN ('BeneficiarioCreditoList','BeneficiarioCreditoForm','ParceriaLevantamentoList','ParceriaLevantamentoForm','LevantamentoFinanceiroForm','LevantamentoFinanceiroView');
 -- DROP INDEX IF EXISTS idx_conta_requisicao_pagamento; ALTER TABLE conta DROP COLUMN IF EXISTS requisicao_pagamento_id;
 -- DROP TABLE IF EXISTS levantamento_financeiro_repasse, levantamento_financeiro, parceria_levantamento_participante, parceria_levantamento, beneficiario_credito;
+-- DELETE FROM pessoa_grupo WHERE grupo_id = 6 AND pessoa_id IN (SELECT id FROM pessoa WHERE nome IN ('KBÇA','CAMPOS','ALLIANCE','ESTRUTURA') AND observacao = 'Parceiro de levantamento (cadastro inicial do financeiro de levantamentos).');
+-- DELETE FROM pessoa WHERE nome IN ('KBÇA','CAMPOS','ALLIANCE','ESTRUTURA') AND observacao = 'Parceiro de levantamento (cadastro inicial do financeiro de levantamentos).';  -- so se nenhuma tabela referenciar
