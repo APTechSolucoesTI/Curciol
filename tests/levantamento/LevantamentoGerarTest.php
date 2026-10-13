@@ -64,6 +64,27 @@ try {
     ok('sucumbencia: sem conta a pagar', empty($lf2->conta_pagar_id));
 } finally { Fixtures::limpar($f2); }
 
+// somente cliente: sem honorarios, sem repasses, tudo para o cliente
+$f4 = Fixtures::criar();
+try {
+    TTransaction::open('escritorio'); $cli = BeneficiarioCredito::where('nome', '=', 'Cliente')->first()->id; TTransaction::close();
+    $lf4 = $S::gerar($f4['etapa3_id'], ['beneficiario_credito_id'=>$cli, 'pct_honorarios'=>null, 'contrato_id'=>$f4['contrato_id'], 'conta_caixa_id'=>$f4['conta_caixa_id']] + $d);
+    igual('somente cliente: AA = 0', 0.0, (float) $lf4->aa);
+    igual('somente cliente: Z = Y', 12019.57, (float) $lf4->z);
+    igual('somente cliente: sem repasses', 0, count($lf4->repasses()));
+    ok('somente cliente: tem conta a pagar', !empty($lf4->conta_pagar_id));
+} finally { Fixtures::limpar($f4); }
+
+// contrato que nao pertence ao pagamento e cadastros inexistentes: erro legivel
+$f5 = Fixtures::criar();
+try {
+    lanca('contrato de fora', function () use ($S, $f5, $d) { $S::gerar($f5['etapa3_id'], ['contrato_id'=>2000000000, 'conta_caixa_id'=>$f5['conta_caixa_id']] + $d); }, 'Contrato inválido');
+    lanca('categoria inexistente', function () use ($S, $f5, $d) { $S::gerar($f5['etapa3_id'], ['categoria_conta_id'=>2000000000, 'contrato_id'=>$f5['contrato_id'], 'conta_caixa_id'=>$f5['conta_caixa_id']] + $d); }, 'categoria');
+    lanca('documento a pagar inexistente', function () use ($S, $f5, $d) { $S::gerar($f5['etapa3_id'], ['tipo_documento_pagar_id'=>2000000000, 'contrato_id'=>$f5['contrato_id'], 'conta_caixa_id'=>$f5['conta_caixa_id']] + $d); }, 'tipo de documento');
+    lanca('vencimento invalido', function () use ($S, $f5, $d) { $S::gerar($f5['etapa3_id'], ['vencimento_cliente'=>'2026-13-45', 'contrato_id'=>$f5['contrato_id'], 'conta_caixa_id'=>$f5['conta_caixa_id']] + $d); }, 'vencimento');
+    igual('nada gravado nos erros de validacao', null, $S::existePara($f5['etapa3_id']));
+} finally { Fixtures::limpar($f5); }
+
 // falha no meio nao deixa nada gravado
 $f3 = Fixtures::criar();
 try {

@@ -53,6 +53,40 @@ try {
     TTransaction::open('escritorio'); $parc = Lancamento::where('conta_id', '=', $lf->conta_pagar_id)->first(); $parc->dt_pagamento = null; $parc->store(); TTransaction::close();
 } finally { Fixtures::limpar($f3); }
 
+// geracao nao compensada: vai e volta pelo saldo nao compensado
+$f4 = Fixtures::criar();
+try {
+    $d4 = ['compensado' => 'N'] + $dados($f4);
+    $S::gerar($f4['etapa3_id'], $d4);
+    igual('nao compensado: saldo apos gerar', [0.0, 12019.57], $saldo($f4['conta_caixa_id']));
+    $S::desfazer($f4['etapa3_id']);
+    igual('nao compensado: devolve do nao compensado', [0.0, 0.0], $saldo($f4['conta_caixa_id']));
+} finally { Fixtures::limpar($f4); }
+
+// pagamento PARCIAL ao cliente (saldo reduzido + extrato de saida, sem dt_pagamento/extrato_id): bloqueia e nada muda
+$f5 = Fixtures::criar();
+try {
+    $lf = $S::gerar($f5['etapa3_id'], $dados($f5));
+    TTransaction::open('escritorio');
+    $parc = Lancamento::where('conta_id', '=', $lf->conta_pagar_id)->first();
+    $parc->saldo = 4000; $parc->store();
+    $ex = new Extrato();
+    $ex->escritorio_id = $f5['escritorio_id']; $ex->conta_caixa_id = $f5['conta_caixa_id']; $ex->lancamento_id = $parc->id;
+    $ex->tipo_extrato_id = TipoExtrato::PAGAR; $ex->saida_valor = 5256.45; $ex->data_lancamento = date('Y-m-d');
+    $ex->compensado = 'S'; $ex->data_compensacao = '2026-02-16'; $ex->historico = 'TESTE LEVANTAMENTO pagamento parcial'; $ex->store();
+    $cc = new ContaCaixa($f5['conta_caixa_id']); $cc->saldo_instantaneo -= 5256.45; $cc->store();
+    TTransaction::close();
+    $antes = $saldo($f5['conta_caixa_id']);
+    ok('parcial: motivo informado', $S::podeDesfazer($f5['etapa3_id']) !== null);
+    lanca('parcial: desfazer bloqueado', function () use ($S, $f5) { $S::desfazer($f5['etapa3_id']); }, 'cliente');
+    igual('parcial: saldo intacto', $antes, $saldo($f5['conta_caixa_id']));
+    igual('parcial: saldo esperado', [6763.12, 0.0], $antes);
+    TTransaction::open('escritorio');
+    igual('parcial: extratos intactos', 2, Extrato::where('conta_caixa_id', '=', $f5['conta_caixa_id'])->count());
+    TTransaction::close();
+    ok('parcial: ficha continua', $S::existePara($f5['etapa3_id']) !== null);
+} finally { Fixtures::limpar($f5); }
+
 // limpar() nao deixa sobras
 ok('sem sobras da fixture', Fixtures::sobras() === [], json_encode(Fixtures::sobras()));
 fim();
