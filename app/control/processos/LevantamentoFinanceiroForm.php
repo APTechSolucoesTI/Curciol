@@ -16,9 +16,6 @@ class LevantamentoFinanceiroForm extends TWindow
     private static $database = 'escritorio';
     private static $formName = 'form_LevantamentoFinanceiro';
 
-    const CAMPOS_PREVIA = ['contrato_id', 'beneficiario_credito_id', 'data_levantamento', 'valor_levantado', 'pct_honorarios', 'pct_nf',
-                           'parceria_levantamento_id', 'data_distribuicao'];
-
     public function __construct($param)
     {
         parent::__construct();
@@ -165,8 +162,6 @@ class LevantamentoFinanceiroForm extends TWindow
         $contrato->setChangeAction(new TAction([__CLASS__, 'onMudarContrato'], ['static' => '1']));
         foreach ([$valorLev, $pctHon, $pctNf] as $campo) { $campo->setExitAction($acao); }
 
-        $this->form->setFields([$etapa3, $origem, $urlRecarga, $contrato, $benef, $dataLev, $valorLev, $pctHon, $pctNf, $parceria, $dataDist,
-                                $contaCaixa, $tipoPgto, $compensado, $vencimento, $categoria, $docReceber, $docPagar]);
 
         $this->form->addContent([self::titulo('Dados do levantamento')]);
         $this->form->addFields([$etapa3, $origem, $urlRecarga]);
