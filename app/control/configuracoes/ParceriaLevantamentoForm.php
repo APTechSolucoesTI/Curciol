@@ -51,9 +51,9 @@ class ParceriaLevantamentoForm extends TPage
         $participante___row__data = new THidden('participante___row__data[]');
         $participante_pessoa_id = new TDBUniqueSearch('participante_pessoa_id[]', 'escritorio', 'Pessoa', 'id', 'nome', 'nome asc', $criteria_pessoa);
         $participante_nivel = new TCombo('participante_nivel[]');
-        $participante_percentual = new TNumeric('participante_percentual[]', 4, ',', '.');
-        $participante_percentual_antes = new TNumeric('participante_percentual_antes[]', 4, ',', '.');
-        $participante_percentual_depois = new TNumeric('participante_percentual_depois[]', 4, ',', '.');
+        $participante_percentual = new TEntry('participante_percentual[]');
+        $participante_percentual_antes = new TEntry('participante_percentual_antes[]');
+        $participante_percentual_depois = new TEntry('participante_percentual_depois[]');
         $participante_recebe_diferenca = new TCombo('participante_recebe_diferenca[]');
 
         $this->fieldList_participantes = new TFieldList();
@@ -72,8 +72,6 @@ class ParceriaLevantamentoForm extends TPage
         $this->fieldList_participantes->name = 'fieldList_participantes';
 
         $this->default_item_participantes = new stdClass();
-        $this->default_item_participantes->participante_nivel = ParceriaLevantamentoParticipante::NIVEL_FIXO;
-        $this->default_item_participantes->participante_recebe_diferenca = 'N';
 
         $this->form->addField($participante_id);
         $this->form->addField($participante___row__id);
@@ -100,9 +98,13 @@ class ParceriaLevantamentoForm extends TPage
             ParceriaLevantamentoParticipante::NIVEL_MARCO1 => 'Nível 1',
             ParceriaLevantamentoParticipante::NIVEL_MARCO2 => 'Nível 2',
         ]);
-        $participante_nivel->setDefaultOption(false);
-        $participante_recebe_diferenca->addItems(['N' => 'Não', 'S' => 'Sim']);
-        $participante_recebe_diferenca->setDefaultOption(false);
+        $participante_nivel->setDefaultOption('Selecione');
+        $participante_recebe_diferenca->addItems(['S' => 'Sim']);
+        $participante_recebe_diferenca->setDefaultOption('Não');
+        foreach ([$participante_percentual, $participante_percentual_antes, $participante_percentual_depois] as $campo_pct)
+        {
+            $campo_pct->setProperty('inputmode', 'decimal');
+        }
         $participante_pessoa_id->setMinLength(3);
         $participante_pessoa_id->setMask('{nome}');
 
@@ -202,7 +204,7 @@ class ParceriaLevantamentoForm extends TPage
         // soma dos percentuais, ao digitar (a regra de 100% e a do servico; aqui e so para o usuario conferir)
         TScript::create("
             window.plSomar = function () {
-                var f = $('{$f}'), n = function (v) { v = String(v || '0').replace(/\./g, '').replace(',', '.'); return parseFloat(v) || 0; };
+                var f = $('{$f}'), n = function (v) { v = String(v || '0'); if (v.indexOf(',') >= 0) { v = v.replace(/\./g, '').replace(',', '.'); } return parseFloat(v) || 0; };
                 var tot = {fixo: 0, a1: 0, d1: 0, a2: 0, d2: 0};
                 f.find('table.tfieldlist tbody tr').each(function () {
                     var r = $(this), nivel = r.find('[name=\"participante_nivel[]\"]').val();
@@ -219,6 +221,7 @@ class ParceriaLevantamentoForm extends TPage
                     : 'Soma: <span style=\"color:' + cor(tot.fixo) + '\">' + t(tot.fixo) + '</span> (deve ser 100%)';
                 $('#soma_participantes').html(h);
             };
+            $(document).off('input.plpct').on('input.plpct', '{$f} table.tfieldlist input[name^=\"participante_percentual\"]', function () { var v = this.value.replace(/[^0-9,.]/g, ''); if (v !== this.value) { this.value = v; } });
             $(document).off('input.plsoma change.plsoma keyup.plsoma').on('input.plsoma change.plsoma keyup.plsoma', '{$f} table.tfieldlist :input', function () { window.plSomar(); });
         ");
     }
@@ -494,7 +497,7 @@ class ParceriaLevantamentoForm extends TPage
 
     private static function formatar($valor): ?string
     {
-        return ($valor === null || $valor === '') ? null : number_format((float) $valor, 4, ',', '.');
+        return ($valor === null || $valor === '') ? null : rtrim(rtrim(number_format((float) $valor, 4, ',', ''), '0'), ',');
     }
 
     public function onEdit( $param )
@@ -523,7 +526,7 @@ class ParceriaLevantamentoForm extends TPage
                         $item->participante_percentual = self::formatar($p->percentual);
                         $item->participante_percentual_antes = self::formatar($p->percentual_antes);
                         $item->participante_percentual_depois = self::formatar($p->percentual_depois);
-                        $item->participante_recebe_diferenca = $p->recebe_diferenca;
+                        $item->participante_recebe_diferenca = ($p->recebe_diferenca === 'S') ? 'S' : '';
                         $item->__row__id = 'b' . uniqid();
                         $item->__row__data = '';
                         $this->fieldList_participantes->addDetail($item);
