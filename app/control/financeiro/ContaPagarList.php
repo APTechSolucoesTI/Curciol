@@ -40,6 +40,8 @@ class ContaPagarList extends TPage
         $criteria_tipo_documento_financeiro_id = new TCriteria();
         $criteria_pessoa_nome = new TCriteria();
         $criteria_tipo_documento_financeiro_nome = new TCriteria();
+        $criteria_cliente_requisicao = new TCriteria();
+        $criteria_cliente_requisicao->add(new TFilter('id', 'in', "(SELECT pessoa_id FROM pessoa_grupo WHERE grupo_id = '" . Grupo::CLIENTE . "')"));
 
         $filterVar = Grupo::FORNECEDOR;
         $criteria_pessoa_id->add(new TFilter('id', 'in', "(SELECT pessoa_id FROM pessoa_grupo WHERE grupo_id = '{$filterVar}')")); 
@@ -118,6 +120,20 @@ class ContaPagarList extends TPage
         $descricao_col->setSize('100%');
         $dt_vencimento_ini->setSize(150);
         $numero_documento->setSize('100%');
+        $requisicao_pagamento_id = new TEntry('requisicao_pagamento_id');
+        $cliente_requisicao_id = new TDBUniqueSearch('cliente_requisicao_id', 'escritorio', 'Pessoa', 'id', 'nome', 'nome asc', $criteria_cliente_requisicao);
+        $entidade_devedora_id = new TDBUniqueSearch('entidade_devedora_id', 'escritorio', 'Pessoa', 'id', 'nome', 'nome asc');
+        $processo_requisicao = new TEntry('processo_requisicao');
+        $requisicao_pagamento_id->setMask('9999999999');
+        $cliente_requisicao_id->setMinLength(3);
+        $entidade_devedora_id->setMinLength(3);
+        $cliente_requisicao_id->setMask('{nome_formatado}');
+        $entidade_devedora_id->setMask('{nome_formatado}');
+        $requisicao_pagamento_id->setSize('100%');
+        $cliente_requisicao_id->setSize('100%');
+        $entidade_devedora_id->setSize('100%');
+        $processo_requisicao->setSize('100%');
+        $processo_requisicao->setTip('Numero do processo, com ou sem pontuacao');
         $data_vencimento_fim->setSize(150);
         $categoria_conta_id->setSize('100%');
         $tipo_documento_financeiro_id->setSize('100%');
@@ -134,6 +150,9 @@ class ContaPagarList extends TPage
 
         $row4 = $this->form->addFields([new TLabel("Data de emissão:", null, '14px', null, '100%'),$data_emissao_ini,new TLabel("até", null, '14px', null),$data_emissao_fim],[new TLabel("Data de vencimento", null, '14px', null, '100%'),$dt_vencimento_ini,new TLabel("até", null, '14px', null),$data_vencimento_fim]);
         $row4->layout = ['col-sm-4','col-sm-4'];
+
+        $row5 = $this->form->addFields([new TLabel("Requisição nº:", null, '14px', null),$requisicao_pagamento_id],[new TLabel("Cliente da requisição:", null, '14px', null),$cliente_requisicao_id],[new TLabel("Entidade devedora:", null, '14px', null),$entidade_devedora_id],[new TLabel("Processo da requisição:", null, '14px', null),$processo_requisicao]);
+        $row5->layout = ['col-sm-3','col-sm-3','col-sm-3','col-sm-3'];
 
         // keep the form filled during navigation with session data
         $this->form->setData( TSession::getValue(__CLASS__.'_filter_data') );
@@ -163,6 +182,15 @@ class ContaPagarList extends TPage
         $column_pessoa_nome_transformed = new TDataGridColumn('pessoa->nome', "Pessoa", 'left' , '40%');
         $column_tipo_documento_financeiro_nome = new TDataGridColumn('tipo_documento_financeiro->nome', "Tipo de documento", 'left');
         $column_numero_documentoatendimento_idcontrato_idprocesso_id = new TDataGridColumn('{numero_documento}{atendimento_id}{contrato_id}{processo_id}', "Número do documento", 'left');
+        $column_requisicao_pagamento_id = new TDataGridColumn('requisicao_pagamento_id', "Requisição", 'center');
+        $column_requisicao_pagamento_id->setTransformer(function($value)
+        {
+            if (empty($value)) {
+                return '';
+            }
+            $id = (int) $value;
+            return "<a generator='adianti' href='index.php?class=RequisicaoPagamentoVisualizacao&method=onShow&key={$id}&register_state=false'>#{$id}</a>";
+        });
         $column_descricao = new TDataGridColumn('descricao', "Descrição", 'left' , '20%');
         $column_total_conta_transformed = new TDataGridColumn('total_conta', "Total", 'center' , '100px');
         $column_quitada_transformed = new TDataGridColumn('quitada', "Quitada", 'center' , '100px');
@@ -405,6 +433,7 @@ class ContaPagarList extends TPage
         $this->datagrid->addColumn($column_pessoa_nome_transformed);
         $this->datagrid->addColumn($column_tipo_documento_financeiro_nome);
         $this->datagrid->addColumn($column_numero_documentoatendimento_idcontrato_idprocesso_id);
+        $this->datagrid->addColumn($column_requisicao_pagamento_id);
         $this->datagrid->addColumn($column_descricao);
         $this->datagrid->addColumn($column_total_conta_transformed);
         $this->datagrid->addColumn($column_quitada_transformed);
@@ -435,6 +464,7 @@ class ContaPagarList extends TPage
         $tr->add($td_tipo_documento_financeiro_nome);
         $td_empty = TElement::tag('td', "");
         $tr->add($td_empty);
+        $tr->add(TElement::tag('td', ''));
         $td_descricao_col = TElement::tag('td', $descricao_col);
         $tr->add($td_descricao_col);
         $td_empty = TElement::tag('td', "");
@@ -762,6 +792,10 @@ class ContaPagarList extends TPage
             $object->data_emissao_fim = null;
             $object->dt_vencimento_ini = null;
             $object->data_vencimento_fim = null;
+            $object->requisicao_pagamento_id = null;
+            $object->cliente_requisicao_id = null;
+            $object->entidade_devedora_id = null;
+            $object->processo_requisicao = null;
 
             TForm::sendData(self::$formName, $object);
 
@@ -985,6 +1019,11 @@ class ContaPagarList extends TPage
         if (!empty($data->filtro_rapido) && $data->filtro_rapido == 2)
         {
             $filters[] = new TFilter('id', 'in', "(SELECT conta_id FROM lancamento WHERE dt_vencimento >= '". date('Y-m-d 00:00') ."' and quitada = 'N')");
+        }
+
+        // filtros por requisicao de pagamento (requisicao, cliente, entidade devedora, processo)
+        foreach (ContaRequisicaoFiltro::filtros($data) as $filtroRequisicao) {
+            $filters[] = $filtroRequisicao;
         }
 
         // fill the form with data again
