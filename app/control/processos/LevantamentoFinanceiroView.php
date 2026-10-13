@@ -164,6 +164,7 @@ class LevantamentoFinanceiroView extends TWindow
                 . $par('Entidade devedora', $h($ctx->devedor_nome))
                 . $par('Requisição', $h('#' . $ctx->requisicao_id . ($ctx->tipo_requisicao ? ' - ' . $ctx->tipo_requisicao : '')))
                 . $par('Processo do pagamento', $h($ctx->processo_numero))
+                . (LevantamentoFinanceiroForm::raizDiferente($ctx) ? $par('Processo principal', $h($ctx->processo_raiz_numero)) : '')
                 . $par('Pagamento', $h($ctx->numero_pagamento . 'º pagamento'))
                 . $par('Data do depósito', $h(LevantamentoFinanceiroForm::dataBr($ctx->data_deposito)));
         }

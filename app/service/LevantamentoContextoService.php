@@ -88,9 +88,10 @@ class LevantamentoContextoService
         $processoId = (int) $e->processo_filho_id;
         $ancestrais = ProcessoFamiliaService::ancestrais($processoId);
         $raizId = $ancestrais ? (int) end($ancestrais) : $processoId;
-        $st = $c->prepare('SELECT data_distribuicao_protocolo FROM processo WHERE id = ?');
+        $st = $c->prepare('SELECT data_distribuicao_protocolo, COALESCE(numero_cnj_numero, numero_outro, id::text) AS numero FROM processo WHERE id = ?');
         $st->execute([$raizId]);
-        $dist = $st->fetchColumn();
+        $raiz = $st->fetch(PDO::FETCH_OBJ);
+        $dist = $raiz ? $raiz->data_distribuicao_protocolo : null;
 
         $processoRequisicao = (int) $e->processo_requisicao_id;
         $ancestraisRequisicao = $processoRequisicao ? ProcessoFamiliaService::ancestrais($processoRequisicao) : [];
@@ -123,6 +124,7 @@ class LevantamentoContextoService
             'processo_id'            => $processoId,
             'processo_numero'        => $e->processo_numero,
             'processo_raiz_id'       => $raizId,
+            'processo_raiz_numero'   => $raiz ? $raiz->numero : null,
             'data_distribuicao'      => $dist ? substr($dist, 0, 10) : null,
             'data_deposito'          => $e->data_deposito,
             'bruto'                  => $bruto,

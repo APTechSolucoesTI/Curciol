@@ -74,12 +74,14 @@ class LevantamentoFinanceiroForm extends TWindow
             [self::rotulo('Requisição'), new TTextDisplay(htmlspecialchars('#' . $ctx->requisicao_id . ($ctx->tipo_requisicao ? ' - ' . $ctx->tipo_requisicao : '')), '', '12px', '')]
         );
         $row->layout = ['col-sm-5', 'col-sm-4', 'col-sm-3'];
-        $row = $this->form->addFields(
-            [self::rotulo('Processo do pagamento'), new TTextDisplay(htmlspecialchars((string) $ctx->processo_numero), '', '12px', '')],
-            [self::rotulo('Pagamento'), new TTextDisplay($ctx->numero_pagamento . 'º pagamento', '', '12px', '')],
-            [self::rotulo('Data do depósito'), new TTextDisplay(self::dataBr($ctx->data_deposito), '', '12px', '')]
-        );
-        $row->layout = ['col-sm-5', 'col-sm-4', 'col-sm-3'];
+        $campos = [[self::rotulo('Processo do pagamento'), new TTextDisplay(htmlspecialchars((string) $ctx->processo_numero), '', '12px', '')]];
+        if (self::raizDiferente($ctx)) {
+            $campos[] = [self::rotulo('Processo principal'), new TTextDisplay(htmlspecialchars((string) $ctx->processo_raiz_numero), '', '12px', '')];
+        }
+        $campos[] = [self::rotulo('Pagamento'), new TTextDisplay($ctx->numero_pagamento . 'º pagamento', '', '12px', '')];
+        $campos[] = [self::rotulo('Data do depósito'), new TTextDisplay(self::dataBr($ctx->data_deposito), '', '12px', '')];
+        $row = $this->form->addFields(...$campos);
+        $row->layout = (count($campos) === 4) ? ['col-sm-3', 'col-sm-3', 'col-sm-3', 'col-sm-3'] : ['col-sm-5', 'col-sm-4', 'col-sm-3'];
         $row = $this->form->addFields(
             [self::rotulo('Bruto depositado'), new TTextDisplay(self::moeda($ctx->bruto), '', '12px', '')],
             [self::rotulo('Valor do MLE'), new TTextDisplay(self::moeda($ctx->mle), '', '12px', '')],
@@ -348,7 +350,8 @@ class LevantamentoFinanceiroForm extends TWindow
         if ($dataLev === null) { throw new Exception('Informe a data do levantamento.'); }
 
         $valor = self::numero($param['valor_levantado'] ?? '', 'valor levantado', true);
-        $pctHon = self::numero($param['pct_honorarios'] ?? '', '% de honorários', false);
+        // so a regra "Cliente + honorarios" usa o % de honorarios; nas outras o campo e ignorado
+        $pctHon = ($regra === BeneficiarioCredito::REGRA_CLIENTE_E_HONORARIOS) ? self::numero($param['pct_honorarios'] ?? '', '% de honorários', false) : null;
         $pctNf = self::numero($param['pct_nf'] ?? '', '% de custo de NF', false);
 
         if ($regra === BeneficiarioCredito::REGRA_CLIENTE_E_HONORARIOS && $pctHon === null) {
@@ -460,6 +463,11 @@ class LevantamentoFinanceiroForm extends TWindow
             }
         } else {
             $h .= '<div class="lf-nota">Sem repasse a parceiros (não há honorários líquidos a dividir).</div>';
+        }
+
+        $mle = round((float) $sim['contexto']->mle, 2);
+        if ($y > $mle) {
+            $h .= self::avisoHtml('Atenção: o valor levantado é maior que o MLE do pagamento (' . self::moeda($mle) . '). Confira se inclui correção/rendimento.', 'aviso');
         }
 
         $h .= '<div class="lf-contas">'
@@ -642,9 +650,16 @@ class LevantamentoFinanceiroForm extends TWindow
         return 'engine.php?' . http_build_query($novo);
     }
 
+    /** O processo principal (raiz) e diferente do processo do pagamento? */
+    public static function raizDiferente(object $ctx): bool
+    {
+        return !empty($ctx->processo_raiz_id) && (int) $ctx->processo_raiz_id !== (int) $ctx->processo_id && (string) ($ctx->processo_raiz_numero ?? '') !== '';
+    }
+
     /** Mensagem legivel para o usuario: a da Exception; para outros erros, texto generico. */
     public static function mensagem(Throwable $e): string
     {
+        if ($e instanceof PDOException) { return 'Não foi possível gravar o financeiro (erro no banco de dados). Nada foi gravado. Avise o suporte se persistir.'; }
         return ($e instanceof Exception) ? $e->getMessage() : 'Erro inesperado ao processar o financeiro. Tente novamente; se persistir, avise o suporte.';
     }
 

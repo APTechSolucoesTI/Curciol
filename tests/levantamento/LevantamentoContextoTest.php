@@ -15,6 +15,8 @@ try {
     igual('% do contrato', 20.0, $c->pct_honorarios_sugerido);
     igual('pagamento no incidente', $f['processo_id'], $c->processo_id);
     igual('raiz da familia', $f['processo_raiz_id'], $c->processo_raiz_id);
+    igual('numero do processo principal', 'TESTE LEVANTAMENTO RAIZ', $c->processo_raiz_numero);
+    ok('processo principal diferente do pagamento (tela mostra)', LevantamentoFinanceiroForm::raizDiferente($c));
     igual('distribuicao da raiz', '2020-03-15', $c->data_distribuicao);
     igual('numero do pagamento', 1, $c->numero_pagamento);
     igual('data do deposito', '2026-01-10', substr($c->data_deposito, 0, 10));
@@ -118,4 +120,7 @@ try {
 
 lanca('pagamento inexistente', function () { LevantamentoContextoService::carregar(-1); }, 'não encontrado');
 ok('inexistente nao deixa transacao aberta', TTransaction::get() === null);
+// Revisao final 6: erro de banco vira mensagem generica; Exception normal mantem a propria
+ok('PDOException -> mensagem generica', strpos(LevantamentoFinanceiroForm::mensagem(new PDOException('SQLSTATE[23505] duplicate key')), 'Nada foi gravado') !== false && strpos(LevantamentoFinanceiroForm::mensagem(new PDOException('SQLSTATE[23505] duplicate key')), 'SQLSTATE') === false);
+igual('Exception normal -> propria mensagem', 'Falhou X', LevantamentoFinanceiroForm::mensagem(new Exception('Falhou X')));
 fim();
