@@ -189,14 +189,13 @@ class ParceriaLevantamentoForm extends TPage
         $style->width = '85% !important';
         $style->show(true);
 
-        // colunas que nao valem para o tipo escolhido ficam escondidas (a classe e posta no formulario por onChangeTipo)
-        TScript::create("
-            if (!document.getElementById('estilo_parceria_levantamento')) {
-                var st = document.createElement('style'); st.id = 'estilo_parceria_levantamento';
-                st.innerHTML = '#" . self::$formName . ".pl-fixa .pl-col-tempo, #" . self::$formName . ".pl-temporal .pl-col-fixa {display:none !important;}';
-                document.head.appendChild(st);
-            }
-        ");
+        // colunas que nao valem para o tipo escolhido ficam escondidas (a classe e posta no formulario por aplicarTipo).
+        // Posicao na lista: 4 pessoa, 5 nivel, 6 percentual, 7 antes, 8 depois, 9 diferenca (1 a 3 sao campos ocultos).
+        $f = "#" . self::$formName;
+        $t = "table.tfieldlist > * > tr > ";
+        $style_colunas = new TStyle("{$f}.pl-fixa {$t}:nth-child(5), {$f}.pl-fixa {$t}:nth-child(7), {$f}.pl-fixa {$t}:nth-child(8), {$f}.pl-temporal {$t}:nth-child(6)");
+        $style_colunas->display = 'none !important';
+        $style_colunas->show(true);
     }
 
     /**
