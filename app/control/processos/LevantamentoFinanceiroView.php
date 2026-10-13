@@ -54,7 +54,8 @@ class LevantamentoFinanceiroView extends TWindow
             } else {
                 $botao = $form->addAction('Desfazer financeiro',
                     new TAction([__CLASS__, 'onConfirmarDesfazer'], ['static' => '1', 'etapa3_id' => $etapa3Id,
-                                'origem' => $param['origem'] ?? '', 'url_recarga' => $param['url_recarga'] ?? '']), 'fas:undo');
+                                'origem' => $param['origem'] ?? '', 'url_recarga' => $param['url_recarga'] ?? '',
+                                'origem_pai' => $param['origem_pai'] ?? '', 'url_pai' => $param['url_pai'] ?? '']), 'fas:undo');
                 $botao->class = 'btn btn-sm btn-danger';
             }
 
@@ -77,7 +78,8 @@ class LevantamentoFinanceiroView extends TWindow
                 . ' na conta-caixa ' . htmlspecialchars((string) ($d->conta_caixa_nome ?: ('#' . $f->conta_caixa_id)))
                 . ' será estornada e as contas geradas serão excluídas.';
             $acao = new TAction([__CLASS__, 'onDesfazer'], ['static' => '1', 'etapa3_id' => $etapa3Id,
-                                'origem' => $param['origem'] ?? '', 'url_recarga' => $param['url_recarga'] ?? '']);
+                                'origem' => $param['origem'] ?? '', 'url_recarga' => $param['url_recarga'] ?? '',
+                                'origem_pai' => $param['origem_pai'] ?? '', 'url_pai' => $param['url_pai'] ?? '']);
             new TQuestion($mensagem, $acao);
         } catch (Exception $e) {
             new TMessage('error', $e->getMessage());

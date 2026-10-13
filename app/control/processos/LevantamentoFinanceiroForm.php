@@ -92,6 +92,8 @@ class LevantamentoFinanceiroForm extends TWindow
         $etapa3 = new THidden('etapa3_id');
         $origem = new THidden('origem');
         $urlRecarga = new THidden('url_recarga');
+        $origemPai = new THidden('origem_pai');
+        $urlPai = new THidden('url_pai');
 
         $contrato = new TCombo('contrato_id');
         $contrato->addItems($contratos);
@@ -163,7 +165,7 @@ class LevantamentoFinanceiroForm extends TWindow
 
 
         $this->form->addContent([self::titulo('Dados do levantamento')]);
-        $this->form->addFields([$etapa3, $origem, $urlRecarga]);
+        $this->form->addFields([$etapa3, $origem, $urlRecarga, $origemPai, $urlPai]);
 
         $row = $this->form->addFields(
             [self::rotulo('Contrato *'), $contrato],
@@ -221,6 +223,8 @@ class LevantamentoFinanceiroForm extends TWindow
         $data->etapa3_id = $ctx->etapa3_id;
         $data->origem = $param['origem'] ?? '';
         $data->url_recarga = $param['url_recarga'] ?? '';
+        $data->origem_pai = $param['origem_pai'] ?? '';
+        $data->url_pai = $param['url_pai'] ?? '';
         $data->contrato_id = $unico ? $ctx->contrato_sugerido_id : null;
         $data->beneficiario_credito_id = ($qtd === 1) ? $regraUnica : null;
         $data->data_levantamento = !empty($ctx->data_deferimento_mle) ? substr($ctx->data_deferimento_mle, 0, 10) : substr($ctx->data_deposito, 0, 10);
