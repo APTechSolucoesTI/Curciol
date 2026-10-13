@@ -62,9 +62,9 @@ class ParceriaLevantamentoForm extends TPage
         $this->fieldList_participantes->addField(null, $participante___row__data, []);
         $this->fieldList_participantes->addField(new TLabel("Pessoa", null, '14px', null), $participante_pessoa_id, ['width' => '34%']);
         $this->fieldList_participantes->addField(new TLabel("Nível", null, '14px', null), $participante_nivel, ['width' => '14%']);
-        $this->fieldList_participantes->addField(new TLabel("Percentual (%)", null, '14px', null), $participante_percentual, ['width' => '12%', 'sum' => true]);
-        $this->fieldList_participantes->addField(new TLabel("Antes do marco (%)", null, '14px', null), $participante_percentual_antes, ['width' => '12%', 'sum' => true]);
-        $this->fieldList_participantes->addField(new TLabel("Depois do marco (%)", null, '14px', null), $participante_percentual_depois, ['width' => '12%', 'sum' => true]);
+        $this->fieldList_participantes->addField(new TLabel("Percentual (%)", null, '14px', null), $participante_percentual, ['width' => '12%']);
+        $this->fieldList_participantes->addField(new TLabel("Antes do marco (%)", null, '14px', null), $participante_percentual_antes, ['width' => '12%']);
+        $this->fieldList_participantes->addField(new TLabel("Depois do marco (%)", null, '14px', null), $participante_percentual_depois, ['width' => '12%']);
         $this->fieldList_participantes->addField(new TLabel("Recebe a diferença", null, '14px', null), $participante_recebe_diferenca, ['width' => '12%']);
 
         $this->fieldList_participantes->width = '100%';
@@ -152,7 +152,10 @@ class ParceriaLevantamentoForm extends TPage
         $ajuda->id = 'ajuda_participantes';
         $ajuda->style = 'color:#666; font-size:12px; margin-bottom:8px;';
         $ajuda->add('');
-        $row4 = $this->form->addFields([$ajuda], [$btnNovaPessoa]);
+        $soma = new TElement('div');
+        $soma->id = 'soma_participantes';
+        $soma->style = 'font-weight:bold; font-size:12px; margin-bottom:8px;';
+        $row4 = $this->form->addFields([$ajuda, $soma], [$btnNovaPessoa]);
         $row4->layout = [' col-sm-9',' col-sm-3 text-right'];
 
         $row5 = $this->form->addFields([$this->fieldList_participantes]);
@@ -196,6 +199,29 @@ class ParceriaLevantamentoForm extends TPage
         $style_colunas = new TStyle("{$f}.pl-fixa {$t}:nth-child(5), {$f}.pl-fixa {$t}:nth-child(7), {$f}.pl-fixa {$t}:nth-child(8), {$f}.pl-temporal {$t}:nth-child(6)");
         $style_colunas->display = 'none !important';
         $style_colunas->show(true);
+
+        // soma dos percentuais, ao digitar (a regra de 100% e a do servico; aqui e so para o usuario conferir)
+        TScript::create("
+            window.plSomar = function () {
+                var f = $('{$f}'), n = function (v) { v = String(v || '0').replace(/\./g, '').replace(',', '.'); return parseFloat(v) || 0; };
+                var tot = {fixo: 0, a1: 0, d1: 0, a2: 0, d2: 0};
+                f.find('table.tfieldlist tbody tr').each(function () {
+                    var r = $(this), nivel = r.find('[name=\"participante_nivel[]\"]').val();
+                    var v = function (c) { return n(r.find('[name=\"participante_' + c + '[]\"]').val()); };
+                    if (f.hasClass('pl-temporal')) {
+                        if (nivel === 'MARCO1') { tot.a1 += v('percentual_antes'); tot.d1 += v('percentual_depois'); }
+                        else { tot.a2 += v('percentual_antes'); tot.d2 += v('percentual_depois'); }
+                    } else { tot.fixo += v('percentual'); }
+                });
+                var t = function (x) { return (Math.round(x * 10000) / 10000).toLocaleString('pt-BR', {maximumFractionDigits: 4}) + '%'; };
+                var cor = function (x) { return Math.abs(x - 100) < 0.000001 ? '#2e7d32' : '#c62828'; };
+                var h = f.hasClass('pl-temporal')
+                    ? 'Nível 2: antes <span style=\"color:' + cor(tot.a2) + '\">' + t(tot.a2) + '</span>, depois <span style=\"color:' + cor(tot.d2) + '\">' + t(tot.d2) + '</span> (cada coluna deve somar 100%) | Nível 1: antes ' + t(tot.a1) + ', depois ' + t(tot.d1)
+                    : 'Soma: <span style=\"color:' + cor(tot.fixo) + '\">' + t(tot.fixo) + '</span> (deve ser 100%)';
+                $('#soma_participantes').html(h);
+            };
+            $(document).off('input.plsoma change.plsoma keyup.plsoma').on('input.plsoma change.plsoma keyup.plsoma', '{$f} table.tfieldlist :input', function () { window.plSomar(); });
+        ");
     }
 
     /**
@@ -226,7 +252,7 @@ class ParceriaLevantamentoForm extends TPage
             ? 'Por tempo: informe os participantes dos níveis 1 e 2. No nível 2, as colunas "antes" e "depois" do marco devem somar 100% cada. Marque quem recebe a diferença de centavos.'
             : 'Fixa: os percentuais devem somar 100%. Marque quem recebe a diferença de centavos.';
 
-        TScript::create("$('#" . self::$formName . "').removeClass('pl-fixa pl-temporal').addClass('{$classe}'); $('#ajuda_participantes').text(" . json_encode($ajuda) . ");");
+        TScript::create("setTimeout(function () { $('#" . self::$formName . "').removeClass('pl-fixa pl-temporal').addClass('{$classe}'); $('#ajuda_participantes').text(" . json_encode($ajuda) . "); if (window.plSomar) { window.plSomar(); } }, 250);");
     }
 
     /** "12,5" ou "12.5" ou "" -> float|null */
