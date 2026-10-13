@@ -1162,6 +1162,13 @@ class RequisicaoPagamentoVisualizacao extends TWindow
         * atualiza a mesma linha.
         */
         if (!empty($etapa3Id)) {
+            LevantamentoFinanceiroService::garantirPagamentoEditavel((int) $etapa3Id, [
+                'data_deposito' => $dataDeposito,
+                'valor_bruto_depositado' => $valorBruto,
+                'valor_mle' => $valorMle,
+                'processo_filho_id' => $processoFilhoId
+            ]);
+
             $sql = "
                 UPDATE requisicao_pagamento_etapa3
                 SET

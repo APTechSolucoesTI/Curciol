@@ -59,6 +59,77 @@ class LevantamentoFinanceiroService
         }
     }
 
+    /**
+     * Pagamento com financeiro gerado: deposito, bruto, MLE e processo nao podem mudar (so valem os campos presentes em $novos).
+     * Chamar dentro da transacao do salvamento, antes do UPDATE.
+     */
+    public static function garantirPagamentoEditavel(int $etapa3Id, array $novos): void
+    {
+        $propria = (TTransaction::get() === null);
+        if ($propria) { TTransaction::open('escritorio'); }
+        try {
+            $c = TTransaction::get();
+            if (self::fichaId($c, $etapa3Id) !== null) {
+                $st = $c->prepare('SELECT data_deposito, valor_bruto_depositado, valor_mle, processo_filho_id FROM requisicao_pagamento_etapa3 WHERE id = ?');
+                $st->execute([$etapa3Id]);
+                $atual = $st->fetch(PDO::FETCH_ASSOC);
+                if ($atual) {
+                    $dinheiro = function ($v) { return ($v === null || $v === '') ? null : round((float) $v, 2); };
+                    $inteiro  = function ($v) { return ($v === null || $v === '') ? null : (int) $v; };
+                    $mudou = false;
+                    if (array_key_exists('data_deposito', $novos)) {
+                        $mudou = $mudou || (substr((string) $atual['data_deposito'], 0, 10) !== substr((string) $novos['data_deposito'], 0, 10));
+                    }
+                    if (array_key_exists('valor_bruto_depositado', $novos)) {
+                        $mudou = $mudou || ($dinheiro($atual['valor_bruto_depositado']) !== $dinheiro($novos['valor_bruto_depositado']));
+                    }
+                    if (array_key_exists('valor_mle', $novos)) {
+                        $mudou = $mudou || ($dinheiro($atual['valor_mle']) !== $dinheiro($novos['valor_mle']));
+                    }
+                    if (array_key_exists('processo_filho_id', $novos)) {
+                        $mudou = $mudou || ($inteiro($atual['processo_filho_id']) !== $inteiro($novos['processo_filho_id']));
+                    }
+                    if ($mudou) {
+                        throw new Exception('Este pagamento já tem o financeiro gerado: data do depósito, valor bruto, valor do MLE e processo não podem ser alterados. Desfaça o financeiro antes de alterar.');
+                    }
+                }
+            }
+            if ($propria) { TTransaction::close(); }
+        } catch (Throwable $e) {
+            if ($propria) { TTransaction::rollback(); }
+            throw $e;
+        }
+    }
+
+    /** O cliente da requisicao (rpc) tem pagamento com financeiro gerado? Entao nao pode ser removido. */
+    public static function garantirClienteRemovivel(int $rpcId): void
+    {
+        $propria = (TTransaction::get() === null);
+        if ($propria) { TTransaction::open('escritorio'); }
+        try {
+            $st = TTransaction::get()->prepare('SELECT COUNT(*) FROM levantamento_financeiro lf JOIN requisicao_pagamento_etapa3 e ON e.id = lf.requisicao_pagamento_etapa3_id WHERE e.requisicao_pagamento_cliente_id = ?');
+            $st->execute([$rpcId]);
+            $tem = ((int) $st->fetchColumn() > 0);
+        } catch (Throwable $e) {
+            if ($propria) { TTransaction::rollback(); }
+            throw $e;
+        }
+        if ($propria) { TTransaction::close(); }
+        if ($tem) { throw new Exception('Este cliente tem pagamento com financeiro gerado e não pode ser removido da requisição. Desfaça o financeiro do pagamento antes.'); }
+    }
+
+    /**
+     * Conta gerada pelo financeiro do levantamento: bloqueia a acao fora de "Desfazer financeiro".
+     * $bloqueiaPagar = false deixa passar a conta a pagar ao cliente (quitar/desquitar sao o pagamento real).
+     */
+    public static function exigirContaNaoGerada(int $contaId, bool $bloqueiaPagar = true): void
+    {
+        $g = self::contaDoLevantamento($contaId);
+        if ($g && ($g['papel'] === 'RECEBER' || $bloqueiaPagar)) {
+            throw new Exception('Conta gerada pelo financeiro do levantamento. Para corrigir, use "Desfazer financeiro" no pagamento da requisição.');
+        }
+    }
+
     public static function gerar(int $etapa3Id, array $d): LevantamentoFinanceiro
     {
         TTransaction::open('escritorio');

@@ -1161,6 +1161,7 @@ class RequisicaoPagamentos extends TPage
             return;
         }
 
+        LevantamentoFinanceiroService::garantirClienteRemovivel($requisicao_pagamento_cliente_id);
         self::excluirDependenciasDoClienteDaRequisicao($conn, $requisicao_pagamento_cliente_id);
 
         $sql = "
@@ -1385,6 +1386,12 @@ class RequisicaoPagamentos extends TPage
         $etapa3Id = $sthBusca->fetchColumn();
 
         if (!empty($etapa3Id)) {
+            LevantamentoFinanceiroService::garantirPagamentoEditavel((int) $etapa3Id, [
+                'data_deposito' => $dataDeposito,
+                'valor_mle' => $valorMle,
+                'processo_filho_id' => $processoId
+            ]);
+
             $sql = "
                 UPDATE requisicao_pagamento_etapa3
                 SET
