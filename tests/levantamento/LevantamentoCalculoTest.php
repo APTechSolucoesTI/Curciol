@@ -53,6 +53,10 @@ igual('centavo unico valor 0,01 (I1)', 0.01, $um['repasses'][0]['valor']);
 lanca('sem data do deposito (M5)', function () use ($C, $base) { $b = $base; unset($b['data_deposito']); $C::calcular($b); }, 'depósito');
 lanca('sem pct_nf (M5)', function () use ($C, $base) { $b = $base; unset($b['pct_nf']); $C::calcular($b); }, 'NF');
 
+// Revisao final 1: data futura
+lanca('levantamento em data futura', function () use ($C, $base) { $C::calcular(['data_levantamento'=>date('Y-m-d', strtotime('+1 day'))] + $base); }, 'futura');
+igual('levantamento hoje e aceito', 9256.45, $C::calcular(['data_levantamento'=>date('Y-m-d')] + $base)['z']);
+
 // M4: data com hora no mesmo dia do deposito nao e antes
 igual('mesmo dia com hora nao e antes do deposito (M4)', 9256.45, $C::calcular(['data_deposito'=>'2026-01-10 10:00:00', 'data_levantamento'=>'2026-01-10'] + $base)['z']);
 fim();

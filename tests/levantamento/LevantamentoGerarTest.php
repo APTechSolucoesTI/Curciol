@@ -93,6 +93,43 @@ try {
     TTransaction::open('escritorio'); igual('nenhuma conta da requisicao', 0, Conta::where('requisicao_pagamento_id', '=', $f3['requisicao_id'])->count()); TTransaction::close();
 } finally { Fixtures::limpar($f3); }
 
+// Revisao final 1: data futura e data anterior ao inicio da conta-caixa
+$f6 = Fixtures::criar(['deposito' => '2019-12-01']);
+try {
+    $cmp = ['contrato_id'=>$f6['contrato_id'], 'conta_caixa_id'=>$f6['conta_caixa_id']];
+    lanca('data futura recusada (simular)', function () use ($S, $f6, $d, $cmp) { $S::simular($f6['etapa3_id'], ['data_levantamento'=>date('Y-m-d', strtotime('+1 day'))] + $cmp + $d); }, 'futura');
+    lanca('data futura recusada (gerar)', function () use ($S, $f6, $d, $cmp) { $S::gerar($f6['etapa3_id'], ['data_levantamento'=>date('Y-m-d', strtotime('+1 day'))] + $cmp + $d); }, 'futura');
+    lanca('compensado antes do inicio da conta-caixa', function () use ($S, $f6, $d, $cmp) { $S::gerar($f6['etapa3_id'], ['data_levantamento'=>'2019-12-31', 'compensado'=>'S'] + $cmp + $d); }, 'anterior ao início da conta-caixa');
+    lanca('mensagem traz a data de inicio', function () use ($S, $f6, $d, $cmp) { $S::gerar($f6['etapa3_id'], ['data_levantamento'=>'2019-12-31', 'compensado'=>'S'] + $cmp + $d); }, '01/01/2020');
+    igual('nada gravado nas recusas de data', null, $S::existePara($f6['etapa3_id']));
+    $sim6 = $S::simular($f6['etapa3_id'], ['data_levantamento'=>'2019-12-31'] + $cmp + $d);
+    ok('simular nao valida conta-caixa', isset($sim6['resultado']['z']));
+    $lf6 = $S::gerar($f6['etapa3_id'], ['data_levantamento'=>'2019-12-31', 'compensado'=>'N'] + $cmp + $d);
+    ok('nao compensado antes do inicio e aceito', !empty($lf6->id));
+} finally { Fixtures::limpar($f6); }
+
+// Revisao final 2: filtros por cliente/devedor casam pela ficha, nao pela requisicao
+$f7 = Fixtures::criar(['clientes' => 2]);
+try {
+    $lf7 = $S::gerar($f7['etapa3_id'], ['contrato_id'=>$f7['contratos_ids'][0], 'conta_caixa_id'=>$f7['conta_caixa_id']] + $d);
+    $conta = function ($campo, $valor) use ($lf7) {
+        TTransaction::open('escritorio');
+        $n = [];
+        foreach ([(int) $lf7->conta_receber_id, (int) $lf7->conta_pagar_id] as $id) {
+            $crit = new TCriteria;
+            $crit->add(new TFilter('id', '=', $id));
+            foreach (ContaRequisicaoFiltro::filtros((object) [$campo => $valor]) as $fl) { $crit->add($fl); }
+            $n[] = (new TRepository('Conta'))->count($crit);
+        }
+        TTransaction::close();
+        return $n;
+    };
+    igual('filtro cliente da ficha: receber e pagar casam', [1, 1], $conta('cliente_requisicao_id', $f7['cliente_ids'][0]));
+    igual('filtro cliente sem ficha (mesma requisicao): nao casa', [0, 0], $conta('cliente_requisicao_id', $f7['cliente_ids'][1]));
+    igual('filtro entidade devedora da ficha', [1, 1], $conta('entidade_devedora_id', $f7['devedor_id']));
+    igual('filtro entidade devedora outra: nao casa', [0, 0], $conta('entidade_devedora_id', $f7['cliente_ids'][0]));
+} finally { Fixtures::limpar($f7); }
+
 // limpar() nao deixa sobras
 ok('sem sobras da fixture', Fixtures::sobras() === [], json_encode(Fixtures::sobras()));
 fim();
