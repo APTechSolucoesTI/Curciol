@@ -85,9 +85,16 @@ ON CONFLICT (nome) DO NOTHING;
 -- Parceiros que ainda nao existem (decisao do usuario em 13/10/2026): pessoas novas no grupo Parceiro (6).
 -- Nomes provisórios = apelidos da planilha; o escritorio pode completar o cadastro em Pessoas.
 INSERT INTO pessoa (tipo_pessoa_id, nome, nome_busca, aceita_receber_mensagen_whatsapp, observacao, data_criacao)
-SELECT n.tipo, n.nome, lower(n.nome), 'F', 'Parceiro de levantamento (cadastro inicial do financeiro de levantamentos).', now()
-  FROM (VALUES (1, 'KBÇA'), (1, 'CAMPOS'), (2, 'ALLIANCE'), (2, 'ESTRUTURA')) n(tipo, nome)
+SELECT n.tipo, n.nome, n.busca, 'F', 'Parceiro de levantamento (cadastro inicial do financeiro de levantamentos).', now()
+  FROM (VALUES (1, 'KBÇA', 'KBCA'), (1, 'CAMPOS', 'CAMPOS'), (2, 'ALLIANCE', 'ALLIANCE'), (2, 'ESTRUTURA', 'ESTRUTURA')) n(tipo, nome, busca)
  WHERE NOT EXISTS (SELECT 1 FROM pessoa p JOIN pessoa_grupo g ON g.pessoa_id = p.id AND g.grupo_id = 6 WHERE normalize(p.nome, NFC) = normalize(n.nome, NFC));
+
+-- nome_busca no padrao do cadastro (maiusculo, sem acento); corrige quem ja rodou a versao anterior (minusculo)
+UPDATE pessoa p SET nome_busca = n.busca
+  FROM (VALUES ('KBÇA', 'KBCA'), ('CAMPOS', 'CAMPOS'), ('ALLIANCE', 'ALLIANCE'), ('ESTRUTURA', 'ESTRUTURA')) n(nome, busca)
+ WHERE normalize(p.nome, NFC) = normalize(n.nome, NFC)
+   AND p.observacao = 'Parceiro de levantamento (cadastro inicial do financeiro de levantamentos).'
+   AND p.nome_busca IS DISTINCT FROM n.busca;
 
 INSERT INTO pessoa_grupo (pessoa_id, grupo_id)
 SELECT p.id, 6 FROM pessoa p
@@ -135,7 +142,7 @@ SELECT p.id, pe.id, c.nivel, c.pct, c.antes, c.depois, c.dif, c.ordem
                  ORDER BY pp.id LIMIT 1) pe ON TRUE
 ON CONFLICT (parceria_levantamento_id, pessoa_id) DO NOTHING;
 
--- Permissoes: mesmos grupos de "Parceiros" (cadastros) e de RequisicaoPagamentoListagemHeaderList (telas do pagamento)
+-- Permissoes: cadastros = grupos de "Parceiros"; telas do pagamento = grupos de RequisicaoPagamentoListagemHeaderList UNIAO os de ContaFormView (Financeiro)
 INSERT INTO system_program (id, name, controller)
 SELECT (SELECT COALESCE(MAX(id),0) FROM system_program) + ROW_NUMBER() OVER (ORDER BY n.controller), n.nome, n.controller
   FROM (VALUES ('Beneficiários do crédito','BeneficiarioCreditoList'), ('Beneficiário do crédito','BeneficiarioCreditoForm'),
@@ -144,12 +151,15 @@ SELECT (SELECT COALESCE(MAX(id),0) FROM system_program) + ROW_NUMBER() OVER (ORD
  WHERE NOT EXISTS (SELECT 1 FROM system_program sp WHERE sp.controller = n.controller);
 
 INSERT INTO system_group_program (id, system_group_id, system_program_id)
-SELECT (SELECT COALESCE(MAX(id),0) FROM system_group_program) + ROW_NUMBER() OVER (ORDER BY gp.system_group_id, p.id), gp.system_group_id, p.id
+SELECT (SELECT COALESCE(MAX(id),0) FROM system_group_program) + ROW_NUMBER() OVER (ORDER BY g.system_group_id, p.id), g.system_group_id, p.id
   FROM system_program p
-  JOIN system_group_program gp ON gp.system_program_id = (SELECT id FROM system_program WHERE controller =
-        CASE WHEN p.controller LIKE 'Levantamento%' THEN 'RequisicaoPagamentoListagemHeaderList' ELSE 'ParceirosHeaderList' END)
+  JOIN (SELECT DISTINCT gp.system_group_id, sp.controller AS origem
+          FROM system_group_program gp JOIN system_program sp ON sp.id = gp.system_program_id
+         WHERE sp.controller IN ('RequisicaoPagamentoListagemHeaderList', 'ContaFormView', 'ParceirosHeaderList')) g
+    ON (p.controller LIKE 'Levantamento%' AND g.origem IN ('RequisicaoPagamentoListagemHeaderList', 'ContaFormView'))
+    OR (p.controller NOT LIKE 'Levantamento%' AND g.origem = 'ParceirosHeaderList')
  WHERE p.controller IN ('BeneficiarioCreditoList','BeneficiarioCreditoForm','ParceriaLevantamentoList','ParceriaLevantamentoForm','LevantamentoFinanceiroForm','LevantamentoFinanceiroView')
-   AND NOT EXISTS (SELECT 1 FROM system_group_program x WHERE x.system_group_id = gp.system_group_id AND x.system_program_id = p.id);
+   AND NOT EXISTS (SELECT 1 FROM system_group_program x WHERE x.system_group_id = g.system_group_id AND x.system_program_id = p.id);
 
 -- Validacao da carga: pessoa que nao casou e descartada em silencio pelo INSERT acima; aqui falha alto.
 DO $$
@@ -174,6 +184,17 @@ BEGIN
   SELECT count(*) INTO total FROM parceria_levantamento_participante pp JOIN parceria_levantamento p ON p.id = pp.parceria_levantamento_id
    WHERE normalize(p.nome, NFC) IN ('Curciol','Custas','Parceria Ivan','Parceria Juan',normalize('Parceria Juan Estágio', NFC),'Parceria Kleber Andre Ferreira','Parceria Campos');
   IF total <> 34 THEN RAISE EXCEPTION 'Carga de participantes incompleta: % linhas (esperado 34).', total; END IF;
+  -- cada programa novo precisa de pelo menos um grupo (senao ninguem acessa a tela)
+  FOR r IN
+    SELECT sp.controller FROM system_program sp
+     WHERE sp.controller IN ('BeneficiarioCreditoList','BeneficiarioCreditoForm','ParceriaLevantamentoList','ParceriaLevantamentoForm','LevantamentoFinanceiroForm','LevantamentoFinanceiroView')
+       AND NOT EXISTS (SELECT 1 FROM system_group_program gp WHERE gp.system_program_id = sp.id)
+  LOOP
+    RAISE EXCEPTION 'Programa "%" sem nenhum grupo de acesso.', r.controller;
+  END LOOP;
+  IF (SELECT count(*) FROM system_program WHERE controller IN ('BeneficiarioCreditoList','BeneficiarioCreditoForm','ParceriaLevantamentoList','ParceriaLevantamentoForm','LevantamentoFinanceiroForm','LevantamentoFinanceiroView')) <> 6 THEN
+    RAISE EXCEPTION 'Os 6 programas novos nao foram todos cadastrados.';
+  END IF;
 END $$;
 
 COMMIT;
