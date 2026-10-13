@@ -27,6 +27,9 @@ TTransaction::close();
 // nome de pessoa decomposto (NFD) resolve; nome inexistente falha sem deixar nada
 $g = Fixtures::criar(['repasse' => ["JOSE\u{0301} ALMIR CURCIOL" => 50, 'KLEBER CURCIOL' => 50]]);
 igual('NFC/NFD resolve as 2 pessoas', 2, count($g['repasse']));
+$h = Fixtures::criar(['repasse' => ["JOS\u{00C9} ALMIR CURCIOL" => 50, 'KLEBER CURCIOL' => 50]]);
+igual('forma NFC resolve as mesmas pessoas', array_keys($g['repasse']), array_keys($h['repasse']));
+Fixtures::limpar($h);
 Fixtures::limpar($g);
 lanca('pessoa inexistente falha', function () { Fixtures::criar(['repasse' => ['PESSOA QUE NAO EXISTE XYZ' => 100]]); }, 'não encontrada');
 igual('falha nao deixa sobras', [], Fixtures::sobras());
