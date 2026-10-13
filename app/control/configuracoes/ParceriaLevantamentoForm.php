@@ -196,9 +196,8 @@ class ParceriaLevantamentoForm extends TPage
         // Posicao na lista: 4 pessoa, 5 nivel, 6 percentual, 7 antes, 8 depois, 9 diferenca (1 a 3 sao campos ocultos).
         $f = "#" . self::$formName;
         $t = "table.tfieldlist > * > tr > ";
-        $style_colunas = new TStyle("{$f}.pl-fixa {$t}:nth-child(5), {$f}.pl-fixa {$t}:nth-child(7), {$f}.pl-fixa {$t}:nth-child(8), {$f}.pl-temporal {$t}:nth-child(6)");
-        $style_colunas->display = 'none !important';
-        $style_colunas->show(true);
+        $seletores = ["{$f}.pl-fixa {$t}:nth-child(5)", "{$f}.pl-fixa {$t}:nth-child(7)", "{$f}.pl-fixa {$t}:nth-child(8)", "{$f}.pl-temporal {$t}:nth-child(6)"];
+        parent::add(TElement::tag('style', implode(', ', $seletores) . ' { display: none !important; }'));
 
         // soma dos percentuais, ao digitar (a regra de 100% e a do servico; aqui e so para o usuario conferir)
         TScript::create("
