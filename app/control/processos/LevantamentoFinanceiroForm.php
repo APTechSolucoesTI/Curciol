@@ -36,8 +36,8 @@ class LevantamentoFinanceiroForm extends TWindow
             }
 
             $this->montarFormulario($ctx, $param);
-        } catch (Exception $e) {
-            parent::add(self::caixaAviso(htmlspecialchars($e->getMessage(), ENT_QUOTES, 'UTF-8'), 'erro'));
+        } catch (Throwable $e) {
+            parent::add(self::caixaAviso(htmlspecialchars(self::mensagem($e), ENT_QUOTES, 'UTF-8'), 'erro'));
         }
         self::estilo($this);
         self::trazerParaFrente($this);
@@ -267,7 +267,7 @@ class LevantamentoFinanceiroForm extends TWindow
                 $param['parceria_levantamento_id'] = $obj->parceria_levantamento_id;
                 TForm::sendData(self::$formName, $obj, false, false);
             }
-        } catch (Exception $e) {
+        } catch (Throwable $e) {
             // a previa mostra o problema
         }
         self::onSimular($param);
@@ -286,8 +286,8 @@ class LevantamentoFinanceiroForm extends TWindow
             $sim = LevantamentoFinanceiroService::simular($etapa3Id, $d);
             $zPositivo = ((float) $sim['resultado']['z'] > 0);
             $html = self::htmlPrevia($sim, $d);
-        } catch (Exception $e) {
-            $html = self::avisoHtml(htmlspecialchars($e->getMessage(), ENT_QUOTES, 'UTF-8'), 'aviso');
+        } catch (Throwable $e) {
+            $html = self::avisoHtml(htmlspecialchars(self::mensagem($e), ENT_QUOTES, 'UTF-8'), 'aviso');
         }
 
         // visibilidade e rotulos dos campos
@@ -323,8 +323,8 @@ class LevantamentoFinanceiroForm extends TWindow
             self::fecharJanela();
             TToast::show('success', 'Financeiro gerado', 'topRight', 'far:check-circle');
             self::recarregarOrigem($param);
-        } catch (Exception $e) {
-            new TMessage('error', $e->getMessage());
+        } catch (Throwable $e) {
+            new TMessage('error', self::mensagem($e));
         }
     }
 
@@ -590,18 +590,23 @@ class LevantamentoFinanceiroForm extends TWindow
         $origem = (string) ($param['origem'] ?? '');
         $url = (string) ($param['url_recarga'] ?? '');
 
+        // classe => [seletor da janela antiga a remover, chaves permitidas na URL]
         $permitidas = [
-            'janela'  => ['engine.php?class=RequisicaoPagamentoVisualizacao&', 'form[name=form_RequisicaoPagamentoVisualizacaoWindow], form#form_RequisicaoPagamentoVisualizacaoWindow'],
-            'aba'     => ['engine.php?class=RequisicaoPagamentoVisualizacaoAba&', null],
-            'detalhe' => ['engine.php?class=RequisicaoPagamentoEtapa3Visualizacao&', '.e3-wrap'],
+            'janela'  => ['RequisicaoPagamentoVisualizacao', 'form[name=form_RequisicaoPagamentoVisualizacaoWindow], form#form_RequisicaoPagamentoVisualizacaoWindow',
+                          ['key', 'pessoa_id', 'requisicao_pagamento_cliente_id', 'modo_embutido', 'register_state']],
+            'aba'     => ['RequisicaoPagamentoVisualizacaoAba', null,
+                          ['key', 'pessoa_id', 'processo_origem_id', 'exibir_voltar', 'target_container', 'register_state', 'show_loading']],
+            'detalhe' => ['RequisicaoPagamentoEtapa3Visualizacao', '.e3-wrap', ['key', 'origem_pai', 'url_pai', 'register_state']],
         ];
-        if (!isset($permitidas[$origem]) || strpos($url, $permitidas[$origem][0]) !== 0) { return; }
+        $url = self::urlSegura($url, $permitidas[$origem] ?? null);
+        if ($url === null) { return; }
 
         // a tela que abriu o detalhe (historico da janela ou da aba) tambem fica desatualizada: recarrega primeiro
         $passos = [];
         $origemPai = (string) ($param['origem_pai'] ?? '');
         $urlPai = (string) ($param['url_pai'] ?? '');
-        if ($origem === 'detalhe' && in_array($origemPai, ['janela', 'aba'], true) && strpos($urlPai, $permitidas[$origemPai][0]) === 0) {
+        $urlPai = in_array($origemPai, ['janela', 'aba'], true) ? self::urlSegura($urlPai, $permitidas[$origemPai]) : null;
+        if ($origem === 'detalhe' && $urlPai !== null) {
             $passos[] = [$permitidas[$origemPai][1], $urlPai];
         }
         $passos[] = [$permitidas[$origem][1], $url];
@@ -613,6 +618,34 @@ class LevantamentoFinanceiroForm extends TWindow
             $js .= 'setTimeout(function () { ' . $remover . ' Adianti.waitMessage = false; __adianti_load_page(' . json_encode($passo[1]) . '); }, ' . (250 + $i * 900) . ');';
         }
         TScript::create($js);
+    }
+
+    /**
+     * Reconstroi no servidor a URL de recarga: class unica da lista fixa, method onShow, so as chaves
+     * permitidas da tela e valores escalares. Qualquer outra coisa => null (nao recarrega).
+     */
+    private static function urlSegura(string $url, ?array $tela): ?string
+    {
+        if ($tela === null || strpos($url, 'engine.php?') !== 0) { return null; }
+        $query = substr($url, strlen('engine.php?'));
+        // class/method repetidos (PHP usaria o ultimo) => recusa
+        if (substr_count($query, 'class=') !== 1 || substr_count($query, 'method=') !== 1) { return null; }
+        parse_str($query, $q);
+        if (($q['class'] ?? null) !== $tela[0] || ($q['method'] ?? null) !== 'onShow') { return null; }
+        $novo = ['class' => $tela[0], 'method' => 'onShow'];
+        foreach ($tela[2] as $chave) {
+            if (isset($q[$chave])) {
+                if (!is_scalar($q[$chave])) { return null; }
+                $novo[$chave] = (string) $q[$chave];
+            }
+        }
+        return 'engine.php?' . http_build_query($novo);
+    }
+
+    /** Mensagem legivel para o usuario: a da Exception; para outros erros, texto generico. */
+    public static function mensagem(Throwable $e): string
+    {
+        return ($e instanceof Exception) ? $e->getMessage() : 'Erro inesperado ao processar o financeiro. Tente novamente; se persistir, avise o suporte.';
     }
 
     // ---------------------------------------------------------------

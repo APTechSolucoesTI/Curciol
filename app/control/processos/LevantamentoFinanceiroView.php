@@ -60,8 +60,8 @@ class LevantamentoFinanceiroView extends TWindow
             }
 
             $janela->add($form);
-        } catch (Exception $e) {
-            $janela->add(LevantamentoFinanceiroForm::caixaAviso(htmlspecialchars($e->getMessage(), ENT_QUOTES, 'UTF-8'), 'erro'));
+        } catch (Throwable $e) {
+            $janela->add(LevantamentoFinanceiroForm::caixaAviso(htmlspecialchars(LevantamentoFinanceiroForm::mensagem($e), ENT_QUOTES, 'UTF-8'), 'erro'));
         }
         LevantamentoFinanceiroForm::estilo($janela);
         LevantamentoFinanceiroForm::trazerParaFrente($janela);
@@ -81,8 +81,8 @@ class LevantamentoFinanceiroView extends TWindow
                                 'origem' => $param['origem'] ?? '', 'url_recarga' => $param['url_recarga'] ?? '',
                                 'origem_pai' => $param['origem_pai'] ?? '', 'url_pai' => $param['url_pai'] ?? '']);
             new TQuestion($mensagem, $acao);
-        } catch (Exception $e) {
-            new TMessage('error', $e->getMessage());
+        } catch (Throwable $e) {
+            new TMessage('error', LevantamentoFinanceiroForm::mensagem($e));
         }
     }
 
@@ -94,8 +94,8 @@ class LevantamentoFinanceiroView extends TWindow
             LevantamentoFinanceiroForm::fecharJanela();
             TToast::show('success', 'Financeiro desfeito', 'topRight', 'far:check-circle');
             LevantamentoFinanceiroForm::recarregarOrigem($param);
-        } catch (Exception $e) {
-            new TMessage('error', $e->getMessage());
+        } catch (Throwable $e) {
+            new TMessage('error', LevantamentoFinanceiroForm::mensagem($e));
         }
     }
 
@@ -134,7 +134,7 @@ class LevantamentoFinanceiroView extends TWindow
 
             // origem (so para exibir; se o pagamento mudou e o contexto nao carrega, a ficha continua valendo)
             $r->ctx = null;
-            try { $r->ctx = LevantamentoContextoService::carregar($etapa3Id); } catch (Exception $e) { $r->ctx = null; }
+            try { $r->ctx = LevantamentoContextoService::carregar($etapa3Id); } catch (Throwable $e) { $r->ctx = null; }
 
             TTransaction::close();
             return $r;
