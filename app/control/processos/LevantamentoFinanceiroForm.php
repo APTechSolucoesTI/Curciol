@@ -179,7 +179,7 @@ class LevantamentoFinanceiroForm extends TWindow
             [self::rotulo('Parceria de repasse'), $parceria],
             [self::rotulo('Data de distribuição'), $dataDist]
         );
-        $row->layout = ['col-sm-2', 'col-sm-2', 'col-sm-5', 'col-sm-3'];
+        $row->layout = ['col-sm-3', 'col-sm-2', 'col-sm-4', 'col-sm-3'];
 
         $this->form->addContent([self::titulo('Lançamento financeiro')]);
         $row = $this->form->addFields(
