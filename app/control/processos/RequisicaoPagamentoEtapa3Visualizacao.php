@@ -40,12 +40,20 @@ class RequisicaoPagamentoEtapa3Visualizacao extends TWindow
             $uidJanela = 'e3_view_' . $id . '_' . uniqid();
 
             // botao Gerar / Ver financeiro (o detalhe se recarrega sozinho depois)
+            // a tela que abriu este detalhe (historico da janela ou da aba) tambem e recarregada
+            $pai = [];
+            $urlPai = '';
+            if (!empty($param['origem_pai']) && !empty($param['url_pai'])) {
+                $pai = ['origem' => $param['origem_pai'], 'url' => $param['url_pai']];
+                $urlPai = '&origem_pai=' . urlencode($param['origem_pai']) . '&url_pai=' . urlencode($param['url_pai']);
+            }
             $botaoFinanceiro = LevantamentoFinanceiroForm::botaoFinanceiro(
                 $lancamento,
                 LevantamentoFinanceiroForm::idsComFinanceiro([$id]),
                 'detalhe',
-                'engine.php?class=RequisicaoPagamentoEtapa3Visualizacao&method=onShow&key=' . $id . '&register_state=false',
-                true
+                'engine.php?class=RequisicaoPagamentoEtapa3Visualizacao&method=onShow&key=' . $id . $urlPai . '&register_state=false',
+                true,
+                $pai
             );
             if ($botaoFinanceiro !== '') {
                 $botaoFinanceiro = "<div class='e3-section' style='padding: 10px 14px; text-align: right;'>{$botaoFinanceiro}</div>";

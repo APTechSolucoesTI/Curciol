@@ -2121,7 +2121,7 @@ class RequisicaoPagamentoVisualizacaoAba extends TPage
         foreach ($pagamentos as $pagamento) {
             $possuiSaldo = strtoupper(trim($pagamento->possui_saldo ?? 'N')) === 'S';
           
-                $url = "engine.php?class=RequisicaoPagamentoEtapa3Visualizacao&method=onShow&key=" . (int) $pagamento->id . "&register_state=false";
+                $url = "engine.php?class=RequisicaoPagamentoEtapa3Visualizacao&method=onShow&key=" . (int) $pagamento->id . "&origem_pai=aba&url_pai=" . urlencode($urlRecarga) . "&register_state=false";
 
                 $url = addslashes($url);
 

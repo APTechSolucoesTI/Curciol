@@ -593,12 +593,22 @@ class LevantamentoFinanceiroForm extends TWindow
         ];
         if (!isset($permitidas[$origem]) || strpos($url, $permitidas[$origem][0]) !== 0) { return; }
 
-        $remover = '';
-        if ($permitidas[$origem][1]) {
-            // fecha a janela antiga (a que ficou com o botao desatualizado) antes de abrir a nova
-            $remover = '$(' . json_encode($permitidas[$origem][1]) . ').closest(".ui-dialog, .modal").remove();';
+        // a tela que abriu o detalhe (historico da janela ou da aba) tambem fica desatualizada: recarrega primeiro
+        $passos = [];
+        $origemPai = (string) ($param['origem_pai'] ?? '');
+        $urlPai = (string) ($param['url_pai'] ?? '');
+        if ($origem === 'detalhe' && in_array($origemPai, ['janela', 'aba'], true) && strpos($urlPai, $permitidas[$origemPai][0]) === 0) {
+            $passos[] = [$permitidas[$origemPai][1], $urlPai];
         }
-        TScript::create('setTimeout(function () { ' . $remover . ' Adianti.waitMessage = false; __adianti_load_page(' . json_encode($url) . '); }, 250);');
+        $passos[] = [$permitidas[$origem][1], $url];
+
+        $js = '';
+        foreach ($passos as $i => $passo) {
+            // fecha a janela antiga (a que ficou com o botao desatualizado) antes de abrir a nova
+            $remover = $passo[0] ? '$(' . json_encode($passo[0]) . ').closest(".ui-dialog, .modal").remove();' : '';
+            $js .= 'setTimeout(function () { ' . $remover . ' Adianti.waitMessage = false; __adianti_load_page(' . json_encode($passo[1]) . '); }, ' . (250 + $i * 900) . ');';
+        }
+        TScript::create($js);
     }
 
     // ---------------------------------------------------------------
@@ -633,8 +643,9 @@ class LevantamentoFinanceiroForm extends TWindow
      * @param array  $comFinanceiro resultado de idsComFinanceiro()
      * @param string $origem     janela | aba | detalhe
      * @param string $urlRecarga URL (engine.php?class=...) da tela de origem, para recarregar depois
+     * @param array  $pai        no detalhe: ['origem' => janela|aba, 'url' => URL] da tela que abriu o detalhe
      */
-    public static function botaoFinanceiro(object $pagamento, array $comFinanceiro, string $origem, string $urlRecarga, bool $botaoTexto = false): string
+    public static function botaoFinanceiro(object $pagamento, array $comFinanceiro, string $origem, string $urlRecarga, bool $botaoTexto = false, array $pai = []): string
     {
         $id = (int) $pagamento->id;
         $existe = isset($comFinanceiro[$id]);
@@ -644,7 +655,9 @@ class LevantamentoFinanceiroForm extends TWindow
 
         $classe = $existe ? 'LevantamentoFinanceiroView' : 'LevantamentoFinanceiroForm';
         $url = 'engine.php?class=' . $classe . '&method=onShow&etapa3_id=' . $id . '&origem=' . urlencode($origem)
-             . '&url_recarga=' . urlencode($urlRecarga) . '&register_state=false';
+             . '&url_recarga=' . urlencode($urlRecarga)
+             . (!empty($pai['origem']) ? '&origem_pai=' . urlencode($pai['origem']) . '&url_pai=' . urlencode((string) ($pai['url'] ?? '')) : '')
+             . '&register_state=false';
         $titulo = $existe ? 'Ver financeiro' : 'Gerar financeiro';
         $icone = $existe ? 'fas fa-file-invoice-dollar' : 'fas fa-hand-holding-usd';
         $onclick = 'Adianti.waitMessage = false; __adianti_load_page(' . json_encode($url) . '); return false;';
