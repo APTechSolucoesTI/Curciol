@@ -1333,6 +1333,7 @@ class ContaForm extends TPage
         $id = (int) ($param['id'] ?? 0);
 
         if (!empty($id)) {
+            LevantamentoFinanceiroService::exigirContaNaoGerada($id);
             if (self::existeLancamentoCancelado($id)) {
                 TToast::show("error", "Lançamento cancelado, não é possível editar.", "topRight", "fas:info-circle");
                 TTransaction::close();
@@ -2366,6 +2367,7 @@ class ContaForm extends TPage
             $id = (int) ($param['id'] ?? 0);
 
             if (!empty($id)) {
+                LevantamentoFinanceiroService::exigirContaNaoGerada($id);
                 if (self::existeLancamentoCancelado($id)) {
                     TToast::show("error", "Lançamento cancelado, não é possível editar.", "topRight", "fas:info-circle");
                     TTransaction::close();
