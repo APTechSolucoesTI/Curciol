@@ -12,6 +12,12 @@
  */
 class ParceriaPercentualService
 {
+    /** Verdadeiro so para true, 1, 'S' ou 't' (o 'N' e o vazio sao falsos). */
+    public static function marcado($valor): bool
+    {
+        return in_array($valor, [true, 1, 'S', 't'], true);
+    }
+
     public static function mesesCompletos(string $de, string $ate): int
     {
         $d1 = new DateTime(substr($de, 0, 10));
@@ -24,6 +30,7 @@ class ParceriaPercentualService
 
     public static function fracaoAntes(string $g, string $x, string $marco): float
     {
+        $g = substr($g, 0, 10); $x = substr($x, 0, 10); $marco = substr($marco, 0, 10);
         if ($g >= $marco) { return 0.0; }
         if ($x <= $marco) { return 1.0; }
         $total = self::mesesCompletos($g, $x);
@@ -35,10 +42,20 @@ class ParceriaPercentualService
     {
         if (empty($participantes)) { throw new Exception('Informe ao menos um participante.'); }
 
+        foreach ($participantes as $p) {
+            foreach (['percentual', 'percentual_antes', 'percentual_depois'] as $campo) {
+                if (isset($p[$campo]) && (float) $p[$campo] < 0) { throw new Exception('Os percentuais não podem ser negativos.'); }
+            }
+            if ($tipo === ParceriaLevantamento::TIPO_TEMPORAL
+                && !in_array($p['nivel'], [ParceriaLevantamentoParticipante::NIVEL_MARCO1, ParceriaLevantamentoParticipante::NIVEL_MARCO2], true)) {
+                throw new Exception('Nível inválido na parceria por tempo (use nível 1 ou nível 2).');
+            }
+        }
+
         $pessoas = array_map(function ($p) { return (int) $p['pessoa_id']; }, $participantes);
         if (count($pessoas) !== count(array_unique($pessoas))) { throw new Exception('Há participante repetido na parceria.'); }
 
-        $difs = array_filter($participantes, function ($p) { return ($p['recebe_diferenca'] ?? 'N') === 'S'; });
+        $difs = array_filter($participantes, function ($p) { return self::marcado($p['recebe_diferenca'] ?? false); });
         if (count($difs) !== 1) { throw new Exception('Marque exatamente um participante para receber a diferença de centavos.'); }
 
         $soma = function (array $lista, string $campo) { return round(array_sum(array_map(function ($p) use ($campo) { return (float) ($p[$campo] ?? 0); }, $lista)), 6); };
@@ -67,16 +84,27 @@ class ParceriaPercentualService
 
         if ($tipo === ParceriaLevantamento::TIPO_FIXA) {
             return ['a' => null, 'p' => null, 'd' => null, 'participantes' => array_map(function ($p) {
-                return ['pessoa_id' => (int) $p['pessoa_id'], 'percentual' => (float) $p['percentual'] / 100, 'recebe_diferenca' => ($p['recebe_diferenca'] ?? 'N') === 'S'];
+                return ['pessoa_id' => (int) $p['pessoa_id'], 'percentual' => (float) $p['percentual'] / 100, 'recebe_diferenca' => self::marcado($p['recebe_diferenca'] ?? false)];
             }, array_values($participantes))];
         }
 
-        if (empty($g) || empty($x) || $g > $x) {
+        $m1 = substr((string) $marco1, 0, 10);
+        $m2 = substr((string) $marco2, 0, 10);
+        if ($m1 === '' || $m2 === '') {
+            throw new Exception('Informe os dois marcos da parceria por tempo.');
+        }
+        if ($m1 > $m2) {
+            throw new Exception('O primeiro marco deve ser anterior ao segundo.');
+        }
+
+        $g = substr((string) $g, 0, 10);
+        $x = substr((string) $x, 0, 10);
+        if ($g === '' || $x === '' || $g > $x) {
             throw new Exception('Informe a data de distribuição (anterior ou igual à data do levantamento) para a parceria por tempo.');
         }
 
-        $a = self::fracaoAntes($g, $x, $marco1);
-        $p = self::fracaoAntes($g, $x, $marco2);
+        $a = self::fracaoAntes($g, $x, $m1);
+        $p = self::fracaoAntes($g, $x, $m2);
 
         $d = 0.0;
         foreach ($participantes as $q) {
@@ -90,7 +118,7 @@ class ParceriaPercentualService
             $pct = ($q['nivel'] === ParceriaLevantamentoParticipante::NIVEL_MARCO1)
                 ? ($a * (float) $q['percentual_antes'] + (1 - $a) * (float) $q['percentual_depois']) / 100
                 : (1 - $d) * ($p * (float) $q['percentual_antes'] + (1 - $p) * (float) $q['percentual_depois']) / 100;
-            $saida[] = ['pessoa_id' => (int) $q['pessoa_id'], 'percentual' => $pct, 'recebe_diferenca' => ($q['recebe_diferenca'] ?? 'N') === 'S'];
+            $saida[] = ['pessoa_id' => (int) $q['pessoa_id'], 'percentual' => $pct, 'recebe_diferenca' => self::marcado($q['recebe_diferenca'] ?? false)];
         }
 
         return ['a' => $a, 'p' => $p, 'd' => $d, 'participantes' => $saida];
