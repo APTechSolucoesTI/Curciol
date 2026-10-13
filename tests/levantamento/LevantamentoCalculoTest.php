@@ -38,4 +38,21 @@ lanca('% honorarios fora de 0..100', function () use ($C, $base) { $C::calcular(
 lanca('MLE zero (W = 0) com Y > 0', function () use ($C, $base) { $C::calcular(['mle'=>0, 'regra'=>'SOMENTE_CLIENTE', 'pct_honorarios'=>null] + $base); }, 'MLE');
 lanca('honorarios sem parceria', function () use ($C, $base) { $C::calcular(['participantes'=>[]] + $base); }, 'parceria');
 lanca('V negativo (T alto e descontos)', function () use ($C, $base) { $C::calcular(['pct_honorarios'=>95] + $base); }, 'cliente');
+
+// Revisao round 1
+// I1: centavos que nao cabem nao podem ser descartados em silencio
+$dez = []; foreach (range(1, 10) as $i) { $dez[] = ['pessoa_id'=>$i, 'percentual'=>0.1, 'recebe_diferenca'=>$i === 1]; }
+lanca('centavos negativos viram erro (I1)', function () use ($C, $base, $dez) {
+    $C::calcular(['regra'=>'SOMENTE_HONORARIOS', 'pct_honorarios'=>null, 'valor_levantado'=>0.05, 'pct_nf'=>0, 'participantes'=>$dez] + $base); }, 'centavos');
+$um = $C::calcular(['regra'=>'SOMENTE_HONORARIOS', 'pct_honorarios'=>null, 'valor_levantado'=>0.01, 'pct_nf'=>0,
+    'participantes'=>[['pessoa_id'=>1,'percentual'=>1/3,'recebe_diferenca'=>true],['pessoa_id'=>2,'percentual'=>1/3,'recebe_diferenca'=>false],['pessoa_id'=>3,'percentual'=>1/3,'recebe_diferenca'=>false]]] + $base);
+igual('centavo unico vai so para quem recebe a diferenca (I1)', 1, count($um['repasses']));
+igual('centavo unico valor 0,01 (I1)', 0.01, $um['repasses'][0]['valor']);
+
+// M5: campos obrigatorios com mensagem legivel
+lanca('sem data do deposito (M5)', function () use ($C, $base) { $b = $base; unset($b['data_deposito']); $C::calcular($b); }, 'depósito');
+lanca('sem pct_nf (M5)', function () use ($C, $base) { $b = $base; unset($b['pct_nf']); $C::calcular($b); }, 'NF');
+
+// M4: data com hora no mesmo dia do deposito nao e antes
+igual('mesmo dia com hora nao e antes do deposito (M4)', 9256.45, $C::calcular(['data_deposito'=>'2026-01-10 10:00:00', 'data_levantamento'=>'2026-01-10'] + $base)['z']);
 fim();
