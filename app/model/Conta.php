@@ -52,6 +52,7 @@ class Conta extends TRecord
         parent::addAttribute('data_modificacao');
         parent::addAttribute('modificacao_user_id');
         parent::addAttribute('tipo_lancamento');
+        parent::addAttribute('requisicao_pagamento_id');
     
     }
 
