@@ -624,13 +624,12 @@ if ($parcelas <= 0) {
  */
 if ($pagamentoSolidario === 'S')
 {
-    $buscaContaContrato = Conta::where('contrato_id', '=', $data->contrato_id)->first();
+    $buscaContaContrato = Conta::where('contrato_id', '=', $data->contrato_id)->where('requisicao_pagamento_id', 'IS', NULL)->first();
 
     if (!$buscaContaContrato) {
         $conta = new Conta();
     } else {
         $conta = Conta::find($buscaContaContrato->id);
-        LevantamentoFinanceiroService::exigirContaNaoGerada((int) $conta->id);
     }
 
     $conta->fromArray((array) $data);
@@ -866,13 +865,13 @@ else
             '=',
             $clienteId
         )
+        ->where('requisicao_pagamento_id', 'IS', NULL)
         ->first();
 
         if (!$buscaContaCliente) {
             $contaCliente = new Conta();
         } else {
             $contaCliente = Conta::find($buscaContaCliente->id);
-            LevantamentoFinanceiroService::exigirContaNaoGerada((int) $contaCliente->id);
         }
 
         $totalAnteriorConta = self::valorBrParaFloat(
@@ -1176,7 +1175,7 @@ else
      public function onShow($param = null){
         TTransaction::open('escritorio');
 
-        $buscaContaContrato = Conta::where('contrato_id','=',$param['contrato_id'])->first();
+        $buscaContaContrato = Conta::where('contrato_id','=',$param['contrato_id'])->where('requisicao_pagamento_id', 'IS', NULL)->first();
         if($buscaContaContrato){
             $conta = Conta::find($buscaContaContrato->id);
 
