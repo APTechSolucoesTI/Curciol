@@ -8,7 +8,7 @@ class Fixtures
     const MARCA = 'TESTE LEVANTAMENTO';
 
     /**
-     * Opções: clientes (1), contratos (1), pct_contrato ('20'), unidade_indexador_id (1 = %, 2 = x),
+     * Opções: clientes (1), contratos (1), pct_contrato ('20'; array = uma condição % por item), unidade_indexador_id (1 = %, 2 = x),
      * repasse (pessoa_nome => %; padrão = participantes da "Parceria Juan"), bruto (13195.26), mle (11479.87),
      * deposito ('2026-01-10'), deferimento (null), distribuicao (null: data de distribuição do processo raiz).
      *
@@ -32,14 +32,16 @@ class Fixtures
         TTransaction::open('escritorio');
         try {
             $c = TTransaction::get();
+            self::exigirHomologacao($c);
             $m = self::MARCA;
 
             $escritorio = (int) $c->query('SELECT MIN(id) FROM escritorio')->fetchColumn();
             if ($escritorio <= 0) { throw new Exception('Fixtures: nenhum escritório cadastrado.'); }
 
+            $f0 = ['escritorio_id' => $escritorio];
             $repasse = self::resolverRepasse($c, $o['repasse']);
 
-            $f = ['repasse' => $repasse, 'pessoas_ids' => [], 'cliente_ids' => [], 'rpc_ids' => [], 'contratos_ids' => [], 'processos_ids' => []];
+            $f = $f0 + ['repasse' => $repasse, 'pessoas_ids' => [], 'cliente_ids' => [], 'rpc_ids' => [], 'contratos_ids' => [], 'processos_ids' => []];
 
             $f['conta_caixa_id'] = self::inserir($c, 'conta_caixa',
                 ['nome' => $m, 'tipo_conta_caixa_id' => 1, 'dt_inicial' => '2020-01-01', 'saldo_inicial' => 0,
@@ -83,9 +85,11 @@ class Fixtures
                 $f['contratos_ids'][] = $contratoId;
                 self::inserir($c, 'contrato_pessoa', ['contrato_id' => $contratoId, 'cliente_id' => $dono]);
                 self::inserir($c, 'contrato_processo', ['contrato_id' => $contratoId, 'processo_id' => $f['processo_raiz_id']]);
-                self::inserir($c, 'contrato_pagamento_parcela',
-                    ['contrato_id' => $contratoId, 'contrato_opcao_pagamento_id' => 3,
-                     'unidade_indexador_id' => (int) $o['unidade_indexador_id'], 'complemento_indexador' => (string) $o['pct_contrato']]);
+                foreach ((array) $o['pct_contrato'] as $complemento) {
+                    self::inserir($c, 'contrato_pagamento_parcela',
+                        ['contrato_id' => $contratoId, 'contrato_opcao_pagamento_id' => 3,
+                         'unidade_indexador_id' => (int) $o['unidade_indexador_id'], 'complemento_indexador' => (string) $complemento]);
+                }
                 foreach ($repasse as $pessoaId => $pct) {
                     self::inserir($c, 'contrato_repasse', ['contrato_id' => $contratoId, 'pessoa_id' => $pessoaId, 'percentual' => $pct]);
                 }
@@ -108,6 +112,7 @@ class Fixtures
         TTransaction::open('escritorio');
         try {
             $c = TTransaction::get();
+            self::exigirHomologacao($c);
             $req = (int) ($f['requisicao_id'] ?? 0);
             $cc  = (int) ($f['conta_caixa_id'] ?? 0);
             $contas = $req ? self::coluna($c, 'SELECT id FROM conta WHERE requisicao_pagamento_id = ?', [$req]) : [];
@@ -161,6 +166,7 @@ class Fixtures
         TTransaction::open('escritorio');
         try {
             $c = TTransaction::get();
+            self::exigirHomologacao($c);
             $q = ['pessoa' => 'nome', 'processo' => 'numero_outro', 'contrato' => 'numero', 'conta_caixa' => 'nome'];
             $r = [];
             foreach ($q as $tabela => $col) {
@@ -178,6 +184,12 @@ class Fixtures
     }
 
     // ---------------------------------------------------------------
+
+    private static function exigirHomologacao(PDO $c): void
+    {
+        $banco = $c->query('SELECT current_database()')->fetchColumn();
+        if ($banco !== 'curciol_homologacao') { throw new Exception("Fixtures só rodam em curciol_homologacao (conectado em {$banco})."); }
+    }
 
     /** pessoa_id => percentual. $nomes null = participantes da "Parceria Juan" lidos do banco. */
     private static function resolverRepasse(PDO $c, ?array $nomes): array

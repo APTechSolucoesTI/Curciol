@@ -81,7 +81,7 @@ class LevantamentoContextoService
             SELECT COUNT(*) FROM requisicao_pagamento_etapa3
             WHERE requisicao_pagamento_cliente_id = ?
               AND (COALESCE(numero_ciclo, 1), id) <= (?, ?)');
-        $st->execute([(int) $e->requisicao_pagamento_cliente_id, (int) ($e->numero_ciclo ?: 1), (int) $e->id]);
+        $st->execute([(int) $e->requisicao_pagamento_cliente_id, (int) ($e->numero_ciclo ?? 1), (int) $e->id]);
         $numeroPagamento = (int) $st->fetchColumn();
 
         // raiz da familia de processos e sua data de distribuicao
@@ -92,8 +92,10 @@ class LevantamentoContextoService
         $st->execute([$raizId]);
         $dist = $st->fetchColumn();
 
+        $processoRequisicao = (int) $e->processo_requisicao_id;
+        $ancestraisRequisicao = $processoRequisicao ? ProcessoFamiliaService::ancestrais($processoRequisicao) : [];
         $contratos = self::contratosElegiveis($c, (int) $e->cliente_id,
-            array_unique(array_merge([$processoId, (int) $e->processo_requisicao_id], $ancestrais)));
+            array_unique(array_merge([$processoId, $processoRequisicao], $ancestrais, $ancestraisRequisicao)));
 
         $sugerido = (count($contratos) === 1) ? $contratos[0] : null;
 

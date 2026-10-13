@@ -22,7 +22,7 @@ try {
     igual('tipo da requisicao', 'RPV', $c->tipo_requisicao);
     ok('nome do cliente', strpos($c->cliente_nome, 'TESTE LEVANTAMENTO') === 0);
     igual('repasse do contrato (5 pessoas)', 5, count($c->contratos[0]['repasse']));
-    igual('escritorio do contrato sugerido', 1, $c->escritorio_id);
+    igual('escritorio do contrato sugerido', $f['escritorio_id'], $c->escritorio_id);
     TTransaction::open('escritorio');
     $juan = ParceriaLevantamento::where('nome', '=', 'Parceria Juan')->first();
     TTransaction::close();
@@ -67,6 +67,30 @@ $f6 = Fixtures::criar(['pct_contrato' => '17,5%']);
 try {
     igual('% com virgula e sinal', 17.5, LevantamentoContextoService::carregar($f6['etapa3_id'])->pct_honorarios_sugerido);
 } finally { Fixtures::limpar($f6); }
+
+// duas condicoes % diferentes -> ambiguo, nulo
+$fb = Fixtures::criar(['pct_contrato' => ['20', '25']]);
+try {
+    ok('duas condicoes % diferentes -> pct nulo', LevantamentoContextoService::carregar($fb['etapa3_id'])->contratos[0]['pct_honorarios'] === null);
+} finally { Fixtures::limpar($fb); }
+$fc = Fixtures::criar(['pct_contrato' => ['20', '20']]);
+try {
+    igual('duas condicoes % iguais -> pct', 20.0, LevantamentoContextoService::carregar($fc['etapa3_id'])->pct_honorarios_sugerido);
+} finally { Fixtures::limpar($fc); }
+// complemento fora de 0..100
+$fd = Fixtures::criar(['pct_contrato' => '150']);
+try {
+    ok('% fora de 0..100 -> nulo', LevantamentoContextoService::carregar($fd['etapa3_id'])->contratos[0]['pct_honorarios'] === null);
+} finally { Fixtures::limpar($fd); }
+
+// parceriaPorRepasse direto: tolerancia de 0,01
+TTransaction::open('escritorio');
+$juanId = (int) ParceriaLevantamento::where('nome', '=', 'Parceria Juan')->first()->id;
+$pessoas = array_map(function ($p) { return (int) $p->pessoa_id; }, ParceriaLevantamento::find($juanId)->participantes());
+TTransaction::close();
+igual('parceriaPorRepasse: 20,005 aceito', $juanId, LevantamentoContextoService::parceriaPorRepasse(array_fill_keys($pessoas, 20.005)));
+ok('parceriaPorRepasse: 20,02 recusado', LevantamentoContextoService::parceriaPorRepasse(array_fill_keys($pessoas, 20.02)) === null);
+ok('parceriaPorRepasse: vazio -> nulo', LevantamentoContextoService::parceriaPorRepasse([]) === null);
 
 // sem deposito lancado
 $f7 = Fixtures::criar(['deposito' => null]);
