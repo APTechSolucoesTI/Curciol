@@ -747,6 +747,16 @@ body.builder-template-login .curciol-lista .tdatagrid_pagination {
     color: var(--p-fg);
 }
 
+/* o historico nao tem rolagem propria: quem rola e a pagina */
+.curciol-timeline-page,
+.curciol-desktop-timeline-wrapper,
+.curciol-mobile-timeline-wrapper,
+#processo_publicacoes_timeline_container {
+    height: auto !important;
+    max-height: none !important;
+    overflow-y: visible !important;
+}
+
 .curciol-timeline-mobile,
 .curciol-timeline-mobile > [class*='col-'] {
     margin: 0 !important;
@@ -942,21 +952,28 @@ body.builder-template-login .curciol-lista .tdatagrid_pagination {
 
 .curciol-timeline-detail-line b {
     display: block;
-    margin-bottom: 4px;
-    color: var(--p-fg-muted);
-    font-size: 12px;
-    font-weight: 500;
+    margin-bottom: 6px;
+    color: var(--p-fg);
+    font-size: 14px;
+    font-weight: 700;
 }
 
+/* texto ocupa a largura do cartao, justificado */
 .curciol-timeline-detail-line span,
 .curciol-timeline-detail-line span a {
     display: block;
-    max-width: 78ch;
+    max-width: none;
     color: var(--p-fg) !important;
     font-size: 14px;
     font-weight: 400;
     line-height: 1.6;
+    text-align: justify;
+    hyphens: auto;
     overflow-wrap: break-word;
+}
+
+.curciol-timeline-detail-line span a {
+    display: inline;
 }
 
 /* --------------------------------------------------------------------------
@@ -1073,16 +1090,18 @@ body.builder-template-login .curciol-lista .tdatagrid_pagination {
 }
 
 .curciol-mobile-detail-label {
-    margin-bottom: 4px;
-    color: var(--p-fg-muted);
-    font-size: 12px;
-    font-weight: 500;
+    margin-bottom: 6px;
+    color: var(--p-fg);
+    font-size: 14px;
+    font-weight: 700;
 }
 
 .curciol-mobile-detail-text {
     color: var(--p-fg);
-    font-size: 14px;
-    line-height: 1.6;
+    font-size: 13px;
+    line-height: 1.55;
+    text-align: justify;
+    hyphens: auto;
     overflow-wrap: break-word;
 }
 
@@ -1445,4 +1464,12 @@ body.builder-template-login .curciol-lista .tdatagrid_pagination {
 .curciol-passo-vinculo-ok p {
     margin: 0;
     color: var(--p-fg-muted, #6b7280);
+}
+
+/* telas medias: texto do historico um pouco menor */
+@media (max-width: 1100px) {
+    .curciol-timeline-detail-line span,
+    .curciol-timeline-detail-line span a {
+        font-size: 13px;
+    }
 }

@@ -327,6 +327,10 @@ class ProcessoFormView extends TPage
         $this->processo_vinculo_processo_incidente_id_list->addAction($action_onShow);
 
         $column_processo_principal_numero_cnj_numero = $this->processo_vinculo_processo_incidente_id_list->addQuickColumn("Processo principal", 'processo_principal->numero_cnj_numero', 'left');
+        $column_principal_status = $this->processo_vinculo_processo_incidente_id_list->addQuickColumn("Status processual", 'processo_principal_id', 'left');
+        $column_principal_clientes = $this->processo_vinculo_processo_incidente_id_list->addQuickColumn("Clientes", 'processo_principal_id', 'left');
+        $column_principal_status->setTransformer(function($value) { return self::statusDoProcesso((int) $value); });
+        $column_principal_clientes->setTransformer(function($value) { return self::clientesDoProcesso((int) $value); });
 
         $this->processo_vinculo_processo_incidente_id_list->createModel();
 
@@ -360,6 +364,10 @@ class ProcessoFormView extends TPage
         $this->processo_vinculo_processo_principal_id_list->addAction($action_onShow);
 
         $column_processo_incidente_numero_cnj_numero = $this->processo_vinculo_processo_principal_id_list->addQuickColumn("Processo incidente", 'processo_incidente->numero_cnj_numero', 'left');
+        $column_incidente_status = $this->processo_vinculo_processo_principal_id_list->addQuickColumn("Status processual", 'processo_incidente_id', 'left');
+        $column_incidente_clientes = $this->processo_vinculo_processo_principal_id_list->addQuickColumn("Clientes", 'processo_incidente_id', 'left');
+        $column_incidente_status->setTransformer(function($value) { return self::statusDoProcesso((int) $value); });
+        $column_incidente_clientes->setTransformer(function($value) { return self::clientesDoProcesso((int) $value); });
 
         $this->processo_vinculo_processo_principal_id_list->createModel();
 
@@ -655,5 +663,26 @@ class ProcessoFormView extends TPage
         TTransaction::close();
     }
 
+
+    /** Nome do status processual do processo (coluna da aba Vinculos). */
+    public static function statusDoProcesso(int $processoId): string
+    {
+        if ($processoId <= 0) { return '-'; }
+        $st = TTransaction::get()->prepare('SELECT s.nome FROM processo p JOIN status_processual s ON s.id = p.status_processual_id WHERE p.id = ?');
+        $st->execute([$processoId]);
+        $nome = $st->fetchColumn();
+        return ($nome !== false && trim((string) $nome) !== '') ? htmlspecialchars((string) $nome, ENT_QUOTES, 'UTF-8') : '-';
+    }
+
+    /** Clientes do processo (pelos contratos ligados a ele), separados por virgula. */
+    public static function clientesDoProcesso(int $processoId): string
+    {
+        if ($processoId <= 0) { return '-'; }
+        $st = TTransaction::get()->prepare('SELECT DISTINCT pe.nome FROM contrato_processo cp JOIN contrato_pessoa cpe ON cpe.contrato_id = cp.contrato_id JOIN pessoa pe ON pe.id = cpe.cliente_id WHERE cp.processo_id = ? ORDER BY pe.nome');
+        $st->execute([$processoId]);
+        $nomes = $st->fetchAll(PDO::FETCH_COLUMN);
+        if (!$nomes) { return '-'; }
+        return implode(', ', array_map(function ($n) { return htmlspecialchars((string) $n, ENT_QUOTES, 'UTF-8'); }, $nomes));
+    }
 }
 

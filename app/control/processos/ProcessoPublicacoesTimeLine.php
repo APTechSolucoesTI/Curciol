@@ -454,14 +454,14 @@ class ProcessoPublicacoesTimeLine extends TPage
                         {
                             $detalhamento_bloco_html = "
                                 <div class='curciol-timeline-detail-line'>
-                                    <b>Detalhamento</b>
+                                    <b>Andamento</b>
                                     <span>{$detalhamento_html}</span>
                                 </div>
                             ";
 
                             $mobile_detalhamento_bloco_html = "
                                 <div class='curciol-mobile-detail-block'>
-                                    <div class='curciol-mobile-detail-label'>Detalhamento</div>
+                                    <div class='curciol-mobile-detail-label'>Andamento</div>
                                     <div class='curciol-mobile-detail-text'>{$detalhamento_html}</div>
                                 </div>
                             ";
@@ -473,7 +473,7 @@ class ProcessoPublicacoesTimeLine extends TPage
 
                             $complemento_bloco_html = "
                                 <div class='curciol-timeline-detail-line'>
-                                    <b>Informações Adicionais:</b>
+                                    <b>Informações Adicionais</b>
                                     <span>{$complemento_html}</span>
                                 </div>
                             ";
@@ -703,14 +703,14 @@ class ProcessoPublicacoesTimeLine extends TPage
                     {
                         $org_doc_det_bloco = "
                             <div class='curciol-timeline-detail-line'>
-                                <b>Detalhamento</b>
+                                <b>Andamento</b>
                                 <span>{$org_doc_det_html}</span>
                             </div>
                         ";
 
                         $org_doc_det_bloco_mobile = "
                             <div class='curciol-mobile-detail-block'>
-                                <div class='curciol-mobile-detail-label'>Detalhamento</div>
+                                <div class='curciol-mobile-detail-label'>Andamento</div>
                                 <div class='curciol-mobile-detail-text'>{$org_doc_det_html}</div>
                             </div>
                         ";
@@ -880,7 +880,7 @@ class ProcessoPublicacoesTimeLine extends TPage
             $titulo->add('Andamento das publicações do processo');
             $container->add($titulo);
 
-            $container->style = 'width:100%; max-width:100%; overflow-x:hidden; box-sizing:border-box; padding:0; margin:0; background:transparent;';
+            $container->style = 'width:100%; max-width:100%; overflow-x:clip; overflow-y:visible; height:auto; max-height:none; box-sizing:border-box; padding:0; margin:0; background:transparent;';
             $container->class = 'form-container curciol-portal curciol-timeline-page';
 
             if(empty($param['target_container']))
