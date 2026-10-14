@@ -188,14 +188,14 @@ class LevantamentoFinanceiroView extends TWindow
 
         // memoria de calculo
         $o .= '<div class="lf-titulo">Memória de cálculo</div><div class="lf-grade lf-grade3">'
-            . $par('S - descontos legais', $m($f->descontos))
-            . $par('U - honorários sobre o bruto', $m($f->u))
-            . $par('V - parte do cliente no bruto', $m($f->v))
-            . $par('W - líquido (U + V)', $m($f->w))
-            . $par('AA - honorários sobre o levantado', $m($f->aa))
-            . $par('AC - custo de NF', $m($f->ac))
-            . $par('AD - honorários líquidos', $m($f->ad))
-            . $par('Z - valor ao cliente', $m($f->z));
+            . $par('Descontos legais', $m($f->descontos))
+            . $par('Honorários sobre o bruto', $m($f->u))
+            . $par('Parte do cliente no bruto', $m($f->v))
+            . $par('Líquido', $m($f->w))
+            . $par('Honorários sobre o levantado', $m($f->aa))
+            . $par('Custo de NF', $m($f->ac))
+            . $par('Honorários líquidos', $m($f->ad))
+            . $par('Valor ao cliente', $m($f->z));
         if ($f->fracao_a !== null) {
             $o .= $par('a - fração antes do 1º marco', $p((float) $f->fracao_a * 100))
                 . $par('p - fração antes do 2º marco', $p((float) $f->fracao_p * 100))

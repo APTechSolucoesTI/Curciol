@@ -12,6 +12,8 @@
  */
 class LevantamentoFinanceiroForm extends TWindow
 {
+    const COR_OBRIGATORIO = '#ff0000';
+
     protected $form;
     private static $database = 'escritorio';
     private static $formName = 'form_LevantamentoFinanceiro';
@@ -170,27 +172,27 @@ class LevantamentoFinanceiroForm extends TWindow
         $this->form->addFields([$etapa3, $origem, $urlRecarga, $origemPai, $urlPai]);
 
         $row = $this->form->addFields(
-            [self::rotulo('Contrato *'), $contrato],
-            [self::rotulo('Beneficiário do crédito *'), $benef],
-            [self::rotulo('Data do levantamento *'), $dataLev],
-            [self::rotulo('Valor levantado (R$) *'), $valorLev]
+            [self::rotulo('Contrato', true), $contrato],
+            [self::rotulo('Beneficiário do crédito', true), $benef],
+            [self::rotulo('Data do levantamento', true), $dataLev],
+            [self::rotulo('Valor levantado (R$)', true), $valorLev]
         );
         $row->layout = ['col-sm-3', 'col-sm-4', 'col-sm-2', 'col-sm-3'];
 
         $row = $this->form->addFields(
-            [self::rotulo($ctx->pct_honorarios_sugerido !== null ? '% honorários (do contrato) *' : '% honorários (informado) *'), $pctHon],
-            [self::rotulo('% custo de NF *'), $pctNf],
+            [self::rotulo($ctx->pct_honorarios_sugerido !== null ? '% honorários (do contrato)' : '% honorários (informado)', true), $pctHon],
+            [self::rotulo('% custo de NF', true), $pctNf],
             [self::rotulo('Parceria de repasse'), $parceria],
-            [self::rotulo('Data de distribuição'), $dataDist]
+            [self::rotulo('Data de distribuição', true), $dataDist]
         );
         $row->layout = ['col-sm-3', 'col-sm-2', 'col-sm-4', 'col-sm-3'];
 
         $this->form->addContent([self::titulo('Lançamento financeiro')]);
         $row = $this->form->addFields(
-            [self::rotulo('Conta-caixa que recebeu *'), $contaCaixa],
+            [self::rotulo('Conta-caixa que recebeu', true), $contaCaixa],
             [self::rotulo('Forma de pagamento'), $tipoPgto],
             [self::rotulo('Valor já compensado?'), $compensado],
-            [self::rotulo('Vencimento do pagamento ao cliente *'), $vencimento]
+            [self::rotulo('Vencimento do pagamento ao cliente', true), $vencimento]
         );
         $row->layout = ['col-sm-4', 'col-sm-3', 'col-sm-2', 'col-sm-3'];
         $row = $this->form->addFields(
@@ -230,7 +232,8 @@ class LevantamentoFinanceiroForm extends TWindow
         $data->contrato_id = $unico ? $ctx->contrato_sugerido_id : null;
         $data->beneficiario_credito_id = ($qtd === 1) ? $regraUnica : null;
         $data->data_levantamento = !empty($ctx->data_deferimento_mle) ? substr($ctx->data_deferimento_mle, 0, 10) : substr($ctx->data_deposito, 0, 10);
-        $data->valor_levantado = number_format($ctx->mle, 2, ',', '.');
+        // valor levantado = o que foi efetivamente recebido (maior ou menor que o MLE): o usuario informa
+        $data->valor_levantado = null;
         $data->pct_honorarios = ($ctx->pct_honorarios_sugerido !== null) ? self::pctTexto($ctx->pct_honorarios_sugerido) : null;
         $data->pct_nf = self::pctTexto(FinanceiroConfiguracao::pctNfPadrao());
         $data->parceria_levantamento_id = $ctx->parceria_sugerida_id;
@@ -300,12 +303,12 @@ class LevantamentoFinanceiroForm extends TWindow
         $tipoParceria = $mostrarParceria ? self::tipoDaParceria((int) ($param['parceria_levantamento_id'] ?? 0)) : null;
         $mostrarDist = ($tipoParceria === ParceriaLevantamento::TIPO_TEMPORAL);
         $rotuloPct = ($contrato && $contrato['pct_honorarios'] !== null) ? '% honorários (do contrato)' : '% honorários (informado)';
-        if ($regra === BeneficiarioCredito::REGRA_CLIENTE_E_HONORARIOS) { $rotuloPct .= ' *'; }
+        $pctObrigatorio = ($regra === null || $regra === BeneficiarioCredito::REGRA_CLIENTE_E_HONORARIOS);
 
         $js = 'var el = document.getElementById(' . json_encode(self::idPrevia($etapa3Id)) . '); if (el) { el.innerHTML = ' . json_encode($html) . '; }'
             . 'var f = $("#' . self::$formName . '");'
             . 'function lfCampo(n, mostrar) { var c = f.find("[name=" + n + "]").first().closest("[class*=col-sm-]"); if (mostrar) { c.show(); } else { c.hide(); } return c; }'
-            . 'lfCampo("pct_honorarios", ' . json_encode($mostrarHon) . ').find("label").first().text(' . json_encode($rotuloPct) . ');'
+            . 'lfCampo("pct_honorarios", ' . json_encode($mostrarHon) . ').find("label").first().text(' . json_encode($rotuloPct) . ').css("color", ' . json_encode($pctObrigatorio ? self::COR_OBRIGATORIO : '') . ');'
             . 'lfCampo("parceria_levantamento_id", ' . json_encode($mostrarParceria) . ');'
             . 'lfCampo("data_distribuicao", ' . json_encode($mostrarDist) . ');'
             . 'lfCampo("vencimento_cliente", ' . json_encode($zPositivo) . ');'
@@ -350,6 +353,7 @@ class LevantamentoFinanceiroForm extends TWindow
         if ($dataLev === null) { throw new Exception('Informe a data do levantamento.'); }
 
         $valor = self::numero($param['valor_levantado'] ?? '', 'valor levantado', true);
+        if ($valor === null || $valor <= 0) { throw new Exception('Informe o valor levantado (o valor efetivamente recebido).'); }
         // so a regra "Cliente + honorarios" usa o % de honorarios; nas outras o campo e ignorado
         $pctHon = ($regra === BeneficiarioCredito::REGRA_CLIENTE_E_HONORARIOS) ? self::numero($param['pct_honorarios'] ?? '', '% de honorários', false) : null;
         $pctNf = self::numero($param['pct_nf'] ?? '', '% de custo de NF', false);
@@ -440,11 +444,11 @@ class LevantamentoFinanceiroForm extends TWindow
         $z = round((float) $r['z'], 2);
 
         $h = '<div class="lf-grade">'
-           . self::linhaValor('Valor levantado (Y)', $y)
-           . self::linhaValor('Honorários (AA)', $r['aa'])
-           . self::linhaValor('Custo de NF (AC)', $r['ac'])
-           . self::linhaValor('Honorários líquidos (AD)', $r['ad'])
-           . self::linhaValor('Valor ao cliente (Z)', $z, true)
+           . self::linhaValor('Valor levantado', $y)
+           . self::linhaValor('Honorários', $r['aa'])
+           . self::linhaValor('Custo de NF', $r['ac'])
+           . self::linhaValor('Honorários líquidos', $r['ad'])
+           . self::linhaValor('Valor ao cliente', $z, true)
            . '</div>';
 
         if (!empty($r['repasses'])) {
@@ -463,11 +467,6 @@ class LevantamentoFinanceiroForm extends TWindow
             }
         } else {
             $h .= '<div class="lf-nota">Sem repasse a parceiros (não há honorários líquidos a dividir).</div>';
-        }
-
-        $mle = round((float) $sim['contexto']->mle, 2);
-        if ($y > $mle) {
-            $h .= self::avisoHtml('Atenção: o valor levantado é maior que o MLE do pagamento (' . self::moeda($mle) . '). Confira se inclui correção/rendimento.', 'aviso');
         }
 
         $h .= '<div class="lf-contas">'
@@ -740,9 +739,10 @@ class LevantamentoFinanceiroForm extends TWindow
         return $t;
     }
 
-    public static function rotulo(string $texto): TLabel
+    /** Titulo de campo; obrigatorio = vermelho (padrao do sistema), sem asterisco. */
+    public static function rotulo(string $texto, bool $obrigatorio = false): TLabel
     {
-        return new TLabel($texto, null, '12px', 'B', '100%');
+        return new TLabel($texto, $obrigatorio ? self::COR_OBRIGATORIO : null, '12px', 'B', '100%');
     }
 
     public static function caixaAviso(string $htmlSeguro, string $tipo = 'info'): TElement
