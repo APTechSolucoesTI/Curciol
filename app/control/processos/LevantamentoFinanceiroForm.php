@@ -398,8 +398,8 @@ class LevantamentoFinanceiroForm extends TWindow
         }
         if ($estrito) {
             // no gerar os tres sao obrigatorios e a soma tem que bater (o servico confere de novo)
-            foreach ($descontos as $campo => $valor) {
-                if ($valor === null) { throw new Exception('Informe os descontos do depósito (previdenciário, assistencial e IRRF; use 0 quando não houver).'); }
+            foreach ($descontos as $valorDesconto) {
+                if ($valorDesconto === null) { throw new Exception('Informe os descontos do depósito (previdenciário, assistencial e IRRF; use 0 quando não houver).'); }
             }
             LevantamentoFinanceiroService::descontosDetalhados($descontos, round((float) $ctx->descontos, 2));
         }
