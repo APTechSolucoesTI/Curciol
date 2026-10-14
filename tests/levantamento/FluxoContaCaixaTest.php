@@ -5,6 +5,8 @@
 // bater, a cada passo, com o esperado e com a soma do extrato.
 require __DIR__ . '/../bootstrap.php';
 require __DIR__ . '/Fixtures.php';
+// TApplication so existe na aplicacao web (engine.php); as telas a usam para recarregar a pagina
+if (!class_exists('TApplication')) { class TApplication extends AdiantiCoreApplication {} }
 
 // telas escrevem HTML/JS na saida; guarda so as mensagens de erro (TMessage) para o relatorio
 function tela(callable $fn): string
