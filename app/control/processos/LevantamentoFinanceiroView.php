@@ -44,7 +44,19 @@ class LevantamentoFinanceiroView extends TWindow
             $form = new BootstrapFormBuilder(self::$formName);
             $form->setFormTitle('');
 
+            if (!empty($param['recem_gerado'])) {
+                $form->addContent([LevantamentoFinanceiroForm::caixaAviso('<b>Financeiro gerado.</b>'
+                    . (LevantamentoPrestacaoContasService::disponivel($d->ficha) ? ' Baixe a prestação de contas (PDF ou Word) para enviar ao cliente.' : ''), 'ok')]);
+            }
+
             $form->addContent([self::bloco($d)]);
+
+            if (LevantamentoPrestacaoContasService::disponivel($d->ficha)) {
+                $bWord = $form->addAction('Prestação de contas (Word)', new TAction([__CLASS__, 'onPrestacaoWord'], ['static' => '1', 'etapa3_id' => $etapa3Id]), 'far:file-word');
+                $bWord->class = 'btn btn-sm btn-default';
+                $bPdf = $form->addAction('Prestação de contas (PDF)', new TAction([__CLASS__, 'onPrestacaoPdf'], ['static' => '1', 'etapa3_id' => $etapa3Id]), 'far:file-pdf');
+                $bPdf->class = 'btn btn-sm btn-primary';
+            }
 
             if ($motivo !== null) {
                 $aviso = new TElement('div');
@@ -94,6 +106,28 @@ class LevantamentoFinanceiroView extends TWindow
             LevantamentoFinanceiroForm::fecharJanela();
             TToast::show('success', 'Financeiro desfeito', 'topRight', 'far:check-circle');
             LevantamentoFinanceiroForm::recarregarOrigem($param);
+        } catch (Throwable $e) {
+            new TMessage('error', LevantamentoFinanceiroForm::mensagem($e));
+        }
+    }
+
+    /** Baixa a prestacao de contas ao cliente em PDF. */
+    public static function onPrestacaoPdf($param)
+    {
+        try {
+            $doc = LevantamentoPrestacaoContasService::gerarPdf((int) ($param['etapa3_id'] ?? 0));
+            TPage::openFile($doc['arquivo'], $doc['nome']);
+        } catch (Throwable $e) {
+            new TMessage('error', LevantamentoFinanceiroForm::mensagem($e));
+        }
+    }
+
+    /** Baixa a prestacao de contas ao cliente em Word (editavel). */
+    public static function onPrestacaoWord($param)
+    {
+        try {
+            $doc = LevantamentoPrestacaoContasService::gerarWord((int) ($param['etapa3_id'] ?? 0));
+            TPage::openFile($doc['arquivo'], $doc['nome']);
         } catch (Throwable $e) {
             new TMessage('error', LevantamentoFinanceiroForm::mensagem($e));
         }
@@ -184,6 +218,9 @@ class LevantamentoFinanceiroView extends TWindow
             . $par('Parceria', $h($d->parceria_nome ?: '-'))
             . $par('Data de distribuição', $h(LevantamentoFinanceiroForm::dataBr($f->data_distribuicao)))
             . $par('Conta-caixa', $h($d->conta_caixa_nome))
+            . (($f->desconto_previdenciario !== null && $f->desconto_previdenciario !== '')
+                ? $par('Desconto previdenciário', $m($f->desconto_previdenciario)) . $par('Desconto assistencial', $m($f->desconto_assistencial)) . $par('Desconto IRRF', $m($f->desconto_irrf))
+                : '')
             . '</div>';
 
         // memoria de calculo

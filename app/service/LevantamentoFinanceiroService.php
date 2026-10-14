@@ -171,6 +171,9 @@ class LevantamentoFinanceiroService
                 self::exigirCadastro($c, 'tipo_documento_financeiro', $d['tipo_documento_pagar_id'] ?? null, 'Informe um tipo de documento válido para a conta a pagar ao cliente.');
             }
 
+            // descontos do deposito detalhados (prestacao de contas): a soma tem que ser bruto - MLE
+            $descontos = self::descontosDetalhados($d, round($ctx->bruto - $ctx->mle, 2));
+
             $st = $c->prepare('SELECT escritorio_id FROM contrato WHERE id = ?');
             $st->execute([(int) $e['contrato_id']]);
             $escritorioId = $st->fetchColumn();
@@ -301,6 +304,9 @@ class LevantamentoFinanceiroService
             $ficha->bruto_depositado = $ctx->bruto;
             $ficha->valor_mle = $ctx->mle;
             $ficha->descontos = round($ctx->bruto - $ctx->mle, 2);
+            if ($descontos) {
+                [$ficha->desconto_previdenciario, $ficha->desconto_assistencial, $ficha->desconto_irrf] = $descontos;
+            }
             $ficha->pct_honorarios = ($e['regra'] === BeneficiarioCredito::REGRA_CLIENTE_E_HONORARIOS) ? (float) $e['pct_honorarios'] : null;
             $ficha->pct_nf = (float) $e['pct_nf'];
             $ficha->data_levantamento = $x;
@@ -497,6 +503,29 @@ class LevantamentoFinanceiroService
             }
         }
         return null;
+    }
+
+    /**
+     * Descontos do deposito detalhados: [previdenciario, assistencial, IRRF] ou null se nenhum foi informado.
+     * Quando informados, os tres sao obrigatorios, nao negativos e a soma tem que ser o total (bruto - MLE).
+     */
+    public static function descontosDetalhados(array $d, float $total): ?array
+    {
+        $chaves = ['desconto_previdenciario' => 'previdenciário', 'desconto_assistencial' => 'assistencial', 'desconto_irrf' => 'IRRF'];
+        $informados = array_filter(array_keys($chaves), function ($k) use ($d) { return isset($d[$k]) && $d[$k] !== ''; });
+        if (!$informados) { return null; }
+        $valores = [];
+        foreach ($chaves as $k => $nome) {
+            if (!isset($d[$k]) || $d[$k] === '' || !is_numeric($d[$k])) { throw new Exception("Informe o desconto {$nome} (use 0 se não houve)."); }
+            if ((float) $d[$k] < 0) { throw new Exception("O desconto {$nome} não pode ser negativo."); }
+            $valores[] = round((float) $d[$k], 2);
+        }
+        $soma = round(array_sum($valores), 2);
+        if (abs($soma - round($total, 2)) > 0.004) {
+            throw new Exception('Os descontos informados (previdenciário + assistencial + IRRF = R$ ' . number_format($soma, 2, ',', '.')
+                . ') não batem com o total de descontos do pagamento (bruto − MLE = R$ ' . number_format($total, 2, ',', '.') . ').');
+        }
+        return $valores;
     }
 
     private static function exigirCadastro(PDO $c, string $tabela, $id, string $mensagem): void

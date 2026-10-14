@@ -123,6 +123,12 @@ class LevantamentoFinanceiroForm extends TWindow
         $pctNf = new TEntry('pct_nf');
         $pctNf->setSize('100%');
 
+        // descontos do deposito detalhados (vao para a prestacao de contas ao cliente); soma = bruto - MLE
+        $descPrev = new TNumeric('desconto_previdenciario', 2, ',', '.');
+        $descAssist = new TNumeric('desconto_assistencial', 2, ',', '.');
+        $descIrrf = new TNumeric('desconto_irrf', 2, ',', '.');
+        foreach ([$descPrev, $descAssist, $descIrrf] as $campo) { $campo->setSize('100%'); }
+
         $parceria = new TCombo('parceria_levantamento_id');
         $parceria->addItems($parcerias);
         $parceria->setSize('100%');
@@ -165,7 +171,7 @@ class LevantamentoFinanceiroForm extends TWindow
         $acao = new TAction([__CLASS__, 'onSimular'], ['static' => '1']);
         foreach ([$benef, $dataLev, $parceria, $dataDist] as $campo) { $campo->setChangeAction($acao); }
         $contrato->setChangeAction(new TAction([__CLASS__, 'onMudarContrato'], ['static' => '1']));
-        foreach ([$valorLev, $pctHon, $pctNf] as $campo) { $campo->setExitAction($acao); }
+        foreach ([$valorLev, $pctHon, $pctNf, $descPrev, $descAssist, $descIrrf] as $campo) { $campo->setExitAction($acao); }
 
 
         $this->form->addContent([self::titulo('Dados do levantamento')]);
@@ -186,6 +192,18 @@ class LevantamentoFinanceiroForm extends TWindow
             [self::rotulo('Data de distribuição', true), $dataDist]
         );
         $row->layout = ['col-sm-3', 'col-sm-2', 'col-sm-4', 'col-sm-3'];
+
+        $totalDescontos = new TElement('div');
+        $totalDescontos->class = 'lf-nota';
+        $totalDescontos->style = 'padding-top:24px';
+        $totalDescontos->add('A soma tem que ser o total de descontos do pagamento (bruto − MLE): <b>' . self::moeda($ctx->descontos) . '</b>');
+        $row = $this->form->addFields(
+            [self::rotulo('Desconto previdenciário (R$)', true), $descPrev],
+            [self::rotulo('Desconto assistencial (R$)', true), $descAssist],
+            [self::rotulo('Desconto IRRF (R$)', true), $descIrrf],
+            [$totalDescontos]
+        );
+        $row->layout = ['col-sm-3', 'col-sm-3', 'col-sm-2', 'col-sm-4'];
 
         $this->form->addContent([self::titulo('Lançamento financeiro')]);
         $row = $this->form->addFields(
@@ -236,6 +254,9 @@ class LevantamentoFinanceiroForm extends TWindow
         $data->valor_levantado = null;
         $data->pct_honorarios = ($ctx->pct_honorarios_sugerido !== null) ? self::pctTexto($ctx->pct_honorarios_sugerido) : null;
         $data->pct_nf = self::pctTexto(FinanceiroConfiguracao::pctNfPadrao());
+        if (round((float) $ctx->descontos, 2) == 0) {
+            $data->desconto_previdenciario = $data->desconto_assistencial = $data->desconto_irrf = '0,00';
+        }
         $data->parceria_levantamento_id = $ctx->parceria_sugerida_id;
         $data->data_distribuicao = $ctx->data_distribuicao;
         $data->conta_caixa_id = (count($contas) === 1) ? key($contas) : null;
@@ -328,6 +349,12 @@ class LevantamentoFinanceiroForm extends TWindow
             self::fecharJanela();
             TToast::show('success', 'Financeiro gerado', 'topRight', 'far:check-circle');
             self::recarregarOrigem($param);
+
+            // abre o "Ver financeiro" ja com a prestacao de contas para baixar (o download sai do clique do usuario;
+            // baixar direto daqui seria bloqueado pelo navegador como janela automatica)
+            $ver = http_build_query(['class' => 'LevantamentoFinanceiroView', 'method' => 'onShow', 'etapa3_id' => $etapa3Id, 'recem_gerado' => 1,
+                'origem' => $param['origem'] ?? '', 'url_recarga' => $param['url_recarga'] ?? '', 'origem_pai' => $param['origem_pai'] ?? '', 'url_pai' => $param['url_pai'] ?? '']);
+            TScript::create('setTimeout(function () { __adianti_load_page(' . json_encode('engine.php?' . $ver) . '); }, 900);');
         } catch (Throwable $e) {
             new TMessage('error', self::mensagem($e));
         }
@@ -365,6 +392,18 @@ class LevantamentoFinanceiroForm extends TWindow
         }
         if ($pctNf === null) { throw new Exception('Informe o % de custo de NF (entre 0 e 100).'); }
 
+        $descontos = [];
+        foreach (['desconto_previdenciario' => 'desconto previdenciário', 'desconto_assistencial' => 'desconto assistencial', 'desconto_irrf' => 'desconto IRRF'] as $campo => $nome) {
+            $descontos[$campo] = self::numero($param[$campo] ?? '', $nome, true);
+        }
+        if ($estrito) {
+            // no gerar os tres sao obrigatorios e a soma tem que bater (o servico confere de novo)
+            foreach ($descontos as $campo => $valor) {
+                if ($valor === null) { throw new Exception('Informe os descontos do depósito (previdenciário, assistencial e IRRF; use 0 quando não houver).'); }
+            }
+            LevantamentoFinanceiroService::descontosDetalhados($descontos, round((float) $ctx->descontos, 2));
+        }
+
         $parceriaId = (int) ($param['parceria_levantamento_id'] ?? 0) ?: null;
         $dataDist = self::dataIso($param['data_distribuicao'] ?? '', 'data de distribuição');
         if ($regra !== BeneficiarioCredito::REGRA_SOMENTE_CLIENTE && $parceriaId
@@ -379,6 +418,9 @@ class LevantamentoFinanceiroForm extends TWindow
             'valor_levantado' => $valor ?? 0,
             'pct_honorarios' => $pctHon,
             'pct_nf' => $pctNf,
+            'desconto_previdenciario' => $descontos['desconto_previdenciario'],
+            'desconto_assistencial' => $descontos['desconto_assistencial'],
+            'desconto_irrf' => $descontos['desconto_irrf'],
             'parceria_levantamento_id' => $parceriaId,
             'data_distribuicao' => $dataDist,
             'conta_caixa_id' => (int) ($param['conta_caixa_id'] ?? 0),
@@ -467,6 +509,14 @@ class LevantamentoFinanceiroForm extends TWindow
             }
         } else {
             $h .= '<div class="lf-nota">Sem repasse a parceiros (não há honorários líquidos a dividir).</div>';
+        }
+
+        $desc = [$d['desconto_previdenciario'] ?? null, $d['desconto_assistencial'] ?? null, $d['desconto_irrf'] ?? null];
+        $totalDesc = round((float) $sim['contexto']->descontos, 2);
+        if (in_array(null, $desc, true)) {
+            $h .= self::avisoHtml('Informe os descontos do depósito (previdenciário, assistencial e IRRF) para a prestação de contas ao cliente. Total do pagamento: ' . self::moeda($totalDesc) . '.', 'aviso');
+        } elseif (abs(round(array_sum($desc), 2) - $totalDesc) > 0.004) {
+            $h .= self::avisoHtml('Os descontos informados somam ' . self::moeda(array_sum($desc)) . ', mas o total do pagamento (bruto − MLE) é ' . self::moeda($totalDesc) . '.', 'aviso');
         }
 
         $h .= '<div class="lf-contas">'
@@ -795,6 +845,7 @@ class LevantamentoFinanceiroForm extends TWindow
             .lf-aviso-info { background: #f1f5f9; color: #475569; }
             .lf-aviso-aviso { background: #fff7ed; color: #9a3412; border: 1px solid #fed7aa; }
             .lf-aviso-erro { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
+            .lf-aviso-ok { background: #ecfdf5; color: #065f46; border: 1px solid #a7f3d0; }
             .lf-grade { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; margin-bottom: 10px; }
             .lf-grade3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
             .lf-item { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 8px 10px; display: flex; flex-direction: column; font-size: 12px; color: #64748b; }
