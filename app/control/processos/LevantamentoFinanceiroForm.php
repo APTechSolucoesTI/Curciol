@@ -232,7 +232,7 @@ class LevantamentoFinanceiroForm extends TWindow
         $data->data_levantamento = !empty($ctx->data_deferimento_mle) ? substr($ctx->data_deferimento_mle, 0, 10) : substr($ctx->data_deposito, 0, 10);
         $data->valor_levantado = number_format($ctx->mle, 2, ',', '.');
         $data->pct_honorarios = ($ctx->pct_honorarios_sugerido !== null) ? self::pctTexto($ctx->pct_honorarios_sugerido) : null;
-        $data->pct_nf = '16';
+        $data->pct_nf = self::pctTexto(FinanceiroConfiguracao::pctNfPadrao());
         $data->parceria_levantamento_id = $ctx->parceria_sugerida_id;
         $data->data_distribuicao = $ctx->data_distribuicao;
         $data->conta_caixa_id = (count($contas) === 1) ? key($contas) : null;

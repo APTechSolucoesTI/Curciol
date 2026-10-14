@@ -251,7 +251,7 @@ class BeneficiarioCreditoList extends TPage
         $container->style = 'width: 100%';
         if(empty($param['target_container']))
         {
-            $container->add(TBreadCrumb::create(["Configurações","Beneficiários do crédito"]));
+            $container->add(TBreadCrumb::create(["Configurações","Financeiro","Beneficiários do crédito"]));
         }
 
         $container->add($panel);
