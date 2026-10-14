@@ -279,7 +279,7 @@ class LevantamentoFinanceiroView extends TWindow
     private static function linkConta(object $conta, string $texto, string $situacao): string
     {
         $url = "index.php?class=ContaFormView&method=onShow&key={$conta->id}&id={$conta->id}&target_container=adianti_right_panel";
-        return '<a href="javascript:void(0)" onclick="' . htmlspecialchars("$(this).closest('.ui-dialog-content').dialog('close'); Adianti.waitMessage = false; __adianti_load_page(" . json_encode($url) . "); return false;") . '">'
+        return '<a href="javascript:void(0)" onclick="' . htmlspecialchars("Adianti.waitMessage = false; __adianti_load_page(" . json_encode($url) . "); return false;") . '">'
             . '<i class="fas fa-external-link-alt"></i> ' . htmlspecialchars($texto) . '</a>'
             . '<span class="lf-nota" style="margin-right:18px">(' . LevantamentoFinanceiroForm::moeda($conta->total_conta) . ', ' . htmlspecialchars($situacao) . ')</span>';
     }
