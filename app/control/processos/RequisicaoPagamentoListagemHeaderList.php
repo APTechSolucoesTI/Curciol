@@ -2,7 +2,9 @@
 
 class RequisicaoPagamentoListagemHeaderList extends TPage
 {
-    private $form; // form
+    private $form; // form (filtros da cortina)
+    private $button_filtros;
+    private static $formFiltros = 'formFiltros_RequisicaoPagamentoListagem';
     private $datagrid; // listing
     private $pageNavigation;
     private $loaded;
@@ -76,6 +78,50 @@ class RequisicaoPagamentoListagemHeaderList extends TPage
         $tipo_requisicao->setSize('100%');
         $data_deferimento_mle->setSize(220);
         $data_deferimento_expedicao_requisitorio->setSize(220);
+
+        /*
+            Filtros na cortina (botao "Filtros"), no padrao das listagens do
+            sistema. Os campos tem sufixo _f para nao colidir com os filtros
+            das colunas; onSearch tira o sufixo e usa a mesma regra de filtro.
+        */
+        $this->form = new BootstrapFormBuilder(self::$formFiltros);
+        $this->form->setFormTitle("Filtros de requisições de pagamento");
+
+        $numero_processo_f = new TEntry('numero_processo_f');
+        $tipo_requisicao_f = new TDBCombo('tipo_requisicao_f', 'escritorio', 'TiposRequisicaoPagamento', 'id', '{nome}', 'id asc');
+        $cliente_f = new TEntry('cliente_f');
+        $status_f = new TDBCombo('status_f', 'escritorio', 'StatusRequisicaoPagamento', 'id', '{nome}', 'id asc');
+        $data_requerimento_f = new BDateRange('data_requerimento_f', 'data_requerimento1_f');
+        $data_deferimento_expedicao_requisitorio_f = new BDateRange('data_deferimento_expedicao_requisitorio_f', 'data_deferimento_expedicao_requisitorio1_f');
+        $data_pedido_mle_f = new BDateRange('data_pedido_mle_f', 'data_pedido_mle1_f');
+        $data_deferimento_mle_f = new BDateRange('data_deferimento_mle_f', 'data_deferimento_mle2_f');
+
+        foreach ([$data_requerimento_f, $data_deferimento_expedicao_requisitorio_f, $data_pedido_mle_f, $data_deferimento_mle_f] as $periodo_f)
+        {
+            $periodo_f->setMask('dd/mm/yyyy');
+            $periodo_f->setDatabaseMask('yyyy-mm-dd');
+            $periodo_f->setSize('100%');
+        }
+        foreach ([$numero_processo_f, $tipo_requisicao_f, $cliente_f, $status_f] as $campo_f)
+        {
+            $campo_f->setSize('100%');
+        }
+        $tipo_requisicao_f->enableSearch();
+        $status_f->enableSearch();
+
+        $row_f1 = $this->form->addFields([new TLabel("Processo:", null, '14px', null, '100%'), $numero_processo_f], [new TLabel("Cliente:", null, '14px', null, '100%'), $cliente_f]);
+        $row_f1->layout = ['col-sm-6', 'col-sm-6'];
+        $row_f2 = $this->form->addFields([new TLabel("Tipo de requisição:", null, '14px', null, '100%'), $tipo_requisicao_f], [new TLabel("Status:", null, '14px', null, '100%'), $status_f]);
+        $row_f2->layout = ['col-sm-6', 'col-sm-6'];
+        $row_f3 = $this->form->addFields([new TLabel("Data do requerimento:", null, '14px', null, '100%'), $data_requerimento_f], [new TLabel("Data de deferimento da expedição:", null, '14px', null, '100%'), $data_deferimento_expedicao_requisitorio_f]);
+        $row_f3->layout = ['col-sm-6', 'col-sm-6'];
+        $row_f4 = $this->form->addFields([new TLabel("Data do pedido de MLE:", null, '14px', null, '100%'), $data_pedido_mle_f], [new TLabel("Data de deferimento do MLE:", null, '14px', null, '100%'), $data_deferimento_mle_f]);
+        $row_f4->layout = ['col-sm-6', 'col-sm-6'];
+
+        $this->form->setData(self::comSufixo(TSession::getValue(__CLASS__.'_filter_data')));
+
+        $btn_onsearch = $this->form->addAction("Buscar", new TAction([$this, 'onSearch']), 'fas:search #ffffff');
+        $btn_onsearch->addStyleClass('btn-primary');
 
         // creates a Datagrid
         $this->datagrid = new TDataGrid;
@@ -382,7 +428,31 @@ class RequisicaoPagamentoListagemHeaderList extends TPage
         $dropdown_button_exportar->addPostAction( "PDF", new TAction(['RequisicaoPagamentoListagemHeaderList', 'onExportPdf'],['static' => 1]), self::$formName, 'far:file-pdf #e74c3c' );
         $dropdown_button_exportar->addPostAction( "XML", new TAction(['RequisicaoPagamentoListagemHeaderList', 'onExportXml'],['static' => 1]), self::$formName, 'far:file-code #95a5a6' );
 
+        $button_filtros = new TButton('button_button_filtros');
+        $button_filtros->setAction(new TAction(['RequisicaoPagamentoListagemHeaderList', 'onShowCurtainFilters']), "Filtros");
+        $button_filtros->addStyleClass('btn-default');
+        $button_filtros->setImage('fas:filter #000000');
+        $this->datagrid_form->addField($button_filtros);
+        $this->button_filtros = $button_filtros;
+
+        $button_atualizar = new TButton('button_button_atualizar');
+        $button_atualizar->setAction(new TAction(['RequisicaoPagamentoListagemHeaderList', 'onRefresh']), "Atualizar");
+        $button_atualizar->addStyleClass('btn-default');
+        $button_atualizar->setImage('fas:sync-alt #03a9f4');
+        $this->datagrid_form->addField($button_atualizar);
+
+        $button_limpar_filtros = new TButton('button_button_limpar_filtros');
+        $button_limpar_filtros->setAction(new TAction(['RequisicaoPagamentoListagemHeaderList', 'onClearFilters']), "Limpar filtros");
+        $button_limpar_filtros->addStyleClass('btn-default');
+        $button_limpar_filtros->setImage('fas:eraser #f44336');
+        $this->datagrid_form->addField($button_limpar_filtros);
+
         $head_left_actions->add($button_nova_requisicao);
+        $head_left_actions->add($button_filtros);
+        $head_left_actions->add($button_atualizar);
+        $head_left_actions->add($button_limpar_filtros);
+
+        $this->marcarQuantidadeDeFiltros(TSession::getValue(__CLASS__.'_filters') ?: []);
 
         $head_right_actions->add($dropdown_button_exportar);
 
@@ -799,8 +869,15 @@ class RequisicaoPagamentoListagemHeaderList extends TPage
      */
     public function onSearch($param = null)
     {
-        // get the search form data
-        $data = $this->datagrid_form->getData();
+        // filtros das colunas (static) ou da cortina (sufixo _f)
+        if (isset($param['static']) && ($param['static'] == '1'))
+        {
+            $data = $this->datagrid_form->getData();
+        }
+        else
+        {
+            $data = self::semSufixo($this->form->getData());
+        }
         $filters = [];
 
         TSession::setValue(__CLASS__.'_filter_data', NULL);
@@ -878,8 +955,10 @@ class RequisicaoPagamentoListagemHeaderList extends TPage
             $filters[] = new TFilter('status', '=', $data->status);// create the filter 
         }
 
-        // fill the form with data again
+        // fill the forms with data again
         $this->datagrid_form->setData($data);
+        $this->form->setData(self::comSufixo($data));
+        $this->marcarQuantidadeDeFiltros($filters);
 
         // keep the search data in the session
         TSession::setValue(__CLASS__.'_filter_data', $data);
@@ -977,6 +1056,86 @@ class RequisicaoPagamentoListagemHeaderList extends TPage
     public function onShow($param = null)
     {
 
+    }
+
+    public static function onShowCurtainFilters($param = null)
+    {
+        try
+        {
+            $filter = new self([]);
+
+            $btnClose = new TButton('closeCurtain');
+            $btnClose->class = 'btn btn-sm btn-default';
+            $btnClose->style = 'margin-right:10px;';
+            $btnClose->onClick = "Template.closeRightPanel();";
+            $btnClose->setLabel("Fechar");
+            $btnClose->setImage('fas:times');
+
+            $filter->form->addHeaderWidget($btnClose);
+
+            $page = new TPage();
+            $page->setTargetContainer('adianti_right_panel');
+            $page->setProperty('page-name', 'RequisicaoPagamentoListagemSearch');
+            $page->setProperty('page_name', 'RequisicaoPagamentoListagemSearch');
+            $page->adianti_target_container = 'adianti_right_panel';
+            $page->target_container = 'adianti_right_panel';
+            $page->add($filter->form);
+            $page->setIsWrapped(true);
+            $page->show();
+        }
+        catch (Exception $e)
+        {
+            new TMessage('error', $e->getMessage());
+        }
+    }
+
+    public function onRefresh($param = null)
+    {
+        $this->onReload([]);
+    }
+
+    public function onClearFilters($param = null)
+    {
+        TSession::setValue(__CLASS__.'_filter_data', NULL);
+        TSession::setValue(__CLASS__.'_filters', NULL);
+
+        $this->datagrid_form->clear();
+        $this->form->clear();
+        $this->marcarQuantidadeDeFiltros([]);
+
+        $this->onReload(['offset' => 0, 'first_page' => 1]);
+    }
+
+    /** Mostra no botao "Filtros" quantos filtros estao ativos. */
+    private function marcarQuantidadeDeFiltros(array $filters)
+    {
+        if (!$this->button_filtros) { return; }
+        $this->button_filtros->style = 'position: relative';
+        $qtd = count($filters);
+        $this->button_filtros->setLabel($qtd ? "Filtros<span class='badge badge-success' style='position: absolute'>{$qtd}</span>" : "Filtros");
+    }
+
+    /** Dados da cortina (campos com _f) -> nomes usados nos filtros. */
+    private static function semSufixo($dados)
+    {
+        $saida = new stdClass;
+        foreach ((array) $dados as $chave => $valor)
+        {
+            $saida->{preg_replace('/_f$/', '', $chave)} = $valor;
+        }
+        return $saida;
+    }
+
+    /** Dados da sessao -> campos da cortina (com _f). */
+    private static function comSufixo($dados)
+    {
+        if (empty($dados)) { return null; }
+        $saida = new stdClass;
+        foreach ((array) $dados as $chave => $valor)
+        {
+            $saida->{$chave . '_f'} = $valor;
+        }
+        return $saida;
     }
 
     /**

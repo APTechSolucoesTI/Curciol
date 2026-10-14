@@ -187,26 +187,14 @@ class AndamentoFormView extends TWindow
             $textoJustificado->{'style'} .= ';display:block;text-align:justify;';
         }
 
-        // Complemento: titulo e botao de adicionar/editar na mesma linha, botao a direita
-        $cabecalhoComplemento = new TElement('div');
-        $cabecalhoComplemento->{'style'} = 'display:flex;width:100%;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px;';
-        $cabecalhoComplemento->add($complementoLabel);
-        $cabecalhoComplemento->add($tbuttonaddcomplemento);
-        $tbuttonaddcomplemento->{'style'} = 'flex-shrink:0;';
-        $this->form->addField($tbuttonaddcomplemento); // fora do addFields: registrar no form para a acao funcionar
-        // largura total: o cabecalho ocupa a linha e o texto vai para a linha de baixo
-        $cabecalhoComplementoLinha = new TTextDisplay($cabecalhoComplemento);
-        $cabecalhoComplemento->{'id'} = 'andamento_complemento_cabecalho';
-        $text39->{'id'} = 'andamento_complemento_texto';
-        $estiloComplemento = new TElement('style');
-        $estiloComplemento->add('.fb-inline-field-container:has(#andamento_complemento_cabecalho), .fb-inline-field-container:has(#andamento_complemento_texto) { width: 100% !important; float: none !important; display: block !important; }');
-        $this->form->addContent([$estiloComplemento]);
+        // Botao de adicionar/editar complemento abaixo do complemento, como o "Alterar Etapa" abaixo da etapa
+        $labelvaziaComplemento = new TLabel(" ", '', '12px', '', '100%');
 
         $btnAddTarefa = new TActionLink("Adicionar tarefa", new TAction(['AndamentoFormView', 'onAddTarefa'], ['andamento_id'=> $andamento->id, 'key' => $andamento->id]), '', '12px', '', 'fas:plus #4CAF50');
         $row1 = $this->form->addFields([$label2,$text2],[$label3,$text3],[$label4,$text4]);
         $row1->layout = [' col-sm-4',' col-sm-4',' col-sm-4'];
 
-        $row2 = $this->form->addFields([$Etapa,$etapa_nome,$labelvazia,$tbuttonalteretapa],[$labelstatus,$text26],[$cabecalhoComplementoLinha,$text39]);
+        $row2 = $this->form->addFields([$Etapa,$etapa_nome,$labelvazia,$tbuttonalteretapa],[$labelstatus,$text26],[$complementoLabel,$text39,$labelvaziaComplemento,$tbuttonaddcomplemento]);
         $row2->layout = [' col-sm-4',' col-sm-4',' col-sm-4'];
 
         $row3 = $this->form->addContent([new TFormSeparator("", '#333', '18', '#eee')]);
