@@ -74,7 +74,7 @@ try {
     igual('conferir: gravado = calculado', $conf['calculado_instantaneo'], $conf['gravado_instantaneo']);
 
     lanca('sem transacao aberta', function () use ($cc) { ContaCaixaSaldoService::recalcular($cc); }, 'transação aberta');
-    lanca('conta-caixa inexistente', function () { TTransaction::open('escritorio'); try { ContaCaixaSaldoService::recalcular(-7); } finally { TTransaction::rollback(); } }, 'não encontrada');
+    lanca('conta-caixa inexistente', function () { TTransaction::open('escritorio'); try { ContaCaixaSaldoService::recalcular(987654321); } finally { TTransaction::rollback(); } }, 'não encontrada');
 } finally {
     TTransaction::open('escritorio');
     TTransaction::get()->exec("DELETE FROM extrato WHERE conta_caixa_id = " . (int) $f['conta_caixa_id'] . " AND historico = 'TESTE LEVANTAMENTO saldo'");
