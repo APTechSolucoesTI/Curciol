@@ -1712,27 +1712,13 @@ class RequisicaoPagamentoVisualizacao extends TWindow
 
         $url = addslashes($url);
 
-        /*
-            A cortina lateral (z-index 1030) abria por baixo desta janela (20000).
-            Ao abrir o processo, esta janela sai de cena (nao e fechada) e a
-            cortina fica na frente - janelas abertas a partir do processo tambem
-            aparecem normalmente. Ao fechar a cortina, a requisicao volta.
-        */
+        // a cortina do processo abre na frente da janela (padrao do sistema: app/lib/include/curciol-cortina.js)
         return "
             <a href='javascript:void(0)'
             class='req-process-view-btn'
             title='Ver processo'
             onclick=\"
                 Adianti.waitMessage = false;
-                $(this).closest('.ui-dialog').add('.ui-widget-overlay:visible').addClass('req-oculta-pela-cortina').hide();
-                if (!Template.__reqFechaCortina) {
-                    Template.__reqFechaCortina = Template.closeRightPanel;
-                    Template.closeRightPanel = function () {
-                        var r = Template.__reqFechaCortina.apply(this, arguments);
-                        $('.req-oculta-pela-cortina').removeClass('req-oculta-pela-cortina').show();
-                        return r;
-                    };
-                }
                 __adianti_load_page('{$url}');
                 return false;
             \">
