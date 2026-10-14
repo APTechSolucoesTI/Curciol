@@ -1724,12 +1724,12 @@ class RequisicaoPagamentoVisualizacao extends TWindow
             title='Ver processo'
             onclick=\"
                 Adianti.waitMessage = false;
-                $(this).closest('.ui-dialog').addClass('req-oculta-pela-cortina').hide();
+                $(this).closest('.ui-dialog').add('.ui-widget-overlay:visible').addClass('req-oculta-pela-cortina').hide();
                 if (!Template.__reqFechaCortina) {
                     Template.__reqFechaCortina = Template.closeRightPanel;
                     Template.closeRightPanel = function () {
                         var r = Template.__reqFechaCortina.apply(this, arguments);
-                        $('.ui-dialog.req-oculta-pela-cortina').removeClass('req-oculta-pela-cortina').show();
+                        $('.req-oculta-pela-cortina').removeClass('req-oculta-pela-cortina').show();
                         return r;
                     };
                 }
