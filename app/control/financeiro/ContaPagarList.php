@@ -319,7 +319,8 @@ class ContaPagarList extends TPage
             */
             $clientesNomes = [];
 
-            if (!empty($object->contrato_id))
+            // conta gerada pelo financeiro do levantamento (tem requisicao): a pessoa e a da propria conta
+            if (!empty($object->contrato_id) && empty($object->requisicao_pagamento_id))
             {
                 $clientesContrato = ContratoPessoa::where(
                     'contrato_id',

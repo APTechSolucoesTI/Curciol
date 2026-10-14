@@ -346,7 +346,8 @@ class ContaReceberList extends TPage
             */
             $clientesNomes = [];
 
-            if (!empty($object->contrato_id))
+            // conta gerada pelo financeiro do levantamento (tem requisicao): a pessoa e a da propria conta
+            if (!empty($object->contrato_id) && empty($object->requisicao_pagamento_id))
             {
                 $clientesContrato = ContratoPessoa::where(
                     'contrato_id',
@@ -544,6 +545,17 @@ class ContaReceberList extends TPage
 
         $this->datagrid->addAction($action_onShow);
 
+        // conta a receber gerada pelo financeiro do levantamento: baixar a prestacao de contas ao cliente (PDF)
+        $action_prestacao = new TDataGridAction(array('LevantamentoFinanceiroView', 'onPrestacaoPdf'));
+        $action_prestacao->setUseButton(false);
+        $action_prestacao->setButtonClass('btn btn-default btn-sm');
+        $action_prestacao->setLabel("Prestação de contas (PDF)");
+        $action_prestacao->setImage('far:file-pdf #D32F2F');
+        $action_prestacao->setField(self::$primaryKey);
+        $action_prestacao->setParameter('conta_id', '{id}');
+        $action_prestacao->setParameter('static', '1');
+        $action_prestacao->setDisplayCondition('LevantamentoPrestacaoContasService::temPrestacao');
+        $this->datagrid->addAction($action_prestacao);
         $this->applyDatagridProperties();
         // create the datagrid model
         $this->datagrid->createModel();

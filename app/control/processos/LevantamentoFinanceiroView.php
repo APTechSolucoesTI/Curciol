@@ -115,7 +115,7 @@ class LevantamentoFinanceiroView extends TWindow
     public static function onPrestacaoPdf($param)
     {
         try {
-            $doc = LevantamentoPrestacaoContasService::gerarPdf((int) ($param['etapa3_id'] ?? 0));
+            $doc = LevantamentoPrestacaoContasService::gerarPdf(self::etapa3DoParametro($param));
             TPage::openFile($doc['arquivo'], $doc['nome']);
         } catch (Throwable $e) {
             new TMessage('error', LevantamentoFinanceiroForm::mensagem($e));
@@ -126,11 +126,20 @@ class LevantamentoFinanceiroView extends TWindow
     public static function onPrestacaoWord($param)
     {
         try {
-            $doc = LevantamentoPrestacaoContasService::gerarWord((int) ($param['etapa3_id'] ?? 0));
+            $doc = LevantamentoPrestacaoContasService::gerarWord(self::etapa3DoParametro($param));
             TPage::openFile($doc['arquivo'], $doc['nome']);
         } catch (Throwable $e) {
             new TMessage('error', LevantamentoFinanceiroForm::mensagem($e));
         }
+    }
+
+    /** etapa3_id direto (Ver financeiro) ou a partir da conta a receber (lista e detalhe da conta). */
+    private static function etapa3DoParametro(array $param): int
+    {
+        if (!empty($param['etapa3_id'])) { return (int) $param['etapa3_id']; }
+        $etapa3 = LevantamentoPrestacaoContasService::etapa3DaContaReceber((int) ($param['conta_id'] ?? 0));
+        if (!$etapa3) { throw new Exception('Esta conta não tem prestação de contas do financeiro do levantamento.'); }
+        return $etapa3;
     }
 
     // ---------------------------------------------------------------

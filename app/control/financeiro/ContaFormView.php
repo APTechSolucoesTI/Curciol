@@ -78,7 +78,8 @@ class ContaFormView extends TPage
                  * Se a conta pertence a contrato,
                  * busca todos os clientes do contrato.
                  */
-                if (!empty($conta->contrato_id))
+                // conta gerada pelo financeiro do levantamento (tem requisicao): a pessoa e a da propria conta
+                if (!empty($conta->contrato_id) && empty($conta->requisicao_pagamento_id))
                 {
                     $clientesContrato = ContratoPessoa::where(
                         'contrato_id',
@@ -408,6 +409,18 @@ class ContaFormView extends TPage
         $btn_oneditLabel->setFontSize('12px'); 
         $btn_oneditLabel->setFontColor('#333'); 
 
+        // conta a receber gerada pelo financeiro do levantamento: prestacao de contas ao cliente
+        $etapa3Prestacao = LevantamentoPrestacaoContasService::etapa3DaContaReceber((int) $conta->id);
+        if ($etapa3Prestacao) {
+            $lblWord = new TLabel("Prestação de contas (Word)");
+            $lblWord->setFontSize('12px');
+            $lblWord->setFontColor('#333');
+            $this->form->addHeaderAction($lblWord, new TAction(['LevantamentoFinanceiroView', 'onPrestacaoWord'], ['static' => '1', 'etapa3_id' => $etapa3Prestacao]), 'far:file-word #2B579A');
+            $lblPdf = new TLabel("Prestação de contas (PDF)");
+            $lblPdf->setFontSize('12px');
+            $lblPdf->setFontColor('#333');
+            $this->form->addHeaderAction($lblPdf, new TAction(['LevantamentoFinanceiroView', 'onPrestacaoPdf'], ['static' => '1', 'etapa3_id' => $etapa3Prestacao]), 'far:file-pdf #D32F2F');
+        }
         parent::setTargetContainer('adianti_right_panel');
 
         $btnClose = new TButton('closeCurtain');

@@ -18,6 +18,28 @@ class LevantamentoPrestacaoContasService
         return $ficha->regra !== BeneficiarioCredito::REGRA_SOMENTE_HONORARIOS && (float) $ficha->z > 0;
     }
 
+    /** Pagamento (etapa 3) da conta a receber gerada pelo levantamento, se ela tiver prestacao de contas; senao null. */
+    public static function etapa3DaContaReceber(int $contaId): ?int
+    {
+        if ($contaId <= 0) { return null; }
+        $propria = self::abrir();
+        try {
+            $ficha = LevantamentoFinanceiro::where('conta_receber_id', '=', $contaId)->first();
+            $r = ($ficha && self::disponivel($ficha)) ? (int) $ficha->requisicao_pagamento_etapa3_id : null;
+            if ($propria) { TTransaction::close(); }
+            return $r;
+        } catch (Throwable $e) {
+            if ($propria) { TTransaction::rollback(); }
+            throw $e;
+        }
+    }
+
+    /** Condicao de exibicao na lista de contas a receber (so contas do levantamento com prestacao). */
+    public static function temPrestacao($conta): bool
+    {
+        return !empty($conta->requisicao_pagamento_id) && self::etapa3DaContaReceber((int) $conta->id) !== null;
+    }
+
     /**
      * Dados da carta. Exige transacao aberta.
      * @return array cliente, documento, processo, objeto, linhas [rotulo, valor, destaque], escritorio, logo
