@@ -189,7 +189,7 @@ class AndamentoFormView extends TWindow
 
         // Complemento: titulo e botao de adicionar/editar na mesma linha, botao a direita
         $cabecalhoComplemento = new TElement('div');
-        $cabecalhoComplemento->{'style'} = 'display:flex;align-items:center;justify-content:space-between;gap:8px;';
+        $cabecalhoComplemento->{'style'} = 'display:flex;width:100%;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px;';
         $cabecalhoComplemento->add($complementoLabel);
         $cabecalhoComplemento->add($tbuttonaddcomplemento);
         $tbuttonaddcomplemento->{'style'} = 'flex-shrink:0;';
