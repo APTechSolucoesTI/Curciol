@@ -279,27 +279,9 @@ class ModalQuitarParcelaParcial extends TWindow
                 $extrato->mes = date('m', strtotime($dataPagamento));
                 $extrato->ano_mes = date('Ym', strtotime($dataPagamento));
 
-                $contaCaixa = ContaCaixa::find($extrato->conta_caixa_id);
-
-                if(!$contaCaixa){
-                    throw new Exception("Conta caixa não encontrada.");
-                }
-
-                $contaCaixa->saldo_instantaneo = (float) $contaCaixa->saldo_instantaneo + (float) $extrato->entrada_valor - (float) $extrato->saida_valor;
-                $contaCaixa->modificacao_user_id = TSession::getValue('userid');
-                $contaCaixa->store();
             }else{
                 $extrato->compensado = 'N';
 
-                $contaCaixa = ContaCaixa::find($extrato->conta_caixa_id);
-
-                if(!$contaCaixa){
-                    throw new Exception("Conta caixa não encontrada.");
-                }
-
-                $contaCaixa->saldo_nao_compensado = (float) $contaCaixa->saldo_nao_compensado + (float) $extrato->entrada_valor - (float) $extrato->saida_valor;
-                $contaCaixa->modificacao_user_id = TSession::getValue('userid');
-                $contaCaixa->store();
             }
 
             $historico = trim((string) $object->historico);
@@ -310,7 +292,7 @@ class ModalQuitarParcelaParcial extends TWindow
 
             $extrato->criacao_user_id = TSession::getValue('userid');
             $extrato->store();
-
+            ContaCaixaSaldoService::recalcular($extrato->conta_caixa_id);
             // nao liga o extrato no extrato_id do lancamento porque agora pode ter varios parciais
             $contaId = $conta->id;
             $tipoContaId = $conta->tipo_conta_id;

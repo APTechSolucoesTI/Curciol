@@ -233,8 +233,7 @@ class LevantamentoFinanceiroService
             $extrato->historico = $descricao;
             $extrato->criacao_user_id = $userId;
             $extrato->store();
-            self::ajustarSaldo($c, $ccId, $compensado ? 'saldo_instantaneo' : 'saldo_nao_compensado', $y, $userId);
-
+            ContaCaixaSaldoService::recalcular($ccId);
             $parcela->extrato_id = $extrato->id;
             $parcela->store();
 
@@ -385,16 +384,11 @@ class LevantamentoFinanceiroService
             $todas    = self::ids($c, "SELECT id FROM lancamento WHERE conta_id IN ({$lista})");
             $todasLista = $todas ? implode(',', $todas) : '0';
 
-            // devolve o saldo conforme o estado ATUAL de cada extrato das parcelas a receber
-            $st = $c->query("SELECT id, conta_caixa_id, compensado, COALESCE(entrada_valor, 0) - COALESCE(saida_valor, 0) AS liquido
-                             FROM extrato WHERE lancamento_id IN ({$lancs}) ORDER BY id FOR UPDATE");
-            $extratos = $st->fetchAll(PDO::FETCH_OBJ);
-            foreach ($extratos as $x) {
-                self::ajustarSaldo($c, (int) $x->conta_caixa_id, ($x->compensado === 'S') ? 'saldo_instantaneo' : 'saldo_nao_compensado', -1 * (float) $x->liquido, $userId);
-            }
-
+            // contas-caixa dos extratos que vao sair: o saldo delas e recalculado depois de apagar
+            $contasCaixa = self::ids($c, "SELECT DISTINCT conta_caixa_id FROM extrato WHERE lancamento_id IN ({$lancs})");
             $c->exec("UPDATE lancamento SET extrato_id = NULL WHERE conta_id IN ({$lista})");
             $c->exec("DELETE FROM extrato WHERE lancamento_id IN ({$lancs})");
+            ContaCaixaSaldoService::recalcular($contasCaixa);
             $c->exec("DELETE FROM lancamento_profissional_ajuste WHERE lancamento_profissional_id IN (SELECT id FROM lancamento_profissional WHERE lancamento_id IN ({$todasLista}))");
             $c->exec("DELETE FROM lancamento_profissional WHERE lancamento_id IN ({$todasLista})");
             $c->exec("DELETE FROM lancamento WHERE conta_id IN ({$lista})");
@@ -503,15 +497,6 @@ class LevantamentoFinanceiroService
             }
         }
         return null;
-    }
-
-    /** UPDATE atomico do saldo (soma $delta, que pode ser negativo). $coluna e sempre um dos dois nomes fixos. */
-    private static function ajustarSaldo(PDO $c, int $contaCaixaId, string $coluna, float $delta, $userId): void
-    {
-        if (!in_array($coluna, ['saldo_instantaneo', 'saldo_nao_compensado'], true)) { throw new Exception('Coluna de saldo inválida.'); }
-        $st = $c->prepare("UPDATE conta_caixa SET {$coluna} = COALESCE({$coluna}, 0) + CAST(:valor AS numeric), modificacao_user_id = :usuario WHERE id = :id");
-        $st->execute([':valor' => sprintf('%.2f', $delta), ':usuario' => $userId, ':id' => $contaCaixaId]);
-        if ($st->rowCount() !== 1) { throw new Exception('Conta-caixa inválida.'); }
     }
 
     private static function exigirCadastro(PDO $c, string $tabela, $id, string $mensagem): void

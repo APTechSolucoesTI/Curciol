@@ -498,73 +498,134 @@ class ContaFormView extends TPage
             new TMessage('error', $e->getMessage());    
         }
     }
+    /**
+     * Desquitar: desfaz a quitacao da parcela.
+     * - apaga o registro da quitacao no extrato (sem criar lancamento inverso);
+     * - volta a parcela ao que era antes de quitar: sem acrescimo/desconto, sem os
+     *   ajustes dos profissionais daquela quitacao e, se houve pagamentos parciais
+     *   (que continuam no extrato), com o saldo que faltava pagar;
+     * - recalcula o total e o proximo vencimento da conta e o saldo da conta-caixa.
+     */
     public function onDesquitar($param = null) 
     {
         try 
         {
             TTransaction::open(self::$database);
 
-            $lancamento = Lancamento::find($param['id']);
+            $lancamento = Lancamento::find($param['id'] ?? 0);
+            if (!$lancamento) {
+                throw new Exception('Parcela não encontrada.');
+            }
             LevantamentoFinanceiroService::exigirContaNaoGerada((int) $lancamento->conta_id, false);
 
-            $lancamento->extrato->lancamento_id = null;
-            $lancamento->extrato->store();
+            if (empty($lancamento->dt_pagamento)) {
+                throw new Exception('Esta parcela não está quitada.');
+            }
 
-            $extrato_id = $lancamento->extrato_id;
+            $extratoQuitacao = !empty($lancamento->extrato_id) ? Extrato::find($lancamento->extrato_id) : null;
+
+            if (empty($param['confirmado'])) {
+                $valor = $extratoQuitacao ? (float) $extratoQuitacao->entrada_valor + (float) $extratoQuitacao->saida_valor : (float) $lancamento->valor_total;
+                $mensagem = 'Desquitar a parcela ' . (int) $lancamento->parcela . '?<br><br>O registro do pagamento de R$ ' . number_format($valor, 2, ',', '.');
+                if ($extratoQuitacao && $extratoQuitacao->conta_caixa) {
+                    $mensagem .= ' será apagado do extrato da conta-caixa <b>' . htmlspecialchars((string) $extratoQuitacao->conta_caixa->nome, ENT_QUOTES, 'UTF-8') . '</b>'
+                        . ($extratoQuitacao->compensado == 'S' ? ' (já compensado)' : '')
+                        . ' e o saldo dela será recalculado.';
+                } else {
+                    $mensagem .= ' será desfeito.';
+                }
+                TTransaction::close();
+
+                $acao = new TAction([$this, 'onDesquitar']);
+                $acao->setParameter('id', $lancamento->id);
+                $acao->setParameter('key', $param['key'] ?? $lancamento->conta_id);
+                $acao->setParameter('confirmado', 1);
+                new TQuestion($mensagem, $acao);
+                return;
+            }
+
+            $conta = $lancamento->conta;
+
+            // pagamentos parciais anteriores continuam no extrato: a parcela volta a dever so o que faltava
+            $parciais = 0.0;
+            foreach (Extrato::where('lancamento_id', '=', $lancamento->id)->load() as $x) {
+                if ($extratoQuitacao && (int) $x->id === (int) $extratoQuitacao->id) {
+                    continue;
+                }
+                $parciais += (float) $x->entrada_valor + (float) $x->saida_valor;
+            }
+
+            // valor da parcela antes da quitacao (a quitacao gravou valor_total = base + acrescimo - desconto)
+            $valorTotal = ($lancamento->valor_total !== null && $lancamento->valor_total !== '') ? (float) $lancamento->valor_total : (float) $lancamento->valor;
+            $base = round($valorTotal - (float) $lancamento->acrescimo + (float) $lancamento->desconto, 2);
+
+            // ajustes de acrescimo/desconto dos profissionais sao criados so na quitacao
+            foreach (LancamentoProfissional::where('lancamento_id', '=', $lancamento->id)->load() as $lp) {
+                LancamentoProfissionalAjuste::where('lancamento_profissional_id', '=', $lp->id)->delete();
+            }
+
+            $contaCaixaId = $extratoQuitacao ? (int) $extratoQuitacao->conta_caixa_id : null;
+
             $lancamento->dt_pagamento = null;
             $lancamento->ano_pagamento = null;
             $lancamento->mes_pagamento = null;
             $lancamento->ano_mes_pagamento = null;
             $lancamento->extrato_id = null;
+            $lancamento->acrescimo = 0;
+            $lancamento->desconto = 0;
+            $lancamento->valor_total = $base;
+            $lancamento->saldo = ($parciais > 0) ? round($base - $parciais, 2) : null;
             $lancamento->store();
 
-            $lancamento->conta->quitada = 'N';
-            $lancamento->conta->proximo_vencimento_lancamento = $lancamento->dt_vencimento;
-            $lancamento->conta->store();
+            if ($extratoQuitacao) {
+                $extratoQuitacao->delete();
+                ContaCaixaSaldoService::recalcular($contaCaixaId);
+            }
 
-            $search = Extrato::find($extrato_id);
-            $search->delete();
+            // conta: total pelas parcelas nao canceladas, em aberto, proximo vencimento em aberto
+            $totalConta = 0.0;
+            $proximo = null;
+            foreach (Lancamento::where('conta_id', '=', $conta->id)->load() as $l) {
+                if ($l->cancelado == 'S') {
+                    continue;
+                }
+                $totalConta += ($l->valor_total !== null && $l->valor_total !== '') ? (float) $l->valor_total : (float) $l->valor;
+                if (empty($l->dt_pagamento) && ($proximo === null || $l->dt_vencimento < $proximo)) {
+                    $proximo = $l->dt_vencimento;
+                }
+            }
+            $conta->total_conta = round($totalConta, 2);
+            $conta->quitada = 'N';
+            $conta->proximo_vencimento_lancamento = $proximo ?? $lancamento->dt_vencimento;
+            $conta->store();
+
+            $tipoConta = $conta->tipo_conta_id;
+            $contaId = $conta->id;
+
+            TTransaction::close();
 
             TToast::show('success', 'Lançamento desquitado com sucesso', 'bottom right');
             TScript::create("Template.closeRightPanel();");
 
-            if($lancamento->conta->tipo_conta_id==TipoConta::RECEBER){
+            if ($tipoConta == TipoConta::RECEBER) {
                 TApplication::loadPage('ContaReceberList', 'onShow');
-            }elseif($lancamento->conta->tipo_conta_id==TipoConta::pagar){
+            } elseif ($tipoConta == TipoConta::PAGAR) {
                 TApplication::loadPage('ContaPagarList', 'onShow');
             }
 
-            $pageParam = ['key' => $lancamento->conta_id];
-
-            TApplication::loadPage('ContaFormView', 'onShow', $pageParam);
-            TTransaction::close();
-
-            //</autoCode>
+            TApplication::loadPage('ContaFormView', 'onShow', ['key' => $contaId]);
         }
         catch (Exception $e) 
         {
+            TTransaction::rollback();
             new TMessage('error', $e->getMessage());    
         }
     }
     public static function canDesquitar($object)
     {
-        try 
-        {
-            if($object->dt_pagamento){
-                $extratos = Extrato::where('lancamento_id','=',$object->id)->load();
-                foreach($extratos as $extrato){
-                    if($extrato->compensado != 'S'){
-                        return true;
-                    }
-                }
-            }
-
-            return false;
-        }
-        catch (Exception $e) 
-        {
-            new TMessage('error', $e->getMessage());    
-        }
+        // qualquer parcela quitada pode ser desquitada (inclusive com extrato ja compensado:
+        // o registro sai do extrato e o saldo da conta-caixa e recalculado)
+        return !empty($object->dt_pagamento);
     }
     public function onDelete($param = null) 
     {
@@ -580,6 +641,13 @@ class ContaFormView extends TPage
                 $object = new Conta($key, FALSE); 
 
                 LevantamentoFinanceiroService::exigirContaNaoGerada((int) $object->id);
+
+                // parcela com pagamento registrado no extrato: desquitar antes (o extrato e o saldo da conta-caixa dependem dele)
+                $stPagas = TTransaction::get()->prepare('SELECT COUNT(*) FROM extrato WHERE lancamento_id IN (SELECT id FROM lancamento WHERE conta_id = ?)');
+                $stPagas->execute([(int) $object->id]);
+                if ((int) $stPagas->fetchColumn() > 0) {
+                    throw new Exception('Esta conta tem parcela paga (total ou parcialmente). Desquite as parcelas pagas antes de excluir a conta.');
+                }
 
                 if($object->tipo_conta_id == 2){
                     $tela = 'ContaPagarList';

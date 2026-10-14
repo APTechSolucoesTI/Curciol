@@ -392,20 +392,12 @@ class ModalQuitarParcela extends TWindow
                 $extrato->mes = date('m', strtotime($lancamento->dt_pagamento));
                 $extrato->ano_mes = date('Ym', strtotime($lancamento->dt_pagamento));
 
-                $contaCaixa = ContaCaixa::find($extrato->conta_caixa_id);
-                $contaCaixa->saldo_instantaneo = (float) $contaCaixa->saldo_instantaneo + (float) $extrato->entrada_valor - (float) $extrato->saida_valor;
-                $contaCaixa->modificacao_user_id = TSession::getValue('userid');
-                $contaCaixa->store();
-            }else{
-                $contaCaixa = ContaCaixa::find($extrato->conta_caixa_id);
-                $contaCaixa->saldo_nao_compensado = (float) $contaCaixa->saldo_nao_compensado + (float) $extrato->entrada_valor - (float) $extrato->saida_valor;
-                $contaCaixa->modificacao_user_id = TSession::getValue('userid');
-                $contaCaixa->store();
             }
 
             $extrato->historico = $object->historico;
             $extrato->criacao_user_id = TSession::getValue('userid');
             $extrato->store();
+            ContaCaixaSaldoService::recalcular($extrato->conta_caixa_id);
 
             $lancamento->extrato_id = $extrato->id;
             $lancamento->store();

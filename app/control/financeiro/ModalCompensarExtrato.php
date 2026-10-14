@@ -69,6 +69,7 @@ class ModalCompensarExtrato extends TWindow
             }
 
             TTransaction::open('escritorio');
+            $contasAfetadas = [];
             foreach($ids as $id){
                 $aux = Extrato::find($id);
 
@@ -100,21 +101,9 @@ class ModalCompensarExtrato extends TWindow
                 $aux->mes = date('m', strtotime($data->data_compensacao));
                 $aux->ano_mes = date('Ym', strtotime($data->data_compensacao));
                 $aux->store();
-
-                //saldo_instantaneo
-                $contaCaixa = ContaCaixa::find($aux->conta_caixa_id);
-
-                $contaCaixa->saldo_instantaneo = (float) $contaCaixa->saldo_instantaneo + (float) $aux->entrada_valor - (float) $aux->saida_valor;
-                $contaCaixa->modificacao_user_id = TSession::getValue('userid');
-                $contaCaixa->store();
-
-                //saldo_nao_compensado
-                $contaCaixa = ContaCaixa::find($aux->conta_caixa_id);
-
-                $contaCaixa->saldo_nao_compensado = (float) $contaCaixa->saldo_nao_compensado - (float) $aux->entrada_valor + (float) $aux->saida_valor;
-                $contaCaixa->modificacao_user_id = TSession::getValue('userid');
-                $contaCaixa->store();
+                $contasAfetadas[] = $aux->conta_caixa_id;
             }
+            ContaCaixaSaldoService::recalcular($contasAfetadas);
             TTransaction::close();
 
             TToast::show("success", "Compensação concluída", "topRight", "");
@@ -124,6 +113,7 @@ class ModalCompensarExtrato extends TWindow
         catch (Exception $e)
         {
             new TMessage('error', $e->getMessage());
+            TTransaction::rollback();
         }
     }
 

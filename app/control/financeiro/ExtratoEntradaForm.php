@@ -144,12 +144,6 @@ class ExtratoEntradaForm extends TPage
                 $object->compensado = 'N';
                 $object->data_compensacao = '';
 
-                //saldo_nao_compensado
-                $contaCaixa = ContaCaixa::find($object->conta_caixa_id);
-
-                $contaCaixa->saldo_nao_compensado = (float) $contaCaixa->saldo_nao_compensado + (float) $object->entrada_valor - (float) $object->saida_valor;
-                $contaCaixa->modificacao_user_id = TSession::getValue('userid');
-                $contaCaixa->store();
 
             }else if($object->compensado=='S'){
 
@@ -159,16 +153,10 @@ class ExtratoEntradaForm extends TPage
                     throw new Exception("Informe uma data de compensação superior a data inicial da conta caixa.");
                 }
 
-                //saldo_instantaneo
-                $contaCaixa = ContaCaixa::find($object->conta_caixa_id);
-
-                $contaCaixa->saldo_instantaneo = (float) $contaCaixa->saldo_instantaneo + (float) $object->entrada_valor - (float) $object->saida_valor;
-                $contaCaixa->modificacao_user_id = TSession::getValue('userid');
-                $contaCaixa->store();
             }
 
             if(!$object->id){
-                $object->data_lancamento = date('Y-m-11');
+                $object->data_lancamento = date('Y-m-d');
                 $object->tipo_extrato_id = TipoExtrato::ENTRADA;
             }else{
                 $objeto = Extrato::find($object->id);
@@ -191,7 +179,7 @@ class ExtratoEntradaForm extends TPage
                 $object->modificacao_user_id = TSession::getValue('userid');
             }
             $object->store(); // save the object 
-
+            ContaCaixaSaldoService::recalcular($object->conta_caixa_id);
             $loadPageParam = [];
 
             if(!empty($param['target_container']))

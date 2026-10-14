@@ -569,6 +569,7 @@ class ExtratoList extends TPage
 
                 // instantiates object
                 $object = new Extrato($key, FALSE); 
+                $contasAfetadas = [$object->conta_caixa_id];
                 if ($object->lancamento_id) {
                     $lancGerado = Lancamento::find($object->lancamento_id);
                     if ($lancGerado) { LevantamentoFinanceiroService::exigirContaNaoGerada((int) $lancGerado->conta_id, false); }
@@ -576,11 +577,12 @@ class ExtratoList extends TPage
 
                 if($object->extrato_vinculado){
                     $objectVinculado = new Extrato($object->extrato_vinculado, FALSE);
+                    $contasAfetadas[] = $objectVinculado->conta_caixa_id;
                     $objectVinculado->delete();
                 }
                 // deletes the object from the database
                 $object->delete();
-
+                ContaCaixaSaldoService::recalcular($contasAfetadas);
                 // close the transaction
                 TTransaction::close();
 
@@ -727,6 +729,7 @@ class ExtratoList extends TPage
             }
 
             TTransaction::open(self::$database);
+            $contasAfetadas = [];
             foreach($ids as $id){
                 $aux = Extrato::find($id);
                 if($aux->compensado=='N'){
@@ -739,21 +742,9 @@ class ExtratoList extends TPage
                 $aux->mes = null;
                 $aux->ano_mes = null;
                 $aux->store();
-
-                //saldo_instantaneo
-                $contaCaixa = ContaCaixa::find($aux->conta_caixa_id);
-
-                $contaCaixa->saldo_instantaneo = (float) $contaCaixa->saldo_instantaneo - (float) $aux->entrada_valor + (float) $aux->saida_valor;
-                $contaCaixa->modificacao_user_id = TSession::getValue('userid');
-                $contaCaixa->store();
-
-                //saldo_nao_compensado
-                $contaCaixa = ContaCaixa::find($aux->conta_caixa_id);
-
-                $contaCaixa->saldo_nao_compensado = (float) $contaCaixa->saldo_nao_compensado + (float) $aux->entrada_valor - (float) $aux->saida_valor;
-                $contaCaixa->modificacao_user_id = TSession::getValue('userid');
-                $contaCaixa->store();
+                $contasAfetadas[] = $aux->conta_caixa_id;
             }
+            ContaCaixaSaldoService::recalcular($contasAfetadas);
             TTransaction::close();
 
             TApplication::loadPage('ExtratoList', 'onReload');

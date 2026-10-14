@@ -229,7 +229,7 @@ class ContaCaixaForm extends TPage
                 $object->modificacao_user_id = TSession::getValue('userid');
             }
             $object->store(); // save the object 
-
+            ContaCaixaSaldoService::recalcular($object->id);
             $loadPageParam = [];
 
             if(!empty($param['target_container']))
