@@ -10,6 +10,8 @@ use Dompdf\Options;
  */
 class LevantamentoPrestacaoContasService
 {
+    const CABECALHO_PADRAO = 'app/images/prestacao_contas_cabecalho.jpg';
+
     /** Ha prestacao de contas para este financeiro? (so quando ha valor ao cliente, ex.: Sucumbencia nao tem) */
     public static function disponivel(LevantamentoFinanceiro $ficha): bool
     {
@@ -79,7 +81,9 @@ class LevantamentoPrestacaoContasService
             'objeto' => $objeto,
             'linhas' => $linhas,
             'escritorio' => self::escritorio($esc),
-            'logo' => ($esc && $esc->logo_documento && is_file($esc->logo_documento)) ? $esc->logo_documento : null,
+            // logo do cadastro do escritorio; se o arquivo nao existir, o cabecalho do modelo da planilha
+            'logo' => ($esc && $esc->logo_documento && is_file($esc->logo_documento)) ? $esc->logo_documento
+                    : (is_file(self::CABECALHO_PADRAO) ? self::CABECALHO_PADRAO : null),
         ];
     }
 
