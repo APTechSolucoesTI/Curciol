@@ -194,12 +194,16 @@ class AndamentoFormView extends TWindow
         $cabecalhoComplemento->add($tbuttonaddcomplemento);
         $tbuttonaddcomplemento->{'style'} = 'flex-shrink:0;';
         $this->form->addField($tbuttonaddcomplemento); // fora do addFields: registrar no form para a acao funcionar
+        // largura total: o cabecalho ocupa a linha e o texto vai para a linha de baixo
+        $cabecalhoComplementoLinha = new TTextDisplay($cabecalhoComplemento);
+        $cabecalhoComplementoLinha->setSize('100%');
+        $text39->setSize('100%');
 
         $btnAddTarefa = new TActionLink("Adicionar tarefa", new TAction(['AndamentoFormView', 'onAddTarefa'], ['andamento_id'=> $andamento->id, 'key' => $andamento->id]), '', '12px', '', 'fas:plus #4CAF50');
         $row1 = $this->form->addFields([$label2,$text2],[$label3,$text3],[$label4,$text4]);
         $row1->layout = [' col-sm-4',' col-sm-4',' col-sm-4'];
 
-        $row2 = $this->form->addFields([$Etapa,$etapa_nome,$labelvazia,$tbuttonalteretapa],[$labelstatus,$text26],[$cabecalhoComplemento,$text39]);
+        $row2 = $this->form->addFields([$Etapa,$etapa_nome,$labelvazia,$tbuttonalteretapa],[$labelstatus,$text26],[$cabecalhoComplementoLinha,$text39]);
         $row2->layout = [' col-sm-4',' col-sm-4',' col-sm-4'];
 
         $row3 = $this->form->addContent([new TFormSeparator("", '#333', '18', '#eee')]);
