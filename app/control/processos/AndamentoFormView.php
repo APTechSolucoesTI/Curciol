@@ -198,7 +198,9 @@ class AndamentoFormView extends TWindow
         $cabecalhoComplementoLinha = new TTextDisplay($cabecalhoComplemento);
         $cabecalhoComplemento->{'id'} = 'andamento_complemento_cabecalho';
         $text39->{'id'} = 'andamento_complemento_texto';
-        TScript::create("$('#andamento_complemento_cabecalho, #andamento_complemento_texto').closest('.fb-inline-field-container').css({width: '100%', float: 'none', display: 'block'});");
+        $estiloComplemento = new TElement('style');
+        $estiloComplemento->add('.fb-inline-field-container:has(#andamento_complemento_cabecalho), .fb-inline-field-container:has(#andamento_complemento_texto) { width: 100% !important; float: none !important; display: block !important; }');
+        $this->form->addContent([$estiloComplemento]);
 
         $btnAddTarefa = new TActionLink("Adicionar tarefa", new TAction(['AndamentoFormView', 'onAddTarefa'], ['andamento_id'=> $andamento->id, 'key' => $andamento->id]), '', '12px', '', 'fas:plus #4CAF50');
         $row1 = $this->form->addFields([$label2,$text2],[$label3,$text3],[$label4,$text4]);
