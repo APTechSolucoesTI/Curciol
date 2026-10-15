@@ -399,6 +399,10 @@ class ModalQuitarParcela extends TWindow
             $extrato->store();
             ContaCaixaSaldoService::recalcular($extrato->conta_caixa_id);
 
+            // conta a receber com repasse: nasce a conta a pagar de cada colaborador (o restante da parcela)
+            if ((string) $lancamento->conta->tipo_conta_id === (string) TipoConta::RECEBER) {
+                RepasseColaboradorService::gerarPorRecebimento((int) $lancamento->id, (int) $extrato->id, (float) $valorMovimentado, (string) $lancamento->dt_pagamento, true);
+            }
             $lancamento->extrato_id = $extrato->id;
             $lancamento->store();
 

@@ -559,6 +559,15 @@ class ContaFormView extends TPage
 
             $conta = $lancamento->conta;
 
+            // repasses: desquitar a receber apaga os repasses gerados por esta quitacao (recusa se algum ja foi pago);
+            // desquitar um repasse pago em lote e recusado (o lote e estornado inteiro)
+            if ((string) $conta->tipo_conta_id === (string) TipoConta::RECEBER && $extratoQuitacao) {
+                RepasseColaboradorService::estornarPorRecebimento((int) $extratoQuitacao->id);
+            }
+            if ((string) $conta->tipo_conta_id === (string) TipoConta::PAGAR) {
+                RepasseColaboradorService::exigirForaDeLote((int) $lancamento->id);
+            }
+
             // pagamentos parciais anteriores continuam no extrato: a parcela volta a dever so o que faltava
             $parciais = 0.0;
             foreach (Extrato::where('lancamento_id', '=', $lancamento->id)->load() as $x) {

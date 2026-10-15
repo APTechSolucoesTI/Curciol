@@ -18,6 +18,9 @@ class FinanceiroConfiguracao extends TRecord
     {
         parent::__construct($id, $callObjectLoad);
         parent::addAttribute('pct_nf_padrao');
+        parent::addAttribute('repasse_dias_vencimento');
+        parent::addAttribute('repasse_categoria_conta_id');
+        parent::addAttribute('repasse_tipo_documento_id');
         parent::addAttribute('data_modificacao');
         parent::addAttribute('modificacao_user_id');
     }
@@ -36,5 +39,16 @@ class FinanceiroConfiguracao extends TRecord
             return self::PCT_NF_PADRAO;
         }
         return ($c && $c->pct_nf_padrao !== null && $c->pct_nf_padrao !== '') ? (float) $c->pct_nf_padrao : self::PCT_NF_PADRAO;
+    }
+
+    /** Configuracao do repasse a colaboradores: ['dias' => int, 'categoria_id' => ?int, 'documento_id' => ?int]. Usa a transacao aberta. */
+    public static function repasse(): array
+    {
+        $c = self::find(self::ID_UNICO);
+        return [
+            'dias' => $c ? max(0, (int) $c->repasse_dias_vencimento) : 0,
+            'categoria_id' => ($c && $c->repasse_categoria_conta_id) ? (int) $c->repasse_categoria_conta_id : null,
+            'documento_id' => ($c && $c->repasse_tipo_documento_id) ? (int) $c->repasse_tipo_documento_id : null,
+        ];
     }
 }

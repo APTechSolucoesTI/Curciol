@@ -118,6 +118,16 @@ class Fixtures
             $contas = $req ? self::coluna($c, 'SELECT id FROM conta WHERE requisicao_pagamento_id = ?', [$req]) : [];
             $levs   = !empty($f['etapa3_id']) ? self::coluna($c, 'SELECT id FROM levantamento_financeiro WHERE requisicao_pagamento_etapa3_id = ?', [(int) $f['etapa3_id']]) : [];
 
+            // repasses a colaboradores (e lotes de pagamento deles) antes das contas e da ficha
+            if ($contas) {
+                $lotes = self::coluna($c, 'SELECT DISTINCT x.lote_pagamento_id FROM extrato x JOIN lancamento l ON l.id = x.lancamento_id WHERE x.lote_pagamento_id IS NOT NULL AND l.conta_id IN (' . implode(',', $contas) . ')');
+                $c->exec('DELETE FROM repasse_colaborador WHERE conta_receber_id IN (' . implode(',', $contas) . ') OR conta_pagar_id IN (' . implode(',', $contas) . ')');
+                if ($lotes) {
+                    $c->exec('UPDATE lancamento SET extrato_id = NULL WHERE extrato_id IN (SELECT id FROM extrato WHERE lote_pagamento_id IN (' . implode(',', $lotes) . '))');
+                    $c->exec('DELETE FROM extrato WHERE lote_pagamento_id IN (' . implode(',', $lotes) . ')');
+                    self::apagar($c, 'lote_pagamento', 'id', $lotes);
+                }
+            }
             self::apagar($c, 'levantamento_financeiro_repasse', 'levantamento_financeiro_id', $levs);
             self::apagar($c, 'levantamento_financeiro', 'id', $levs);
 

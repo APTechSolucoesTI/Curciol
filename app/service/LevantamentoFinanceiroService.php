@@ -128,6 +128,10 @@ class LevantamentoFinanceiroService
         if ($g && ($g['papel'] === 'RECEBER' || $bloqueiaPagar)) {
             throw new Exception('Conta gerada pelo financeiro do levantamento. Para corrigir, use "Desfazer financeiro" no pagamento da requisição.');
         }
+        // conta a pagar de repasse a colaborador: so muda pelo estorno do recebimento que a gerou
+        if ($bloqueiaPagar) {
+            RepasseColaboradorService::exigirNaoRepasse($contaId);
+        }
     }
 
     public static function gerar(int $etapa3Id, array $d): LevantamentoFinanceiro
@@ -340,6 +344,8 @@ class LevantamentoFinanceiroService
                 $fr->store();
             }
 
+            // contas a pagar dos colaboradores (a parte do escritorio fica como receita)
+            RepasseColaboradorService::gerarPorRecebimento((int) $parcela->id, (int) $extrato->id, $y, $x, true, (int) $ficha->id);
             TTransaction::close();
             return $ficha;
         } catch (Throwable $ex) {
@@ -392,6 +398,11 @@ class LevantamentoFinanceiroService
 
             // contas-caixa dos extratos que vao sair: o saldo delas e recalculado depois de apagar
             $contasCaixa = self::ids($c, "SELECT DISTINCT conta_caixa_id FROM extrato WHERE lancamento_id IN ({$lancs})");
+
+            // repasses aos colaboradores gerados pelos recebimentos desta conta (recusa se algum ja foi pago)
+            foreach (self::ids($c, "SELECT id FROM extrato WHERE lancamento_id IN ({$lancs})") as $extratoRecebimento) {
+                RepasseColaboradorService::estornarPorRecebimento((int) $extratoRecebimento);
+            }
             $c->exec("UPDATE lancamento SET extrato_id = NULL WHERE conta_id IN ({$lista})");
             $c->exec("DELETE FROM extrato WHERE lancamento_id IN ({$lancs})");
             ContaCaixaSaldoService::recalcular($contasCaixa);
@@ -501,6 +512,12 @@ class LevantamentoFinanceiroService
             if ((int) $st->fetchColumn() > 0) {
                 return 'A conta a pagar ao cliente já foi paga (total ou parcialmente). Estorne o pagamento ao cliente antes de desfazer.';
             }
+        }
+        $st = $c->prepare('SELECT DISTINCT r.extrato_recebimento_id FROM repasse_colaborador r JOIN levantamento_financeiro lf ON lf.id = r.levantamento_financeiro_id WHERE lf.requisicao_pagamento_etapa3_id = ?');
+        $st->execute([$etapa3Id]);
+        foreach ($st->fetchAll(PDO::FETCH_COLUMN) as $extratoRecebimento) {
+            $m = RepasseColaboradorService::motivoBloqueioRecebimento((int) $extratoRecebimento);
+            if ($m !== null) { return $m; }
         }
         return null;
     }

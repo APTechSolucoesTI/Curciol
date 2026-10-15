@@ -46,6 +46,7 @@ class Extrato extends TRecord
         parent::addAttribute('mes');
         parent::addAttribute('ano');
         parent::addAttribute('ano_mes');
+        parent::addAttribute('lote_pagamento_id');
     
     }
 
