@@ -858,6 +858,27 @@ class PreProcessoService
     }
 
     /**
+     * Torna o processo principal dos processos das publicacoes que trazem o
+     * numero dele como principal.
+     *
+     * A propria publicacao do processo pode trazer o numero dele como
+     * principal (eproc: "Nº <numero>/SP"); garantirVinculoPrincipal ignora
+     * esse caso, senao o processo vira pai e filho dele mesmo.
+     */
+    public static function vincularIncidentesDoNumero($processo_id, $numero): void
+    {
+        $publicacoes = Publicacao::where('numero_processo_principal', '=', $numero)->load();
+
+        foreach ($publicacoes as $publicacao)
+        {
+            if (!empty($publicacao->processo_id))
+            {
+                self::garantirVinculoPrincipal($processo_id, $publicacao->processo_id);
+            }
+        }
+    }
+
+    /**
      * Cria o vinculo principal/incidente se ele ainda nao existir.
      */
     public static function garantirVinculoPrincipal($processo_principal_id, $processo_incidente_id): void

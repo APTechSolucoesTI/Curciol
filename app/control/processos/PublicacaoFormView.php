@@ -1047,20 +1047,7 @@ class PublicacaoFormView extends TWindow
                     APIPublicacaoController::adicionarMovimentacao($publicacao->id, "Processo adicionado.", null, $processo->id);
                 }
 
-                $publicacoes = Publicacao::where('numero_processo_principal','=',$processo->numero_cnj_numero)->load();
-                foreach ($publicacoes as $publicacao) {
-                    if($publicacao->processo_id){
-                        $vinculo = ProcessoVinculo::where('processo_principal_id','=',$processo->id)
-                                                  ->where('processo_incidente_id','=',$publicacao->processo_id)
-                                                  ->count();
-                        if($vinculo<1){
-                            $vinculo = new ProcessoVinculo();
-                            $vinculo->processo_principal_id = $processo->id;
-                            $vinculo->processo_incidente_id = $publicacao->processo_id;
-                            $vinculo->store();
-                        }
-                    }
-                }
+                PreProcessoService::vincularIncidentesDoNumero($processo->id, $processo->numero_cnj_numero);
 
                 foreach($principalContrato as $key=>$value){
                     $processoContrato = new ContratoProcesso();
