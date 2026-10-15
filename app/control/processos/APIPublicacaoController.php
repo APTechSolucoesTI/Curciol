@@ -227,7 +227,9 @@ class APIPublicacaoController extends TPage
                                                         substr($processoUnico,14,2).".".
                                                         substr($processoUnico,16,4);
                                     }
-                                    
+
+                                    $processoPrincipal = self::principalDistinto($processoPrincipal, $processoUnico);
+
                                     TTransaction::open(self::$database);
                                     
                                     $criteria  = new TCriteria();
@@ -370,15 +372,8 @@ class APIPublicacaoController extends TPage
                 */
                 
                 if($principal){
-                    $vinculo = ProcessoVinculo::where('processo_principal_id','=',$principal->id)
-                                                ->where('processo_incidente_id','=',$publicacao->processo_id)
-                                                ->count();
-                    if($vinculo<1){                      
-                        $vinculo = new ProcessoVinculo();
-                        $vinculo->processo_principal_id = $principal->id;
-                        $vinculo->processo_incidente_id = $publicacao->processo_id;
-                        $vinculo->store();
-                    }
+                    // Nunca liga o processo a ele mesmo (principal com o proprio numero)
+                    PreProcessoService::garantirVinculoPrincipal($principal->id, $publicacao->processo_id);
                 }
             }
             
@@ -441,6 +436,25 @@ class APIPublicacaoController extends TPage
                 }
             }
         }
+    }
+
+    /**
+     * Numero do processo principal so quando ele e outro processo.
+     *
+     * No eproc o texto traz "Nº <numero>/SP": a busca pela barra le isso como
+     * incidente e devolve o proprio numero como principal. Um processo nao e
+     * principal de si mesmo - gravar isso faz o processo virar pai e filho
+     * dele mesmo quando e criado.
+     */
+    public static function principalDistinto(?string $principal, ?string $unico): ?string
+    {
+        $principal = trim((string) $principal);
+
+        if ($principal === '' || $principal === trim((string) $unico)) {
+            return null;
+        }
+
+        return $principal;
     }
 
     private static function normalizarProcessoUnicoAposBarra(?string $processoUnico): ?string

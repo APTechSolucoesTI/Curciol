@@ -892,20 +892,7 @@ class ProcessoForm extends TPage
                 APIPublicacaoController::adicionarMovimentacao($publicacao->id, "Processo adicionado.", null, $object->id);
             }
 
-            $publicacoes = Publicacao::where('numero_processo_principal','=',$object->numero_cnj_numero)->load();
-            foreach ($publicacoes as $publicacao) {
-                if($publicacao->processo_id){
-                    $vinculo = ProcessoVinculo::where('processo_principal_id','=',$object->id)
-                                              ->where('processo_incidente_id','=',$publicacao->processo_id)
-                                              ->count();
-                    if($vinculo<1){                      
-                        $vinculo = new ProcessoVinculo();
-                        $vinculo->processo_principal_id = $object->id;
-                        $vinculo->processo_incidente_id = $publicacao->processo_id;
-                        $vinculo->store();
-                    }
-                }
-            }
+            PreProcessoService::vincularIncidentesDoNumero($object->id, $object->numero_cnj_numero);
 
             } // fim do bloco que depende do numero (PRE-PROCESSO)
 
