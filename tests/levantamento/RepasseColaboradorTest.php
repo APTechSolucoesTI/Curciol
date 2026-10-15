@@ -108,7 +108,7 @@ try {
     lanca('conta de repasse nao pode ser editada/excluida', function () use ($repJuanContrato) { LevantamentoFinanceiroService::exigirContaNaoGerada($repJuanContrato); }, 'repasse a colaborador');
     TTransaction::open('escritorio'); $lancJacLev = (int) Lancamento::where('conta_id', '=', $repJacLev)->first()->id; TTransaction::close();
     $erro = tela(function () use ($lancJacLev, $repJacLev) { (new ContaFormView(['key' => $repJacLev]))->onDesquitar(['id' => $lancJacLev, 'key' => $repJacLev, 'confirmado' => 1]); });
-    ok('desquitar repasse pago em lote e recusado', mb_stripos($erro, 'Estornar lote') !== false, $erro);
+    ok('desquitar repasse pago em lote e recusado', mb_stripos($erro, 'pago no lote') !== false, $erro);
     ok('desfazer o levantamento recusado com repasse pago', mb_stripos((string) $S::podeDesfazer($f['etapa3_id']), 'colaborador') !== false, (string) $S::podeDesfazer($f['etapa3_id']));
     lanca('desfazer o levantamento lanca o mesmo motivo', function () use ($S, $f) { $S::desfazer($f['etapa3_id']); }, 'colaborador');
 
