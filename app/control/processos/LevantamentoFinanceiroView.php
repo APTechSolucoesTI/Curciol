@@ -173,6 +173,7 @@ class LevantamentoFinanceiroView extends TWindow
             }
 
             $r->receber = $ficha->conta_receber_id ? $c->query('SELECT id, total_conta, quitada FROM conta WHERE id = ' . (int) $ficha->conta_receber_id)->fetch(PDO::FETCH_OBJ) : null;
+            $r->repassesColaboradores = RepasseColaboradorService::listar(['levantamento_ids' => [(int) $ficha->id]]);
             $r->pagar = $ficha->conta_pagar_id ? $c->query('SELECT id, total_conta, quitada FROM conta WHERE id = ' . (int) $ficha->conta_pagar_id)->fetch(PDO::FETCH_OBJ) : null;
 
             // origem (so para exibir; se o pagamento mudou e o contexto nao carrega, a ficha continua valendo)
@@ -269,7 +270,12 @@ class LevantamentoFinanceiroView extends TWindow
         $o .= $d->receber ? self::linkConta($d->receber, 'Abrir conta a receber', 'quitada') : '';
         $o .= $d->pagar ? self::linkConta($d->pagar, 'Abrir conta a pagar ao cliente', ($d->pagar->quitada === 'S') ? 'paga' : 'em aberto')
                           : '<span class="lf-nota">Sem conta a pagar ao cliente.</span>';
-        $o .= '</div></div>';
+        $o .= '</div>';
+
+        // contas a pagar dos colaboradores geradas pelo recebimento
+        $o .= '<div class="lf-titulo">Repasses aos colaboradores</div>';
+        $o .= $d->repassesColaboradores ? RepasseColaboradorList::secaoHtml($d->repassesColaboradores) : '<div class="lf-nota">Nenhuma conta a pagar de repasse (sem colaboradores além do escritório).</div>';
+        $o .= '</div>';
 
         $el = new TElement('div');
         $el->add($o);

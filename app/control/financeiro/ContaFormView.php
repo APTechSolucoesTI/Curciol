@@ -392,6 +392,29 @@ class ContaFormView extends TPage
 
         $this->form->addContent([$panel]);
 
+        // repasses aos colaboradores: na conta a receber, as contas a pagar geradas; na conta de repasse, a origem
+        $repassesDaConta = ((string) $conta->tipo_conta_id === (string) TipoConta::RECEBER)
+            ? RepasseColaboradorService::listar(['conta_receber_id' => (int) $conta->id])
+            : RepasseColaboradorService::listar(['conta_pagar_id' => (int) $conta->id]);
+        if ($repassesDaConta) {
+            $ehReceber = ((string) $conta->tipo_conta_id === (string) TipoConta::RECEBER);
+            $tituloRepasses = new TTextDisplay(new TImage('fas:hand-holding-usd #1f3a5f') . ($ehReceber ? ' Repasses aos colaboradores' : ' Repasse a colaborador'), '#555555', '16px');
+            $panelRepasses = new TPanelGroup($tituloRepasses, '#FFFFFF');
+            $panelRepasses->class = 'panel panel-default formView-detail';
+            if (!$ehReceber) {
+                $origemId = (int) $repassesDaConta[0]->conta_receber_id;
+                $urlOrigem = "index.php?class=ContaFormView&method=onShow&key={$origemId}&id={$origemId}&target_container=adianti_right_panel";
+                $panelRepasses->add('<div style="font-size:12px;margin-bottom:6px">Gerada pelo recebimento de ' . htmlspecialchars(RepasseColaboradorService::origem($repassesDaConta[0]))
+                    . ' - <a href="javascript:void(0)" onclick="' . htmlspecialchars('Adianti.waitMessage = false; __adianti_load_page(' . json_encode($urlOrigem) . '); return false;') . '">abrir a conta a receber #' . $origemId . '</a>.'
+                    . ' Ela acompanha esse recebimento: para corrigir, desquite a parcela recebida; pague em Financeiro › Repasses a colaboradores.</div>');
+            }
+            $divRepasses = new TElement('div');
+            $divRepasses->class = 'table-responsive';
+            $divRepasses->add(RepasseColaboradorList::secaoHtml($repassesDaConta));
+            $panelRepasses->add($divRepasses);
+            $this->form->addContent([$panelRepasses]);
+        }
+
         TScript::create("$('label:contains(\"Motivo do cancelamento:\")').hide();");
         TScript::create("$('label:contains(\"MOTIVO CANCELAMENTO\")').hide();");
 

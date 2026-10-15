@@ -447,6 +447,9 @@ class RepasseColaboradorService
         if (!empty($f['pessoa_id'])) { $w[] = 'r.pessoa_id = ?'; $p[] = (int) $f['pessoa_id']; }
         if (!empty($f['requisicao_id'])) { $w[] = 'COALESCE(cr.requisicao_pagamento_id, lf.requisicao_pagamento_id) = ?'; $p[] = (int) $f['requisicao_id']; }
         if (!empty($f['lote_id'])) { $w[] = 'xp.lote_pagamento_id = ?'; $p[] = (int) $f['lote_id']; }
+        if (!empty($f['conta_receber_id'])) { $w[] = 'r.conta_receber_id = ?'; $p[] = (int) $f['conta_receber_id']; }
+        if (!empty($f['conta_pagar_id'])) { $w[] = 'r.conta_pagar_id = ?'; $p[] = (int) $f['conta_pagar_id']; }
+        if (!empty($f['levantamento_ids'])) { $w[] = 'r.levantamento_financeiro_id IN (' . implode(',', array_map('intval', (array) $f['levantamento_ids'])) . ')'; }
         if (trim((string) ($f['processo'] ?? '')) !== '') {
             $dig = preg_replace('/\D/', '', $f['processo']);
             if ($dig !== '') {
