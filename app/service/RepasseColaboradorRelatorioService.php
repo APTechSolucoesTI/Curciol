@@ -49,7 +49,7 @@ class RepasseColaboradorRelatorioService
     public static function gerarPdf(array $f): array
     {
         $d = self::dados($f);
-        $e = function ($t) { return htmlspecialchars((string) $t, ENT_QUOTES, 'UTF-8'); };
+        $e = function ($t) { return htmlspecialchars(self::nfc($t), ENT_QUOTES, 'UTF-8'); };
         $m = function ($v) { return 'R$ ' . number_format((float) $v, 2, ',', '.'); };
 
         $corpo = '';
@@ -63,7 +63,7 @@ class RepasseColaboradorRelatorioService
                 . '<div class="sub">A pagar: <b>' . $e($m($g['aberto'])) . '</b> &nbsp;·&nbsp; Pago: <b>' . $e($m($g['pago'])) . '</b> &nbsp;·&nbsp; Total: <b>' . $e($m($g['aberto'] + $g['pago'])) . '</b></div>';
         }
         if ($corpo === '') { $corpo = '<p>Nenhum repasse encontrado com os filtros informados.</p>'; }
-        $logo = is_file(LevantamentoPrestacaoContasService::CABECALHO_PADRAO) ? '<img src="' . LevantamentoPrestacaoContasService::CABECALHO_PADRAO . '" style="width:100%">' : '';
+        $logo = is_file(LevantamentoPrestacaoContasService::CABECALHO_PADRAO) ? '<img src="' . LevantamentoPrestacaoContasService::CABECALHO_PADRAO . '" style="width:48%">' : '';
 
         $html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
             @page { margin: 26px 30px 40px 30px; }
@@ -109,15 +109,15 @@ class RepasseColaboradorRelatorioService
         foreach ($d['grupos'] as $nome => $g) {
             foreach ($g['linhas'] as $l) {
                 $t->addRow();
-                $t->addCell($nome, 'left', 'dado');
+                $t->addCell(self::nfc($nome), 'left', 'dado');
                 $t->addCell($l['recebido'], 'center', 'dado');
-                $t->addCell($l['origem'], 'left', 'dado');
+                $t->addCell(self::nfc($l['origem']), 'left', 'dado');
                 $t->addCell($l['vencimento'], 'center', 'dado');
                 $t->addCell(number_format($l['valor'], 2, ',', '.'), 'right', 'dado');
                 $t->addCell($l['situacao'], 'left', 'dado');
             }
             $t->addRow();
-            $t->addCell('Subtotal ' . $nome, 'left', 'sub');
+            $t->addCell('Subtotal ' . self::nfc($nome), 'left', 'sub');
             $t->addCell('', 'center', 'sub');
             $t->addCell('A pagar ' . number_format($g['aberto'], 2, ',', '.') . ' · Pago ' . number_format($g['pago'], 2, ',', '.'), 'left', 'sub');
             $t->addCell('', 'center', 'sub');
@@ -134,6 +134,13 @@ class RepasseColaboradorRelatorioService
         $arquivo = 'tmp/repasses_colaboradores_' . uniqid() . '.xls';
         $t->save($arquivo);
         return ['arquivo' => $arquivo, 'nome' => 'Repasses_colaboradores_' . date('Ymd') . '.xls'];
+    }
+
+    /** Acentos compostos (NFC): alguns nomes estao gravados decompostos (NFD) e o PDF/Excel perderiam o acento. */
+    private static function nfc($t): string
+    {
+        $t = (string) $t;
+        return class_exists('Normalizer') ? (Normalizer::normalize($t, Normalizer::FORM_C) ?: $t) : $t;
     }
 
     /** Texto com os filtros aplicados. Exige transacao aberta. */
