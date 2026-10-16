@@ -45,6 +45,8 @@ class ExtratoParametrosForm extends TWindow
         $processo->setMask('{numero_cnj_numero} {numero_outro}');
         $processo->setTip('Digite parte do número. Escolhendo um processo pai ou principal, entram também as movimentações dos processos filhos.');
         foreach ([$contaCaixa, $situacao, $periodoTipo, $dataDe, $dataAte, $tipoExtrato, $historico, $entrada, $saida, $pessoa, $processo] as $w) { $w->setSize('100%'); }
+        $contaCaixa->setSize('100%', 38);
+        $tipoExtrato->setSize('100%', 38);
 
         $atalhos = "<div class='ep-atalhos'>"
             . "<a href='javascript:void(0)' onclick=\"epPeriodo(7)\">7 dias</a><a href='javascript:void(0)' onclick=\"epPeriodo(15)\">15 dias</a>"
