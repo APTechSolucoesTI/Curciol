@@ -56,7 +56,7 @@ try {
     ok('tela de login: "Login (CPF)" e formatacao so na tela', strpos($html, '<label>Login (CPF)</label>') !== false && strpos($html, 'curciolFormatarDocumento') !== false);
 
     // ---------- portal: cards da timeline ----------
-    $proc = q("SELECT a.processo_id FROM andamento a JOIN processo_publicacoes pp ON pp.andamento_id = a.id JOIN publicacao_etapa e ON e.id = a.publicacao_etapa_id
+    $proc = q("SELECT a.processo_id FROM andamento a JOIN processo_publicacoes pp ON pp.andamento_id = a.id JOIN publicacao_etapa e ON e.id = a.publicacao_etapa_id JOIN processo pr ON pr.id = a.processo_id AND pr.exibir_cliente = 'S'
                 WHERE COALESCE(e.detalhamento, '') <> '' AND COALESCE(pp.complemento, '') <> '' ORDER BY a.id DESC LIMIT 1");
     if ($proc) {
         $t = saida(function () use ($proc) { (new ProcessoPublicacoesTimeLine(['processo_id' => $proc[0]['processo_id']]))->show(); });
