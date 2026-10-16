@@ -3,7 +3,7 @@
 /**
  * Integracao Contatos APChat (Configuracoes > Geral).
  *
- * Clientes que autorizaram WhatsApp (apchat_contato_view) com o resultado da
+ * Todas as pessoas (apchat_contato_view) com o resultado da
  * ultima sincronizacao, e o "Sincronizar todos", que aplica a cada um a
  * mesma regra do salvamento do cliente (APChatContactService). O
  * "Sincronizar todos" roda em lotes - uma requisicao por lote - para nao
@@ -356,7 +356,7 @@ class ApchatContatoList extends TPage
     }
 
     /**
-     * Situacoes possiveis da ultima sincronizacao. NUNCA = cliente autorizado
+     * Situacoes possiveis da ultima sincronizacao. NUNCA = pessoa com telefone valido
      * que ainda nao passou pela sincronizacao (sem linha no log).
      */
     private static function situacoes(): array
@@ -366,7 +366,7 @@ class ApchatContatoList extends TPage
             'SUCESSO'  => 'Sincronizado',
             'PENDENTE' => 'Pendente (telefone alterado)',
             'ERRO'     => 'Erro',
-            'IGNORADO' => 'Não enviado (telefone inválido)',
+            'IGNORADO' => 'Não sincronizado',   // telefone invalido ou vazio
         ];
     }
 
@@ -376,7 +376,7 @@ class ApchatContatoList extends TPage
             'SUCESSO'  => '#2e7d32',
             'PENDENTE' => '#ef6c00',
             'ERRO'     => '#c62828',
-            'IGNORADO' => '#616161',
+            'IGNORADO' => '#c62828',
         ];
 
         $chave = empty($situacao) ? 'NUNCA' : (string) $situacao;
@@ -399,14 +399,14 @@ class ApchatContatoList extends TPage
 
             if ($total === 0)
             {
-                new TMessage('info', 'Nenhum cliente autorizou mensagens por WhatsApp.');
+                new TMessage('info', 'Nenhuma pessoa com telefone válido para sincronizar.');
                 return;
             }
 
             new TQuestion(
-                "Sincronizar com o APChat os {$total} clientes que autorizaram WhatsApp?<br><br>"
+                "Sincronizar com o APChat as {$total} pessoas com telefone válido (clientes, colaboradores, partes contrárias e demais)?<br><br>"
                 . "Cada um é consultado no APChat e atualizado (se já existir) ou criado (se não existir), "
-                . "com a mesma regra do cadastro de clientes. O processo roda em lotes de " . self::TAMANHO_LOTE . "; não feche esta tela até terminar.",
+                . "com a mesma regra do cadastro de clientes. Telefone vazio ou inválido fica como \"Não sincronizado\". O processo roda em lotes de " . self::TAMANHO_LOTE . "; não feche esta tela até terminar.",
                 new TAction([__CLASS__, 'onSincronizarLote'], ['offset' => 0, 'static' => 1])
             );
         }
@@ -456,7 +456,7 @@ class ApchatContatoList extends TPage
                 'SUCESSO|CREATE'  => 'contatos criados',
                 'SUCESSO|UPDATE'  => 'contatos atualizados',
                 'PENDENTE|UPDATE' => 'pendentes (telefone alterado, contato antigo mantido)',
-                'IGNORADO|NENHUMA'=> 'não enviados (telefone inválido ou sem autorização)',
+                'IGNORADO|NENHUMA'=> 'não sincronizados (telefone inválido ou vazio)',
             ];
 
             $linhas = [];
@@ -467,7 +467,7 @@ class ApchatContatoList extends TPage
                 $linhas[] = "<b>{$quantidade}</b> {$nome}";
             }
 
-            new TMessage('info', "Sincronização concluída: {$total} clientes.<br><br>" . implode('<br>', $linhas) . "<br><br>O detalhe de cada um fica na coluna \"Detalhe\".");
+            new TMessage('info', "Sincronização concluída: {$total} pessoas.<br><br>" . implode('<br>', $linhas) . "<br><br>O detalhe de cada um fica na coluna \"Detalhe\".");
 
             AdiantiCoreApplication::loadPage(__CLASS__, 'onReload');
         }

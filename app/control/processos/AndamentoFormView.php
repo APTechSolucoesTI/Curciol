@@ -136,7 +136,6 @@ class AndamentoFormView extends TWindow
             $etapa_html = "<span class='label' style='width:100%;background-color:{$etapa_cor};'> {$etapa_texto} </span>";
         }
         $etapa_nome = new TTextDisplay($etapa_html, '', '12px', '');
-        $labelvazia = new TLabel(" ", '', '12px', '', '100%');
         $tbuttonalteretapa = new TButton('tbuttonalteretapa');
         $tbuttonaddcomplemento = new TButton('tbuttonaddcomplemento');
         $labelstatus = new TLabel("Status da etapa:", '', '12px', 'B', '100%');
@@ -187,15 +186,21 @@ class AndamentoFormView extends TWindow
             $textoJustificado->{'style'} .= ';display:block;text-align:justify;';
         }
 
-        // Botao de adicionar/editar complemento abaixo do complemento, como o "Alterar Etapa" abaixo da etapa
-        $labelvaziaComplemento = new TLabel(" ", '', '12px', '', '100%');
 
         $btnAddTarefa = new TActionLink("Adicionar tarefa", new TAction(['AndamentoFormView', 'onAddTarefa'], ['andamento_id'=> $andamento->id, 'key' => $andamento->id]), '', '12px', '', 'fas:plus #4CAF50');
         $row1 = $this->form->addFields([$label2,$text2],[$label3,$text3],[$label4,$text4]);
         $row1->layout = [' col-sm-4',' col-sm-4',' col-sm-4'];
 
-        $row2 = $this->form->addFields([$Etapa,$etapa_nome,$labelvazia,$tbuttonalteretapa],[$labelstatus,$text26],[$complementoLabel,$text39,$labelvaziaComplemento,$tbuttonaddcomplemento]);
-        $row2->layout = [' col-sm-4',' col-sm-4',' col-sm-4'];
+        $row2 = $this->form->addFields([$Etapa,$etapa_nome],[$labelstatus,$text26]);
+        $row2->layout = [' col-sm-4',' col-sm-4'];
+
+        // "Alterar Etapa" e "Adicionar/Editar complemento" lado a lado; o complemento logo abaixo, antes da linha das informacoes
+        $tbuttonaddcomplemento->{'style'} = 'margin-left:8px;';
+        $rowBotoes = $this->form->addFields([$tbuttonalteretapa, $tbuttonaddcomplemento]);
+        $rowBotoes->layout = [' col-sm-12'];
+
+        $rowComplemento = $this->form->addFields([$complementoLabel,$text39]);
+        $rowComplemento->layout = [' col-sm-12'];
 
         $row3 = $this->form->addContent([new TFormSeparator("", '#333', '18', '#eee')]);
 

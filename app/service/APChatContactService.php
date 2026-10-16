@@ -1,11 +1,12 @@
 <?php
 
 /**
- * Sincronizacao de clientes do Curciol com os contatos do APChat.
+ * Sincronizacao das pessoas do Curciol com os contatos do APChat.
  *
- * Mao unica: Curciol -> APChat. So para clientes (grupo CLIENTE) que
- * autorizaram mensagens por WhatsApp (pessoa.aceita_receber_mensagen_whatsapp
- * = 'T'). Sem essa autorizacao nenhuma rota e chamada, nem a de consulta.
+ * Mao unica: Curciol -> APChat. Desde 16/10/2026 vale para toda pessoa com
+ * telefone valido (cliente, colaborador, parte contraria...), sem olhar a
+ * autorizacao de WhatsApp (aceita_receber_mensagen_whatsapp). Telefone vazio
+ * ou invalido nao chama nenhuma rota.
  *
  * API (confirmada em 09/10/2026)
  * -------------------------------
@@ -85,11 +86,11 @@ class APChatContactService
 
             $pessoa = Pessoa::find($pessoa_id);
 
-            if (!$pessoa || !self::ehCliente($pessoa_id) || !self::autorizou($pessoa))
+            if (!$pessoa)
             {
                 TTransaction::close();
 
-                return self::resultado(ApchatContatoLog::SITUACAO_IGNORADO, ApchatContatoLog::OPERACAO_NENHUMA, 'Sem autorização para WhatsApp: nenhuma chamada ao APChat.');
+                return self::resultado(ApchatContatoLog::SITUACAO_IGNORADO, ApchatContatoLog::OPERACAO_NENHUMA, 'Pessoa não encontrada: nenhuma chamada ao APChat.');
             }
 
             $contato = self::montarContato($pessoa);
@@ -169,7 +170,7 @@ class APChatContactService
 
     /**
      * Consulta o contato no APChat, sem gravar nada (tela de visualizacao).
-     * So para cliente autorizado.
+     * Qualquer pessoa com telefone valido.
      *
      * @return object {situacao: ENCONTRADO|NAO_ENCONTRADO|ERRO|IGNORADO, contato?, numero?, mensagem}
      */
@@ -179,7 +180,7 @@ class APChatContactService
         {
             TTransaction::open(self::$database);
             $pessoa = Pessoa::find((int) $pessoa_id);
-            $autorizado = $pessoa && self::autorizou($pessoa);
+            $existe = (bool) $pessoa;
             $contato = $pessoa ? self::montarContato($pessoa) : [];
             $token = self::token();
             TTransaction::close();
@@ -191,9 +192,9 @@ class APChatContactService
             return (object) ['situacao' => 'ERRO', 'mensagem' => $e->getMessage()];
         }
 
-        if (!$autorizado)
+        if (!$existe)
         {
-            return (object) ['situacao' => 'IGNORADO', 'mensagem' => 'Cliente sem autorização para WhatsApp: o APChat não é consultado.'];
+            return (object) ['situacao' => 'IGNORADO', 'mensagem' => 'Pessoa não encontrada.'];
         }
 
         if (empty($contato['number']))
@@ -210,14 +211,31 @@ class APChatContactService
     }
 
     /**
-     * Ids dos clientes autorizados, em ordem, para o "Sincronizar todos".
+     * Telefone gravado da pessoa antes de uma edicao ('' se nova). Usa a transacao aberta do formulario.
+     */
+    public static function telefoneGravado($pessoa_id): string
+    {
+        $pessoa_id = (int) $pessoa_id;
+        if ($pessoa_id <= 0 || !TTransaction::get())
+        {
+            return '';
+        }
+
+        $st = TTransaction::get()->prepare('SELECT telefone FROM pessoa WHERE id = ?');
+        $st->execute([$pessoa_id]);
+
+        return (string) $st->fetchColumn();
+    }
+
+    /**
+     * Ids das pessoas com telefone valido, em ordem, para o "Sincronizar todos".
      *
      * @return int[]
      */
     public static function idsAutorizados(): array
     {
         TTransaction::open(self::$database);
-        $ids = TTransaction::get()->query('SELECT id FROM apchat_contato_view ORDER BY id')->fetchAll(PDO::FETCH_COLUMN);
+        $ids = TTransaction::get()->query('SELECT id FROM apchat_contato_view WHERE telefone_valido ORDER BY id')->fetchAll(PDO::FETCH_COLUMN);
         TTransaction::close();
 
         return array_map('intval', $ids);
@@ -612,18 +630,6 @@ class APChatContactService
     // =================================================================
     // Apoio
     // =================================================================
-
-    private static function autorizou($pessoa): bool
-    {
-        return strtoupper(trim((string) $pessoa->aceita_receber_mensagen_whatsapp)) === 'T';
-    }
-
-    private static function ehCliente(int $pessoa_id): bool
-    {
-        return PessoaGrupo::where('pessoa_id', '=', $pessoa_id)
-                          ->where('grupo_id', '=', Grupo::CLIENTE)
-                          ->count() > 0;
-    }
 
     /**
      * Token do escritorio da unidade logada; sem ele, o do primeiro

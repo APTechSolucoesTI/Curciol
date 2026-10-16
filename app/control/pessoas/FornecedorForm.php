@@ -682,6 +682,8 @@ class FornecedorForm extends TPage
                 $object->modificacao_user_id = TSession::getValue('userid');
             }
 
+            // APChat: telefone antes desta edicao (o contato antigo e localizado por ele)
+            $telefone_anterior_apchat = APChatContactService::telefoneGravado($object->id ?? null);
             $object->store(); // save the object 
 
             TForm::sendData(self::$formName, (object)['id' => $object->id]);
@@ -720,6 +722,12 @@ class FornecedorForm extends TPage
 
             $this->form->setData($data); // fill form data
             TTransaction::close(); // close the transaction
+            // APChat: toda pessoa com telefone valido vai para os contatos (so depois do commit; nunca impede o cadastro)
+            $sincronizacao_apchat = APChatContactService::sincronizarPessoa($object->id, [$telefone_anterior_apchat]);
+            if (in_array($sincronizacao_apchat->situacao, [ApchatContatoLog::SITUACAO_ERRO, ApchatContatoLog::SITUACAO_PENDENTE]))
+            {
+                TToast::show('warning', 'Registro salvo. APChat: ' . $sincronizacao_apchat->mensagem, 'topRight', 'fas:exclamation-triangle');
+            }
 
             TToast::show('success', "Registro salvo", 'topRight', 'far:check-circle'); 
 

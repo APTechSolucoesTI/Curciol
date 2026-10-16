@@ -1443,7 +1443,7 @@ class ClienteForm extends TPage
 
             /*
                 APCHAT: sincronizacao do contato, so depois do commit. O
-                servico confere o consentimento (sem 'T' nao chama a API),
+                servico manda toda pessoa com telefone valido (sem olhar o consentimento),
                 nunca lanca excecao e grava o resultado em apchat_contato_log.
                 Falha la nao desfaz nem impede este cadastro - so avisa.
             */

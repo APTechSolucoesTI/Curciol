@@ -167,8 +167,8 @@ class ViewAndamentosPublicacoesProcesso extends TPage
         $column_id_transformed->disableHtmlConversion();
 
         $this->datagrid->addColumn($column_origem);
-        $this->datagrid->addColumn($column_titulo_transformed);
         $this->datagrid->addColumn($column_dt_transformed);
+        $this->datagrid->addColumn($column_titulo_transformed);
         $this->datagrid->addColumn($column_jornal_tipo);
         $this->datagrid->addColumn($column_id_transformed);
 
