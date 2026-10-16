@@ -69,7 +69,7 @@ try {
     lanca('outro usuario nao desfaz', function () use ($L, $lote1) { $L::desfazer((int) $lote1->id, 2); }, 'última ação em lote');
 
     // ---------- 3) compensar em lote e desfazer em sequencia (Ctrl+Z) ----------
-    lanca('compensar antes da baixa recusado', function () use ($L, $contasPagar, $PAGAR) { $L::compensar($contasPagar, $PAGAR, date('Y-m-d', strtotime('-400 days'))); }, 'mais recente');
+    lanca('compensar antes da baixa recusado', function () use ($L, $contasPagar, $PAGAR) { $L::compensar($contasPagar, $PAGAR, date('Y-m-d', strtotime('-1 day'))); }, 'posterior à baixa');
     $lote2 = $L::compensar($contasPagar, $PAGAR, $hoje);
     igual('compensar: 5 linhas compensadas', array_fill(0, 5, 'S'), array_column(q('SELECT compensado FROM extrato WHERE lote_pagamento_id = ' . (int) $lote1->id), 'compensado'));
     lanca('nada mais a compensar', function () use ($L, $contasPagar, $PAGAR, $hoje) { $L::compensar($contasPagar, $PAGAR, $hoje); }, 'a compensar');
@@ -90,7 +90,7 @@ try {
 
     // ---------- 5) prazo de 30 minutos ----------
     $lote3 = $L::quitar([$repasses[0]], $PAGAR, ['data_pagamento' => $hoje, 'conta_caixa_id' => $cc, 'tipo_pagamento_id' => TipoPagamento::TRANSFERENCIA]);
-    x("UPDATE lote_pagamento SET data_criacao = now() - INTERVAL '31 minutes' WHERE id = " . (int) $lote3->id);
+    x("UPDATE lote_pagamento SET data_criacao = '" . date('Y-m-d H:i:s', time() - 31 * 60) . "' WHERE id = " . (int) $lote3->id);
     ok('passados 30 minutos o botao some', $L::ultimoDesfazivel(1, $PAGAR) === null);
     lanca('passados 30 minutos nao desfaz', function () use ($L, $lote3) { $L::desfazer((int) $lote3->id, 1); }, 'minutos');
     // a conta do lote vencido se desquita normalmente, uma a uma

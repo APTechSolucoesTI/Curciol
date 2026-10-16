@@ -261,8 +261,8 @@ class LoteFinanceiroService
         if ($userId <= 0) { return null; }
         $propria = self::abrir();
         try {
-            $st = TTransaction::get()->prepare("SELECT id, acao, quantidade, total, data_criacao, desfeito_em,
-                                                       CEIL(EXTRACT(EPOCH FROM (data_criacao + INTERVAL '" . self::PRAZO_DESFAZER_MIN . " minutes' - now())) / 60) AS minutos_restantes
+            // data_criacao e gravada pelo PHP (fuso local): o prazo tambem e contado no PHP
+            $st = TTransaction::get()->prepare("SELECT id, acao, quantidade, total, data_criacao
                                                   FROM lote_pagamento WHERE criacao_user_id = ? AND tipo_conta_id = ? AND desfeito_em IS NULL
                                               ORDER BY data_criacao DESC, id DESC LIMIT 1");
             $st->execute([$userId, (int) $tipoConta]);
@@ -272,8 +272,9 @@ class LoteFinanceiroService
             if ($propria) { TTransaction::rollback(); }
             throw $e;
         }
-        if (!$l || (int) $l->minutos_restantes <= 0) { return null; }
-        return $l;
+        if (!$l) { return null; }
+        $l->minutos_restantes = (int) ceil((strtotime($l->data_criacao) + self::PRAZO_DESFAZER_MIN * 60 - time()) / 60);
+        return ($l->minutos_restantes > 0) ? $l : null;
     }
 
     /** Desfaz o lote (so o ultimo do usuario naquela tela, dentro do prazo, sem nada mexido depois). */
@@ -345,7 +346,7 @@ class LoteFinanceiroService
                 }
             }
 
-            $c->prepare('UPDATE lote_pagamento SET desfeito_em = now(), desfeito_user_id = ? WHERE id = ?')->execute([$userId, $loteId]);
+            $c->prepare('UPDATE lote_pagamento SET desfeito_em = ?, desfeito_user_id = ? WHERE id = ?')->execute([date('Y-m-d H:i:s'), $userId, $loteId]);
             ContaCaixaSaldoService::recalcular($contasCaixa);
 
             if ($propria) { TTransaction::close(); }
