@@ -184,7 +184,7 @@ class RepasseColaboradorService
                        COALESCE(cr.requisicao_pagamento_id, lf.requisicao_pagamento_id) AS requisicao_id,
                        e3.data_deposito,
                        COALESCE(pr.numero_cnj_numero, pr.numero_outro) AS processo_numero,
-                       COALESCE(cli.nome, pc.nome) AS cliente
+                       COALESCE(cli.nome, pc.nome, pcr.nome) AS cliente
                   FROM repasse_colaborador r
                   JOIN pessoa pe ON pe.id = r.pessoa_id
                   JOIN lancamento lp ON lp.id = r.lancamento_pagar_id
@@ -197,6 +197,7 @@ class RepasseColaboradorService
              LEFT JOIN requisicao_pagamento_etapa3 e3 ON e3.id = lf.requisicao_pagamento_etapa3_id
              LEFT JOIN requisicao_pagamento_cliente rpc ON rpc.id = lf.requisicao_pagamento_cliente_id
              LEFT JOIN pessoa cli ON cli.id = rpc.pessoa_id
+             LEFT JOIN pessoa pcr ON pcr.id = cr.pessoa_id
              LEFT JOIN pessoa pc ON pc.id = (SELECT cp.cliente_id FROM contrato_pessoa cp WHERE cp.contrato_id = cr.contrato_id ORDER BY cp.id LIMIT 1)
                  {$where}
               ORDER BY pe.nome, r.data_recebimento, r.id";
@@ -215,6 +216,9 @@ class RepasseColaboradorService
             $partes[] = 'Requisição #' . (int) $r->requisicao_id . ($r->data_deposito ? ' (depósito de ' . date('d/m/Y', strtotime($r->data_deposito)) . ')' : '');
         } elseif ($r->contrato_id) {
             $partes[] = 'Contrato ' . ($r->contrato_numero ?: '#' . (int) $r->contrato_id) . ((int) $r->total_parcelas > 1 ? ' - parcela ' . (int) $r->parcela . '/' . (int) $r->total_parcelas : '');
+        } elseif (trim((string) ($r->receber_descricao ?? '')) !== '') {
+            // conta a receber avulsa (sem processo, requisicao nem contrato): a descricao dela
+            $partes[] = trim((string) $r->receber_descricao) . ((int) $r->total_parcelas > 1 ? ' - parcela ' . (int) $r->parcela . '/' . (int) $r->total_parcelas : '');
         }
         return implode(' · ', $partes);
     }
@@ -346,7 +350,7 @@ class RepasseColaboradorService
         if (!empty($f['contrato_id'])) { $w[] = 'cr.contrato_id = ?'; $p[] = (int) $f['contrato_id']; }
         // filtros do cabecalho das colunas
         if (trim((string) ($f['texto'] ?? '')) !== '') {
-            $w[] = "(COALESCE(cli.nome, pc.nome, '') ILIKE ? OR COALESCE(pr.numero_cnj_numero, pr.numero_outro, '') ILIKE ? OR CAST(ct.numero AS TEXT) ILIKE ? OR cr.descricao ILIKE ?)";
+            $w[] = "(COALESCE(cli.nome, pc.nome, pcr.nome, '') ILIKE ? OR COALESCE(pr.numero_cnj_numero, pr.numero_outro, '') ILIKE ? OR CAST(ct.numero AS TEXT) ILIKE ? OR cr.descricao ILIKE ?)";
             $t = '%' . trim($f['texto']) . '%'; array_push($p, $t, $t, $t, $t);
         }
         if (!empty($f['recebido_em'])) { $w[] = 'r.data_recebimento = ?'; $p[] = substr($f['recebido_em'], 0, 10); }
