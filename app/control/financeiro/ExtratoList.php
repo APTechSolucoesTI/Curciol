@@ -128,21 +128,6 @@ class ExtratoList extends TPage
         $row3 = $this->form->addFields([new TLabel("Histórico:", null, '12px', null, '100%'),$historico],[new TLabel("Valor da entrada (R$):", null, '12px', null, '100%'),$entrada_valor],[new TLabel("Valor da saída (R$):", null, '12px', null, '100%'),$saida_valor]);
         $row3->layout = [' col-sm-4',' col-sm-4',' col-sm-4'];
 
-        // pessoa da conta (ex.: colaborador dos repasses), processo, requisicao de pagamento e lote de pagamento
-        $pessoa_filtro_id = new TDBUniqueSearch('pessoa_filtro_id', 'escritorio', 'Pessoa', 'id', 'nome', 'nome asc');
-        $pessoa_filtro_id->setMinLength(0);
-        $pessoa_filtro_id->setMask('{nome}');
-        $pessoa_filtro_id->setSize('100%');
-        $processo_filtro = new TEntry('processo_filtro');
-        $processo_filtro->setSize('100%');
-        $requisicao_filtro = new TEntry('requisicao_filtro');
-        $requisicao_filtro->setSize('100%');
-        $lote_filtro = new TEntry('lote_filtro');
-        $lote_filtro->setSize('100%');
-
-        $row4 = $this->form->addFields([new TLabel("Pessoa / colaborador:", null, '12px', null, '100%'),$pessoa_filtro_id],[new TLabel("Processo:", null, '12px', null, '100%'),$processo_filtro],[new TLabel("Requisição nº:", null, '12px', null, '100%'),$requisicao_filtro],[new TLabel("Lote nº:", null, '12px', null, '100%'),$lote_filtro]);
-        $row4->layout = [' col-sm-4',' col-sm-4',' col-sm-2',' col-sm-2'];
-
         // TTransaction::open('escritorio');
         // $conta_caixa_id = $param['conta_caixa_id'] ?? TSession::getValue('conta_caixa_id');
         // $param['conta_caixa'] = (ContaCaixa::find($conta_caixa_id))->nome;
@@ -176,10 +161,6 @@ class ExtratoList extends TPage
         $column_historico = new TDataGridColumn('historico', "Historico", 'center' , '20%');
         $column_entrada_valor_transformed = new TDataGridColumn('entrada_valor', "Entrada", 'center');
         $column_saida_valor_transformed = new TDataGridColumn('saida_valor', "Saída", 'center');
-        $column_lote = new TDataGridColumn('lote_pagamento_id', "Lote", 'center', '6%');
-        $column_lote->setTransformer(function($value) {
-            return $value ? 'nº ' . (int) $value : '';
-        });
 
         $column_entrada_valor_transformed->setTotalFunction( function($values) { 
             return array_sum((array) $values); 
@@ -286,7 +267,6 @@ class ExtratoList extends TPage
         $this->datagrid->addColumn($column_lancamento_tipo_pagamento_nome);
         $this->datagrid->addColumn($column_tipo_extrato_nome);
         $this->datagrid->addColumn($column_historico);
-        $this->datagrid->addColumn($column_lote);
         $this->datagrid->addColumn($column_entrada_valor_transformed);
         $this->datagrid->addColumn($column_saida_valor_transformed);
 
@@ -474,15 +454,20 @@ class ExtratoList extends TPage
         $head_left_actions->add($button_compensar);
         $head_left_actions->add($button_descompensar);
 
-        $head_right_actions->add($button_trocar_parametros);
+        // parametros, filtros e relatorio numa janela so (ExtratoParametrosForm)
+        $button_parametros = new TButton('button_button_parametros');
+        $button_parametros->setAction(new TAction(['ExtratoParametrosForm', 'onShow']), "Parâmetros e filtros");
+        $button_parametros->addStyleClass('btn-default');
+        $button_parametros->setImage('fas:sliders-h #000000');
+        $this->datagrid_form->addField($button_parametros);
+
+        $head_right_actions->add($button_parametros);
         $head_right_actions->add($button_atualizar);
-        $head_right_actions->add($btnShowCurtainFilters);
         $head_right_actions->add($button_limpar_filtros);
-        $head_right_actions->add($button_gerar_relatorio_de_conta_caixa);
 
         $this->datagrid_form->add($this->datagrid);
 
-        $this->btnShowCurtainFilters = $btnShowCurtainFilters;
+        $this->btnShowCurtainFilters = $button_parametros;
 
         // vertical box container
         $container = new TVBox;
@@ -713,6 +698,7 @@ class ExtratoList extends TPage
     {
         TSession::setValue(__CLASS__.'_filter_data', NULL);
         TSession::setValue(__CLASS__.'_filters', NULL);
+        TSession::setValue(ExtratoParametrosService::SESSAO, NULL);
 
         $this->onReload(['offset' => 0, 'first_page' => 1]);
     }
@@ -894,28 +880,6 @@ class ExtratoList extends TPage
             $filters[] = new TFilter('historico', 'like', "%{$data->historico_col}%");// create the filter 
         }
 
-        // filtros pela conta do lancamento (pessoa, processo, requisicao) e pelo lote de pagamento
-        $pessoaFiltro = (int) ($data->pessoa_filtro_id ?? 0);
-        if ($pessoaFiltro > 0)
-        {
-            $filters[] = new TFilter('lancamento_id', 'in', "(SELECT l.id FROM lancamento l JOIN conta c ON c.id = l.conta_id WHERE c.pessoa_id = {$pessoaFiltro})");
-        }
-        $processoFiltro = preg_replace('/\D/', '', (string) ($data->processo_filtro ?? ''));
-        if ($processoFiltro !== '')
-        {
-            $filters[] = new TFilter('lancamento_id', 'in', "(SELECT l.id FROM lancamento l JOIN conta c ON c.id = l.conta_id JOIN processo p ON p.id = c.processo_id WHERE regexp_replace(COALESCE(p.numero_cnj_numero, ''), '\\D', '', 'g') LIKE '%{$processoFiltro}%' OR regexp_replace(COALESCE(p.numero_outro, ''), '\\D', '', 'g') LIKE '%{$processoFiltro}%')");
-        }
-        $requisicaoFiltro = (int) preg_replace('/\D/', '', (string) ($data->requisicao_filtro ?? ''));
-        if ($requisicaoFiltro > 0)
-        {
-            $filters[] = new TFilter('lancamento_id', 'in', "(SELECT l.id FROM lancamento l JOIN conta c ON c.id = l.conta_id WHERE c.requisicao_pagamento_id = {$requisicaoFiltro})");
-        }
-        $loteFiltro = (int) preg_replace('/\D/', '', (string) ($data->lote_filtro ?? ''));
-        if ($loteFiltro > 0)
-        {
-            $filters[] = new TFilter('lote_pagamento_id', '=', $loteFiltro);
-        }
-
         // fill the form with data again
         if ((isset($param['static']) && ($param['static'] == '1')) || !empty($param['globalSearch']))
         {
@@ -979,12 +943,19 @@ class ExtratoList extends TPage
                 }
             }
 
+            // parametros da janela "Parametros e filtros"
+            $parametros = ExtratoParametrosService::atuais();
+            foreach (ExtratoParametrosService::filtros($parametros) as $filter)
+            {
+                $criteria->add($filter);
+            }
+
             //</blockLine><btnShowCurtainFiltersAutoCode>
             if(!empty($this->btnShowCurtainFilters) && empty($this->btnShowCurtainFiltersAdjusted))
             {
                 $this->btnShowCurtainFiltersAdjusted = true;
                 $this->btnShowCurtainFilters->style = 'position: relative';
-                $countFilters = count($filters ?? []);
+                $countFilters = count($filters ?? []) + ExtratoParametrosService::quantos($parametros);
                 $this->btnShowCurtainFilters->setLabel($this->btnShowCurtainFilters->getLabel(). "<span class='badge badge-success' style='position: absolute'>{$countFilters}<span>");
             }
             //</blockLine></btnShowCurtainFiltersAutoCode>
