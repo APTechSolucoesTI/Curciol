@@ -59,7 +59,7 @@ try {
     $proc = q("SELECT a.processo_id FROM andamento a JOIN processo_publicacoes pp ON pp.andamento_id = a.id JOIN publicacao_etapa e ON e.id = a.publicacao_etapa_id
                 WHERE COALESCE(e.detalhamento, '') <> '' AND COALESCE(pp.complemento, '') <> '' ORDER BY a.id DESC LIMIT 1");
     if ($proc) {
-        $t = saida(function () use ($proc) { (new ProcessoPublicacoesTimeLine(['key' => $proc[0]['processo_id']]))->show(); });
+        $t = saida(function () use ($proc) { (new ProcessoPublicacoesTimeLine(['processo_id' => $proc[0]['processo_id']]))->show(); });
         ok('timeline: seta para baixo, sem onclick inline', erro($t) === '' && strpos($t, 'fa-chevron-down curciol-tl-seta') !== false && strpos($t, "curciol-timeline-toggle'\n") === false && strpos($t, 'icon.innerHTML') === false, erro($t));
         ok('timeline: "Detalhamento" e "Informações Adicionais" em destaque', strpos($t, '<b>Detalhamento</b>') !== false && strpos($t, '<b>Andamento</b>') === false && strpos($t, 'curciol-info-adicional') !== false);
     } else {
