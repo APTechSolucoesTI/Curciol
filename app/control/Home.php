@@ -20,16 +20,18 @@ class Home extends TPage
         {
             TTransaction::open('escritorio');
 
-            $usuario = trim($param['usuario'] ?? '');
-            $senha   = trim($param['senha'] ?? '');
+            // login pelo CPF/CNPJ (no banco so numeros; o campo pode vir com pontuacao)
+            $documento = preg_replace('/\D/', '', (string) ($param['usuario'] ?? ''));
+            $senha     = trim($param['senha'] ?? '');
 
-            if (empty($usuario) || empty($senha))
+            if ($documento === '' || $senha === '')
             {
-                throw new Exception('Informe seu usuário e senha para acessar seus processos.');
+                throw new Exception('Informe seu CPF e senha para acessar seus processos.');
             }
 
-            $pessoa = Pessoa::where('usuario', '=', $usuario)
+            $pessoa = Pessoa::where('cpf_cnpj', '=', $documento)
                             ->where('senha', '=', $senha)
+                            ->orderBy('id')
                             ->first();
 
             if (empty($pessoa))
@@ -43,7 +45,7 @@ class Home extends TPage
                 $tem_senha = false;
                 $existe    = false;
 
-                foreach (Pessoa::where('usuario', '=', $usuario)->load() as $cadastro)
+                foreach (Pessoa::where('cpf_cnpj', '=', $documento)->load() as $cadastro)
                 {
                     $existe = true;
 
@@ -58,7 +60,7 @@ class Home extends TPage
                     throw new Exception('Você ainda não é um cliente registrado. Verifique os dados informados!');
                 }
 
-                throw new Exception('Usuário ou senha incorretos.');
+                throw new Exception('CPF ou senha incorretos.');
             }
 
             TSession::setValue('portal_cliente_id', $pessoa->id);

@@ -1473,3 +1473,31 @@ body.builder-template-login .curciol-lista .tdatagrid_pagination {
         font-size: 13px;
     }
 }
+
+
+/* Cards da timeline: o card fechado abre com um clique em qualquer lugar; titulo e seta fecham (curciol-portal.js) */
+.curciol-timeline-page .timeline-item,
+.curciol-mobile-timeline-card {
+    cursor: pointer;
+}
+
+.curciol-timeline-page .timeline-item.curciol-card-aberto,
+.curciol-mobile-timeline-card.curciol-card-aberto {
+    cursor: default;
+}
+
+.curciol-timeline-page .timeline-item.curciol-card-aberto .curciol-timeline-title-row,
+.curciol-mobile-timeline-card.curciol-card-aberto .curciol-mobile-timeline-header {
+    cursor: pointer;
+}
+
+.curciol-tl-seta {
+    font-size: 12px;
+    line-height: 1;
+}
+
+/* Informações adicionais em destaque */
+.curciol-timeline-detail-line.curciol-info-adicional b,
+.curciol-mobile-detail-label.curciol-info-adicional {
+    color: #009688;
+}

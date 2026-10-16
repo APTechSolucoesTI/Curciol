@@ -1,7 +1,7 @@
 /* ==========================================================================
    Curciol — Área do cliente
    --------------------------------------------------------------------------
-   Dois trabalhos, ambos só de apresentação:
+   Três trabalhos, todos só de apresentação:
 
    1. Marcar o <body> quando uma tela do portal está montada, para a folha de
       estilo poder esconder a barra administrativa sem afetar o restante do
@@ -10,6 +10,8 @@
       correspondente. No celular a tabela vira cards e o <thead> some; o rótulo
       volta pelo CSS via content: attr(data-rotulo). Ler do cabeçalho real
       evita que os rótulos saiam de sincronia quando as colunas mudarem.
+
+   3. Abrir e fechar os cards da timeline de etapas (ver alternarCard).
 
    Nada aqui altera dados, ações, rotas ou requisições.
    ========================================================================== */
@@ -94,6 +96,51 @@
             });
         }).observe(alvo, { childList: true, subtree: true });
     }
+
+    /*
+       3. Cards da timeline de etapas: clicar em qualquer lugar do card fechado abre;
+          clicar no titulo da etapa ou na seta fecha. A seta aponta para baixo
+          quando da para abrir e para cima quando da para fechar.
+    */
+    function alternarCard(evento) {
+        var alvo = evento.target;
+
+        if (!alvo || !alvo.closest) {
+            return;
+        }
+
+        var card = alvo.closest('.curciol-timeline-page .timeline-item, .curciol-mobile-timeline-card');
+
+        if (!card) {
+            return;
+        }
+
+        var detalhe = card.querySelector('.curciol-timeline-detail, .curciol-mobile-timeline-detail');
+        var seta = card.querySelector('.curciol-tl-seta');
+
+        if (!detalhe) {
+            return;
+        }
+
+        var aberto = detalhe.style.display === 'block';
+        var noTitulo = alvo.closest('.curciol-timeline-title-row, .curciol-mobile-timeline-header') !== null;
+
+        // aberto: so o titulo/seta fecha (clicar no texto do detalhe nao fecha)
+        if (aberto && !noTitulo) {
+            return;
+        }
+
+        evento.preventDefault();
+        detalhe.style.display = aberto ? 'none' : 'block';
+        card.classList.toggle('curciol-card-aberto', !aberto);
+
+        if (seta) {
+            seta.classList.toggle('fa-chevron-down', aberto);
+            seta.classList.toggle('fa-chevron-up', !aberto);
+        }
+    }
+
+    document.addEventListener('click', alternarCard);
 
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', function () {

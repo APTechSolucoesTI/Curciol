@@ -454,14 +454,14 @@ class ProcessoPublicacoesTimeLine extends TPage
                         {
                             $detalhamento_bloco_html = "
                                 <div class='curciol-timeline-detail-line'>
-                                    <b>Andamento</b>
+                                    <b>Detalhamento</b>
                                     <span>{$detalhamento_html}</span>
                                 </div>
                             ";
 
                             $mobile_detalhamento_bloco_html = "
                                 <div class='curciol-mobile-detail-block'>
-                                    <div class='curciol-mobile-detail-label'>Andamento</div>
+                                    <div class='curciol-mobile-detail-label'>Detalhamento</div>
                                     <div class='curciol-mobile-detail-text'>{$detalhamento_html}</div>
                                 </div>
                             ";
@@ -472,7 +472,7 @@ class ProcessoPublicacoesTimeLine extends TPage
                             $complemento_html = nl2br(htmlspecialchars((string) $object->complemento, ENT_QUOTES, 'UTF-8'));
 
                             $complemento_bloco_html = "
-                                <div class='curciol-timeline-detail-line'>
+                                <div class='curciol-timeline-detail-line curciol-info-adicional'>
                                     <b>Informações Adicionais</b>
                                     <span>{$complemento_html}</span>
                                 </div>
@@ -480,7 +480,7 @@ class ProcessoPublicacoesTimeLine extends TPage
 
                             $mobile_complemento_bloco_html = "
                                 <div class='curciol-mobile-detail-block'>
-                                    <div class='curciol-mobile-detail-label'>Informações Adicionais</div>
+                                    <div class='curciol-mobile-detail-label curciol-info-adicional'>Informações Adicionais</div>
                                     <div class='curciol-mobile-detail-text'>{$complemento_html}</div>
                                 </div>
                             ";
@@ -517,21 +517,6 @@ class ProcessoPublicacoesTimeLine extends TPage
                                 <button
                                     type='button'
                                     class='curciol-timeline-toggle'
-                                    onclick=\"
-                                        (function() {
-                                            var detail = document.getElementById('{$detailId}');
-                                            var icon = document.getElementById('{$iconId}');
-
-                                            if (detail.style.display === 'none' || detail.style.display === '') {
-                                                detail.style.display = 'block';
-                                                icon.innerHTML = '-';
-                                            } else {
-                                                detail.style.display = 'none';
-                                                icon.innerHTML = '+';
-                                            }
-                                        })();
-                                        return false;
-                                    \"
                                     style='
                                         flex:0 0 auto;
                                         border:1px solid #cbd5e1;
@@ -547,7 +532,7 @@ class ProcessoPublicacoesTimeLine extends TPage
                                         box-shadow:0 1px 3px rgba(15,23,42,.08);
                                     '
                                 >
-                                    <span id='{$iconId}'>+</span>
+                                    <i id='{$iconId}' class='fas fa-chevron-down curciol-tl-seta' aria-hidden='true'></i>
                                 </button>
                             </div>
                         ";
@@ -587,23 +572,8 @@ class ProcessoPublicacoesTimeLine extends TPage
                                         <button
                                             type='button'
                                             class='curciol-mobile-timeline-toggle'
-                                            onclick=\"
-                                                (function() {
-                                                    var detail = document.getElementById('{$mobileDetailId}');
-                                                    var icon = document.getElementById('{$mobileIconId}');
-
-                                                    if (detail.style.display === 'none' || detail.style.display === '') {
-                                                        detail.style.display = 'block';
-                                                        icon.innerHTML = '-';
-                                                    } else {
-                                                        detail.style.display = 'none';
-                                                        icon.innerHTML = '+';
-                                                    }
-                                                })();
-                                                return false;
-                                            \"
                                         >
-                                            <span id='{$mobileIconId}'>+</span>
+                                            <i id='{$mobileIconId}' class='fas fa-chevron-down curciol-tl-seta' aria-hidden='true'></i>
                                         </button>
                                     </div>
 
@@ -703,14 +673,14 @@ class ProcessoPublicacoesTimeLine extends TPage
                     {
                         $org_doc_det_bloco = "
                             <div class='curciol-timeline-detail-line'>
-                                <b>Andamento</b>
+                                <b>Detalhamento</b>
                                 <span>{$org_doc_det_html}</span>
                             </div>
                         ";
 
                         $org_doc_det_bloco_mobile = "
                             <div class='curciol-mobile-detail-block'>
-                                <div class='curciol-mobile-detail-label'>Andamento</div>
+                                <div class='curciol-mobile-detail-label'>Detalhamento</div>
                                 <div class='curciol-mobile-detail-text'>{$org_doc_det_html}</div>
                             </div>
                         ";
@@ -751,21 +721,6 @@ class ProcessoPublicacoesTimeLine extends TPage
                             <button
                                 type='button'
                                 class='curciol-timeline-toggle'
-                                onclick=\"
-                                    (function() {
-                                        var detail = document.getElementById('{$orgDocDetailId}');
-                                        var icon = document.getElementById('{$orgDocIconId}');
-
-                                        if (detail.style.display === 'none' || detail.style.display === '') {
-                                            detail.style.display = 'block';
-                                            icon.innerHTML = '-';
-                                        } else {
-                                            detail.style.display = 'none';
-                                            icon.innerHTML = '+';
-                                        }
-                                    })();
-                                    return false;
-                                \"
                                 style='
                                     flex:0 0 auto;
                                     border:1px solid #cbd5e1;
@@ -781,7 +736,7 @@ class ProcessoPublicacoesTimeLine extends TPage
                                     box-shadow:0 1px 3px rgba(15,23,42,.08);
                                 '
                             >
-                                <span id='{$orgDocIconId}'>+</span>
+                                <i id='{$orgDocIconId}' class='fas fa-chevron-down curciol-tl-seta' aria-hidden='true'></i>
                             </button>
                         </div>
                     ";
@@ -828,23 +783,8 @@ class ProcessoPublicacoesTimeLine extends TPage
                                     <button
                                         type='button'
                                         class='curciol-mobile-timeline-toggle'
-                                        onclick=\"
-                                            (function() {
-                                                var detail = document.getElementById('{$mobileOrgDocDetailId}');
-                                                var icon = document.getElementById('{$mobileOrgDocIconId}');
-
-                                                if (detail.style.display === 'none' || detail.style.display === '') {
-                                                    detail.style.display = 'block';
-                                                    icon.innerHTML = '-';
-                                                } else {
-                                                    detail.style.display = 'none';
-                                                    icon.innerHTML = '+';
-                                                }
-                                            })();
-                                            return false;
-                                        \"
                                     >
-                                        <span id='{$mobileOrgDocIconId}'>+</span>
+                                        <i id='{$mobileOrgDocIconId}' class='fas fa-chevron-down curciol-tl-seta' aria-hidden='true'></i>
                                     </button>
                                 </div>
 
