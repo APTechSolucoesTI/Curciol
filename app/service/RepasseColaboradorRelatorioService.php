@@ -155,6 +155,18 @@ class RepasseColaboradorRelatorioService
         if (!empty($f['processo'])) { $p[] = 'Processo: ' . $f['processo']; }
         if (!empty($f['requisicao_id'])) { $p[] = 'Requisição #' . (int) $f['requisicao_id']; }
         if (!empty($f['contrato'])) { $p[] = 'Contrato: ' . $f['contrato']; }
+        if (!empty($f['processo_id'])) {
+            $st = $c->prepare('SELECT COALESCE(numero_cnj_numero, numero_outro, id::text) FROM processo WHERE id = ?'); $st->execute([(int) $f['processo_id']]);
+            $p[] = 'Processo: ' . $st->fetchColumn() . ' (e filhos)';
+        }
+        if (!empty($f['contrato_id'])) {
+            $st = $c->prepare('SELECT numero FROM contrato WHERE id = ?'); $st->execute([(int) $f['contrato_id']]);
+            $p[] = 'Contrato: ' . ($st->fetchColumn() ?: '#' . (int) $f['contrato_id']);
+        }
+        if (trim((string) ($f['texto'] ?? '')) !== '') { $p[] = 'Origem contém "' . trim($f['texto']) . '"'; }
+        if (!empty($f['recebido_em'])) { $p[] = 'Recebido em ' . date('d/m/Y', strtotime($f['recebido_em'])); }
+        if (!empty($f['vencimento_em'])) { $p[] = 'Vencimento ' . date('d/m/Y', strtotime($f['vencimento_em'])); }
+        if (isset($f['valor']) && $f['valor'] !== null && $f['valor'] !== '') { $p[] = 'Valor R$ ' . number_format((float) $f['valor'], 2, ',', '.'); }
         $p[] = ['aberto' => 'A pagar', 'pago' => 'Pagos'][$f['situacao'] ?? ''] ?? 'Todas as situações';
         if (!empty($f['data_de']) || !empty($f['data_ate'])) {
             $rot = ['recebimento' => 'Recebimento', 'vencimento' => 'Vencimento', 'pagamento' => 'Pagamento'][$f['periodo_tipo'] ?? 'recebimento'] ?? 'Recebimento';

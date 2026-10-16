@@ -2,13 +2,18 @@
 /**
  * Financeiro > Repasses a colaboradores.
  * Contas a pagar geradas para os colaboradores a cada recebimento com repasse (RepasseColaboradorService).
- * Somente consulta: filtros (cortina), totais por colaborador, origem de cada repasse e relatorio (PDF/Excel).
+ * Somente consulta: filtros (cortina: colaborador, processo, contrato, situacao, periodo), filtros no cabecalho das
+ * colunas (padrao das listagens), totais por colaborador, origem de cada repasse e relatorio (PDF/Excel).
  * O pagamento e feito em Contas a pagar (acoes em lote).
  */
 class RepasseColaboradorList extends TPage
 {
     private static $formFiltros = 'formFiltros_RepasseColaborador';
+    private static $formColunas = 'datagrid_form_RepasseColaborador';
     const LIMITE = 500;
+
+    private $datagrid;
+    private $datagrid_form;
 
     public function __construct($param = null)
     {
@@ -16,6 +21,7 @@ class RepasseColaboradorList extends TPage
         if (!empty($param['target_container'])) { $this->adianti_target_container = $param['target_container']; }
 
         $f = self::filtrosAtuais();
+        $col = self::colunasAtuais();
         $container = new TVBox;
         $container->style = 'width:100%';
         if (empty($param['target_container'])) { $container->add(TBreadCrumb::create(['Financeiro', 'Repasses a colaboradores'])); }
@@ -26,7 +32,7 @@ class RepasseColaboradorList extends TPage
         // botoes do topo (padrao das listagens)
         $topo = new TElement('div');
         $topo->class = 'rc-topo';
-        $qtdFiltros = count(array_filter([$f['pessoa_id'], $f['processo'], $f['requisicao_id'], $f['contrato'], $f['data_de'], $f['data_ate']], function ($v) { return $v !== null && $v !== ''; }))
+        $qtdFiltros = count(array_filter([$f['pessoa_id'], $f['processo_id'], $f['contrato_id'], $f['data_de'], $f['data_ate']], function ($v) { return $v !== null && $v !== ''; }))
             + (($f['situacao'] ?? '') !== 'aberto' ? 1 : 0);
         $topo->add(self::botao('Filtros' . ($qtdFiltros ? " <span class='badge badge-success'>{$qtdFiltros}</span>" : ''), 'fas fa-filter', "__adianti_load_page('engine.php?class=RepasseColaboradorList&method=onShowCurtainFilters&static=1')"));
         $topo->add(self::botao('Limpar filtros', 'fas fa-eraser', "__adianti_load_page('engine.php?class=RepasseColaboradorList&method=onClearFilters')", '#f44336'));
@@ -37,8 +43,8 @@ class RepasseColaboradorList extends TPage
 
         try {
             TTransaction::open('escritorio');
-            $linhas = RepasseColaboradorService::listar($f);
-            $descricaoFiltros = RepasseColaboradorRelatorioService::descreverFiltros($f);
+            $linhas = RepasseColaboradorService::listar(array_merge($f, $col));
+            $descricaoFiltros = RepasseColaboradorRelatorioService::descreverFiltros(array_merge($f, $col));
             TTransaction::close();
         } catch (Throwable $e) {
             TTransaction::rollback();
@@ -50,10 +56,15 @@ class RepasseColaboradorList extends TPage
         $painel->add("<div class='rc-filtros'>Filtros: " . htmlspecialchars($descricaoFiltros) . '</div>');
         $painel->add(self::resumo($linhas));
         $painel->add("<div class='rc-filtros'>Para pagar, use Financeiro › Contas › Contas a pagar (marque as contas e clique em Quitar selecionadas).</div>");
-        $painel->add(self::tabela(array_slice($linhas, 0, self::LIMITE)));
+
+        $this->montarGrade($col);
+        foreach (array_slice($linhas, 0, self::LIMITE) as $r) { $this->datagrid->addItem($r); }
+        $painel->add($this->datagrid_form);
+        if (!$linhas) { $painel->add("<div class='rc-vazio'>Nenhum repasse encontrado com os filtros.</div>"); }
         if (count($linhas) > self::LIMITE) {
             $painel->add("<div class='rc-filtros'>Mostrando os primeiros " . self::LIMITE . ' de ' . count($linhas) . ' repasses. Use os filtros para refinar (o relatório traz todos).</div>');
         }
+        $this->datagrid->initPopoverHeaderFilters();
 
         $container->add($painel);
         $container->add(self::estilo());
@@ -62,14 +73,127 @@ class RepasseColaboradorList extends TPage
 
     public function onShow($param = null) {}
 
+    /** Grade com os filtros no cabecalho das colunas (popover do funil, como nas outras listagens). */
+    private function montarGrade(array $col): void
+    {
+        $this->datagrid_form = new TForm(self::$formColunas);
+        $this->datagrid_form->onsubmit = 'return false';
+        $grade = new TDataGrid;
+        $grade->setId('RepasseColaboradorList_datagrid');
+        $this->datagrid = new BootstrapDatagridWrapper($grade);
+        $this->datagrid->style = 'width: 100%';
+
+        $cColaborador = new TDataGridColumn('colaborador', 'Colaborador', 'left');
+        $cOrigem = new TDataGridColumn('conta_receber_id', 'Origem', 'left');
+        $cRecebido = new TDataGridColumn('data_recebimento', 'Recebido em', 'left');
+        $cVencimento = new TDataGridColumn('vencimento', 'Vencimento', 'left');
+        $cValor = new TDataGridColumn('valor', 'Valor', 'right');
+        $cSituacao = new TDataGridColumn('pago_em', 'Situação', 'left');
+
+        $data = function ($v) { return $v ? date('d/m/Y', strtotime($v)) : ''; };
+        $cRecebido->setTransformer($data);
+        $cVencimento->setTransformer($data);
+        $cValor->setTransformer(function ($v) { return self::moeda($v); });
+        $cOrigem->setTransformer(function ($v, $r) {
+            $id = (int) $r->conta_receber_id;
+            return "<a href='javascript:void(0)' class='rc-origem' title='Abrir a conta a receber de origem' onclick=\"__adianti_load_page('index.php?class=ContaFormView&method=onShow&key={$id}&id={$id}&target_container=adianti_right_panel'); return false;\">"
+                . htmlspecialchars(RepasseColaboradorService::origem($r)) . '</a>';
+        });
+        $cSituacao->setTransformer(function ($v, $r) {
+            if (!$r->pago_em) { return "<span class='rc-aberto'>A pagar</span>"; }
+            return "<span class='rc-pago'>Pago em " . date('d/m/Y', strtotime($r->pago_em)) . '</span>' . ($r->compensado === 'S' ? " <span class='rc-comp'>compensado</span>" : '');
+        });
+        foreach ([$cOrigem, $cSituacao] as $c) { $c->disableHtmlConversion(); }
+
+        foreach ([$cColaborador, $cOrigem, $cRecebido, $cVencimento, $cValor, $cSituacao] as $c) { $this->datagrid->addColumn($c); }
+
+        $abrir = new TDataGridAction(['ContaFormView', 'onShow'], ['key' => '{conta_pagar_id}', 'id' => '{conta_pagar_id}', 'target_container' => 'adianti_right_panel']);
+        $abrir->setField('conta_pagar_id');
+        $abrir->setUseButton(false);
+        $abrir->setLabel('Abrir a conta a pagar');
+        $abrir->setImage('fas:search #00BCD4');
+        $this->datagrid->addAction($abrir);
+        $this->datagrid->createModel();
+
+        // filtros do cabecalho
+        $criteria = new TCriteria();
+        $criteria->add(new TFilter('id', 'in', '(SELECT DISTINCT pessoa_id FROM repasse_colaborador)'));
+        $colaborador = new TDBUniqueSearch('colaborador_col', 'escritorio', 'Pessoa', 'id', 'nome', 'nome asc', $criteria);
+        $colaborador->setMinLength(0);
+        $colaborador->setMask('{nome}');
+        $origem = new TEntry('origem_col');
+        $origem->placeholder = 'Cliente, processo ou contrato';
+        $recebido = new TDate('recebido_col');
+        $vencimento = new TDate('vencimento_col');
+        foreach ([$recebido, $vencimento] as $d) { $d->setMask('dd/mm/yyyy'); $d->setDatabaseMask('yyyy-mm-dd'); }
+        $valor = new TNumeric('valor_col', 2, ',', '.');
+        $situacao = new TCombo('situacao_col');
+        $situacao->addItems(['aberto' => 'A pagar', 'pago' => 'Pagos']);
+
+        $buscar = new TAction([__CLASS__, 'onSearchColunas'], ['static' => '1']);
+        $colaborador->setChangeAction($buscar);
+        $situacao->setChangeAction($buscar);
+        foreach ([$origem, $valor] as $e) { $e->exitOnEnter(); $e->setExitAction($buscar); }
+        foreach ([$recebido, $vencimento] as $d) { $d->setExitAction($buscar); }
+        foreach ([$colaborador, $origem, $recebido, $vencimento, $valor, $situacao] as $w) { $w->setSize('100%'); $this->datagrid_form->addField($w); }
+
+        $tr = new TElement('tr');
+        $tr->id = 'datagrid-header-filter-row';
+        $this->datagrid->prependRow($tr);
+        $tr->add(TElement::tag('td', ''));   // coluna da acao
+        foreach ([$colaborador, $origem, $recebido, $vencimento, $valor, $situacao] as $w) { $tr->add(TElement::tag('td', $w)); }
+
+        $this->datagrid_form->add($this->datagrid);
+        $this->datagrid_form->setData((object) [
+            'colaborador_col' => $col['colaborador_id'] ?? null,
+            'origem_col' => $col['texto'] ?? '',
+            'recebido_col' => $col['recebido_em'] ?? null,
+            'vencimento_col' => $col['vencimento_em'] ?? null,
+            'valor_col' => (isset($col['valor']) && $col['valor'] !== null) ? number_format((float) $col['valor'], 2, ',', '.') : '',
+            'situacao_col' => $col['situacao_col'] ?? '',
+        ]);
+    }
+
     // ------------------------------------------------------------------ filtros
 
     private static function filtrosAtuais(): array
     {
         $f = TSession::getValue(__CLASS__ . '_filtros');
-        $padrao = ['pessoa_id' => null, 'processo' => '', 'requisicao_id' => null, 'contrato' => '', 'situacao' => 'aberto',
+        $padrao = ['pessoa_id' => null, 'processo_id' => null, 'contrato_id' => null, 'situacao' => 'aberto',
                    'periodo_tipo' => 'recebimento', 'data_de' => null, 'data_ate' => null];
         return is_array($f) ? $f + $padrao : $padrao;
+    }
+
+    /** Filtros do cabecalho das colunas, ja no formato do servico. */
+    private static function colunasAtuais(): array
+    {
+        $c = TSession::getValue(__CLASS__ . '_colunas');
+        if (!is_array($c)) { return []; }
+        $r = $c;
+        // colaborador do cabecalho refina o da cortina; situacao do cabecalho manda sobre a da cortina
+        if (!empty($c['colaborador_id'])) { $r['pessoa_id'] = $c['colaborador_id']; }
+        if (!empty($c['situacao_col'])) { $r['situacao'] = $c['situacao_col']; }
+        return $r;
+    }
+
+    public static function onSearchColunas($param = null)
+    {
+        $data = function ($v) {
+            $v = trim((string) $v);
+            if (preg_match('/^(\d{2})\/(\d{2})\/(\d{4})$/', $v, $m)) { return "{$m[3]}-{$m[2]}-{$m[1]}"; }
+            return preg_match('/^\d{4}-\d{2}-\d{2}/', $v) ? substr($v, 0, 10) : null;
+        };
+        $valor = trim(str_replace(['R$', ' '], '', (string) ($param['valor_col'] ?? '')));
+        if ($valor !== '' && strpos($valor, ',') !== false) { $valor = str_replace(['.', ','], ['', '.'], $valor); }
+        TSession::setValue(__CLASS__ . '_colunas', [
+            'colaborador_id' => ((int) ($param['colaborador_col'] ?? 0)) ?: null,
+            'texto' => trim((string) ($param['origem_col'] ?? '')),
+            'recebido_em' => $data($param['recebido_col'] ?? ''),
+            'vencimento_em' => $data($param['vencimento_col'] ?? ''),
+            'valor' => is_numeric($valor) ? round((float) $valor, 2) : null,
+            'situacao_col' => in_array($param['situacao_col'] ?? '', ['aberto', 'pago'], true) ? $param['situacao_col'] : '',
+        ]);
+        AdiantiCoreApplication::loadPage(__CLASS__, 'onShow');
     }
 
     public static function onShowCurtainFilters($param = null)
@@ -79,13 +203,21 @@ class RepasseColaboradorList extends TPage
         $form->setFormTitle('Filtros de repasses');
 
         $criteria = new TCriteria();
-        $criteria->add(new TFilter('id', 'in', '(SELECT DISTINCT pessoa_id FROM lancamento_profissional)'));
+        $criteria->add(new TFilter('id', 'in', '(SELECT DISTINCT pessoa_id FROM repasse_colaborador)'));
         $pessoa = new TDBUniqueSearch('pessoa_id', 'escritorio', 'Pessoa', 'id', 'nome', 'nome asc', $criteria);
         $pessoa->setMinLength(0);
         $pessoa->setMask('{nome}');
-        $processo = new TEntry('processo');
-        $requisicao = new TEntry('requisicao_id');
-        $contrato = new TEntry('contrato');
+        // processo e contrato: escolhe na lista, completando conforme digita
+        $processo = new TDBUniqueSearch('processo_id', 'escritorio', 'Processo', 'id', 'numero_cnj_numero', 'numero_cnj_numero asc');
+        $processo->setFilterColumns(['numero_cnj_numero', 'numero_outro']);
+        $processo->setMinLength(3);
+        $processo->setMask('{numero_cnj_numero} {numero_outro}');
+        $processo->setTip('Escolhendo um processo pai ou principal, entram também os repasses dos processos filhos.');
+        $criteriaContrato = new TCriteria();
+        $criteriaContrato->add(new TFilter('id', 'in', '(SELECT DISTINCT c.contrato_id FROM conta c JOIN repasse_colaborador r ON r.conta_receber_id = c.id WHERE c.contrato_id IS NOT NULL)'));
+        $contrato = new TDBUniqueSearch('contrato_id', 'escritorio', 'Contrato', 'id', 'numero', 'numero asc', $criteriaContrato);
+        $contrato->setMinLength(0);
+        $contrato->setMask('{numero}');
         $situacao = new TCombo('situacao');
         $situacao->addItems(['aberto' => 'A pagar', 'pago' => 'Pagos', 'todos' => 'Todos']);
         $periodoTipo = new TCombo('periodo_tipo');
@@ -93,14 +225,14 @@ class RepasseColaboradorList extends TPage
         $dataDe = new TDate('data_de');
         $dataAte = new TDate('data_ate');
         foreach ([$dataDe, $dataAte] as $d) { $d->setMask('dd/mm/yyyy'); $d->setDatabaseMask('yyyy-mm-dd'); }
-        foreach ([$pessoa, $processo, $requisicao, $contrato, $situacao, $periodoTipo, $dataDe, $dataAte] as $w) { $w->setSize('100%'); }
+        foreach ([$pessoa, $processo, $contrato, $situacao, $periodoTipo, $dataDe, $dataAte] as $w) { $w->setSize('100%'); }
         $periodoTipo->setDefaultOption(false);
         $situacao->setDefaultOption(false);
 
         $r = $form->addFields([new TLabel('Colaborador'), $pessoa]);
         $r->layout = ['col-sm-12'];
-        $r = $form->addFields([new TLabel('Processo'), $processo], [new TLabel('Requisição nº'), $requisicao], [new TLabel('Contrato'), $contrato]);
-        $r->layout = ['col-sm-6', 'col-sm-3', 'col-sm-3'];
+        $r = $form->addFields([new TLabel('Processo'), $processo], [new TLabel('Contrato'), $contrato]);
+        $r->layout = ['col-sm-7', 'col-sm-5'];
         $r = $form->addFields([new TLabel('Situação'), $situacao], []);
         $r->layout = ['col-sm-6', 'col-sm-6'];
         $r = $form->addFields([new TLabel('Período por'), $periodoTipo], [new TLabel('De'), $dataDe], [new TLabel('Até'), $dataAte]);
@@ -142,9 +274,8 @@ class RepasseColaboradorList extends TPage
         $situacao = $param['situacao'] ?? 'aberto';
         TSession::setValue(__CLASS__ . '_filtros', [
             'pessoa_id' => $int($param['pessoa_id'] ?? null),
-            'processo' => trim((string) ($param['processo'] ?? '')),
-            'requisicao_id' => $int($param['requisicao_id'] ?? null),
-            'contrato' => trim((string) ($param['contrato'] ?? '')),
+            'processo_id' => $int($param['processo_id'] ?? null),
+            'contrato_id' => $int($param['contrato_id'] ?? null),
             'situacao' => in_array($situacao, ['aberto', 'pago'], true) ? $situacao : '',
             'periodo_tipo' => in_array($param['periodo_tipo'] ?? '', ['recebimento', 'vencimento', 'pagamento'], true) ? $param['periodo_tipo'] : 'recebimento',
             'data_de' => $data($param['data_de'] ?? ''),
@@ -157,6 +288,7 @@ class RepasseColaboradorList extends TPage
     public function onClearFilters($param = null)
     {
         TSession::setValue(__CLASS__ . '_filtros', null);
+        TSession::setValue(__CLASS__ . '_colunas', null);
         AdiantiCoreApplication::loadPage(__CLASS__, 'onShow');
     }
 
@@ -165,7 +297,7 @@ class RepasseColaboradorList extends TPage
     public static function onRelatorioPdf($param = null)
     {
         try {
-            $doc = RepasseColaboradorRelatorioService::gerarPdf(self::filtrosAtuais());
+            $doc = RepasseColaboradorRelatorioService::gerarPdf(array_merge(self::filtrosAtuais(), self::colunasAtuais()));
             TPage::openFile($doc['arquivo'], $doc['nome']);
         } catch (Throwable $e) {
             new TMessage('error', $e->getMessage());
@@ -175,7 +307,7 @@ class RepasseColaboradorList extends TPage
     public static function onRelatorioXls($param = null)
     {
         try {
-            $doc = RepasseColaboradorRelatorioService::gerarXls(self::filtrosAtuais());
+            $doc = RepasseColaboradorRelatorioService::gerarXls(array_merge(self::filtrosAtuais(), self::colunasAtuais()));
             TPage::openFile($doc['arquivo'], $doc['nome']);
         } catch (Throwable $e) {
             new TMessage('error', $e->getMessage());
@@ -196,35 +328,13 @@ class RepasseColaboradorList extends TPage
             unset($p);
         }
         $h = "<div class='rc-resumo'><div class='rc-total'><span>A pagar</span><b>" . self::moeda($aberto) . "</b></div><div class='rc-total'><span>Pago</span><b>" . self::moeda($pago) . "</b></div><div class='rc-total'><span>Repasses</span><b>" . count($linhas) . '</b></div></div>';
-        if (count($por) > 1 || $por) {
+        if ($por) {
             $h .= "<table class='rc-por'><thead><tr><th>Colaborador</th><th>Repasses</th><th class='v'>A pagar</th><th class='v'>Pago</th></tr></thead><tbody>";
             foreach ($por as $nome => $p) {
                 $h .= '<tr><td>' . htmlspecialchars($nome) . '</td><td>' . $p['qtd'] . "</td><td class='v'>" . self::moeda($p['aberto']) . "</td><td class='v'>" . self::moeda($p['pago']) . '</td></tr>';
             }
             $h .= '</tbody></table>';
         }
-        return $h;
-    }
-
-    private static function tabela(array $linhas): string
-    {
-        if (!$linhas) { return "<div class='rc-vazio'>Nenhum repasse encontrado com os filtros.</div>"; }
-        $h = "<table class='rc-tabela'><thead><tr>"
-            . "<th>Colaborador</th><th>Origem</th><th>Recebido em</th><th>Vencimento</th><th class='v'>Valor</th><th>Situação</th><th></th></tr></thead><tbody>";
-        foreach ($linhas as $r) {
-            $id = (int) $r->conta_pagar_id;
-            if ($r->pago_em) {
-                $sit = "<span class='rc-pago'>Pago em " . date('d/m/Y', strtotime($r->pago_em)) . '</span>'
-                    . ($r->compensado === 'S' ? " <span class='rc-comp'>compensado</span>" : '');
-            } else {
-                $sit = "<span class='rc-aberto'>A pagar</span>";
-            }
-            $abrir = "<a href='javascript:void(0)' title='Abrir a conta a pagar' onclick=\"__adianti_load_page('index.php?class=ContaFormView&method=onShow&key={$id}&id={$id}&target_container=adianti_right_panel'); return false;\"><i class='fas fa-search'></i></a>";
-            $origem = "<a href='javascript:void(0)' title='Abrir a conta a receber de origem' onclick=\"__adianti_load_page('index.php?class=ContaFormView&method=onShow&key=" . (int) $r->conta_receber_id . '&id=' . (int) $r->conta_receber_id . "&target_container=adianti_right_panel'); return false;\">" . htmlspecialchars(RepasseColaboradorService::origem($r)) . '</a>';
-            $h .= "<tr><td>" . htmlspecialchars($r->colaborador) . "</td><td class='rc-origem'>{$origem}</td><td>" . date('d/m/Y', strtotime($r->data_recebimento))
-                . '</td><td>' . ($r->vencimento ? date('d/m/Y', strtotime($r->vencimento)) : '') . "</td><td class='v'>" . self::moeda($r->valor) . "</td><td>{$sit}</td><td class='rc-acoes'>{$abrir}</td></tr>";
-        }
-        $h .= '</tbody></table>';
         return $h;
     }
 
@@ -271,11 +381,8 @@ class RepasseColaboradorList extends TPage
             .rc-total span { display:block; color:#64748b; font-size:12px; } .rc-total b { font-size:16px; }
             table.rc-por { border-collapse:collapse; margin-bottom:12px; min-width:420px; }
             table.rc-por th, table.rc-por td { padding:4px 10px; border-bottom:1px solid #eef2f7; text-align:left; font-size:12px; }
-            table.rc-tabela { width:100%; border-collapse:collapse; font-size:12.5px; }
-            table.rc-tabela th { background:#f8fafc; border-bottom:1px solid #cbd5e1; padding:6px 8px; text-align:left; white-space:nowrap; }
-            table.rc-tabela td { border-bottom:1px solid #eef2f7; padding:6px 8px; vertical-align:top; }
-            table.rc-tabela .v, table.rc-por .v { text-align:right; white-space:nowrap; }
-            .rc-origem a { color:#1f3a5f; } .rc-acoes a { margin-right:8px; }
+            table.rc-por .v { text-align:right; white-space:nowrap; }
+            a.rc-origem { color:#1f3a5f; }
             .rc-aberto { color:#9a3412; font-weight:600; } .rc-pago { color:#065f46; } .rc-comp { background:#dcfce7; color:#166534; border-radius:4px; padding:0 5px; font-size:11px; }
             .rc-vazio { padding:30px; text-align:center; color:#64748b; }
         ');

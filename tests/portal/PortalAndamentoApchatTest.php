@@ -37,13 +37,26 @@ $novo = function (string $nome, array $campos) use ($c) {
     return (int) $p->id;
 };
 $cpf = '52998224725';   // CPF valido de teste
-$comSenha = $novo('COM SENHA', ['cpf_cnpj' => $cpf, 'senha' => 'senha-teste-1', 'telefone' => '']);
-$semSenha = $novo('SEM SENHA', ['cpf_cnpj' => '11144477735', 'senha' => '', 'telefone' => '123']);
+$comSenha = $novo('COM SENHA', ['cpf_cnpj' => $cpf, 'usuario' => $cpf, 'senha' => 'senha-teste-1', 'telefone' => '']);
+$semSenha = $novo('SEM SENHA', ['cpf_cnpj' => '11144477735', 'usuario' => '11144477735', 'senha' => '', 'telefone' => '123']);
 $foneOk = $novo('FONE OK', ['telefone' => '(19) 99876-5432']);
 TTransaction::close();
 $ids = [$comSenha, $semSenha, $foneOk];
 try {
-    // ---------- portal: login pelo CPF ----------
+    // ---------- usuario = CPF/CNPJ ----------
+    ok('CPF/CNPJ validos e invalidos', PessoaLoginService::documentoValido('529.982.247-25') && !PessoaLoginService::documentoValido('52998224724')
+        && PessoaLoginService::documentoValido('11.222.333/0001-81') && !PessoaLoginService::documentoValido('11111111111') && !PessoaLoginService::documentoValido('123'));
+    igual('usuario padrao: numeros do CPF valido; invalido ou vazio fica vazio', ['52998224725', null, null],
+        [PessoaLoginService::usuarioPadrao('529.982.247-25'), PessoaLoginService::usuarioPadrao('52998224724'), PessoaLoginService::usuarioPadrao('')]);
+    lanca('cadastro recusa CPF invalido', function () { PessoaLoginService::exigirDocumentoValido('529.982.247-24'); }, 'CPF inválido');
+    lanca('cadastro recusa documento com tamanho errado', function () { PessoaLoginService::exigirDocumentoValido('1234'); }, '11 dígitos');
+    PessoaLoginService::exigirDocumentoValido('');
+    ok('CPF vazio passa (fica sem login)', true);
+    igual('banco: nenhum usuario diferente do CPF/CNPJ', 0, (int) q("SELECT COUNT(*) n FROM pessoa WHERE usuario IS NOT NULL AND usuario <> regexp_replace(COALESCE(cpf_cnpj, ''), '\D', '', 'g') AND nome NOT LIKE '" . MARCA . "%'")[0]['n']);
+    $fonte = file_get_contents('app/control/pessoas/ClienteForm.php');
+    ok('cadastro de cliente: usuario = CPF/CNPJ e senha aleatoria mantida', strpos($fonte, 'PessoaLoginService::usuarioPadrao($object->cpf_cnpj)') !== false && strpos($fonte, 'PessoaLoginService::exigirDocumentoValido') !== false && strpos($fonte, 'senhaAleatoria()') !== false);
+
+    // ---------- portal: login pelo usuario (= CPF) ----------
     $entra = function (string $login, string $senha) { return saida(function () use ($login, $senha) { Home::onDocumentos(['usuario' => $login, 'senha' => $senha]); }); };
     $s = $entra('529.982.247-25', 'senha-teste-1');
     ok('login com CPF pontuado entra', erro($s) === '' && strpos($s, 'ProcessosFormView') !== false, erro($s));

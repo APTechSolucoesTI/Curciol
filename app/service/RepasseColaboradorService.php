@@ -338,6 +338,20 @@ class RepasseColaboradorService
             }
         }
         if (trim((string) ($f['contrato'] ?? '')) !== '') { $w[] = 'CAST(ct.numero AS TEXT) ILIKE ?'; $p[] = '%' . trim($f['contrato']) . '%'; }
+        // tela de repasses: processo (com os processos filhos) e contrato escolhidos na lista
+        if (!empty($f['processo_id'])) {
+            $familia = ExtratoParametrosService::familia((int) $f['processo_id']);
+            $w[] = 'cr.processo_id IN (' . implode(',', array_map('intval', $familia ?: [0])) . ')';
+        }
+        if (!empty($f['contrato_id'])) { $w[] = 'cr.contrato_id = ?'; $p[] = (int) $f['contrato_id']; }
+        // filtros do cabecalho das colunas
+        if (trim((string) ($f['texto'] ?? '')) !== '') {
+            $w[] = "(COALESCE(cli.nome, pc.nome, '') ILIKE ? OR COALESCE(pr.numero_cnj_numero, pr.numero_outro, '') ILIKE ? OR CAST(ct.numero AS TEXT) ILIKE ? OR cr.descricao ILIKE ?)";
+            $t = '%' . trim($f['texto']) . '%'; array_push($p, $t, $t, $t, $t);
+        }
+        if (!empty($f['recebido_em'])) { $w[] = 'r.data_recebimento = ?'; $p[] = substr($f['recebido_em'], 0, 10); }
+        if (!empty($f['vencimento_em'])) { $w[] = 'lp.dt_vencimento = ?'; $p[] = substr($f['vencimento_em'], 0, 10); }
+        if (isset($f['valor']) && $f['valor'] !== null && $f['valor'] !== '') { $w[] = 'r.valor = ?'; $p[] = round((float) $f['valor'], 2); }
         if (($f['situacao'] ?? '') === 'aberto') { $w[] = 'lp.dt_pagamento IS NULL'; }
         if (($f['situacao'] ?? '') === 'pago') { $w[] = 'lp.dt_pagamento IS NOT NULL'; }
         $col = ['recebimento' => 'r.data_recebimento', 'vencimento' => 'lp.dt_vencimento', 'pagamento' => 'lp.dt_pagamento'][$f['periodo_tipo'] ?? 'recebimento'] ?? 'r.data_recebimento';

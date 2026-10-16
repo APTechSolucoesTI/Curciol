@@ -113,10 +113,8 @@ class NovoClienteForm extends TPage
 
             $object->fromArray( (array) $data); // load the object with data
 
-            $username = str_replace(' ', '_', $object->nome);
-            $username = TextService::slug($username);
-            $username = str_replace('_', '.', $username);
-            $object->usuario = $username;
+            // login do portal = CPF/CNPJ (este formulario nao pede CPF: o usuario fica vazio ate o cadastro ter o documento)
+            $object->usuario = PessoaLoginService::usuarioPadrao($object->cpf_cnpj ?? null);
 
             if($object->aceita_receber_mensagen_whatsapp || $object->aceita_receber_mensagen_whatsapp=="T"){
                 $object->aceita_receber_mensagen_whatsapp = "T";
@@ -124,21 +122,7 @@ class NovoClienteForm extends TPage
                 $object->aceita_receber_mensagen_whatsapp = "F";
             }
 
-            $consulta = Pessoa::where('usuario', '=', $username)->first();
-            $count = 1;
-
-            // gerando um nome de usuario unico
-            while($consulta)
-            {
-                $object->usuario = $username.$count;
-                $consulta = Pessoa::where('usuario', '=', $object->usuario)->first();
-                $count++;
-            }
-
-            $bytes = openssl_random_pseudo_bytes(3);
-            $pwd = bin2hex($bytes);
-
-            $object->senha = $pwd;
+            $object->senha = PessoaLoginService::senhaAleatoria();
 
             $object->criacao_user_id = TSession::getValue('userid');
 

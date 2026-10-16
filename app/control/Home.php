@@ -20,7 +20,7 @@ class Home extends TPage
         {
             TTransaction::open('escritorio');
 
-            // login pelo CPF/CNPJ (no banco so numeros; o campo pode vir com pontuacao)
+            // login: usuario = CPF/CNPJ so com numeros (o campo pode vir com pontuacao)
             $documento = preg_replace('/\D/', '', (string) ($param['usuario'] ?? ''));
             $senha     = trim($param['senha'] ?? '');
 
@@ -29,7 +29,7 @@ class Home extends TPage
                 throw new Exception('Informe seu CPF e senha para acessar seus processos.');
             }
 
-            $pessoa = Pessoa::where('cpf_cnpj', '=', $documento)
+            $pessoa = Pessoa::where('usuario', '=', $documento)
                             ->where('senha', '=', $senha)
                             ->orderBy('id')
                             ->first();
@@ -45,7 +45,7 @@ class Home extends TPage
                 $tem_senha = false;
                 $existe    = false;
 
-                foreach (Pessoa::where('cpf_cnpj', '=', $documento)->load() as $cadastro)
+                foreach (Pessoa::where('usuario', '=', $documento)->load() as $cadastro)
                 {
                     $existe = true;
 

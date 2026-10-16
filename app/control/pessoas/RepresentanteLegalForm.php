@@ -881,6 +881,7 @@ class RepresentanteLegalForm extends TPage
 
             $data->telefone = preg_replace('/[^0-9]/', '', $data->telefone);
             $data->cpf_cnpj = preg_replace('/[^0-9]/', '', $data->cpf_cnpj);
+            PessoaLoginService::exigirDocumentoValido($data->cpf_cnpj); // CPF/CNPJ preenchido precisa ser valido (vira o login do portal)
 
             $idAux = $data->id ?? -1;
             //CPF/CNPJ
@@ -964,32 +965,15 @@ class RepresentanteLegalForm extends TPage
 
             $foto_dir = 'fotos';  
 
-            if(!$object->usuario){
+            // portal do cliente: o usuario e o CPF/CNPJ (so numeros); vazio ou invalido deixa o usuario vazio
+            $object->usuario = PessoaLoginService::usuarioPadrao($object->cpf_cnpj);
 
-                $username = str_replace(' ', '_', $object->nome);
-                $username = TextService::slug($username);
-                $username = str_replace('_', '.', $username);
-
-                $object->usuario = $username;
-
-                $consulta = Pessoa::where('usuario', '=', $username)->first();
-                $count = 1;
-
-                // gerando um nome de usuario unico
-                while($consulta)
-                {
-                    $object->usuario = $username.$count;
-                    $consulta = Pessoa::where('usuario', '=', $object->usuario)->first();
-
-                    $count++;
-                }
-
-                $bytes = openssl_random_pseudo_bytes(3);
-                $pwd = bin2hex($bytes);
-
-                $object->senha = $pwd;
-                TForm::sendData(self::$formName, $object);
+            // senha aleatoria quando ainda nao tem (mesma regra de antes)
+            if (trim((string) $object->senha) === '')
+            {
+                $object->senha = PessoaLoginService::senhaAleatoria();
             }
+            TForm::sendData(self::$formName, (object) ['usuario' => $object->usuario, 'senha' => $object->senha]);
 
             if(!$data->id){
                 $object->criacao_user_id = TSession::getValue('userid');

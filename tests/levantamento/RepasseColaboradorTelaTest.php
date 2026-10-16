@@ -46,19 +46,32 @@ try {
     $contaJac = (int) array_values(array_filter($reps, function ($r) use ($jac) { return (int) $r['pessoa_id'] === $jac; }))[0]['conta_pagar_id'];
     $contaJuan = (int) array_values(array_filter($reps, function ($r) use ($juan) { return (int) $r['pessoa_id'] === $juan; }))[0]['conta_pagar_id'];
 
-    // ---------- listagem: filtro pela requisicao (cortina -> onSearch -> sessao) ----------
-    post(['requisicao_id' => (string) $req, 'situacao' => 'todos', 'periodo_tipo' => 'recebimento', 'data_de' => '01/02/2026', 'data_ate' => '28/02/2026']);
+    // ---------- listagem: processo pai (raiz) na cortina traz os repasses do processo filho ----------
+    post(['processo_id' => (string) $f['processo_raiz_id'], 'contrato_id' => '', 'situacao' => 'todos', 'periodo_tipo' => 'recebimento', 'data_de' => '01/02/2026', 'data_ate' => '28/02/2026']);
     saida(function () { (new RepasseColaboradorList([]))->onSearch($_POST); });
     $filtros = TSession::getValue('RepasseColaboradorList_filtros');
-    ok('filtros da cortina vao para a sessao (datas no formato do banco, "todos" = sem situacao)',
-        $filtros['requisicao_id'] === $req && $filtros['situacao'] === '' && $filtros['data_de'] === '2026-02-01' && $filtros['data_ate'] === '2026-02-28', json_encode($filtros));
+    ok('filtros da cortina vao para a sessao (processo, datas no formato do banco, "todos" = sem situacao)',
+        $filtros['processo_id'] === (int) $f['processo_raiz_id'] && $filtros['situacao'] === '' && $filtros['data_de'] === '2026-02-01' && $filtros['data_ate'] === '2026-02-28' && !isset($filtros['requisicao_id']), json_encode($filtros));
     $html = saida(function () { (new RepasseColaboradorList([]))->show(); });
     igual('listagem: sem erro', '', erro($html));
-    igual('listagem: 4 repasses, sem selecao nem pagamento (so consulta)', [4, 0, 0], [substr_count($html, 'Abrir a conta a pagar'), substr_count($html, 'rc-sel'), substr_count($html, 'Pagar selecionadas')]);
+    igual('listagem: 4 repasses, sem selecao nem pagamento (so consulta)', [4, 0, 0], [substr_count($html, "class='rc-origem'"), substr_count($html, 'rc-sel'), substr_count($html, 'Pagar selecionadas')]);
+    ok('listagem: filtros no cabecalho das colunas', strpos($html, 'datagrid-header-filter-row') !== false && strpos($html, 'origem_col') !== false && strpos($html, 'tdatagrid_init_header_popover_filters') !== false);
     ok('listagem: total a pagar 1.856,80', strpos($html, 'R$ 1.856,80') !== false);
-    ok('listagem: descreve os filtros', strpos($html, 'Requisição #' . $req) !== false && strpos($html, 'Recebimento: 01/02/2026 a 28/02/2026') !== false);
+    ok('listagem: descreve os filtros', strpos($html, 'Processo: ') !== false && strpos($html, '(e filhos)') !== false && strpos($html, 'Recebimento: 01/02/2026 a 28/02/2026') !== false);
     $cortina = saida(function () { RepasseColaboradorList::onShowCurtainFilters([]); });
-    ok('cortina de filtros abre com a requisicao preenchida', erro($cortina) === '' && strpos($cortina, 'Filtros de repasses') !== false, erro($cortina));
+    ok('cortina: processo e contrato para escolher, sem requisicao', erro($cortina) === '' && strpos($cortina, 'Filtros de repasses') !== false
+        && strpos($cortina, 'name="processo_id"') !== false && strpos($cortina, 'name="contrato_id"') !== false && strpos($cortina, 'requisicao_id') === false, erro($cortina));
+    // filtros do cabecalho: colaborador e origem
+    saida(function () use ($jac) { RepasseColaboradorList::onSearchColunas(['colaborador_col' => (string) $jac, 'origem_col' => '', 'recebido_col' => '', 'vencimento_col' => '', 'valor_col' => '', 'situacao_col' => '']); });
+    $html = saida(function () { (new RepasseColaboradorList([]))->show(); });
+    igual('cabecalho: colaborador deixa so o repasse dele', 1, substr_count($html, "class='rc-origem'"));
+    saida(function () { RepasseColaboradorList::onSearchColunas(['colaborador_col' => '', 'origem_col' => 'NAO EXISTE XYZ', 'recebido_col' => '', 'vencimento_col' => '', 'valor_col' => '464,20', 'situacao_col' => '']); });
+    $html = saida(function () { (new RepasseColaboradorList([]))->show(); });
+    igual('cabecalho: origem que nao existe nao traz nada', 0, substr_count($html, "class='rc-origem'"));
+    saida(function () { RepasseColaboradorList::onSearchColunas(['colaborador_col' => '', 'origem_col' => 'TESTE LEVANTAMENTO', 'recebido_col' => '', 'vencimento_col' => '', 'valor_col' => '464,20', 'situacao_col' => 'aberto']); });
+    $html = saida(function () { (new RepasseColaboradorList([]))->show(); });
+    igual('cabecalho: origem + valor + situacao', 4, substr_count($html, "class='rc-origem'"));
+    TSession::setValue('RepasseColaboradorList_colunas', null);
 
     // ---------- pagamento pela acao em lote de Contas a pagar: dois colaboradores no mesmo lote ----------
     TSession::setValue('userid', 1);
@@ -122,6 +135,7 @@ try {
 } finally {
     foreach ($arquivos as $a) { if (is_file($a)) { unlink($a); } }
     TSession::setValue('RepasseColaboradorList_filtros', null);
+    TSession::setValue('RepasseColaboradorList_colunas', null);
     Fixtures::limpar($f);
 }
 fim();
