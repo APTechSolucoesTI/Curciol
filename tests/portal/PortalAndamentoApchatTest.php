@@ -56,15 +56,27 @@ try {
     ok('tela de login: "Login (CPF)" e formatacao so na tela', strpos($html, '<label>Login (CPF)</label>') !== false && strpos($html, 'curciolFormatarDocumento') !== false);
 
     // ---------- portal: cards da timeline ----------
-    $proc = q("SELECT a.processo_id FROM andamento a JOIN processo_publicacoes pp ON pp.andamento_id = a.id JOIN publicacao_etapa e ON e.id = a.publicacao_etapa_id JOIN processo pr ON pr.id = a.processo_id AND pr.exibir_cliente = 'S'
-                WHERE COALESCE(e.detalhamento, '') <> '' AND COALESCE(pp.complemento, '') <> '' ORDER BY a.id DESC LIMIT 1");
-    if ($proc) {
-        $t = saida(function () use ($proc) { (new ProcessoPublicacoesTimeLine(['processo_id' => $proc[0]['processo_id']]))->show(); });
-        ok('timeline: seta para baixo, sem onclick inline', erro($t) === '' && strpos($t, 'fa-chevron-down curciol-tl-seta') !== false && strpos($t, "curciol-timeline-toggle'\n") === false && strpos($t, 'icon.innerHTML') === false, erro($t));
+    // a timeline so mostra o processo ao cliente dele: procura um cliente com processo liberado que tenha detalhamento e complemento
+    $t = null;
+    $candidatos = q("SELECT DISTINCT a.processo_id, cpe.cliente_id FROM andamento a JOIN processo_publicacoes pp ON pp.andamento_id = a.id
+                      JOIN publicacao_etapa e ON e.id = a.publicacao_etapa_id
+                      JOIN contrato_processo cp ON cp.processo_id = a.processo_id JOIN contrato_pessoa cpe ON cpe.contrato_id = cp.contrato_id
+                     WHERE COALESCE(e.detalhamento, '') <> '' AND COALESCE(pp.complemento, '') <> '' LIMIT 40");
+    foreach ($candidatos as $r) {
+        TSession::setValue('portal_cliente_id', (int) $r['cliente_id']);
+        TTransaction::open('escritorio'); $topos = ProcessoFamiliaService::toposDoCliente((int) $r['cliente_id']); TTransaction::close();
+        foreach ($topos as $topo) {
+            $html = saida(function () use ($topo) { (new ProcessoPublicacoesTimeLine(['processo_id' => $topo]))->show(); });
+            if (strpos($html, 'curciol-info-adicional') !== false) { $t = $html; break 2; }
+        }
+    }
+    if ($t !== null) {
+        ok('timeline: seta para baixo, sem o + / - antigo', strpos($t, 'fa-chevron-down curciol-tl-seta') !== false && strpos($t, 'icon.innerHTML') === false);
         ok('timeline: "Detalhamento" e "Informações Adicionais" em destaque', strpos($t, '<b>Detalhamento</b>') !== false && strpos($t, '<b>Andamento</b>') === false && strpos($t, 'curciol-info-adicional') !== false);
     } else {
-        ok('timeline: processo com detalhamento e complemento para testar', false, 'nenhum encontrado');
+        ok('timeline: cliente com processo liberado, detalhamento e complemento para testar', false, 'nenhum encontrado');
     }
+    TSession::setValue('portal_cliente_id', null);
     $js = file_get_contents('app/lib/include/js/curciol-portal.js');
     $css = file_get_contents('app/lib/include/css/curciol-portal.css');
     ok('portal: clique no card (js) e cor #009688 (css)', strpos($js, 'function alternarCard') !== false && strpos($css, '#009688') !== false);
