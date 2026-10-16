@@ -430,6 +430,8 @@ class ModalQuitarParcelaParcial extends TWindow
         $object->tipo_pagamento_id = $lancamento->tipo_pagamento_id;
 
         $object->dt_pagamento = date('d/m/Y');
+        // conta-caixa prevista na conta (ex.: gerar financeiro do contrato) vem sugerida
+        $object->conta_caixa_id = $lancamento->conta->conta_caixa_id ?: null;
 
         $categoriaConta = $lancamento->conta->categoria_conta->nome;
 

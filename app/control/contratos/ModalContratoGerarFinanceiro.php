@@ -54,6 +54,13 @@ class ModalContratoGerarFinanceiro extends TWindow
         $valor = new TNumeric('valor', '2', ',', '.' );
         $dt_vencimento = new TDate('dt_vencimento');
         $tipo_pagamento_id = new TDBCombo('tipo_pagamento_id', 'escritorio', 'TipoPagamento', 'id', '{nome}','nome asc' , $criteria_tipo_pagamento_id );
+        // conta-caixa prevista: opcional aqui, sugerida (e obrigatoria) na quitacao
+        $criteria_conta_caixa_id = new TCriteria();
+        $criteria_conta_caixa_id->add(new TFilter('ativo', '<>', 'N'));
+        $conta_caixa_id = new TDBCombo('conta_caixa_id', 'escritorio', 'ContaCaixa', 'id', '{nome}','nome asc' , $criteria_conta_caixa_id );
+        $conta_caixa_id->enableSearch();
+        $conta_caixa_id->setSize('100%');
+        $conta_caixa_id->setTip('Opcional. Vem preenchida na hora de quitar, onde passa a ser obrigatória.');
         $numero_parcelas = new TSpinner('numero_parcelas');
         $pagamento_solidario = new TCheckButton('pagamento_solidario');
         $coluna = new TDBCombo('coluna[]', 'escritorio', 'Pessoa', 'id', '{nome}','nome asc' , $criteria_coluna );
@@ -260,8 +267,8 @@ class ModalContratoGerarFinanceiro extends TWindow
         $row4 = $this->form->addFields([new TLabel("Valor:", '#FF0000', '14px', null, '100%'),$valor],[new TLabel("Data de vencimento:", '#FF0000', '14px', null, '100%'),$dt_vencimento],[new TLabel("Forma de pagamento", '#FF0000', '14px', null, '100%'),$tipo_pagamento_id],[new TLabel("Parcelas:", '#FF0000', '14px', null, '100%'),$numero_parcelas]);
         $row4->layout = [' col-sm-3',' col-sm-3',' col-sm-3',' col-sm-3'];
 
-        $row5 = $this->form->addFields([new TLabel("Pagamento Solidário?", '#FF0000', '14px', null, '100%'),$pagamento_solidario]);
-        $row5->layout = [' col-sm-3'];
+        $row5 = $this->form->addFields([new TLabel("Pagamento Solidário?", '#FF0000', '14px', null, '100%'),$pagamento_solidario],[new TLabel("Conta-caixa prevista:", null, '14px', null, '100%'),$conta_caixa_id]);
+        $row5->layout = [' col-sm-3',' col-sm-5'];
 
         $row6 = $this->form->addContent([new TFormSeparator("Profissional", '#333333', '18', '#eee')]);
         $row7 = $this->form->addFields([$this->fieldList_6a39175d40e6e]);
@@ -519,6 +526,16 @@ class ModalContratoGerarFinanceiro extends TWindow
                 throw new Exception('Informe pelo menos um profissional.');
             }
 
+            // divisao dos colaboradores gravada em cada parcela gerada (base das contas a pagar no recebimento)
+            $divisaoParcela = [];
+            foreach ($profissionais as $index => $profissionalId) {
+                if (!empty($profissionalId)) {
+                    $divisaoParcela[] = [(int) $profissionalId, self::valorBrParaFloat($repassesProfissionais[$index] ?? 0)];
+                }
+            }
+
+            $data->conta_caixa_id = ((int) ($data->conta_caixa_id ?? 0)) ?: null;
+
             $totalFinanceiro = self::valorBrParaFloat($data->valor);
 
             $totalValorProfissionaisCentavos = (int) round($totalValorProfissionais * 100);
@@ -707,6 +724,7 @@ if ($pagamentoSolidario === 'S')
         }
 
         $lancamento->store();
+        RepasseColaboradorService::dividirParcela((int) $lancamento->id, $divisaoParcela);
     }
 }
 
@@ -1082,6 +1100,7 @@ else
                 }
 
                 $lancamento->store();
+                RepasseColaboradorService::dividirParcela((int) $lancamento->id, $divisaoParcela);
             }
         }
     }
@@ -1184,6 +1203,7 @@ else
             if($conta){
                 $data->descricao = $conta->descricao;
                 $data->categoria_conta_id = $conta->categoria_conta_id;
+                $data->conta_caixa_id = $conta->conta_caixa_id;
             }
             TForm::sendData(self::$formName, $data);
         }

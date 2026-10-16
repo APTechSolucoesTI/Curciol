@@ -115,12 +115,17 @@ class Fixtures
             self::exigirHomologacao($c);
             $req = (int) ($f['requisicao_id'] ?? 0);
             $cc  = (int) ($f['conta_caixa_id'] ?? 0);
+            $contratosIds = array_map('intval', $f['contratos_ids'] ?? []);
             $contas = $req ? self::coluna($c, 'SELECT id FROM conta WHERE requisicao_pagamento_id = ?', [$req]) : [];
+            if ($contratosIds) { // contas geradas pelo contrato (e os repasses delas, que copiam o contrato)
+                $contas = array_values(array_unique(array_merge($contas, self::coluna($c, 'SELECT id FROM conta WHERE contrato_id IN (' . implode(',', $contratosIds) . ')'))));
+            }
             $levs   = !empty($f['etapa3_id']) ? self::coluna($c, 'SELECT id FROM levantamento_financeiro WHERE requisicao_pagamento_etapa3_id = ?', [(int) $f['etapa3_id']]) : [];
 
             // repasses a colaboradores (e lotes de pagamento deles) antes das contas e da ficha
             if ($contas) {
-                $lotes = self::coluna($c, 'SELECT DISTINCT x.lote_pagamento_id FROM extrato x JOIN lancamento l ON l.id = x.lancamento_id WHERE x.lote_pagamento_id IS NOT NULL AND l.conta_id IN (' . implode(',', $contas) . ')');
+                $lotes = self::coluna($c, 'SELECT DISTINCT x.lote_pagamento_id FROM extrato x JOIN lancamento l ON l.id = x.lancamento_id WHERE x.lote_pagamento_id IS NOT NULL AND l.conta_id IN (' . implode(',', $contas) . ')
+                                           UNION SELECT DISTINCT i.lote_pagamento_id FROM lote_pagamento_item i JOIN lancamento l ON l.id = i.lancamento_id WHERE l.conta_id IN (' . implode(',', $contas) . ')');
                 $c->exec('DELETE FROM repasse_colaborador WHERE conta_receber_id IN (' . implode(',', $contas) . ') OR conta_pagar_id IN (' . implode(',', $contas) . ')');
                 if ($lotes) {
                     $c->exec('UPDATE lancamento SET extrato_id = NULL WHERE extrato_id IN (SELECT id FROM extrato WHERE lote_pagamento_id IN (' . implode(',', $lotes) . '))');

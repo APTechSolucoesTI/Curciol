@@ -520,6 +520,8 @@ class ModalQuitarParcela extends TWindow
             $object->dt_vencimento = $data->format('d/m/Y');
             $object->tipo_pagamento_id = $lancamento->tipo_pagamento_id;
             $object->dt_pagamento = date('d/m/Y');
+            // conta-caixa prevista na conta (ex.: gerar financeiro do contrato) vem sugerida
+            $object->conta_caixa_id = $lancamento->conta->conta_caixa_id ?: null;
 
             $catConta = $lancamento->conta->categoria_conta->nome;
             $pessoa = strtoupper($lancamento->conta->pessoa->nome);

@@ -779,20 +779,24 @@ class ContratoFormView extends TPage
 
             if ($qtdProfissionais > 0)
             {
-                $valorBase = floor(($valorDisponivel / $qtdProfissionais) * 100) / 100;
+                // valor de cada colaborador = valor disponivel x % do contrato (aba Profissionais);
+                // se os % somam 100, o ultimo fica com os centavos
+                $disponivelCentavos = (int) round($valorDisponivel * 100);
+                $fechaCem = abs(array_sum(array_map($toFloat, $percentuaisRepasse)) - 100) < 0.01;
                 $valorAcumulado = 0;
 
                 for ($i = 0; $i < $qtdProfissionais; $i++)
                 {
-                    if ($i == $qtdProfissionais - 1)
+                    if ($fechaCem && $i == $qtdProfissionais - 1)
                     {
-                        $valoresProfissionais[] = $valorDisponivel - $valorAcumulado;
+                        $centavos = $disponivelCentavos - $valorAcumulado;
                     }
                     else
                     {
-                        $valoresProfissionais[] = $valorBase;
-                        $valorAcumulado += $valorBase;
+                        $centavos = (int) round($disponivelCentavos * $toFloat($percentuaisRepasse[$i]) / 100);
+                        $valorAcumulado += $centavos;
                     }
+                    $valoresProfissionais[] = $centavos / 100;
                 }
             }
 

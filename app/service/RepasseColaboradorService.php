@@ -102,6 +102,40 @@ class RepasseColaboradorService
         return null;
     }
 
+    /**
+     * Grava a divisao dos colaboradores na parcela (lancamento_profissional), base dos repasses no recebimento.
+     * $profissionais: [[pessoa_id, percentual], ...]. Valor = parcela x %; se os % somam 100, o ultimo fica com os centavos.
+     * Substitui a divisao que a parcela tiver. Usa a transacao aberta.
+     */
+    public static function dividirParcela(int $lancamentoId, array $profissionais): void
+    {
+        $parcela = Lancamento::find($lancamentoId);
+        if (!$parcela) { throw new Exception('Parcela não encontrada.'); }
+        $linhas = [];
+        foreach ($profissionais as $p) {
+            $pessoa = (int) ($p[0] ?? 0);
+            $pct = round((float) ($p[1] ?? 0), 8);
+            if ($pessoa > 0 && $pct > 0) { $linhas[] = [$pessoa, $pct]; }
+        }
+        LancamentoProfissional::where('lancamento_id', '=', $lancamentoId)->delete();
+        if (!$linhas) { return; }
+
+        $baseCentavos = (int) round((float) $parcela->valor * 100);
+        $fechaCem = abs(array_sum(array_column($linhas, 1)) - 100) < 0.01;
+        $acumulado = 0;
+        $ultimo = count($linhas) - 1;
+        foreach ($linhas as $i => [$pessoa, $pct]) {
+            $centavos = ($fechaCem && $i === $ultimo) ? $baseCentavos - $acumulado : (int) round($baseCentavos * $pct / 100);
+            $acumulado += $centavos;
+            $lp = new LancamentoProfissional();
+            $lp->lancamento_id = $lancamentoId;
+            $lp->pessoa_id = $pessoa;
+            $lp->percentual = $pct;
+            $lp->valor = $centavos / 100;
+            $lp->store();
+        }
+    }
+
     // ------------------------------------------------------------------ pagamento em lote
 
     /**
