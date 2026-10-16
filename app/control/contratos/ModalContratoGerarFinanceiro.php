@@ -641,7 +641,7 @@ if ($parcelas <= 0) {
  */
 if ($pagamentoSolidario === 'S')
 {
-    $buscaContaContrato = Conta::where('contrato_id', '=', $data->contrato_id)->where('requisicao_pagamento_id', 'IS', NULL)->first();
+    $buscaContaContrato = Conta::where('contrato_id', '=', $data->contrato_id)->where('requisicao_pagamento_id', 'IS', NULL)->where('tipo_conta_id', '=', TipoConta::RECEBER)->first(); // so a conta a receber (os repasses aos colaboradores tambem levam o contrato)
 
     if (!$buscaContaContrato) {
         $conta = new Conta();
@@ -884,6 +884,7 @@ else
             $clienteId
         )
         ->where('requisicao_pagamento_id', 'IS', NULL)
+        ->where('tipo_conta_id', '=', TipoConta::RECEBER)
         ->first();
 
         if (!$buscaContaCliente) {
@@ -1194,7 +1195,7 @@ else
      public function onShow($param = null){
         TTransaction::open('escritorio');
 
-        $buscaContaContrato = Conta::where('contrato_id','=',$param['contrato_id'])->where('requisicao_pagamento_id', 'IS', NULL)->first();
+        $buscaContaContrato = Conta::where('contrato_id','=',$param['contrato_id'])->where('requisicao_pagamento_id', 'IS', NULL)->where('tipo_conta_id', '=', TipoConta::RECEBER)->first();
         if($buscaContaContrato){
             $conta = Conta::find($buscaContaContrato->id);
 

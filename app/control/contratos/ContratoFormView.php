@@ -395,7 +395,7 @@ class ContratoFormView extends TPage
                     $sql = "
                         SELECT id
                         FROM conta
-                        WHERE contrato_id = :contrato_id
+                        WHERE contrato_id = :contrato_id AND tipo_conta_id = '1' -- conta a receber (os repasses aos colaboradores tambem levam o contrato)
                         ORDER BY id DESC
                         LIMIT 1
                     ";

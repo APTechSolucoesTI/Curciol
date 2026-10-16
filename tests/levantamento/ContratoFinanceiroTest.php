@@ -74,7 +74,7 @@ try {
     // ---------- 3) quitar: conta-caixa vem sugerida; o recebimento gera os repasses (sem o escritorio) ----------
     $L1 = (int) $lancs[0]['id'];
     $s = saida(function () use ($L1) { (new ModalQuitarParcela(['lancamento_id' => $L1]))->onShow(['lancamento_id' => $L1]); });
-    ok('quitacao sugere a conta-caixa prevista', (bool) preg_match('/conta_caixa_id\\\\?"\s*:\s*\\\\?"?' . $cc . '/', $s), substr($s, 0, 300));
+    ok('quitacao sugere a conta-caixa prevista', strpos($s, "tform_send_data('form_ModalQuitarParcela', 'conta_caixa_id', '{$cc}'") !== false, substr($s, 0, 300));
     post(['id' => $L1, 'conta_caixa_id' => $cc, 'acrescimo' => '0,00', 'desconto' => '0,00', 'distribuicao_ajuste' => 'T', 'tipo_pagamento_id' => TipoPagamento::TRANSFERENCIA,
           'dt_pagamento' => '10/03/2026', 'compensado' => 'S', 'historico' => 'TESTE LEVANTAMENTO quitacao contrato', 'valor' => '500,00', 'valor_total' => '500', 'dt_vencimento' => '10/03/2026']);
     $s = saida(function () use ($L1) { (new ModalQuitarParcela(['key' => $L1, 'id' => $L1]))->onPagar(['id' => $L1, 'key' => $L1, 'confirmar_profissional_negativo' => null]); });
