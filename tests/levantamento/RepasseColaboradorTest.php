@@ -90,33 +90,29 @@ try {
     igual('desquitar: ficam so os 2 repasses do parcial', [[$jac, 200.0], [$juan, 80.0]],
         array_map(function ($x) { return [(int) $x['pessoa_id'], round((float) $x['valor'], 2)]; }, q('SELECT pessoa_id, valor FROM repasse_colaborador WHERE lancamento_receber_id = ' . $L1 . ' ORDER BY pessoa_id')));
 
-    // ---------- 3) pagamento em lote: os dois repasses do Jac (levantamento + parcial do contrato) ----------
+    // ---------- 3) quitar em lote (Contas a pagar): os dois repasses do Jac (levantamento + parcial do contrato) ----------
+    TSession::setValue('userid', 1);
     $repJacContrato = (int) q('SELECT conta_pagar_id FROM repasse_colaborador WHERE pessoa_id = ' . $jac . ' AND lancamento_receber_id = ' . $L1)[0]['conta_pagar_id'];
     $repJuanContrato = (int) q('SELECT conta_pagar_id FROM repasse_colaborador WHERE pessoa_id = ' . $juan . ' AND lancamento_receber_id = ' . $L1)[0]['conta_pagar_id'];
-    lanca('lote com dois colaboradores e recusado', function () use ($R, $repJacContrato, $repJuanContrato, $cc) {
-        $R::pagarLote([$repJacContrato, $repJuanContrato], ['data_pagamento' => '2026-03-25', 'conta_caixa_id' => $cc, 'compensado' => 'N']); }, 'único colaborador');
     $saldoAntes = q("SELECT saldo_instantaneo i, saldo_nao_compensado n FROM conta_caixa WHERE id = {$cc}")[0];
-    $lote = $R::pagarLote([$repJacLev, $repJacContrato], ['data_pagamento' => '2026-03-25', 'conta_caixa_id' => $cc, 'tipo_pagamento_id' => TipoPagamento::TRANSFERENCIA, 'compensado' => 'N', 'historico' => 'PIX unico']);
+    $lote = LoteFinanceiroService::quitar([$repJacLev, $repJacContrato], (string) TipoConta::PAGAR, ['data_pagamento' => '2026-03-25', 'conta_caixa_id' => $cc, 'tipo_pagamento_id' => TipoPagamento::TRANSFERENCIA, 'compensado' => 'N', 'historico' => 'PIX unico']);
     igual('lote: total = 464,20 + 200,00', 664.2, round((float) $lote->total, 2));
     $linhas = q('SELECT saida_valor, compensado FROM extrato WHERE lote_pagamento_id = ' . (int) $lote->id . ' ORDER BY id');
     igual('lote: uma linha por conta no extrato, nao compensadas', [[464.2, 'N'], [200.0, 'N']], array_map(function ($x) { return [round((float) $x['saida_valor'], 2), $x['compensado']]; }, $linhas));
     $saldoDepois = q("SELECT saldo_instantaneo i, saldo_nao_compensado n FROM conta_caixa WHERE id = {$cc}")[0];
     igual('lote: saldo nao compensado da conta-caixa cai 664,20', round((float) $saldoAntes['n'] - 664.2, 2), round((float) $saldoDepois['n'], 2));
-    lanca('pagar de novo e recusado', function () use ($R, $repJacLev, $cc) { $R::pagarLote([$repJacLev], ['data_pagamento' => '2026-03-25', 'conta_caixa_id' => $cc]); }, 'já foi paga');
+    lanca('quitar de novo e recusado', function () use ($repJacLev, $cc) { LoteFinanceiroService::quitar([$repJacLev], (string) TipoConta::PAGAR, ['data_pagamento' => '2026-03-25', 'conta_caixa_id' => $cc, 'tipo_pagamento_id' => TipoPagamento::TRANSFERENCIA]); }, 'parcela em aberto');
 
     // protecoes
     lanca('conta de repasse nao pode ser editada/excluida', function () use ($repJuanContrato) { LevantamentoFinanceiroService::exigirContaNaoGerada($repJuanContrato); }, 'repasse a colaborador');
-    TTransaction::open('escritorio'); $lancJacLev = (int) Lancamento::where('conta_id', '=', $repJacLev)->first()->id; TTransaction::close();
-    $erro = tela(function () use ($lancJacLev, $repJacLev) { (new ContaFormView(['key' => $repJacLev]))->onDesquitar(['id' => $lancJacLev, 'key' => $repJacLev, 'confirmado' => 1]); });
-    ok('desquitar repasse pago em lote e recusado', mb_stripos($erro, 'pago no lote') !== false, $erro);
     ok('desfazer o levantamento recusado com repasse pago', mb_stripos((string) $S::podeDesfazer($f['etapa3_id']), 'colaborador') !== false, (string) $S::podeDesfazer($f['etapa3_id']));
     lanca('desfazer o levantamento lanca o mesmo motivo', function () use ($S, $f) { $S::desfazer($f['etapa3_id']); }, 'colaborador');
 
-    // estornar o lote: contas voltam a aberto, linhas saem do extrato, saldo volta
-    $R::estornarLote((int) $lote->id);
-    igual('estorno do lote: sem linhas no extrato', 0, count(q('SELECT id FROM extrato WHERE lote_pagamento_id = ' . (int) $lote->id)));
-    igual('estorno do lote: contas em aberto', ['N', 'N'], array_column(q("SELECT quitada FROM conta WHERE id IN ({$repJacLev}, {$repJacContrato}) ORDER BY id"), 'quitada'));
-    igual('estorno do lote: saldo volta', round((float) $saldoAntes['n'], 2), round((float) q("SELECT saldo_nao_compensado n FROM conta_caixa WHERE id = {$cc}")[0]['n'], 2));
+    // desfazer o lote (ultima acao em lote do usuario): contas voltam a aberto, linhas saem do extrato, saldo volta
+    LoteFinanceiroService::desfazer((int) $lote->id, 1);
+    igual('desfazer o lote: sem linhas no extrato', 0, count(q('SELECT id FROM extrato WHERE lote_pagamento_id = ' . (int) $lote->id)));
+    igual('desfazer o lote: contas em aberto', ['N', 'N'], array_column(q("SELECT quitada FROM conta WHERE id IN ({$repJacLev}, {$repJacContrato}) ORDER BY id"), 'quitada'));
+    igual('desfazer o lote: saldo volta', round((float) $saldoAntes['n'], 2), round((float) q("SELECT saldo_nao_compensado n FROM conta_caixa WHERE id = {$cc}")[0]['n'], 2));
 
     // listagem com filtros (tela/relatorio)
     TTransaction::open('escritorio');

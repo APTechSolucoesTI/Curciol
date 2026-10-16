@@ -1,7 +1,7 @@
 <?php
 // tests/levantamento/RepasseColaboradorTelaTest.php
-// Telas dos repasses a colaboradores: listagem (filtros, totais, selecao), pagamento em lote pela janela,
-// estorno do lote, relatorio PDF/Excel, filtros do extrato, quadros na conta e no Ver financeiro, configuracao.
+// Telas dos repasses a colaboradores: listagem so de consulta (filtros, totais), pagamento pela acao em lote de Contas a pagar
+// (dois colaboradores no mesmo lote), desfazer, relatorio PDF/Excel, quadros na conta e no Ver financeiro, configuracao.
 require __DIR__ . '/../bootstrap.php';
 require __DIR__ . '/Fixtures.php';
 if (!class_exists('TApplication')) { class TApplication extends AdiantiCoreApplication {} }
@@ -54,51 +54,30 @@ try {
         $filtros['requisicao_id'] === $req && $filtros['situacao'] === '' && $filtros['data_de'] === '2026-02-01' && $filtros['data_ate'] === '2026-02-28', json_encode($filtros));
     $html = saida(function () { (new RepasseColaboradorList([]))->show(); });
     igual('listagem: sem erro', '', erro($html));
-    igual('listagem: 4 linhas marcaveis', 4, substr_count($html, "class='rc-sel'"));
+    igual('listagem: 4 repasses, sem selecao nem pagamento (so consulta)', [4, 0, 0], [substr_count($html, 'Abrir a conta a pagar'), substr_count($html, 'rc-sel'), substr_count($html, 'Pagar selecionadas')]);
     ok('listagem: total a pagar 1.856,80', strpos($html, 'R$ 1.856,80') !== false);
     ok('listagem: descreve os filtros', strpos($html, 'Requisição #' . $req) !== false && strpos($html, 'Recebimento: 01/02/2026 a 28/02/2026') !== false);
     $cortina = saida(function () { RepasseColaboradorList::onShowCurtainFilters([]); });
     ok('cortina de filtros abre com a requisicao preenchida', erro($cortina) === '' && strpos($cortina, 'Filtros de repasses') !== false, erro($cortina));
 
-    // ---------- janela de pagamento: dois colaboradores e recusado; um colaborador paga ----------
-    $janela = saida(function () use ($contaJac) { (new RepasseColaboradorPagarForm(['ids' => (string) $contaJac]))->show(); });
-    ok('janela mostra o total a pagar', strpos($janela, 'Pagar R$ 464,20') !== false && erro($janela) === '', erro($janela));
+    // ---------- pagamento pela acao em lote de Contas a pagar: dois colaboradores no mesmo lote ----------
+    TSession::setValue('userid', 1);
+    $s = saida(function () use ($contaJac, $contaJuan) { ContaPagarList::onQuitarSelecionadas(['lote_sel' => [(string) $contaJac, (string) $contaJuan]]); });
+    ok('Quitar selecionadas abre a janela do lote', strpos($s, 'LoteQuitarForm') !== false, substr($s, 0, 300));
+    $janela = saida(function () use ($contaJac, $contaJuan) { (new LoteQuitarForm(['ids' => "{$contaJac},{$contaJuan}", 'tipo' => (string) TipoConta::PAGAR]))->show(); });
+    ok('janela soma as duas contas', strpos($janela, 'Quitar R$ 928,40') !== false && erro($janela) === '', erro($janela));
     $hoje = date('d/m/Y');
-    post(['ids' => "{$contaJac},{$contaJuan}", 'conta_caixa_id' => (string) $cc, 'tipo_pagamento_id' => (string) TipoPagamento::TRANSFERENCIA, 'data_pagamento' => $hoje, 'compensado' => '', 'historico' => 'TESTE LEVANTAMENTO']);
-    $s = saida(function () { (new RepasseColaboradorPagarForm($_POST))->onPagar($_POST); });
-    ok('dois colaboradores no mesmo lote e recusado', strpos(erro($s), 'único colaborador') !== false, erro($s));
-    post(['ids' => (string) $contaJac, 'conta_caixa_id' => (string) $cc, 'tipo_pagamento_id' => (string) TipoPagamento::TRANSFERENCIA, 'data_pagamento' => $hoje, 'compensado' => '', 'historico' => 'TESTE LEVANTAMENTO']);
-    $s = saida(function () { (new RepasseColaboradorPagarForm($_POST))->onPagar($_POST); });
-    igual('pagar pela janela: sem erro', '', erro($s));
-    $x = q('SELECT x.lote_pagamento_id, x.compensado, x.saida_valor FROM lancamento l JOIN extrato x ON x.id = l.extrato_id WHERE l.conta_id = ' . $contaJac);
-    ok('pagou no lote, sem compensar, 464,20', count($x) === 1 && $x[0]['lote_pagamento_id'] && $x[0]['compensado'] === 'N' && round((float) $x[0]['saida_valor'], 2) === 464.2, json_encode($x));
+    post(['ids' => "{$contaJac},{$contaJuan}", 'tipo' => (string) TipoConta::PAGAR, 'conta_caixa_id' => (string) $cc, 'tipo_pagamento_id' => (string) TipoPagamento::TRANSFERENCIA, 'data_pagamento' => $hoje, 'compensado' => '', 'historico' => 'TESTE LEVANTAMENTO']);
+    $s = saida(function () { (new LoteQuitarForm($_POST))->onQuitar($_POST); });
+    igual('quitar pela janela: sem erro', '', erro($s));
+    $x = q('SELECT l.conta_id, x.lote_pagamento_id, x.compensado, x.saida_valor FROM lancamento l JOIN extrato x ON x.id = l.extrato_id WHERE l.conta_id IN (' . $contaJac . ',' . $contaJuan . ') ORDER BY l.conta_id');
+    ok('uma linha por conta, no mesmo lote, sem compensar', count($x) === 2 && $x[0]['lote_pagamento_id'] && $x[0]['lote_pagamento_id'] === $x[1]['lote_pagamento_id'] && $x[0]['compensado'] === 'N' && round((float) $x[0]['saida_valor'], 2) === 464.2, json_encode($x));
     $lote = (int) $x[0]['lote_pagamento_id'];
-
-    // ---------- extrato: filtros por lote, colaborador, requisicao e processo ----------
-    $contarExtrato = function (array $campos) {
-        post($campos);
-        saida(function () { (new ExtratoList([]))->onSearch([]); });
-        TTransaction::open('escritorio');
-        $crit = new TCriteria();
-        foreach ((array) TSession::getValue('ExtratoList_filters') as $flt) { $crit->add($flt); }
-        $n = (new TRepository('Extrato'))->count($crit);
-        TTransaction::close();
-        return $n;
-    };
-    igual('extrato: filtro pelo lote', 1, $contarExtrato(['lote_filtro' => (string) $lote]));
-    igual('extrato: colaborador + requisicao', 1, $contarExtrato(['pessoa_filtro_id' => (string) $jac, 'requisicao_filtro' => (string) $req]));
-    igual('extrato: requisicao (recebimento + pagamento do repasse)', 2, $contarExtrato(['requisicao_filtro' => (string) $req]));
-    $proc = q('SELECT COALESCE(p.numero_cnj_numero, p.numero_outro) n FROM conta c JOIN processo p ON p.id = c.processo_id WHERE c.id = ' . (int) $lf->conta_receber_id);
-    if ($proc && $proc[0]['n']) {
-        ok('extrato: processo (com mascara) acha as linhas', $contarExtrato(['processo_filtro' => $proc[0]['n'], 'requisicao_filtro' => (string) $req]) === 2);
-    }
-    $semColunas = saida(function () { (new ExtratoList([]))->onShowCurtainFilters([]); });
-    ok('extrato: cortina com os novos filtros', strpos($semColunas, 'pessoa_filtro_id') !== false && strpos($semColunas, 'lote_filtro') !== false);
 
     // ---------- quadros na conta a receber, na conta do repasse e no Ver financeiro ----------
     $cr = (int) $lf->conta_receber_id;
     $v = saida(function () use ($cr) { (new ContaFormView(['key' => $cr, 'id' => $cr]))->show(); });
-    ok('conta a receber mostra os repasses aos colaboradores', strpos($v, 'Repasses aos colaboradores') !== false && substr_count($v, 'Abrir a conta a pagar') === 4 && strpos($v, 'lote nº ' . $lote) !== false, erro($v));
+    ok('conta a receber mostra os repasses aos colaboradores', strpos($v, 'Repasses aos colaboradores') !== false && substr_count($v, 'Abrir a conta a pagar') === 4 && substr_count($v, 'Pago em ') === 2, erro($v));
     $v = saida(function () use ($contaJac) { (new ContaFormView(['key' => $contaJac, 'id' => $contaJac]))->show(); });
     ok('conta do repasse mostra a origem', strpos($v, 'Gerada pelo recebimento') !== false && strpos($v, 'abrir a conta a receber #' . $cr) !== false, erro($v));
     $carregar = new ReflectionMethod('LevantamentoFinanceiroView', 'carregarFicha'); $carregar->setAccessible(true);
@@ -109,20 +88,21 @@ try {
     // ---------- relatorio PDF e Excel com os filtros da tela ----------
     $dados = RepasseColaboradorRelatorioService::dados(['requisicao_id' => $req, 'situacao' => '']);
     igual('relatorio: 4 colaboradores', 4, count($dados['grupos']));
-    igual('relatorio: aberto 1.392,60 e pago 464,20', [1392.6, 464.2], [$dados['aberto'], $dados['pago']]);
+    igual('relatorio: aberto 928,40 e pago 928,40', [928.4, 928.4], [$dados['aberto'], $dados['pago']]);
     $pdf = RepasseColaboradorRelatorioService::gerarPdf(['requisicao_id' => $req, 'situacao' => '']); $arquivos[] = $pdf['arquivo'];
     ok('relatorio PDF gerado', is_file($pdf['arquivo']) && substr(file_get_contents($pdf['arquivo']), 0, 4) === '%PDF' && preg_match('/^Repasses_colaboradores_\d{8}\.pdf$/', $pdf['nome']));
-    $xls = RepasseColaboradorRelatorioService::gerarXls(['pessoa_id' => $jac, 'situacao' => 'pago', 'lote_id' => $lote]); $arquivos[] = $xls['arquivo'];
+    $xls = RepasseColaboradorRelatorioService::gerarXls(['pessoa_id' => $jac, 'situacao' => 'pago']); $arquivos[] = $xls['arquivo'];
     ok('relatorio Excel gerado', is_file($xls['arquivo']) && filesize($xls['arquivo']) > 0);
     $s = saida(function () { RepasseColaboradorList::onRelatorioPdf([]); });
     ok('botao do relatorio PDF baixa o arquivo', strpos($s, '__adianti_download_file') !== false || strpos($s, 'download.php') !== false, substr($s, 0, 200));
 
-    // ---------- estornar o lote pela tela ----------
-    $s = saida(function () use ($lote) { RepasseColaboradorList::onConfirmarEstornoLote(['lote_id' => $lote]); });
-    ok('estornar lote pede confirmacao', strpos($s, 'Estornar o lote de pagamento nº ' . $lote) !== false);
-    $s = saida(function () use ($lote) { RepasseColaboradorList::onEstornarLote(['lote_id' => $lote]); });
-    igual('estornar lote: sem erro', '', erro($s));
-    igual('estornar lote: conta volta a ficar a pagar e o lote some', [[null], 0], [array_column(q('SELECT dt_pagamento FROM lancamento WHERE conta_id = ' . $contaJac), 'dt_pagamento'), count(q('SELECT 1 FROM lote_pagamento WHERE id = ' . $lote))]);
+    // ---------- desfazer o lote (ultima acao em lote do usuario) pela listagem de Contas a pagar ----------
+    $s = saida(function () use ($lote) { ContaPagarList::onConfirmarDesfazerLote(['lote_id' => $lote]); });
+    ok('desfazer pede confirmacao', strpos($s, 'Desfazer a quitação do lote nº ' . $lote) !== false, substr(strip_tags($s), 0, 200));
+    $s = saida(function () use ($lote) { ContaPagarList::onDesfazerLote(['lote_id' => $lote]); });
+    igual('desfazer: sem erro', '', erro($s));
+    igual('desfazer: contas voltam a ficar a pagar e o lote fica marcado como desfeito', [[null, null], 1],
+        [array_column(q('SELECT dt_pagamento FROM lancamento WHERE conta_id IN (' . $contaJac . ',' . $contaJuan . ')'), 'dt_pagamento'), count(q('SELECT 1 FROM lote_pagamento WHERE id = ' . $lote . ' AND desfeito_em IS NOT NULL'))]);
 
     // ---------- configuracao do repasse ----------
     $cfgPost = ['id' => '1', 'pct_nf_padrao' => LevantamentoFinanceiroForm::pctTexto($cfgAntes['pct_nf_padrao']), 'repasse_dias_vencimento' => 'x',

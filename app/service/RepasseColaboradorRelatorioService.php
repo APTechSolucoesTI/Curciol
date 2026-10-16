@@ -29,7 +29,7 @@ class RepasseColaboradorRelatorioService
             $g = &$grupos[$r->colaborador];
             if (!isset($g)) { $g = ['linhas' => [], 'aberto' => 0.0, 'pago' => 0.0]; }
             $situacao = $r->pago_em
-                ? 'Pago em ' . date('d/m/Y', strtotime($r->pago_em)) . ($r->lote_id ? ' (lote nº ' . (int) $r->lote_id . ')' : '') . ($r->compensado === 'S' ? ' - compensado' : '')
+                ? 'Pago em ' . date('d/m/Y', strtotime($r->pago_em)) . ($r->compensado === 'S' ? ' - compensado' : '')
                 : 'A pagar';
             $g['linhas'][] = [
                 'recebido' => date('d/m/Y', strtotime($r->data_recebimento)),
@@ -155,7 +155,6 @@ class RepasseColaboradorRelatorioService
         if (!empty($f['processo'])) { $p[] = 'Processo: ' . $f['processo']; }
         if (!empty($f['requisicao_id'])) { $p[] = 'Requisição #' . (int) $f['requisicao_id']; }
         if (!empty($f['contrato'])) { $p[] = 'Contrato: ' . $f['contrato']; }
-        if (!empty($f['lote_id'])) { $p[] = 'Lote nº ' . (int) $f['lote_id']; }
         $p[] = ['aberto' => 'A pagar', 'pago' => 'Pagos'][$f['situacao'] ?? ''] ?? 'Todas as situações';
         if (!empty($f['data_de']) || !empty($f['data_ate'])) {
             $rot = ['recebimento' => 'Recebimento', 'vencimento' => 'Vencimento', 'pagamento' => 'Pagamento'][$f['periodo_tipo'] ?? 'recebimento'] ?? 'Recebimento';

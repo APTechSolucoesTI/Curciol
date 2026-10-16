@@ -2,6 +2,14 @@
 
 class ContaPagarList extends TPage
 {
+    use ContaLoteListTrait;
+
+    /** Tela das acoes em lote (ContaLoteListTrait). */
+    public static function tipoContaLote()
+    {
+        return TipoConta::PAGAR;
+    }
+
     private $form; // form
     private $datagrid; // listing
     private $pageNavigation;
@@ -431,6 +439,7 @@ class ContaPagarList extends TPage
         $order_quitada_transformed->setParameter('order', 'quitada');
         $column_quitada_transformed->setAction($order_quitada_transformed);
 
+        $this->loteColunaSelecao();
         $this->datagrid->addColumn($column_pessoa_nome_transformed);
         $this->datagrid->addColumn($column_tipo_documento_financeiro_nome);
         $this->datagrid->addColumn($column_numero_documentoatendimento_idcontrato_idprocesso_id);
@@ -459,6 +468,7 @@ class ContaPagarList extends TPage
         {
             $tr->add(TElement::tag('td', ''));
         }
+        $tr->add(TElement::tag('td', '')); // coluna de selecao (acoes em lote)
         $td_pessoa_nome = TElement::tag('td', $pessoa_nome);
         $tr->add($td_pessoa_nome);
         $td_tipo_documento_financeiro_nome = TElement::tag('td', $tipo_documento_financeiro_nome);
@@ -572,6 +582,7 @@ class ContaPagarList extends TPage
         $head_left_actions->add($mostrar_vencidas);
         $head_left_actions->add($vencer);
         $head_left_actions->add($em_aberto);
+        $this->loteBotoes($head_left_actions);
 
         $head_right_actions->add($dropdown_button_exportar);
 
@@ -1101,6 +1112,7 @@ class ContaPagarList extends TPage
 
             // load the objects according to criteria
             $objects = $repository->load($criteria, FALSE);
+            $this->loteMarcar($objects ?: []);
 
             $this->datagrid->clear();
             if ($objects)

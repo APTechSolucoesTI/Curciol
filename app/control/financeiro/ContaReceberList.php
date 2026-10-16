@@ -2,6 +2,14 @@
 
 class ContaReceberList extends TPage
 {
+    use ContaLoteListTrait;
+
+    /** Tela das acoes em lote (ContaLoteListTrait). */
+    public static function tipoContaLote()
+    {
+        return TipoConta::RECEBER;
+    }
+
     private $form; // form
     private $datagrid; // listing
     private $pageNavigation;
@@ -526,6 +534,7 @@ class ContaReceberList extends TPage
         $order_quitada_transformed->setParameter('order', 'quitada');
         $column_quitada_transformed->setAction($order_quitada_transformed);
 
+        $this->loteColunaSelecao();
         $this->datagrid->addColumn($column_pessoa_nome_transformed);
         $this->datagrid->addColumn($column_id_transformed);
         $this->datagrid->addColumn($column_tipo_documento_financeiro_nome);
@@ -568,6 +577,8 @@ class ContaReceberList extends TPage
         {
             $tr->add(TElement::tag('td', ''));
         }
+        $tr->add(TElement::tag('td', '')); // acao da prestacao de contas e coluna de selecao (acoes em lote)
+        $tr->add(TElement::tag('td', ''));
         $td_pessoa_col = TElement::tag('td', $pessoa_col);
         $tr->add($td_pessoa_col);
         $td_id = TElement::tag('td', $id);
@@ -688,6 +699,7 @@ class ContaReceberList extends TPage
         $head_left_actions->add($mostrar_vencidas);
         $head_left_actions->add($vencer);
         $head_left_actions->add($em_aberto);
+        $this->loteBotoes($head_left_actions);
 
         $head_right_actions->add($dropdown_button_exportar);
 
@@ -1285,6 +1297,7 @@ class ContaReceberList extends TPage
 
             // load the objects according to criteria
             $objects = $repository->load($criteria, FALSE);
+            $this->loteMarcar($objects ?: []);
 
             $this->datagrid->clear();
             if ($objects)

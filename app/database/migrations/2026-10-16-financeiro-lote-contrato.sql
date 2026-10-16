@@ -58,6 +58,10 @@ SELECT (SELECT COALESCE(MAX(id),0) FROM system_group_program) + ROW_NUMBER() OVE
                                 OR (o.controller = 'ExtratoList' AND p.controller = 'ExtratoParametrosForm')
          WHERE NOT EXISTS (SELECT 1 FROM system_group_program x WHERE x.system_group_id = gp.system_group_id AND x.system_program_id = p.id)) par;
 
+-- a janela de pagar repasses saiu (pagamento agora e pela acao em lote de Contas a pagar)
+DELETE FROM system_group_program WHERE system_program_id IN (SELECT id FROM system_program WHERE controller = 'RepasseColaboradorPagarForm');
+DELETE FROM system_program WHERE controller = 'RepasseColaboradorPagarForm';
+
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'conta' AND column_name = 'conta_caixa_id') THEN
