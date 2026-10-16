@@ -74,7 +74,7 @@ class RepasseColaboradorRelatorioService
             table.t { width: 100%; border-collapse: collapse; }
             table.t th { text-align: left; background: #eaf0f7; border-bottom: 1px solid #1f3a5f; padding: 3px 4px; }
             table.t td { border-bottom: 1px solid #e3e3e3; padding: 3px 4px; vertical-align: top; }
-            .v { text-align: right; white-space: nowrap; }
+            .v, table.t th.v { text-align: right; white-space: nowrap; }
             .sub { text-align: right; margin-top: 4px; }
             .geral { margin-top: 16px; padding-top: 6px; border-top: 2px solid #1f3a5f; text-align: right; font-size: 10pt; }
         </style></head><body>' . $logo
@@ -105,7 +105,7 @@ class RepasseColaboradorRelatorioService
         $t->addStyle('dado', 'Helvetica', '10', '', '#000000', '#FFFFFF', 'LR');
         $t->addStyle('sub', 'Helvetica', '10', 'B', '#000000', '#EAF0F7', 'LR');
         $t->addRow();
-        foreach (['Colaborador', 'Recebido em', 'Origem', 'Vencimento', 'Valor', 'Situação'] as $titulo) { $t->addCell($titulo, 'center', 'titulo'); }
+        foreach (['Colaborador' => 'left', 'Recebido em' => 'center', 'Origem' => 'left', 'Vencimento' => 'center', 'Valor' => 'right', 'Situação' => 'left'] as $titulo => $alinha) { $t->addCell($titulo, $alinha, 'titulo'); }
         foreach ($d['grupos'] as $nome => $g) {
             foreach ($g['linhas'] as $l) {
                 $t->addRow();
@@ -113,27 +113,32 @@ class RepasseColaboradorRelatorioService
                 $t->addCell($l['recebido'], 'center', 'dado');
                 $t->addCell(self::nfc($l['origem']), 'left', 'dado');
                 $t->addCell($l['vencimento'], 'center', 'dado');
-                $t->addCell(number_format($l['valor'], 2, ',', '.'), 'right', 'dado');
+                $t->addCell(self::moeda($l['valor']), 'right', 'dado');
                 $t->addCell($l['situacao'], 'left', 'dado');
             }
             $t->addRow();
             $t->addCell('Subtotal ' . self::nfc($nome), 'left', 'sub');
             $t->addCell('', 'center', 'sub');
-            $t->addCell('A pagar ' . number_format($g['aberto'], 2, ',', '.') . ' · Pago ' . number_format($g['pago'], 2, ',', '.'), 'left', 'sub');
+            $t->addCell('A pagar ' . self::moeda($g['aberto']) . ' · Pago ' . self::moeda($g['pago']), 'left', 'sub');
             $t->addCell('', 'center', 'sub');
-            $t->addCell(number_format($g['aberto'] + $g['pago'], 2, ',', '.'), 'right', 'sub');
+            $t->addCell(self::moeda($g['aberto'] + $g['pago']), 'right', 'sub');
             $t->addCell('', 'left', 'sub');
         }
         $t->addRow();
         $t->addCell('Total geral', 'left', 'titulo');
         $t->addCell('', 'center', 'titulo');
-        $t->addCell('A pagar ' . number_format($d['aberto'], 2, ',', '.') . ' · Pago ' . number_format($d['pago'], 2, ',', '.'), 'left', 'titulo');
+        $t->addCell('A pagar ' . self::moeda($d['aberto']) . ' · Pago ' . self::moeda($d['pago']), 'left', 'titulo');
         $t->addCell('', 'center', 'titulo');
-        $t->addCell(number_format($d['aberto'] + $d['pago'], 2, ',', '.'), 'right', 'titulo');
+        $t->addCell(self::moeda($d['aberto'] + $d['pago']), 'right', 'titulo');
         $t->addCell('', 'left', 'titulo');
         $arquivo = 'tmp/repasses_colaboradores_' . uniqid() . '.xls';
         $t->save($arquivo);
         return ['arquivo' => $arquivo, 'nome' => 'Repasses_colaboradores_' . date('Ymd') . '.xls'];
+    }
+
+    private static function moeda($v): string
+    {
+        return 'R$ ' . number_format((float) $v, 2, ',', '.');
     }
 
     /** Acentos compostos (NFC): alguns nomes estao gravados decompostos (NFD) e o PDF/Excel perderiam o acento. */

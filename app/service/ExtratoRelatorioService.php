@@ -100,13 +100,13 @@ class ExtratoRelatorioService
     {
         $d = self::dados($p);
         $e = function ($t) { return htmlspecialchars(self::nfc($t), ENT_QUOTES, 'UTF-8'); };
-        $m = function ($v) { return number_format((float) $v, 2, ',', '.'); };
+        $m = function ($v) { return self::moeda($v); };
         $corpo = '';
         foreach ($d['contas'] as $k) {
             $cc = $k['conta'];
             $corpo .= '<h3>Conta caixa: ' . $e($cc->nome) . '</h3><table class="cab"><tr><td>Tipo: ' . $e($cc->tipo_nome) . '</td><td>Data inicial da conta: ' . $e(self::br($cc->dt_inicial)) . '</td>'
                 . ($cc->codigo_agencia || $cc->codigo_conta ? '<td>Agência: ' . $e($cc->codigo_agencia) . ' · Conta: ' . $e($cc->codigo_conta) . ($cc->banco_nome ? ' · Banco: ' . $e($cc->banco_nome) : '') . '</td>' : '<td></td>') . '</tr></table>';
-            if ($k['rotulos'][0]) { $corpo .= '<div class="saldo">' . $e($k['rotulos'][0]) . ': <b>R$ ' . $m($k['saldo_anterior']) . '</b></div>'; }
+            if ($k['rotulos'][0]) { $corpo .= '<div class="saldo">' . $e($k['rotulos'][0]) . ': <b>' . $m($k['saldo_anterior']) . '</b></div>'; }
             $corpo .= '<table class="t"><thead><tr><th style="width:10%">' . $e($d['coluna_data']) . '</th>' . ($d['coluna_data'] !== 'Compensação' ? '<th style="width:10%">Compensação</th>' : '')
                 . '<th style="width:12%">Tipo</th><th>Histórico</th><th style="width:11%" class="v">Entrada</th><th style="width:11%" class="v">Saída</th></tr></thead><tbody>';
             foreach ($k['linhas'] as $l) {
@@ -114,8 +114,8 @@ class ExtratoRelatorioService
                     . '<td>' . $e($l['tipo']) . '</td><td>' . $e($l['historico']) . '</td><td class="v">' . ($l['entrada'] ? $m($l['entrada']) : '') . '</td><td class="v">' . ($l['saida'] ? $m($l['saida']) : '') . '</td></tr>';
             }
             if (!$k['linhas']) { $corpo .= '<tr><td colspan="6">Nenhuma movimentação com os filtros.</td></tr>'; }
-            $corpo .= '</tbody></table><div class="sub">Entradas: <b>R$ ' . $m($k['entrada']) . '</b> · Saídas: <b>R$ ' . $m($k['saida']) . '</b> · Movimentação: <b>R$ ' . $m($k['entrada'] - $k['saida']) . '</b></div>'
-                . '<div class="saldo">' . $e($k['rotulos'][1]) . ': <b>R$ ' . $m($k['saldo_posterior']) . '</b></div>';
+            $corpo .= '</tbody></table><div class="sub">Entradas: <b>' . $m($k['entrada']) . '</b> · Saídas: <b>' . $m($k['saida']) . '</b> · Movimentação: <b>' . $m($k['entrada'] - $k['saida']) . '</b></div>'
+                . '<div class="saldo">' . $e($k['rotulos'][1]) . ': <b>' . $m($k['saldo_posterior']) . '</b></div>';
         }
         if ($corpo === '') { $corpo = '<p>Nenhuma movimentação encontrada com os filtros informados.</p>'; }
         $logo = is_file(LevantamentoPrestacaoContasService::CABECALHO_PADRAO) ? '<img src="' . LevantamentoPrestacaoContasService::CABECALHO_PADRAO . '" style="width:48%">' : '';
@@ -133,13 +133,13 @@ class ExtratoRelatorioService
             table.t th { text-align: left; background: #005284; color: #fff; padding: 3px 4px; }
             table.t td { border-bottom: 1px solid #e3e3e3; padding: 3px 4px; vertical-align: top; }
             tr.nc td { color: #8a5a00; }
-            .v { text-align: right; white-space: nowrap; }
+            .v, table.t th.v { text-align: right; white-space: nowrap; }
             .sub { text-align: right; margin-top: 4px; }
             .saldo { font-size: 9.5pt; margin: 4px 0; }
             .geral { margin-top: 16px; padding-top: 6px; border-top: 2px solid #122945; text-align: right; font-size: 10pt; }
         </style></head><body>' . $logo
             . '<h1>Extrato</h1><div class="filtros">' . $e($d['filtros']) . ' · emitido em ' . date('d/m/Y H:i') . '</div>' . $nota . $corpo
-            . (count($d['contas']) > 1 ? '<div class="geral">Total geral — entradas: <b>R$ ' . $m($d['total_entrada']) . '</b> · saídas: <b>R$ ' . $m($d['total_saida']) . '</b> · movimentação: <b>R$ ' . $m($d['total_entrada'] - $d['total_saida']) . '</b></div>' : '')
+            . (count($d['contas']) > 1 ? '<div class="geral">Total geral — entradas: <b>' . $m($d['total_entrada']) . '</b> · saídas: <b>' . $m($d['total_saida']) . '</b> · movimentação: <b>' . $m($d['total_entrada'] - $d['total_saida']) . '</b></div>' : '')
             . '</body></html>';
 
         $options = new Options();
@@ -167,7 +167,7 @@ class ExtratoRelatorioService
         $t->addStyle('data', 'Helvetica', '10', ' ', '#000000', '#FFFFFF');
         $t->addStyle('dataSaldo', 'Helvetica', '10', 'B', '#000000', '#FFFFFF');
         $t->addStyle('calcSaldo', 'Helvetica', '12', 'B', '#000000', '#FFFFFF');
-        $num = function ($v) { return number_format((float) $v, 2, ',', '.'); };
+        $num = function ($v) { return self::moeda($v); };
 
         $t->addRow(); $t->addCell('Extrato', 'center', 'titleAll', $n);
         $t->addRow(); $t->addCell(self::nfc($d['filtros']), 'left', 'data', $n);
@@ -184,7 +184,7 @@ class ExtratoRelatorioService
             $t->addRow();
             $t->addCell($d['coluna_data'], 'center', 'title');
             if ($outraData) { $t->addCell('Compensação', 'center', 'title'); }
-            $t->addCell('Tipo', 'center', 'title'); $t->addCell('Histórico', 'center', 'title'); $t->addCell('Valor da entrada', 'center', 'title'); $t->addCell('Valor da saída', 'center', 'title');
+            $t->addCell('Tipo', 'center', 'title'); $t->addCell('Histórico', 'center', 'title'); $t->addCell('Valor da entrada', 'right', 'title'); $t->addCell('Valor da saída', 'right', 'title');
             foreach ($k['linhas'] as $l) {
                 $t->addRow();
                 $t->addCell($l['data'], 'center', 'data');
@@ -199,6 +199,11 @@ class ExtratoRelatorioService
         $arquivo = 'tmp/extrato_' . uniqid() . '.xls';
         $t->save($arquivo);
         return ['arquivo' => $arquivo, 'nome' => 'Extrato_' . date('Ymd') . '.xls'];
+    }
+
+    private static function moeda($v): string
+    {
+        return 'R$ ' . number_format((float) $v, 2, ',', '.');
     }
 
     private static function br($v): string
