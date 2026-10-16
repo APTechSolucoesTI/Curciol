@@ -95,8 +95,21 @@ class LevantamentoContextoService
 
         $processoRequisicao = (int) $e->processo_requisicao_id;
         $ancestraisRequisicao = $processoRequisicao ? ProcessoFamiliaService::ancestrais($processoRequisicao) : [];
-        $contratos = self::contratosElegiveis($c, (int) $e->cliente_id,
-            array_unique(array_merge([$processoId, $processoRequisicao], $ancestrais, $ancestraisRequisicao)));
+        // contrato do cliente vinculado ao processo mais proximo: primeiro o processo do proprio pagamento, depois o da
+        // requisicao, depois os pais do pagamento, os pais da requisicao, os avos... (antes juntava a familia toda e
+        // apareciam contratos de outros processos; em homologacao isso resolveu 75 dos 77 pagamentos com mais de um contrato)
+        $niveis = [[$processoId], [$processoRequisicao]];
+        $acimaPagamento = $processoId ? ProcessoFamiliaService::ancestraisPorNivel($processoId) : [];
+        $acimaRequisicao = $processoRequisicao ? ProcessoFamiliaService::ancestraisPorNivel($processoRequisicao) : [];
+        for ($n = 1; $n <= max(array_merge([0], array_keys($acimaPagamento), array_keys($acimaRequisicao))); $n++) {
+            $niveis[] = $acimaPagamento[$n] ?? [];
+            $niveis[] = $acimaRequisicao[$n] ?? [];
+        }
+        $contratos = [];
+        foreach ($niveis as $ids) {
+            $contratos = self::contratosElegiveis($c, (int) $e->cliente_id, $ids);
+            if ($contratos) { break; }
+        }
 
         $sugerido = (count($contratos) === 1) ? $contratos[0] : null;
 
@@ -141,23 +154,27 @@ class LevantamentoContextoService
         ];
     }
 
-    /** @return array[] ['id','numero','pct_honorarios','repasse'] */
+    /** @return array[] ['id','numero','processo','area','pct_honorarios','repasse'] */
     private static function contratosElegiveis(PDO $c, int $clienteId, array $processos): array
     {
         $processos = array_values(array_unique(array_filter(array_map('intval', $processos))));
         if (!$processos) { return []; }
 
         $st = $c->prepare('
-            SELECT DISTINCT c.id, c.numero
+            SELECT c.id, c.numero, a.nome AS area,
+                   string_agg(DISTINCT COALESCE(p.numero_cnj_numero, p.numero_outro, p.id::text), \', \') AS processo
             FROM contrato c
             JOIN contrato_processo cp ON cp.contrato_id = c.id
+            JOIN processo p ON p.id = cp.processo_id
             JOIN contrato_pessoa cpe ON cpe.contrato_id = c.id
+            LEFT JOIN area a ON a.id = c.area_id
             WHERE cpe.cliente_id = ? AND cp.processo_id IN (' . implode(',', $processos) . ')
+            GROUP BY c.id, c.numero, a.nome
             ORDER BY c.id');
         $st->execute([$clienteId]);
         $contratos = [];
         foreach ($st->fetchAll(PDO::FETCH_OBJ) as $l) {
-            $contratos[(int) $l->id] = ['id' => (int) $l->id, 'numero' => $l->numero, 'pct_honorarios' => null, 'repasse' => []];
+            $contratos[(int) $l->id] = ['id' => (int) $l->id, 'numero' => $l->numero, 'processo' => $l->processo, 'area' => $l->area, 'pct_honorarios' => null, 'repasse' => []];
         }
         if (!$contratos) { return []; }
         $ids = implode(',', array_keys($contratos));

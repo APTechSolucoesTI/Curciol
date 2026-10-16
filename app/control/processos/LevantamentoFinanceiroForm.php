@@ -66,7 +66,11 @@ class LevantamentoFinanceiroForm extends TWindow
         $parcerias   = self::opcoes('SELECT id, nome FROM parceria_levantamento WHERE ativo = \'S\' ORDER BY nome');
 
         $contratos = [];
-        foreach ($ctx->contratos as $ct) { $contratos[$ct['id']] = $ct['numero'] ?: ('Contrato ' . $ct['id']); }
+        foreach ($ctx->contratos as $ct) {
+            $contratos[$ct['id']] = ($ct['numero'] ?: ('Contrato ' . $ct['id']))
+                // mais de um contrato no mesmo processo: mostra o processo e a area para o usuario escolher
+                . ((count($ctx->contratos) > 1) ? ' - processo ' . ($ct['processo'] ?? '') . (!empty($ct['area']) ? ' · ' . $ct['area'] : '') : '');
+        }
 
         // --- origem
         $this->form->addContent([self::titulo('Origem do pagamento')]);
