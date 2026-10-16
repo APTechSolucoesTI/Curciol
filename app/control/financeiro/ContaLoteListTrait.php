@@ -11,7 +11,20 @@ trait ContaLoteListTrait
     protected function loteColunaSelecao(): TDataGridColumn
     {
         $todos = "<input type='checkbox' title='Marcar todas desta página' onclick=\"document.querySelectorAll('input.lote-sel').forEach(function (c) { c.checked = this.checked; }, this); loteAtualizar();\">";
-        return $this->datagrid->addColumn(new TDataGridColumn('lote_sel', $todos, 'center', '1%'));
+        $coluna = new TDataGridColumn('id', $todos, 'center', '1%');
+        // a grade escapa valores simples: o checkbox sai pelo transformer
+        $coluna->setTransformer(function ($value, $object) {
+            $c = new TElement('input');
+            $c->type = 'checkbox';
+            $c->class = 'lote-sel';
+            $c->name = 'lote_sel[]';
+            $c->value = (int) $object->id;
+            $c->{'data-quitar'} = number_format((float) ($object->lote_quitar ?? 0), 2, '.', '');
+            $c->{'data-compensar'} = number_format((float) ($object->lote_compensar ?? 0), 2, '.', '');
+            $c->onclick = 'event.stopPropagation(); loteAtualizar();';
+            return $c;
+        });
+        return $this->datagrid->addColumn($coluna);
     }
 
     /** Botoes e barra da selecao, na esquerda do cabecalho. */
@@ -84,9 +97,8 @@ trait ContaLoteListTrait
             foreach (LoteFinanceiroService::linhasACompensar($ids) as $l) { $compensar[(int) $l->conta_id] = ($compensar[(int) $l->conta_id] ?? 0) + (float) $l->valor; }
         }
         foreach ((array) $objects as $o) {
-            $id = (int) $o->id;
-            $o->lote_sel = "<input type='checkbox' class='lote-sel' name='lote_sel[]' value='{$id}' data-quitar='" . number_format($quitar[$id] ?? 0, 2, '.', '')
-                . "' data-compensar='" . number_format($compensar[$id] ?? 0, 2, '.', '') . "' onclick='event.stopPropagation(); loteAtualizar();'>";
+            $o->lote_quitar = $quitar[(int) $o->id] ?? 0;
+            $o->lote_compensar = $compensar[(int) $o->id] ?? 0;
         }
     }
 
