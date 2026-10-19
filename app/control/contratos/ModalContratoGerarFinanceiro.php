@@ -724,7 +724,7 @@ if ($pagamentoSolidario === 'S')
         }
 
         $lancamento->store();
-        RepasseColaboradorService::dividirParcela((int) $lancamento->id, $divisaoParcela);
+        RepasseColaboradorService::dividirParcela((int) $lancamento->id, $divisaoParcela); $contasGeradas[(int) $lancamento->conta_id] = true;
     }
 }
 
@@ -1101,10 +1101,17 @@ else
                 }
 
                 $lancamento->store();
-                RepasseColaboradorService::dividirParcela((int) $lancamento->id, $divisaoParcela);
+                RepasseColaboradorService::dividirParcela((int) $lancamento->id, $divisaoParcela); $contasGeradas[(int) $lancamento->conta_id] = true;
             }
         }
     }
+            // total de parcelas da conta (antes ficava 1 e o historico saia "parcela 2/1") e quem gerou
+            foreach (array_keys($contasGeradas ?? []) as $contaGeradaId) {
+                $st = TTransaction::get()->prepare("UPDATE conta SET total_parcelas = (SELECT COUNT(*) FROM lancamento l WHERE l.conta_id = conta.id AND COALESCE(l.cancelado, 'N') <> 'S'),
+                                                                 criacao_user_id = COALESCE(criacao_user_id, ?) WHERE id = ?");
+                $st->execute([TSession::getValue('userid'), (int) $contaGeradaId]);
+            }
+
             if ($contratoPagamentoParcela) {
                 $contratoPagamentoParcela->store();
             }

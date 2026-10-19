@@ -66,6 +66,7 @@ try {
     $contaId = (int) $conta[0]['id'];
     $lancs = q("SELECT id, parcela, valor FROM lancamento WHERE conta_id = {$contaId} ORDER BY parcela");
     igual('2 parcelas de 500', [500.0, 500.0], array_map(function ($l) { return round((float) $l['valor'], 2); }, $lancs));
+    igual('conta com o total de parcelas certo e quem gerou', [2, 1], array_map('intval', array_values(q('SELECT total_parcelas, criacao_user_id FROM conta WHERE id = ' . $contaId)[0])));
     $div = function (int $lancId) { return array_map(function ($r) { return [(int) $r['pessoa_id'], round((float) $r['valor'], 2)]; }, q("SELECT pessoa_id, valor FROM lancamento_profissional WHERE lancamento_id = {$lancId} ORDER BY id")); };
     igual('parcela 1: divisao gravada (150 / 250 / 100)', [[$curciol, 150.0], [$jac, 250.0], [$juan, 100.0]], $div((int) $lancs[0]['id']));
     igual('parcela 2: divisao gravada (150 / 250 / 100)', [[$curciol, 150.0], [$jac, 250.0], [$juan, 100.0]], $div((int) $lancs[1]['id']));
@@ -88,6 +89,7 @@ try {
     igual('segunda geracao: sem erro', '', erro($s));
     $lancs2 = q("SELECT id, parcela FROM lancamento WHERE conta_id = {$contaId} ORDER BY parcela");
     igual('a conta ganhou a parcela 3', [1, 2, 3], array_map(function ($l) { return (int) $l['parcela']; }, $lancs2));
+    igual('total de parcelas atualizado para 3', 3, (int) q('SELECT total_parcelas FROM conta WHERE id = ' . $contaId)[0]['total_parcelas']);
     igual('parcela 2 manteve a divisao (com Juan)', [[$curciol, 150.0], [$jac, 250.0], [$juan, 100.0]], $div((int) $lancs2[1]['id']));
     igual('parcela 3 tem a divisao nova', [[$curciol, 250.0], [$jac, 250.0]], $div((int) $lancs2[2]['id']));
     igual('conta-caixa prevista em branco na nova geracao fica vazia', null, q("SELECT conta_caixa_id FROM conta WHERE id = {$contaId}")[0]['conta_caixa_id']);
