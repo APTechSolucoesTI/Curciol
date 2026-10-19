@@ -89,9 +89,9 @@ class LevantamentoFinanceiroForm extends TWindow
         $row = $this->form->addFields(...$campos);
         $row->layout = (count($campos) === 4) ? ['col-sm-3', 'col-sm-3', 'col-sm-3', 'col-sm-3'] : ['col-sm-5', 'col-sm-4', 'col-sm-3'];
         $row = $this->form->addFields(
-            [self::rotulo('Bruto depositado'), new TTextDisplay(self::moeda($ctx->bruto), '', '12px', ''), self::atualValor($ctx->bruto)],
+            [self::rotulo('Bruto depositado'), self::valorComAtual($ctx->bruto)],
             [self::rotulo('Valor do MLE'), new TTextDisplay(self::moeda($ctx->mle), '', '12px', '')],
-            [self::rotulo('Descontos (bruto - MLE)'), new TTextDisplay(self::moeda($ctx->descontos), '', '12px', ''), self::atualValor($ctx->descontos)],
+            [self::rotulo('Descontos (bruto - MLE)'), self::valorComAtual($ctx->descontos)],
             [self::rotulo('Saldo remanescente'), new TTextDisplay($ctx->saldo_bruto === null ? '-' : self::moeda($ctx->saldo_bruto), '', '12px', '')]
         );
         $row->layout = ['col-sm-3', 'col-sm-3', 'col-sm-3', 'col-sm-3'];
@@ -298,6 +298,18 @@ class LevantamentoFinanceiroForm extends TWindow
         $div = self::atualValor(null);
         $div->{'data-campo'} = $campo;
         return $div;
+    }
+
+    /** Valor do pagamento com o "Atual" logo abaixo, no mesmo bloco (a coluna e flex e poria os dois lado a lado). */
+    private static function valorComAtual(float $valor): TElement
+    {
+        $bloco = new TElement('div');
+        $texto = new TElement('span');
+        $texto->style = 'font-size:12px';
+        $texto->add(self::moeda($valor));
+        $bloco->add($texto);
+        $bloco->add(self::atualValor($valor));
+        return $bloco;
     }
 
     /** Linha "Atual: R$ ..." debaixo de um valor fixo do pagamento (bruto, descontos). Escondida ate haver calculo. */
