@@ -89,9 +89,9 @@ class LevantamentoFinanceiroForm extends TWindow
         $row = $this->form->addFields(...$campos);
         $row->layout = (count($campos) === 4) ? ['col-sm-3', 'col-sm-3', 'col-sm-3', 'col-sm-3'] : ['col-sm-5', 'col-sm-4', 'col-sm-3'];
         $row = $this->form->addFields(
-            [self::rotulo('Bruto depositado'), new TTextDisplay(self::moeda($ctx->bruto), '', '12px', '')],
+            [self::rotulo('Bruto depositado'), new TTextDisplay(self::moeda($ctx->bruto), '', '12px', ''), self::atualValor($ctx->bruto)],
             [self::rotulo('Valor do MLE'), new TTextDisplay(self::moeda($ctx->mle), '', '12px', '')],
-            [self::rotulo('Descontos (bruto - MLE)'), new TTextDisplay(self::moeda($ctx->descontos), '', '12px', '')],
+            [self::rotulo('Descontos (bruto - MLE)'), new TTextDisplay(self::moeda($ctx->descontos), '', '12px', ''), self::atualValor($ctx->descontos)],
             [self::rotulo('Saldo remanescente'), new TTextDisplay($ctx->saldo_bruto === null ? '-' : self::moeda($ctx->saldo_bruto), '', '12px', '')]
         );
         $row->layout = ['col-sm-3', 'col-sm-3', 'col-sm-3', 'col-sm-3'];
@@ -202,19 +202,21 @@ class LevantamentoFinanceiroForm extends TWindow
         );
         $row->layout = ['col-sm-3', 'col-sm-2', 'col-sm-4', 'col-sm-3'];
 
-        $totalDescontos = new TElement('div');
-        $totalDescontos->class = 'lf-nota';
-        $totalDescontos->style = 'padding-top:24px';
-        $totalDescontos->add($descontosDoPagamento
-            ? 'Descontos lançados no pagamento (total ' . self::moeda($ctx->descontos) . '). Abaixo de cada um, o valor atual, proporcional ao valor levantado.'
-            : 'A soma tem que ser o total de descontos do pagamento (bruto − MLE): <b>' . self::moeda($ctx->descontos) . '</b>');
-        $row = $this->form->addFields(
+        $camposDescontos = [
             [self::rotulo('Desconto previdenciário (R$)', !$descontosDoPagamento), $descPrev, self::atualDesconto('desconto_previdenciario')],
             [self::rotulo('Desconto assistencial (R$)', !$descontosDoPagamento), $descAssist, self::atualDesconto('desconto_assistencial')],
             [self::rotulo('Desconto IRRF (R$)', !$descontosDoPagamento), $descIrrf, self::atualDesconto('desconto_irrf')],
-            [$totalDescontos]
-        );
-        $row->layout = ['col-sm-3', 'col-sm-3', 'col-sm-2', 'col-sm-4'];
+        ];
+        if (!$descontosDoPagamento) {
+            // pagamento antigo, sem descontos lancados: o usuario informa e a soma tem que bater
+            $totalDescontos = new TElement('div');
+            $totalDescontos->class = 'lf-nota';
+            $totalDescontos->style = 'padding-top:24px';
+            $totalDescontos->add('A soma tem que ser o total de descontos do pagamento (bruto − MLE): <b>' . self::moeda($ctx->descontos) . '</b>');
+            $camposDescontos[] = [$totalDescontos];
+        }
+        $row = $this->form->addFields(...$camposDescontos);
+        $row->layout = ['col-sm-3', 'col-sm-3', 'col-sm-3', 'col-sm-3'];
 
         $this->form->addContent([self::titulo('Lançamento financeiro')]);
         $row = $this->form->addFields(
@@ -293,17 +295,27 @@ class LevantamentoFinanceiroForm extends TWindow
     /** Linha "Atual: R$ ..." debaixo de um campo de desconto (preenchida pelo scriptAtualDescontos). */
     private static function atualDesconto(string $campo): TElement
     {
+        $div = self::atualValor(null);
+        $div->{'data-campo'} = $campo;
+        return $div;
+    }
+
+    /** Linha "Atual: R$ ..." debaixo de um valor fixo do pagamento (bruto, descontos). Escondida ate haver calculo. */
+    private static function atualValor(?float $valor): TElement
+    {
         $div = new TElement('div');
         $div->class = 'lf-nota lf-atual';
-        $div->{'data-campo'} = $campo;
-        $div->style = 'margin-top:3px';
-        $div->add('Atual: -');
+        if ($valor !== null) {
+            $div->{'data-valor'} = (string) round($valor, 2);
+        }
+        $div->style = 'margin-top:3px;display:none';
         return $div;
     }
 
     /**
-     * Desconto atual = desconto do pagamento x valor levantado / MLE (a mesma proporcao que o calculo usa para
-     * levar bruto e honorarios ao valor levantado). So mostra; nao entra no calculo nem na prestacao de contas.
+     * Valor atual = valor do pagamento x valor levantado / MLE (a mesma proporcao que o calculo usa para levar bruto
+     * e honorarios ao valor levantado). So aparece quando o levantado e diferente do MLE (senao seria igual ao valor).
+     * So mostra; nao entra no calculo nem na prestacao de contas.
      */
     private static function scriptAtualDescontos(float $mle): void
     {
@@ -321,9 +333,15 @@ class LevantamentoFinanceiroForm extends TWindow
     function moeda(n) { return 'R$ ' + n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
     function atualizar() {
         var f = $(sel), y = num(f.find('[name="valor_levantado"]').val());
+        var recalcula = (y !== null && y > 0 && mle > 0 && Math.abs(y - mle) >= 0.005);
         f.find('.lf-atual').each(function () {
-            var d = num(f.find('[name="' + $(this).data('campo') + '"]').val());
-            $(this).text((y !== null && y > 0 && d !== null && mle > 0) ? 'Atual: ' + moeda(Math.round(d * y / mle * 100) / 100) : 'Atual: -');
+            var campo = $(this).data('campo');
+            var d = campo ? num(f.find('[name="' + campo + '"]').val()) : num($(this).attr('data-valor'));
+            if (recalcula && d !== null) {
+                $(this).text('Atual: ' + moeda(Math.round(d * y / mle * 100) / 100)).show();
+            } else {
+                $(this).text('').hide();
+            }
         });
     }
     $(document).off('.lfAtual').on('input.lfAtual keyup.lfAtual change.lfAtual blur.lfAtual', sel + ' [name="valor_levantado"], ' + sel + ' [name^="desconto_"]', atualizar);
