@@ -127,11 +127,16 @@ class LevantamentoFinanceiroForm extends TWindow
         $pctNf = new TEntry('pct_nf');
         $pctNf->setSize('100%');
 
-        // descontos do deposito detalhados (vao para a prestacao de contas ao cliente); soma = bruto - MLE
+        // descontos do deposito detalhados (vao para a prestacao de contas ao cliente); soma = bruto - MLE.
+        // Lancados no pagamento: vem dele e nao mudam aqui (pagamento antigo, sem eles: o usuario informa)
+        $descontosDoPagamento = ($ctx->descontos_pagamento !== null);
         $descPrev = new TNumeric('desconto_previdenciario', 2, ',', '.');
         $descAssist = new TNumeric('desconto_assistencial', 2, ',', '.');
         $descIrrf = new TNumeric('desconto_irrf', 2, ',', '.');
-        foreach ([$descPrev, $descAssist, $descIrrf] as $campo) { $campo->setSize('100%'); }
+        foreach ([$descPrev, $descAssist, $descIrrf] as $campo) {
+            $campo->setSize('100%');
+            if ($descontosDoPagamento) { $campo->setEditable(false); }
+        }
 
         $parceria = new TCombo('parceria_levantamento_id');
         $parceria->addItems($parcerias);
@@ -200,11 +205,13 @@ class LevantamentoFinanceiroForm extends TWindow
         $totalDescontos = new TElement('div');
         $totalDescontos->class = 'lf-nota';
         $totalDescontos->style = 'padding-top:24px';
-        $totalDescontos->add('A soma tem que ser o total de descontos do pagamento (bruto − MLE): <b>' . self::moeda($ctx->descontos) . '</b>');
+        $totalDescontos->add($descontosDoPagamento
+            ? 'Descontos lançados no pagamento (total ' . self::moeda($ctx->descontos) . '). Abaixo de cada um, o valor atual, proporcional ao valor levantado.'
+            : 'A soma tem que ser o total de descontos do pagamento (bruto − MLE): <b>' . self::moeda($ctx->descontos) . '</b>');
         $row = $this->form->addFields(
-            [self::rotulo('Desconto previdenciário (R$)', true), $descPrev],
-            [self::rotulo('Desconto assistencial (R$)', true), $descAssist],
-            [self::rotulo('Desconto IRRF (R$)', true), $descIrrf],
+            [self::rotulo('Desconto previdenciário (R$)', !$descontosDoPagamento), $descPrev, self::atualDesconto('desconto_previdenciario')],
+            [self::rotulo('Desconto assistencial (R$)', !$descontosDoPagamento), $descAssist, self::atualDesconto('desconto_assistencial')],
+            [self::rotulo('Desconto IRRF (R$)', !$descontosDoPagamento), $descIrrf, self::atualDesconto('desconto_irrf')],
             [$totalDescontos]
         );
         $row->layout = ['col-sm-3', 'col-sm-3', 'col-sm-2', 'col-sm-4'];
@@ -258,7 +265,11 @@ class LevantamentoFinanceiroForm extends TWindow
         $data->valor_levantado = null;
         $data->pct_honorarios = ($ctx->pct_honorarios_sugerido !== null) ? self::pctTexto($ctx->pct_honorarios_sugerido) : null;
         $data->pct_nf = self::pctTexto(FinanceiroConfiguracao::pctNfPadrao());
-        if (round((float) $ctx->descontos, 2) == 0) {
+        if ($descontosDoPagamento) {
+            foreach ($ctx->descontos_pagamento as $campo => $valorDesconto) {
+                $data->{$campo} = number_format($valorDesconto, 2, ',', '.');
+            }
+        } elseif (round((float) $ctx->descontos, 2) == 0) {
             $data->desconto_previdenciario = $data->desconto_assistencial = $data->desconto_irrf = '0,00';
         }
         $data->parceria_levantamento_id = $ctx->parceria_sugerida_id;
@@ -276,6 +287,50 @@ class LevantamentoFinanceiroForm extends TWindow
 
         // primeira previa (depois que a janela e os campos existirem)
         TScript::create('setTimeout(function () { __adianti_post_data("' . self::$formName . '", "class=' . __CLASS__ . '&method=onSimular&static=1"); }, 400);');
+        self::scriptAtualDescontos((float) $ctx->mle);
+    }
+
+    /** Linha "Atual: R$ ..." debaixo de um campo de desconto (preenchida pelo scriptAtualDescontos). */
+    private static function atualDesconto(string $campo): TElement
+    {
+        $div = new TElement('div');
+        $div->class = 'lf-nota lf-atual';
+        $div->{'data-campo'} = $campo;
+        $div->style = 'margin-top:3px';
+        $div->add('Atual: -');
+        return $div;
+    }
+
+    /**
+     * Desconto atual = desconto do pagamento x valor levantado / MLE (a mesma proporcao que o calculo usa para
+     * levar bruto e honorarios ao valor levantado). So mostra; nao entra no calculo nem na prestacao de contas.
+     */
+    private static function scriptAtualDescontos(float $mle): void
+    {
+        $form = json_encode('#' . self::$formName);
+        $js = <<<JS
+(function () {
+    var mle = {$mle}, sel = {$form};
+    function num(v) {
+        v = String(v || '').trim();
+        if (v === '') { return null; }
+        if (v.indexOf(',') >= 0) { v = v.split('.').join('').replace(',', '.'); }
+        var n = parseFloat(v);
+        return isNaN(n) ? null : n;
+    }
+    function moeda(n) { return 'R$ ' + n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+    function atualizar() {
+        var f = $(sel), y = num(f.find('[name="valor_levantado"]').val());
+        f.find('.lf-atual').each(function () {
+            var d = num(f.find('[name="' + $(this).data('campo') + '"]').val());
+            $(this).text((y !== null && y > 0 && d !== null && mle > 0) ? 'Atual: ' + moeda(Math.round(d * y / mle * 100) / 100) : 'Atual: -');
+        });
+    }
+    $(document).off('.lfAtual').on('input.lfAtual keyup.lfAtual change.lfAtual blur.lfAtual', sel + ' [name="valor_levantado"], ' + sel + ' [name^="desconto_"]', atualizar);
+    setTimeout(atualizar, 300);
+})();
+JS;
+        TScript::create($js);
     }
 
     // ---------------------------------------------------------------
@@ -398,7 +453,8 @@ class LevantamentoFinanceiroForm extends TWindow
 
         $descontos = [];
         foreach (['desconto_previdenciario' => 'desconto previdenciário', 'desconto_assistencial' => 'desconto assistencial', 'desconto_irrf' => 'desconto IRRF'] as $campo => $nome) {
-            $descontos[$campo] = self::numero($param[$campo] ?? '', $nome, true);
+            // lancados no pagamento valem os do pagamento (o campo e so leitura)
+            $descontos[$campo] = ($ctx->descontos_pagamento !== null) ? $ctx->descontos_pagamento[$campo] : self::numero($param[$campo] ?? '', $nome, true);
         }
         if ($estrito) {
             // no gerar os tres sao obrigatorios e a soma tem que bater (o servico confere de novo)

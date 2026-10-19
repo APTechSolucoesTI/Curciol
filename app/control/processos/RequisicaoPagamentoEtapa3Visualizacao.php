@@ -94,6 +94,11 @@ class RequisicaoPagamentoEtapa3Visualizacao extends TWindow
                         <div class='e3-grid'>
                             " . $this->blocoInfo('Data do depósito', self::formatarDataBR($lancamento->data_deposito)) . "
                             " . $this->blocoInfo('Valor bruto depositado', self::formatarValorBR($lancamento->valor_bruto_depositado)) . "
+                            " . ($lancamento->desconto_previdenciario !== null
+                                ? $this->blocoInfo('Desconto previdenciário', self::formatarValorBR($lancamento->desconto_previdenciario))
+                                    . $this->blocoInfo('Desconto assistencial', self::formatarValorBR($lancamento->desconto_assistencial))
+                                    . $this->blocoInfo('Desconto IRRF', self::formatarValorBR($lancamento->desconto_irrf))
+                                : '') . "
                             " . $this->blocoInfo('Valor do MLE', self::formatarValorBR($lancamento->valor_mle)) . "
                         </div>
                     </div>
@@ -150,6 +155,9 @@ class RequisicaoPagamentoEtapa3Visualizacao extends TWindow
                 e3.data_deposito,
                 e3.valor_bruto_depositado,
                 e3.valor_mle,
+                e3.desconto_previdenciario,
+                e3.desconto_assistencial,
+                e3.desconto_irrf,
                 e3.conta_indicada_mle,
                 e3.data_pedido_mle,
                 e3.data_deferimento_mle,

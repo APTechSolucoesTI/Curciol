@@ -554,5 +554,13 @@ class Conta extends TRecord
         }
     }
             
+    public function onAfterStore($object)
+    {
+        // conta a receber do financeiro de uma requisicao: quitar/desquitar muda o status da requisicao (Quitado automatico)
+        if ((string) ($object->tipo_conta_id ?? '') === (string) TipoConta::RECEBER && !empty($object->requisicao_pagamento_id) && !empty($object->id)) {
+            RequisicaoQuitacaoService::atualizarPorConta((int) $object->id);
+        }
+    }
+            
 }
 

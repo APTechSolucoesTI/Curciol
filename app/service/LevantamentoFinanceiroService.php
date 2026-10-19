@@ -60,7 +60,7 @@ class LevantamentoFinanceiroService
     }
 
     /**
-     * Pagamento com financeiro gerado: deposito, bruto, MLE e processo nao podem mudar (so valem os campos presentes em $novos).
+     * Pagamento com financeiro gerado: deposito, bruto, MLE, descontos e processo nao podem mudar (so valem os campos presentes em $novos).
      * Chamar dentro da transacao do salvamento, antes do UPDATE.
      */
     public static function garantirPagamentoEditavel(int $etapa3Id, array $novos): void
@@ -70,7 +70,7 @@ class LevantamentoFinanceiroService
         try {
             $c = TTransaction::get();
             if (self::fichaId($c, $etapa3Id) !== null) {
-                $st = $c->prepare('SELECT data_deposito, valor_bruto_depositado, valor_mle, processo_filho_id FROM requisicao_pagamento_etapa3 WHERE id = ?');
+                $st = $c->prepare('SELECT data_deposito, valor_bruto_depositado, valor_mle, processo_filho_id, desconto_previdenciario, desconto_assistencial, desconto_irrf FROM requisicao_pagamento_etapa3 WHERE id = ?');
                 $st->execute([$etapa3Id]);
                 $atual = $st->fetch(PDO::FETCH_ASSOC);
                 if ($atual) {
@@ -86,11 +86,16 @@ class LevantamentoFinanceiroService
                     if (array_key_exists('valor_mle', $novos)) {
                         $mudou = $mudou || ($dinheiro($atual['valor_mle']) !== $dinheiro($novos['valor_mle']));
                     }
+                    foreach (['desconto_previdenciario', 'desconto_assistencial', 'desconto_irrf'] as $campo) {
+                        if (array_key_exists($campo, $novos)) {
+                            $mudou = $mudou || ($dinheiro($atual[$campo]) !== $dinheiro($novos[$campo]));
+                        }
+                    }
                     if (array_key_exists('processo_filho_id', $novos)) {
                         $mudou = $mudou || ($inteiro($atual['processo_filho_id']) !== $inteiro($novos['processo_filho_id']));
                     }
                     if ($mudou) {
-                        throw new Exception('Este pagamento já tem o financeiro gerado: data do depósito, valor bruto, valor do MLE e processo não podem ser alterados. Desfaça o financeiro antes de alterar.');
+                        throw new Exception('Este pagamento já tem o financeiro gerado: data do depósito, valor bruto, descontos, valor do MLE e processo não podem ser alterados. Desfaça o financeiro antes de alterar.');
                     }
                 }
             }
@@ -175,8 +180,9 @@ class LevantamentoFinanceiroService
                 self::exigirCadastro($c, 'tipo_documento_financeiro', $d['tipo_documento_pagar_id'] ?? null, 'Informe um tipo de documento válido para a conta a pagar ao cliente.');
             }
 
-            // descontos do deposito detalhados (prestacao de contas): a soma tem que ser bruto - MLE
-            $descontos = self::descontosDetalhados($d, round($ctx->bruto - $ctx->mle, 2));
+            // descontos do deposito detalhados (prestacao de contas): a soma tem que ser bruto - MLE;
+            // lancados no pagamento, valem os do pagamento
+            $descontos = self::descontosDetalhados($ctx->descontos_pagamento ? array_merge($d, $ctx->descontos_pagamento) : $d, round($ctx->bruto - $ctx->mle, 2));
 
             $st = $c->prepare('SELECT escritorio_id FROM contrato WHERE id = ?');
             $st->execute([(int) $e['contrato_id']]);
@@ -346,6 +352,8 @@ class LevantamentoFinanceiroService
 
             // contas a pagar dos colaboradores (a parte do escritorio fica como receita)
             RepasseColaboradorService::gerarPorRecebimento((int) $parcela->id, (int) $extrato->id, $y, $x, true, (int) $ficha->id);
+            // conta a receber nasce quitada: a requisicao pode ir para Quitado
+            RequisicaoQuitacaoService::atualizar((int) $ctx->rpc_id);
             TTransaction::close();
             return $ficha;
         } catch (Throwable $ex) {
@@ -414,6 +422,11 @@ class LevantamentoFinanceiroService
             $c->prepare('DELETE FROM levantamento_financeiro WHERE id = ?')->execute([(int) $ficha->id]);
             // a conta a pagar aponta para a conta a receber (conta_origem_id): pagar antes de receber
             foreach (array_reverse($contas) as $contaId) { $c->exec('DELETE FROM conta WHERE id = ' . $contaId); }
+
+            // sem o financeiro, a requisicao que estava Quitado volta ao status anterior
+            $st = $c->prepare('SELECT requisicao_pagamento_cliente_id FROM requisicao_pagamento_etapa3 WHERE id = ?');
+            $st->execute([$etapa3Id]);
+            RequisicaoQuitacaoService::atualizar((int) $st->fetchColumn());
 
             TTransaction::close();
         } catch (Throwable $e) {

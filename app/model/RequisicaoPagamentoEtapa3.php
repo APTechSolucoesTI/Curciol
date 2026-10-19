@@ -29,6 +29,9 @@ class RequisicaoPagamentoEtapa3 extends TRecord
         parent::addAttribute('saldo_bruto');
         parent::addAttribute('data_base_saldo');
         parent::addAttribute('possui_saldo');
+        parent::addAttribute('desconto_previdenciario');
+        parent::addAttribute('desconto_assistencial');
+        parent::addAttribute('desconto_irrf');
             
     }
 

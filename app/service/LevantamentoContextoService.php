@@ -54,6 +54,7 @@ class LevantamentoContextoService
         $st = $c->prepare("
             SELECT e3.id, e3.requisicao_pagamento_cliente_id, e3.processo_filho_id, e3.numero_ciclo, e3.data_deposito,
                    e3.valor_bruto_depositado, e3.valor_mle, e3.data_deferimento_mle, e3.saldo_bruto,
+                   e3.desconto_previdenciario, e3.desconto_assistencial, e3.desconto_irrf,
                    rpc.pessoa_id AS cliente_id, rpc.entidade_devedora_id AS devedor_id,
                    rp.id AS requisicao_id, rp.processo_id AS processo_requisicao_id,
                    tr.nome AS tipo_requisicao,
@@ -143,6 +144,12 @@ class LevantamentoContextoService
             'bruto'                  => $bruto,
             'mle'                    => $mle,
             'descontos'              => $bruto - $mle,
+            // descontos lancados no pagamento (null quando o pagamento e anterior a essa regra e nao os tem)
+            'descontos_pagamento'    => ($e->desconto_previdenciario === null && $e->desconto_assistencial === null && $e->desconto_irrf === null) ? null : [
+                'desconto_previdenciario' => round((float) $e->desconto_previdenciario, 2),
+                'desconto_assistencial'   => round((float) $e->desconto_assistencial, 2),
+                'desconto_irrf'           => round((float) $e->desconto_irrf, 2),
+            ],
             'saldo_bruto'            => ($e->saldo_bruto === null) ? null : (float) $e->saldo_bruto,
             'data_deferimento_mle'   => $e->data_deferimento_mle,
             'contratos'              => $contratos,
