@@ -181,8 +181,10 @@ class RequisicaoPagamentoEtapa3Visualizacao extends TWindow
             new TQuestion('Excluir este pagamento?' . ($comFinanceiro
                 ? '<br><br>O financeiro gerado por ele também será desfeito: a conta a receber, a conta a pagar ao cliente e as contas a pagar dos colaboradores serão apagadas.'
                 : ''), $acao);
+            self::caixaNaFrente();
         } catch (Exception $e) {
             new TMessage('error', $e->getMessage());
+            self::caixaNaFrente();
         }
     }
 
@@ -193,11 +195,26 @@ class RequisicaoPagamentoEtapa3Visualizacao extends TWindow
             if (($param['fechar_detalhe'] ?? '0') === '1') {
                 TScript::create("$('.e3-wrap').closest('.ui-dialog, .modal').remove();");
             }
-            new TMessage('info', 'Pagamento excluído.');
+            TToast::show('success', 'Pagamento excluído', 'topRight', 'far:check-circle');
             LevantamentoFinanceiroForm::recarregarOrigem(['origem' => $param['origem'] ?? '', 'url_recarga' => $param['url_recarga'] ?? '']);
         } catch (Exception $e) {
             new TMessage('error', $e->getMessage());
+            self::caixaNaFrente();
         }
+    }
+
+    /** A pergunta/mensagem (modal do bootstrap) abre por tras das janelas abertas: coloca acima da mais alta. */
+    private static function caixaNaFrente(): void
+    {
+        TScript::create("(function () {
+            function frente() {
+                var z = 0;
+                $('.ui-dialog, .ui-widget-overlay').each(function () { z = Math.max(z, parseInt($(this).css('z-index'), 10) || 0); });
+                $('.modal-backdrop').last().css('z-index', z + 1);
+                $('.modal').filter(':visible').last().css('z-index', z + 2);
+            }
+            setTimeout(frente, 60); setTimeout(frente, 350);
+        })();");
     }
 
     private function buscarLancamento($conn, $id)
