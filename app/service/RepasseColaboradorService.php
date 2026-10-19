@@ -182,6 +182,8 @@ class RepasseColaboradorService
                        lr.parcela, cr.total_parcelas, cr.descricao AS receber_descricao,
                        cr.contrato_id, ct.numero AS contrato_numero,
                        COALESCE(cr.requisicao_pagamento_id, lf.requisicao_pagamento_id) AS requisicao_id,
+                       (SELECT trp.nome FROM requisicao_pagamento rq JOIN tipos_requisicao_pagamento trp ON trp.id = rq.tipos_requisicao_pagamento_id
+                         WHERE rq.id = COALESCE(cr.requisicao_pagamento_id, lf.requisicao_pagamento_id)) AS requisicao_tipo,
                        e3.data_deposito,
                        COALESCE(pr.numero_cnj_numero, pr.numero_outro) AS processo_numero,
                        COALESCE(cli.nome, pc.nome, pcr.nome) AS cliente
@@ -213,9 +215,9 @@ class RepasseColaboradorService
         if ($r->cliente) { $partes[] = $r->cliente; }
         if ($r->processo_numero) { $partes[] = 'Processo ' . $r->processo_numero; }
         if ($r->requisicao_id) {
-            $partes[] = 'Requisição #' . (int) $r->requisicao_id . ($r->data_deposito ? ' (depósito de ' . date('d/m/Y', strtotime($r->data_deposito)) . ')' : '');
+            $partes[] = 'Requisição' . (!empty($r->requisicao_tipo) ? ' ' . $r->requisicao_tipo : '') . ($r->data_deposito ? ' (depósito de ' . date('d/m/Y', strtotime($r->data_deposito)) . ')' : '');
         } elseif ($r->contrato_id) {
-            $partes[] = 'Contrato ' . ($r->contrato_numero ?: '#' . (int) $r->contrato_id) . ((int) $r->total_parcelas > 1 ? ' - parcela ' . (int) $r->parcela . '/' . (int) $r->total_parcelas : '');
+            $partes[] = 'Contrato' . ($r->contrato_numero ? ' ' . $r->contrato_numero : '') . ((int) $r->total_parcelas > 1 ? ' - parcela ' . (int) $r->parcela . '/' . (int) $r->total_parcelas : '');
         } elseif (trim((string) ($r->receber_descricao ?? '')) !== '') {
             // conta a receber avulsa (sem processo, requisicao nem contrato): a descricao dela
             $partes[] = trim((string) $r->receber_descricao) . ((int) $r->total_parcelas > 1 ? ' - parcela ' . (int) $r->parcela . '/' . (int) $r->total_parcelas : '');

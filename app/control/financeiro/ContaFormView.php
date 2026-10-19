@@ -30,31 +30,6 @@ class ContaFormView extends TPage
         // define the form title
         $this->form->setFormTitle("Detalhe da conta #{$param['key']}");
 
-        $transformed_conta_contrato_id = call_user_func(function($value, $object, $row)
-        {
-           if (empty($value)) {
-                return '';
-            }
-
-            // value é o contrato_id vinculado na conta
-            $contratoId = (int) $value;
-
-            if (empty($contratoId)) {
-                return '';
-            }
-
-            $action = new TAction(['ContratoFormView', 'onShow']);
-            $action->setParameter('key', $contratoId);
-            $action->setParameter('id', $contratoId);
-            $action->setParameter('target_container', 'adianti_right_panel');
-
-            $button = new TActionLink('Ver contrato', $action, '#ffffff', 10, null, 'fas:eye');
-            $button->class = 'btn btn-sm btn-primary';
-            $button->style = 'padding: 3px 8px; font-size: 12px;';
-
-            return $button;
-        }, $conta->contrato_id, $conta, null);    
-
         $transformed_conta_pessoa_nome = call_user_func(function($value, $object, $row)
         {
              try
@@ -162,7 +137,7 @@ class ContaFormView extends TPage
 
         $conta->quitada = $label;
 
-        $text13 = new TTextDisplay($transformed_conta_contrato_id, '', '12px', '');
+        $text13 = new TTextDisplay(self::vinculosHtml($conta), '', '12px', '');
         $label2 = new TLabel("Pessoa:", '', '14px', 'B', '100%');
         $text2 = new TTextDisplay($transformed_conta_pessoa_nome, '', '14px', '');
         $label6 = new TLabel("Tipo:", '', '14px', 'B', '100%');
@@ -392,22 +367,14 @@ class ContaFormView extends TPage
 
         $this->form->addContent([$panel]);
 
-        // repasses aos colaboradores: na conta a receber, as contas a pagar geradas; na conta de repasse, a origem
+        // repasses aos colaboradores: so na conta a receber (as contas a pagar geradas); a conta de repasse mostra a origem nos vinculos do topo
         $repassesDaConta = ((string) $conta->tipo_conta_id === (string) TipoConta::RECEBER)
             ? RepasseColaboradorService::listar(['conta_receber_id' => (int) $conta->id])
-            : RepasseColaboradorService::listar(['conta_pagar_id' => (int) $conta->id]);
+            : [];
         if ($repassesDaConta) {
-            $ehReceber = ((string) $conta->tipo_conta_id === (string) TipoConta::RECEBER);
-            $tituloRepasses = new TTextDisplay(new TImage('fas:hand-holding-usd #1f3a5f') . ($ehReceber ? ' Repasses aos colaboradores' : ' Repasse a colaborador'), '#555555', '16px');
+            $tituloRepasses = new TTextDisplay(new TImage('fas:hand-holding-usd #1f3a5f') . ' Repasses aos colaboradores', '#555555', '16px');
             $panelRepasses = new TPanelGroup($tituloRepasses, '#FFFFFF');
             $panelRepasses->class = 'panel panel-default formView-detail';
-            if (!$ehReceber) {
-                $origemId = (int) $repassesDaConta[0]->conta_receber_id;
-                $urlOrigem = "index.php?class=ContaFormView&method=onShow&key={$origemId}&id={$origemId}&target_container=adianti_right_panel";
-                $panelRepasses->add('<div style="font-size:12px;margin-bottom:6px">Gerada pelo recebimento de ' . htmlspecialchars(RepasseColaboradorService::origem($repassesDaConta[0]))
-                    . ' - <a href="javascript:void(0)" onclick="' . htmlspecialchars('Adianti.waitMessage = false; __adianti_load_page(' . json_encode($urlOrigem) . '); return false;') . '">abrir a conta a receber #' . $origemId . '</a>.'
-                    . ' Ela acompanha esse recebimento: para corrigir, desquite a parcela recebida; pague em Financeiro › Repasses a colaboradores.</div>');
-            }
             $divRepasses = new TElement('div');
             $divRepasses->class = 'table-responsive';
             $divRepasses->add(RepasseColaboradorList::secaoHtml($repassesDaConta));
@@ -462,6 +429,72 @@ class ContaFormView extends TPage
         $style->width = '50% !important';   
         $style->show(true);
 
+    }
+
+    /**
+     * Botoes com os vinculos da conta, conforme o caso: contrato e processo (com o numero), requisicao de pagamento,
+     * financeiro do levantamento, conta a receber que originou (repasse ou conta a pagar ao cliente) e conta a pagar
+     * ao cliente (na conta a receber do levantamento). Ids nao aparecem: so o titulo da conta mostra o numero dela.
+     * Usa a transacao aberta.
+     */
+    private static function vinculosHtml(Conta $conta): string
+    {
+        $c = TTransaction::get();
+        $um = function (string $sql, array $par) use ($c) { $st = $c->prepare($sql); $st->execute($par); return $st->fetch(PDO::FETCH_OBJ) ?: null; };
+        $botao = function (string $url, string $rotulo, string $icone) {
+            return '<a href="javascript:void(0)" class="btn btn-sm btn-default conta-vinculo" onclick="'
+                . htmlspecialchars('Adianti.waitMessage = false; __adianti_load_page(' . json_encode($url) . '); return false;') . '">'
+                . '<i class="' . $icone . '"></i> ' . htmlspecialchars($rotulo) . '</a>';
+        };
+        $botoes = [];
+        $id = (int) $conta->id;
+
+        $repasse = $um('SELECT conta_receber_id, levantamento_financeiro_id FROM repasse_colaborador WHERE conta_pagar_id = ?', [$id]);
+        $ficha = $um('SELECT id, requisicao_pagamento_etapa3_id, conta_receber_id, conta_pagar_id FROM levantamento_financeiro WHERE conta_receber_id = ? OR conta_pagar_id = ? ORDER BY id DESC LIMIT 1', [$id, $id]);
+        if (!$ficha && $repasse) {
+            // repasse: o levantamento vem do proprio repasse ou da conta a receber que o originou
+            $ficha = $um('SELECT id, requisicao_pagamento_etapa3_id, conta_receber_id, conta_pagar_id FROM levantamento_financeiro WHERE id = ? OR conta_receber_id = ? ORDER BY id DESC LIMIT 1',
+                [(int) $repasse->levantamento_financeiro_id, (int) $repasse->conta_receber_id]);
+        }
+
+        if (!empty($conta->contrato_id)) {
+            $numero = $um('SELECT numero FROM contrato WHERE id = ?', [(int) $conta->contrato_id]);
+            $cid = (int) $conta->contrato_id;
+            $botoes[] = $botao("index.php?class=ContratoFormView&method=onShow&key={$cid}&id={$cid}&target_container=adianti_right_panel",
+                'Contrato' . (!empty($numero->numero) ? ' ' . $numero->numero : ''), 'fas fa-file-signature');
+        }
+        if (!empty($conta->processo_id)) {
+            $proc = $um('SELECT COALESCE(numero_cnj_numero, numero_outro) AS numero FROM processo WHERE id = ?', [(int) $conta->processo_id]);
+            $pid = (int) $conta->processo_id;
+            $botoes[] = $botao("engine.php?class=ProcessoFormView&method=onShow&key={$pid}&register_state=false&target_container=adianti_right_panel",
+                'Processo' . (!empty($proc->numero) ? ' ' . $proc->numero : ''), 'fas fa-folder-open');
+        }
+        if (!empty($conta->requisicao_pagamento_id)) {
+            $req = $um('SELECT t.nome FROM requisicao_pagamento r LEFT JOIN tipos_requisicao_pagamento t ON t.id = r.tipos_requisicao_pagamento_id WHERE r.id = ?', [(int) $conta->requisicao_pagamento_id]);
+            $rid = (int) $conta->requisicao_pagamento_id;
+            $botoes[] = $botao("engine.php?class=RequisicaoPagamentoVisualizacao&method=onShow&key={$rid}&register_state=false",
+                'Requisição de pagamento' . (!empty($req->nome) ? ' (' . $req->nome . ')' : ''), 'fas fa-hand-holding-usd');
+        }
+        if ($ficha) {
+            $botoes[] = $botao('engine.php?class=LevantamentoFinanceiroView&method=onShow&etapa3_id=' . (int) $ficha->requisicao_pagamento_etapa3_id . '&register_state=false',
+                'Financeiro do levantamento', 'fas fa-calculator');
+        }
+        // conta a receber que deu origem: do repasse ou da conta a pagar ao cliente do levantamento
+        $origem = $repasse ? (int) $repasse->conta_receber_id : (($ficha && (int) $ficha->conta_pagar_id === $id) ? (int) $ficha->conta_receber_id : 0);
+        if ($origem > 0) {
+            $botoes[] = $botao("index.php?class=ContaFormView&method=onShow&key={$origem}&id={$origem}&target_container=adianti_right_panel", 'Conta a receber de origem', 'fas fa-arrow-down');
+        }
+        // conta a receber do levantamento: a conta a pagar ao cliente gerada junto
+        if ($ficha && (int) $ficha->conta_receber_id === $id && (int) $ficha->conta_pagar_id > 0) {
+            $pagar = (int) $ficha->conta_pagar_id;
+            $botoes[] = $botao("index.php?class=ContaFormView&method=onShow&key={$pagar}&id={$pagar}&target_container=adianti_right_panel", 'Conta a pagar ao cliente', 'fas fa-arrow-up');
+        }
+
+        if (!$botoes) {
+            return '';
+        }
+        return '<div class="conta-vinculos">' . implode('', $botoes) . '</div>'
+            . '<style>.conta-vinculos { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:4px; } .conta-vinculos .conta-vinculo { font-size:12px; padding:3px 9px; } .conta-vinculos .conta-vinculo i { color:#0d4069; margin-right:3px; }</style>';
     }
 
     public static function onPagar($param = null) 

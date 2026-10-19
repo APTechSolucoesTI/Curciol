@@ -91,8 +91,12 @@ try {
     $cr = (int) $lf->conta_receber_id;
     $v = saida(function () use ($cr) { (new ContaFormView(['key' => $cr, 'id' => $cr]))->show(); });
     ok('conta a receber mostra os repasses aos colaboradores', strpos($v, 'Repasses aos colaboradores') !== false && substr_count($v, 'Abrir a conta a pagar') === 4 && substr_count($v, 'Pago em ') === 2, erro($v));
+    ok('conta a receber tem os vinculos do levantamento no topo', strpos($v, 'conta-vinculos') !== false && strpos($v, 'Financeiro do levantamento') !== false
+        && strpos($v, 'Conta a pagar ao cliente') !== false && strpos($v, 'Requisição de pagamento') !== false && strpos($v, 'Conta a receber de origem') === false, erro($v));
     $v = saida(function () use ($contaJac) { (new ContaFormView(['key' => $contaJac, 'id' => $contaJac]))->show(); });
-    ok('conta do repasse mostra a origem', strpos($v, 'Gerada pelo recebimento') !== false && strpos($v, 'abrir a conta a receber #' . $cr) !== false, erro($v));
+    ok('conta do repasse mostra a origem nos vinculos, sem o quadro repetido', strpos($v, 'Conta a receber de origem') !== false
+        && strpos($v, 'ContaFormView&amp;method=onShow&amp;key=' . $cr . '&amp;') !== false && strpos($v, 'Financeiro do levantamento') !== false
+        && strpos($v, 'Gerada pelo recebimento') === false && strpos($v, 'Repasses aos colaboradores') === false && strpos($v, 'Repasse a colaborador') === false, erro($v));
     $carregar = new ReflectionMethod('LevantamentoFinanceiroView', 'carregarFicha'); $carregar->setAccessible(true);
     $bloco = new ReflectionMethod('LevantamentoFinanceiroView', 'bloco'); $bloco->setAccessible(true);
     $ver = saida(function () use ($carregar, $bloco, $f) { echo $bloco->invoke(null, $carregar->invoke(null, (int) $f['etapa3_id']))->getContents(); });

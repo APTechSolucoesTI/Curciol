@@ -348,7 +348,7 @@ class RepasseColaboradorList extends TPage
         foreach ($linhas as $r) {
             $id = (int) $r->conta_pagar_id;
             $url = "index.php?class=ContaFormView&method=onShow&key={$id}&id={$id}&target_container=adianti_right_panel";
-            $abrir = '<a href="javascript:void(0)" title="Abrir a conta a pagar" onclick="' . htmlspecialchars('Adianti.waitMessage = false; __adianti_load_page(' . json_encode($url) . '); return false;') . '"><i class="fas fa-external-link-alt"></i> conta #' . $id . '</a>';
+            $abrir = '<a href="javascript:void(0)" title="Abrir a conta a pagar" onclick="' . htmlspecialchars('Adianti.waitMessage = false; __adianti_load_page(' . json_encode($url) . '); return false;') . '"><i class="fas fa-external-link-alt"></i> Abrir conta</a>';
             $sit = $r->pago_em
                 ? "<span style='color:#065f46'>Pago em " . date('d/m/Y', strtotime($r->pago_em)) . ($r->compensado === 'S' ? ' · compensado' : '') . '</span>'
                 : "<span style='color:#9a3412;font-weight:600'>A pagar</span>";
