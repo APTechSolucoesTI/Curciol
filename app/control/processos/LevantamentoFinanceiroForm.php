@@ -308,7 +308,7 @@ class LevantamentoFinanceiroForm extends TWindow
         if ($valor !== null) {
             $div->{'data-valor'} = (string) round($valor, 2);
         }
-        $div->style = 'margin-top:3px;display:none';
+        $div->style = 'margin-top:3px;display:none;width:100%;flex-basis:100%';
         return $div;
     }
 
@@ -338,7 +338,7 @@ class LevantamentoFinanceiroForm extends TWindow
             var campo = $(this).data('campo');
             var d = campo ? num(f.find('[name="' + campo + '"]').val()) : num($(this).attr('data-valor'));
             if (recalcula && d !== null) {
-                $(this).text('Atual: ' + moeda(Math.round(d * y / mle * 100) / 100)).show();
+                $(this).text('Atual: ' + moeda(Math.round(d * y / mle * 100) / 100)).css('display', 'block');
             } else {
                 $(this).text('').hide();
             }

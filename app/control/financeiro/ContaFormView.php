@@ -472,7 +472,10 @@ class ContaFormView extends TPage
         if (!empty($conta->requisicao_pagamento_id)) {
             $req = $um('SELECT t.nome FROM requisicao_pagamento r LEFT JOIN tipos_requisicao_pagamento t ON t.id = r.tipos_requisicao_pagamento_id WHERE r.id = ?', [(int) $conta->requisicao_pagamento_id]);
             $rid = (int) $conta->requisicao_pagamento_id;
-            $botoes[] = $botao("engine.php?class=RequisicaoPagamentoVisualizacao&method=onShow&key={$rid}&register_state=false",
+            // abre na aba do cliente a que a conta se refere (a requisicao pode ter varios clientes)
+            $rpc = LevantamentoFinanceiroService::clienteDaRequisicao($id);
+            $aba = $rpc ? "&requisicao_pagamento_cliente_id={$rpc}" : '';
+            $botoes[] = $botao("engine.php?class=RequisicaoPagamentoVisualizacao&method=onShow&key={$rid}{$aba}&register_state=false",
                 'Requisição de pagamento' . (!empty($req->nome) ? ' (' . $req->nome . ')' : ''), 'fas fa-hand-holding-usd');
         }
         if ($ficha) {

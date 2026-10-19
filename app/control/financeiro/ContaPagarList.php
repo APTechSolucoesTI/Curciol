@@ -191,13 +191,16 @@ class ContaPagarList extends TPage
         $column_tipo_documento_financeiro_nome = new TDataGridColumn('tipo_documento_financeiro->nome', "Tipo de documento", 'left');
         $column_numero_documentoatendimento_idcontrato_idprocesso_id = new TDataGridColumn('{numero_documento}{atendimento_id}{contrato_id}{processo_id}', "Número do documento", 'left');
         $column_requisicao_pagamento_id = new TDataGridColumn('requisicao_pagamento_id', "Requisição", 'center');
-        $column_requisicao_pagamento_id->setTransformer(function($value)
+        $column_requisicao_pagamento_id->setTransformer(function($value, $object)
         {
             if (empty($value)) {
                 return '';
             }
             $id = (int) $value;
-            return "<a generator='adianti' href='index.php?class=RequisicaoPagamentoVisualizacao&method=onShow&key={$id}&register_state=false'>#{$id}</a>";
+            // abre na aba do cliente a que a conta se refere (a requisicao pode ter varios clientes)
+            $rpc = !empty($object->id) ? LevantamentoFinanceiroService::clienteDaRequisicao((int) $object->id) : null;
+            $aba = $rpc ? "&requisicao_pagamento_cliente_id={$rpc}" : '';
+            return "<a generator='adianti' href='index.php?class=RequisicaoPagamentoVisualizacao&method=onShow&key={$id}{$aba}&register_state=false'>#{$id}</a>";
         });
         $column_descricao = new TDataGridColumn('descricao', "Descrição", 'left' , '20%');
         $column_total_conta_transformed = new TDataGridColumn('total_conta', "Total", 'center' , '100px');

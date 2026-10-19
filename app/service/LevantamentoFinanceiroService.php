@@ -42,6 +42,35 @@ class LevantamentoFinanceiroService
     }
 
     /** A conta pertence a uma ficha de levantamento? ['ficha_id'=>int,'papel'=>'RECEBER'|'PAGAR'] ou null. */
+    /**
+     * Cliente da requisicao (requisicao_pagamento_cliente) a que a conta se refere, para abrir a requisicao na aba
+     * certa: pela ficha do levantamento da conta, pela do recebimento que gerou o repasse, ou pela pessoa da conta.
+     */
+    public static function clienteDaRequisicao(int $contaId): ?int
+    {
+        $propria = (TTransaction::get() === null);
+        if ($propria) { TTransaction::open('escritorio'); }
+        try {
+            $st = TTransaction::get()->prepare('
+                SELECT COALESCE(
+                    (SELECT lf.requisicao_pagamento_cliente_id FROM levantamento_financeiro lf
+                      WHERE :c IN (lf.conta_receber_id, lf.conta_pagar_id) ORDER BY lf.id DESC LIMIT 1),
+                    (SELECT lf.requisicao_pagamento_cliente_id FROM repasse_colaborador r
+                       JOIN levantamento_financeiro lf ON lf.id = r.levantamento_financeiro_id OR lf.conta_receber_id = r.conta_receber_id
+                      WHERE r.conta_pagar_id = :c ORDER BY lf.id DESC LIMIT 1),
+                    (SELECT rpc.id FROM conta c JOIN requisicao_pagamento_cliente rpc
+                         ON rpc.requisicao_pagamento_id = c.requisicao_pagamento_id AND rpc.pessoa_id = c.pessoa_id
+                      WHERE c.id = :c ORDER BY rpc.id LIMIT 1))');
+            $st->execute(['c' => $contaId]);
+            $id = $st->fetchColumn();
+            if ($propria) { TTransaction::close(); }
+            return $id ? (int) $id : null;
+        } catch (Throwable $e) {
+            if ($propria) { TTransaction::rollback(); }
+            throw $e;
+        }
+    }
+
     public static function contaDoLevantamento(int $contaId): ?array
     {
         $propria = (TTransaction::get() === null);
