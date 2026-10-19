@@ -55,8 +55,10 @@ class RequisicaoPagamentoEtapa3Visualizacao extends TWindow
                 true,
                 $pai
             );
-            if ($botaoFinanceiro !== '') {
-                $botaoFinanceiro = "<div class='e3-section' style='padding: 10px 14px; text-align: right;'>{$botaoFinanceiro}</div>";
+            // excluir o pagamento (fecha o detalhe e recarrega a tela que o abriu)
+            $botaoExcluir = self::botaoExcluir($id, PagamentoExclusaoService::motivoBloqueio($id), (string) ($param['origem_pai'] ?? ''), (string) ($param['url_pai'] ?? ''), true);
+            if ($botaoFinanceiro !== '' || $botaoExcluir !== '') {
+                $botaoFinanceiro = "<div class='e3-section' style='padding: 10px 14px; text-align: right;'>{$botaoExcluir} {$botaoFinanceiro}</div>";
             }
 
             $html = "
@@ -142,6 +144,60 @@ class RequisicaoPagamentoEtapa3Visualizacao extends TWindow
 
     public function onShow($param = null)
     {
+    }
+
+    /**
+     * Botao de excluir o pagamento: ativo quando nada vindo dele foi compensado ou quitado; senao desabilitado com o motivo.
+     * $origem/$urlRecarga: tela a recarregar depois (janela ou aba da requisicao). $texto: botao com rotulo (detalhe).
+     */
+    public static function botaoExcluir(int $etapa3Id, ?string $motivo, string $origem, string $urlRecarga, bool $texto = false): string
+    {
+        if ($motivo !== null) {
+            $titulo = htmlspecialchars('Não pode excluir: ' . $motivo, ENT_QUOTES, 'UTF-8');
+            return $texto
+                ? "<span class='btn btn-sm btn-default disabled' title='{$titulo}' style='pointer-events:auto;cursor:not-allowed'><i class='fas fa-trash-alt'></i> Excluir pagamento</span>"
+                : "<span class='req-action-btn' title='{$titulo}' style='opacity:.35;cursor:not-allowed'><i class='fas fa-trash-alt'></i></span>";
+        }
+        $url = 'engine.php?' . http_build_query([
+            'class' => __CLASS__, 'method' => 'onExcluir', 'static' => '1', 'key' => $etapa3Id,
+            'origem' => $origem, 'url_recarga' => $urlRecarga, 'fechar_detalhe' => $texto ? '1' : '0',
+        ]);
+        $onclick = htmlspecialchars('Adianti.waitMessage = false; __adianti_ajax_exec(' . json_encode(substr($url, strlen('engine.php?'))) . '); return false;', ENT_QUOTES, 'UTF-8');
+        return $texto
+            ? "<a href='javascript:void(0)' class='btn btn-sm btn-default' style='color:#b91c1c' onclick=\"{$onclick}\"><i class='fas fa-trash-alt'></i> Excluir pagamento</a>"
+            : "<a href='javascript:void(0)' class='req-action-btn' title='Excluir pagamento' style='color:#b91c1c' onclick=\"{$onclick}\"><i class='fas fa-trash-alt'></i></a>";
+    }
+
+    /** Confirmacao da exclusao. */
+    public static function onExcluir($param)
+    {
+        try {
+            $id = (int) ($param['key'] ?? 0);
+            $comFinanceiro = (LevantamentoFinanceiroService::existePara($id) !== null);
+            $acao = new TAction([__CLASS__, 'onExcluirConfirmado'], [
+                'static' => '1', 'key' => $id, 'origem' => $param['origem'] ?? '',
+                'url_recarga' => $param['url_recarga'] ?? '', 'fechar_detalhe' => $param['fechar_detalhe'] ?? '0',
+            ]);
+            new TQuestion('Excluir este pagamento?' . ($comFinanceiro
+                ? '<br><br>O financeiro gerado por ele também será desfeito: a conta a receber, a conta a pagar ao cliente e as contas a pagar dos colaboradores serão apagadas.'
+                : ''), $acao);
+        } catch (Exception $e) {
+            new TMessage('error', $e->getMessage());
+        }
+    }
+
+    public static function onExcluirConfirmado($param)
+    {
+        try {
+            PagamentoExclusaoService::excluir((int) ($param['key'] ?? 0));
+            if (($param['fechar_detalhe'] ?? '0') === '1') {
+                TScript::create("$('.e3-wrap').closest('.ui-dialog, .modal').remove();");
+            }
+            new TMessage('info', 'Pagamento excluído.');
+            LevantamentoFinanceiroForm::recarregarOrigem(['origem' => $param['origem'] ?? '', 'url_recarga' => $param['url_recarga'] ?? '']);
+        } catch (Exception $e) {
+            new TMessage('error', $e->getMessage());
+        }
     }
 
     private function buscarLancamento($conn, $id)

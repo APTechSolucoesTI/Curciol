@@ -192,6 +192,39 @@ JS;
         return $aviso;
     }
 
+    /**
+     * Pagamento anterior deixou saldo: os campos do proximo pagamento ficam escondidos ate o usuario clicar em
+     * "Lancar outro pagamento" (o clique marca etapa3_novo_<rpc> = 1, sem isso o salvar nao cria pagamento novo).
+     */
+    public static function ocultarAteNovoPagamento($row, int $rpcId, bool $ocultar): void
+    {
+        if ($ocultar) {
+            $row->{'class'} = 'req-novo-pag-' . $rpcId;
+            $row->{'style'} = 'display:none';
+        }
+    }
+
+    public static function botaoNovoPagamento(string $formName, int $rpcId): TElement
+    {
+        $js = htmlspecialchars('var f = $(' . json_encode('#' . $formName) . ').last();'
+            . ' f.find(".req-novo-pag-' . $rpcId . '").show();'
+            . ' f.find("[name=etapa3_novo_' . $rpcId . ']").val("1");'
+            . ' $(this).closest(".req-novo-pag-botao").hide(); return false;', ENT_QUOTES, 'UTF-8');
+        $div = new TElement('div');
+        $div->class = 'req-novo-pag-botao';
+        $div->style = 'margin:4px 0 10px';
+        $div->add("<a href='javascript:void(0)' class='btn btn-sm btn-primary' onclick=\"{$js}\"><i class='fas fa-plus'></i> Lançar outro pagamento</a>");
+        return $div;
+    }
+
+    /** O cliente da requisicao ja tem pagamento com deposito? (guarda contra criar pagamento novo sem o botao) */
+    public static function temPagamentoDepositado(PDO $conn, int $rpcId): bool
+    {
+        $st = $conn->prepare('SELECT 1 FROM requisicao_pagamento_etapa3 WHERE requisicao_pagamento_cliente_id = ? AND data_deposito IS NOT NULL LIMIT 1');
+        $st->execute([$rpcId]);
+        return (bool) $st->fetchColumn();
+    }
+
     private static function moeda(float $v): string
     {
         return 'R$ ' . number_format($v, 2, ',', '.');
