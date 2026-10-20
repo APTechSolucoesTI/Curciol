@@ -44,6 +44,8 @@ class RepasseColaboradorList extends TPage
         try {
             TTransaction::open('escritorio');
             $linhas = RepasseColaboradorService::listar(array_merge($f, $col));
+            // recebimento mais recente primeiro
+            usort($linhas, function ($a, $b) { return [(string) $b->data_recebimento, (int) $b->id] <=> [(string) $a->data_recebimento, (int) $a->id]; });
             $descricaoFiltros = RepasseColaboradorRelatorioService::descreverFiltros(array_merge($f, $col));
             TTransaction::close();
         } catch (Throwable $e) {

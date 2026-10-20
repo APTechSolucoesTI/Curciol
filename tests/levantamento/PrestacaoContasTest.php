@@ -49,6 +49,10 @@ try {
     igual('Liquido Cliente na data do Deposito', 13017.45, $linhas['Líquido Cliente na data do Depósito'] ?? null);
     igual('Liquido Honorarios Levantado', 3634.18, $linhas['Líquido Honorários Levantado (atualizado)'] ?? null);
     igual('Liquido Cliente Levantado', 13208.41, $linhas['Líquido Cliente Levantado (atualizado)'] ?? null);
+    $html = LevantamentoPrestacaoContasService::html($d);
+    igual('tres quadros separados', 3, substr_count($html, '<table class="valores">'));
+    ok('nota (bruto) em letra menor', strpos($html, 'Cálculos Homologados <span class="nota-rotulo">(bruto)</span>') !== false);
+    ok('IRRF zerado aparece como traco', strpos($html, 'Desconto IRRF (-)</td><td class="valor">-</td>') !== false);
     ok('cliente e CPF', $d['cliente'] !== '' && strpos($d['documento'], 'CPF') === 0, $d['documento']);
     ok('processo do pagamento com o principal entre parenteses', strpos($d['processo'], '(') !== false, $d['processo']);
     ok('rodape com endereco do escritorio', count($d['escritorio']['rodape']) >= 1, json_encode($d['escritorio']));

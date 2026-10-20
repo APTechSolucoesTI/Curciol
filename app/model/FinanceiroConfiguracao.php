@@ -12,6 +12,10 @@ class FinanceiroConfiguracao extends TRecord
     const ID_UNICO     = 1;
     const PCT_NF_PADRAO = 16.0;
 
+    // vencimento das contas a pagar de repasse aos colaboradores
+    const VENCIMENTO_ULTIMO_DIA_MES = 'ULTIMO_DIA_MES';   // ultimo dia do mes do recebimento (padrao)
+    const VENCIMENTO_DIAS           = 'DIAS';             // N dias depois do recebimento
+
     use SystemChangeLogTrait;
 
     public function __construct($id = NULL, $callObjectLoad = TRUE)
@@ -19,6 +23,7 @@ class FinanceiroConfiguracao extends TRecord
         parent::__construct($id, $callObjectLoad);
         parent::addAttribute('pct_nf_padrao');
         parent::addAttribute('repasse_dias_vencimento');
+        parent::addAttribute('repasse_vencimento_tipo');
         parent::addAttribute('repasse_categoria_conta_id');
         parent::addAttribute('repasse_tipo_documento_id');
         parent::addAttribute('data_modificacao');
@@ -41,14 +46,28 @@ class FinanceiroConfiguracao extends TRecord
         return ($c && $c->pct_nf_padrao !== null && $c->pct_nf_padrao !== '') ? (float) $c->pct_nf_padrao : self::PCT_NF_PADRAO;
     }
 
-    /** Configuracao do repasse a colaboradores: ['dias' => int, 'categoria_id' => ?int, 'documento_id' => ?int]. Usa a transacao aberta. */
+    /**
+     * Configuracao do repasse a colaboradores: ['tipo' => ULTIMO_DIA_MES|DIAS, 'dias' => int, 'categoria_id' => ?int,
+     * 'documento_id' => ?int]. Usa a transacao aberta.
+     */
     public static function repasse(): array
     {
         $c = self::find(self::ID_UNICO);
         return [
+            'tipo' => ($c && $c->repasse_vencimento_tipo === self::VENCIMENTO_DIAS) ? self::VENCIMENTO_DIAS : self::VENCIMENTO_ULTIMO_DIA_MES,
             'dias' => $c ? max(0, (int) $c->repasse_dias_vencimento) : 0,
             'categoria_id' => ($c && $c->repasse_categoria_conta_id) ? (int) $c->repasse_categoria_conta_id : null,
             'documento_id' => ($c && $c->repasse_tipo_documento_id) ? (int) $c->repasse_tipo_documento_id : null,
         ];
+    }
+
+    /** Vencimento da conta de repasse para um recebimento em $data (Y-m-d), pela configuracao $config (repasse()). */
+    public static function vencimentoRepasse(string $data, array $config): string
+    {
+        $data = substr($data, 0, 10);
+        if (($config['tipo'] ?? self::VENCIMENTO_ULTIMO_DIA_MES) === self::VENCIMENTO_DIAS) {
+            return date('Y-m-d', strtotime($data . ' +' . (int) ($config['dias'] ?? 0) . ' days'));
+        }
+        return date('Y-m-t', strtotime($data));
     }
 }

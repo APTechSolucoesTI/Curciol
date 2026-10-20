@@ -200,6 +200,18 @@ class ContaFormView extends TPage
         $action_onDesquitar->setParameter('key', '{conta_id}');
         $this->lancamento_conta_id_list->addAction($action_onDesquitar);
 
+        // vencimento: qualquer conta (a pagar, a receber, repasse, cliente) enquanto a parcela nao estiver paga
+        $action_onVencimento = new TDataGridAction(array('ContaFormView', 'onAlterarVencimento'));
+        $action_onVencimento->setUseButton(true);
+        $action_onVencimento->setButtonClass('btn btn-default btn-sm');
+        $action_onVencimento->setLabel("Vencimento");
+        $action_onVencimento->setImage('far:calendar-alt #1f3a5f');
+        $action_onVencimento->setField('id');
+        $action_onVencimento->setDisplayCondition('ContaFormView::canPagar');
+        $action_onVencimento->setParameter('lancamento_id', '{id}');
+        $action_onVencimento->setParameter('static', '1');
+        $this->lancamento_conta_id_list->addAction($action_onVencimento);
+
         $column_dt_vencimento_transformed = $this->lancamento_conta_id_list->addQuickColumn("Vencimento", 'dt_vencimento', 'center');
         $column_tipo_pagamento_nome = $this->lancamento_conta_id_list->addQuickColumn("Tipo", 'tipo_pagamento->nome', 'center');
         $column_valor_total_transformed = $this->lancamento_conta_id_list->addQuickColumn("Valor", 'valor_total', 'center');
@@ -466,7 +478,10 @@ class ContaFormView extends TPage
         $id = (int) $conta->id;
 
         $repasse = $um('SELECT conta_receber_id, levantamento_financeiro_id FROM repasse_colaborador WHERE conta_pagar_id = ?', [$id]);
-        $ficha = $um('SELECT id, requisicao_pagamento_etapa3_id, conta_receber_id, conta_pagar_id FROM levantamento_financeiro WHERE conta_receber_id = ? OR conta_pagar_id = ? ORDER BY id DESC LIMIT 1', [$id, $id]);
+        // conta a pagar ao cliente do levantamento (uma por recebimento)
+        $doCliente = $um('SELECT conta_receber_id, levantamento_financeiro_id FROM levantamento_conta_cliente WHERE conta_pagar_id = ?', [$id]);
+        $ficha = $um('SELECT id, requisicao_pagamento_etapa3_id, conta_receber_id, conta_pagar_id FROM levantamento_financeiro
+                       WHERE conta_receber_id = ? OR conta_pagar_id = ? OR id = ? ORDER BY id DESC LIMIT 1', [$id, $id, $doCliente ? (int) $doCliente->levantamento_financeiro_id : 0]);
         if (!$ficha && $repasse) {
             // repasse: o levantamento vem do proprio repasse ou da conta a receber que o originou
             $ficha = $um('SELECT id, requisicao_pagamento_etapa3_id, conta_receber_id, conta_pagar_id FROM levantamento_financeiro WHERE id = ? OR conta_receber_id = ? ORDER BY id DESC LIMIT 1',
@@ -499,7 +514,8 @@ class ContaFormView extends TPage
                 'Financeiro do levantamento', 'fas fa-calculator');
         }
         // conta a receber que deu origem: do repasse ou da conta a pagar ao cliente do levantamento
-        $origem = $repasse ? (int) $repasse->conta_receber_id : (($ficha && (int) $ficha->conta_pagar_id === $id) ? (int) $ficha->conta_receber_id : 0);
+        $origem = $repasse ? (int) $repasse->conta_receber_id
+            : ($doCliente ? (int) $doCliente->conta_receber_id : (($ficha && (int) $ficha->conta_pagar_id === $id) ? (int) $ficha->conta_receber_id : 0));
         if ($origem > 0) {
             $botoes[] = $botao("index.php?class=ContaFormView&method=onShow&key={$origem}&id={$origem}&target_container=adianti_right_panel", 'Conta a receber de origem', 'fas fa-arrow-down');
         }
@@ -516,36 +532,118 @@ class ContaFormView extends TPage
             . '<style>.conta-vinculos { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:4px; } .conta-vinculos .conta-vinculo { font-size:12px; padding:3px 9px; } .conta-vinculos .conta-vinculo i { color:#0d4069; margin-right:3px; }</style>';
     }
 
-    /** Quadro da conta a pagar ao cliente do levantamento (conta a receber gerada pelo Gerar financeiro). Usa a transacao aberta. */
+    /**
+     * Quadro das contas a pagar ao cliente do levantamento (uma por recebimento da conta a receber, como os repasses).
+     * Usa a transacao aberta.
+     */
     private static function contaPagarClienteHtml(int $contaReceberId): string
     {
         $st = TTransaction::get()->prepare("
-            SELECT c.id, pe.nome AS cliente, c.total_conta, l.dt_vencimento, l.dt_pagamento, x.compensado
-              FROM levantamento_financeiro lf
-              JOIN conta c ON c.id = lf.conta_pagar_id
+            SELECT c.id, pe.nome AS cliente, c.total_conta, l.dt_vencimento, l.dt_pagamento, x.compensado, lc.data_recebimento
+              FROM levantamento_conta_cliente lc
+              JOIN conta c ON c.id = lc.conta_pagar_id
               LEFT JOIN pessoa pe ON pe.id = c.pessoa_id
               LEFT JOIN LATERAL (SELECT * FROM lancamento WHERE conta_id = c.id ORDER BY parcela, id LIMIT 1) l ON true
               LEFT JOIN extrato x ON x.id = l.extrato_id
-             WHERE lf.conta_receber_id = ?
-             ORDER BY lf.id DESC LIMIT 1");
+             WHERE lc.conta_receber_id = ?
+             ORDER BY lc.id");
         $st->execute([$contaReceberId]);
-        $r = $st->fetch(PDO::FETCH_OBJ);
-        if (!$r) {
+        $contas = $st->fetchAll(PDO::FETCH_OBJ);
+        if (!$contas) {
             return '';
         }
         $td = 'padding:4px 8px;border-bottom:1px solid #eef2f7;font-size:12px;text-align:left';
         $th = $td . ';background:#f8fafc';
-        $id = (int) $r->id;
-        $url = "index.php?class=ContaFormView&method=onShow&key={$id}&id={$id}&target_container=adianti_right_panel";
-        $abrir = '<a href="javascript:void(0)" title="Abrir a conta a pagar ao cliente" onclick="' . htmlspecialchars('Adianti.waitMessage = false; __adianti_load_page(' . json_encode($url) . '); return false;') . '"><i class="fas fa-external-link-alt"></i> Abrir conta</a>';
-        $sit = $r->dt_pagamento
-            ? "<span style='color:#065f46'>Pago em " . date('d/m/Y', strtotime($r->dt_pagamento)) . ($r->compensado === 'S' ? ' · compensado' : '') . '</span>'
-            : "<span style='color:#9a3412;font-weight:600'>A pagar</span>";
+        $linhas = '';
+        foreach ($contas as $r) {
+            $id = (int) $r->id;
+            $url = "index.php?class=ContaFormView&method=onShow&key={$id}&id={$id}&target_container=adianti_right_panel";
+            $abrir = '<a href="javascript:void(0)" title="Abrir a conta a pagar ao cliente" onclick="' . htmlspecialchars('Adianti.waitMessage = false; __adianti_load_page(' . json_encode($url) . '); return false;') . '"><i class="fas fa-external-link-alt"></i> Abrir conta</a>';
+            $sit = $r->dt_pagamento
+                ? "<span style='color:#065f46'>Pago em " . date('d/m/Y', strtotime($r->dt_pagamento)) . ($r->compensado === 'S' ? ' · compensado' : '') . '</span>'
+                : "<span style='color:#9a3412;font-weight:600'>A pagar</span>";
+            $linhas .= "<tr><td style='{$td}'>" . htmlspecialchars((string) $r->cliente) . "</td><td style='{$td}'>" . ($r->data_recebimento ? date('d/m/Y', strtotime($r->data_recebimento)) : '')
+                . "</td><td style='{$td}'>" . ($r->dt_vencimento ? date('d/m/Y', strtotime($r->dt_vencimento)) : '')
+                . "</td><td style='{$td};text-align:right;white-space:nowrap'>R$ " . number_format((float) $r->total_conta, 2, ',', '.')
+                . "</td><td style='{$td}'>{$sit}</td><td style='{$td}'>{$abrir}</td></tr>";
+        }
         return "<table style='width:100%;border-collapse:collapse'><thead><tr>"
-            . "<th style='{$th}'>Cliente</th><th style='{$th}'>Vencimento</th><th style='{$th};text-align:right'>Valor</th><th style='{$th}'>Situação</th><th style='{$th}'></th></tr></thead><tbody>"
-            . "<tr><td style='{$td}'>" . htmlspecialchars((string) $r->cliente) . "</td><td style='{$td}'>" . ($r->dt_vencimento ? date('d/m/Y', strtotime($r->dt_vencimento)) : '')
-            . "</td><td style='{$td};text-align:right;white-space:nowrap'>R$ " . number_format((float) $r->total_conta, 2, ',', '.')
-            . "</td><td style='{$td}'>{$sit}</td><td style='{$td}'>{$abrir}</td></tr></tbody></table>";
+            . "<th style='{$th}'>Cliente</th><th style='{$th}'>Recebido em</th><th style='{$th}'>Vencimento</th><th style='{$th};text-align:right'>Valor</th><th style='{$th}'>Situação</th><th style='{$th}'></th></tr></thead><tbody>"
+            . $linhas . "</tbody></table>";
+    }
+
+    /** Pergunta o novo vencimento da parcela (so parcela nao paga e nao cancelada). */
+    public static function onAlterarVencimento($param = null)
+    {
+        try {
+            TTransaction::open(self::$database);
+            $lancamento = Lancamento::find((int) ($param['lancamento_id'] ?? $param['id'] ?? 0));
+            if (!$lancamento) {
+                throw new Exception('Parcela não encontrada.');
+            }
+            if (!self::canPagar($lancamento)) {
+                throw new Exception('Só é possível alterar o vencimento de parcela que ainda não foi quitada.');
+            }
+            TTransaction::close();
+
+            $form = new BootstrapFormBuilder('form_ContaAlterarVencimento');
+            $id = new THidden('lancamento_id');
+            $id->setValue($lancamento->id);
+            $data = new TDate('novo_vencimento');
+            $data->setMask('dd/mm/yyyy');
+            $data->setDatabaseMask('yyyy-mm-dd');
+            $data->setSize('100%');
+            $data->setValue($lancamento->dt_vencimento ? date('d/m/Y', strtotime($lancamento->dt_vencimento)) : '');
+            $form->addFields([new TLabel('Novo vencimento', '#ff0000')], [$data]);
+            $form->addFields([$id]);
+            $form->addAction('Salvar', new TAction([__CLASS__, 'onSalvarVencimento'], ['static' => '1']), 'fas:save #ffffff')->class = 'btn btn-sm btn-primary';
+            new TInputDialog('Alterar vencimento da parcela ' . (int) $lancamento->parcela, $form);
+        } catch (Exception $e) {
+            TTransaction::rollback();
+            new TMessage('error', $e->getMessage());
+        }
+    }
+
+    /** Grava o novo vencimento da parcela e o proximo vencimento da conta. */
+    public static function onSalvarVencimento($param = null)
+    {
+        try {
+            $texto = trim((string) ($param['novo_vencimento'] ?? ''));
+            $d = DateTime::createFromFormat('d/m/Y', $texto) ?: DateTime::createFromFormat('Y-m-d', $texto);
+            if (!$d || ($d->format('d/m/Y') !== $texto && $d->format('Y-m-d') !== $texto)) {
+                throw new Exception('Informe uma data de vencimento válida.');
+            }
+
+            TTransaction::open(self::$database);
+            $lancamento = Lancamento::find((int) ($param['lancamento_id'] ?? 0));
+            if (!$lancamento) {
+                throw new Exception('Parcela não encontrada.');
+            }
+            if (!self::canPagar($lancamento)) {
+                throw new Exception('Só é possível alterar o vencimento de parcela que ainda não foi quitada.');
+            }
+            $lancamento->dt_vencimento = $d->format('Y-m-d');
+            $lancamento->store();
+
+            // proximo vencimento da conta: a parcela em aberto que vence primeiro
+            $conta = Conta::find((int) $lancamento->conta_id);
+            $proximo = null;
+            foreach (Lancamento::where('conta_id', '=', $conta->id)->load() as $l) {
+                if (self::canPagar($l) && ($proximo === null || $l->dt_vencimento < $proximo)) {
+                    $proximo = $l->dt_vencimento;
+                }
+            }
+            $conta->proximo_vencimento_lancamento = $proximo ?? $lancamento->dt_vencimento;
+            $conta->store();
+            $contaId = (int) $conta->id;
+            TTransaction::close();
+
+            TToast::show('success', 'Vencimento alterado', 'topRight', 'far:check-circle');
+            TApplication::loadPage('ContaFormView', 'onShow', ['key' => $contaId, 'id' => $contaId]);
+        } catch (Exception $e) {
+            TTransaction::rollback();
+            new TMessage('error', $e->getMessage());
+        }
     }
 
     public static function onPagar($param = null) 
@@ -657,7 +755,7 @@ class ContaFormView extends TPage
                     $mensagem .= ' será desfeito.';
                 }
                 if ($doLevantamento && $doLevantamento['papel'] === 'RECEBER') {
-                    $mensagem .= '<br><br>As contas a pagar dos colaboradores geradas por este recebimento serão apagadas (voltam a ser geradas ao quitar de novo). A conta a pagar ao cliente continua.';
+                    $mensagem .= '<br><br>As contas a pagar dos colaboradores geradas por este recebimento e a conta a pagar ao cliente gerada por ele serão apagadas; voltam a ser geradas ao quitar de novo (a do cliente com o vencimento original).';
                 }
                 TTransaction::close();
 

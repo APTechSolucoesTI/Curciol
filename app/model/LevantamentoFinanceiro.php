@@ -14,6 +14,7 @@ class LevantamentoFinanceiro extends TRecord
                   'desconto_previdenciario', 'desconto_assistencial', 'desconto_irrf',
                   'pct_honorarios', 'pct_nf', 'data_levantamento', 'valor_levantado', 'data_distribuicao', 'fracao_a', 'fracao_p', 'fator_d',
                   'u', 'v', 'w', 'z', 'aa', 'ac', 'ad', 'conta_receber_id', 'conta_pagar_id', 'extrato_id', 'conta_caixa_id',
+                  'cliente_vencimento', 'cliente_categoria_conta_id', 'cliente_tipo_documento_id', 'cliente_tipo_pagamento_id',
                   'data_criacao', 'criacao_user_id'] as $a) {
             parent::addAttribute($a);
         }

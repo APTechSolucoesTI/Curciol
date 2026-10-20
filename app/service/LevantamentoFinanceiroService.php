@@ -54,7 +54,9 @@ class LevantamentoFinanceiroService
             $st = TTransaction::get()->prepare('
                 SELECT COALESCE(
                     (SELECT lf.requisicao_pagamento_cliente_id FROM levantamento_financeiro lf
-                      WHERE :c IN (lf.conta_receber_id, lf.conta_pagar_id) ORDER BY lf.id DESC LIMIT 1),
+                      WHERE :c IN (lf.conta_receber_id, lf.conta_pagar_id)
+                         OR lf.id IN (SELECT x.levantamento_financeiro_id FROM levantamento_conta_cliente x WHERE x.conta_pagar_id = :c)
+                      ORDER BY lf.id DESC LIMIT 1),
                     (SELECT lf.requisicao_pagamento_cliente_id FROM repasse_colaborador r
                        JOIN levantamento_financeiro lf ON lf.id = r.levantamento_financeiro_id OR lf.conta_receber_id = r.conta_receber_id
                       WHERE r.conta_pagar_id = :c ORDER BY lf.id DESC LIMIT 1),
@@ -76,8 +78,9 @@ class LevantamentoFinanceiroService
         $propria = (TTransaction::get() === null);
         if ($propria) { TTransaction::open('escritorio'); }
         try {
-            $st = TTransaction::get()->prepare('SELECT id, conta_receber_id FROM levantamento_financeiro WHERE conta_receber_id = ? OR conta_pagar_id = ? ORDER BY id LIMIT 1');
-            $st->execute([$contaId, $contaId]);
+            $st = TTransaction::get()->prepare('SELECT id, conta_receber_id FROM levantamento_financeiro WHERE conta_receber_id = ? OR conta_pagar_id = ?
+                OR id IN (SELECT levantamento_financeiro_id FROM levantamento_conta_cliente WHERE conta_pagar_id = ?) ORDER BY id LIMIT 1');
+            $st->execute([$contaId, $contaId, $contaId]);
             $l = $st->fetch(PDO::FETCH_OBJ);
             if ($propria) { TTransaction::close(); }
             if (!$l) { return null; }
@@ -163,11 +166,13 @@ class LevantamentoFinanceiroService
     public static function exigirDesquitavel(int $contaId): void
     {
         $c = TTransaction::get();
-        $st = $c->prepare('SELECT conta_pagar_id FROM levantamento_financeiro WHERE conta_receber_id = ? ORDER BY id DESC LIMIT 1');
+        $st = $c->prepare('SELECT id FROM levantamento_financeiro WHERE conta_receber_id = ? ORDER BY id DESC LIMIT 1');
         $st->execute([$contaId]);
-        $pagar = (int) $st->fetchColumn();
-        if ($pagar > 0 && self::contaComPagamento($c, $pagar)) {
-            throw new Exception('A conta a pagar ao cliente deste levantamento já foi paga (total ou parcialmente). Desquite o pagamento ao cliente antes de desquitar o recebimento.');
+        $fichaId = (int) $st->fetchColumn();
+        foreach ($fichaId ? self::contasDoCliente($c, $fichaId) : [] as $pagar) {
+            if (self::contaComPagamento($c, $pagar)) {
+                throw new Exception('A conta a pagar ao cliente deste levantamento já foi paga (total ou parcialmente). Desquite o pagamento ao cliente antes de desquitar o recebimento.');
+            }
         }
     }
 
@@ -186,6 +191,120 @@ class LevantamentoFinanceiroService
                  OR EXISTS (SELECT 1 FROM extrato x WHERE x.lancamento_id = l.id))');
         $st->execute([$contaId]);
         return (int) $st->fetchColumn() > 0;
+    }
+
+    /**
+     * Conta a pagar ao cliente gerada por um recebimento da conta a receber do levantamento (mesmo padrao dos repasses):
+     * recebimento parcial gera a parte proporcional (valor ao cliente x recebido / valor levantado) e a quitacao gera o
+     * restante. Vencimento, categoria, documento e forma de pagamento sao os informados no Gerar financeiro.
+     * Usa a transacao aberta. @return int|null id da conta criada
+     */
+    public static function gerarContaClientePorRecebimento(int $fichaId, Conta $receber, Lancamento $parcela, int $extratoId, float $valorRecebido, string $data, bool $quitacao): ?int
+    {
+        $c = TTransaction::get();
+        $st = $c->prepare('SELECT lf.*, rpc.pessoa_id AS cliente_id FROM levantamento_financeiro lf
+                             LEFT JOIN requisicao_pagamento_cliente rpc ON rpc.id = lf.requisicao_pagamento_cliente_id WHERE lf.id = ?');
+        $st->execute([$fichaId]);
+        $f = $st->fetch(PDO::FETCH_OBJ);
+        if (!$f || (int) $f->conta_receber_id !== (int) $receber->id || empty($f->cliente_id)) {
+            return null;
+        }
+        $z = round((float) $f->z, 2);
+        $st = $c->prepare('SELECT COALESCE(SUM(valor), 0) FROM levantamento_conta_cliente WHERE levantamento_financeiro_id = ?');
+        $st->execute([$fichaId]);
+        $restante = round($z - (float) $st->fetchColumn(), 2);
+        $y = round((float) $f->valor_levantado, 2);
+        $valor = $quitacao ? $restante : min($restante, ($y > 0) ? round($z * $valorRecebido / $y, 2) : 0.0);
+        if ($valor <= 0) {
+            return null;
+        }
+
+        $data = substr($data, 0, 10);
+        $vencimento = !empty($f->cliente_vencimento) ? substr((string) $f->cliente_vencimento, 0, 10) : $data;
+
+        $pagar = new Conta();
+        $pagar->tipo_conta_id = TipoConta::PAGAR;
+        $pagar->pessoa_id = (int) $f->cliente_id;
+        $pagar->categoria_conta_id = $f->cliente_categoria_conta_id ?: $receber->categoria_conta_id;
+        $pagar->tipo_documento_financeiro_id = $f->cliente_tipo_documento_id ?: null;
+        $pagar->escritorio_id = (int) $receber->escritorio_id;
+        $pagar->contrato_id = $f->contrato_id ?: null;
+        $pagar->processo_id = $f->processo_id ?: null;
+        $pagar->requisicao_pagamento_id = $f->requisicao_pagamento_id ?: null;
+        $pagar->data_emissao = $data;
+        $pagar->total_conta = $valor;
+        $pagar->total_parcelas = 1;
+        $pagar->quitada = 'N';
+        $pagar->descricao = $receber->descricao;
+        $pagar->conta_origem_id = $receber->id;
+        $pagar->criacao_user_id = TSession::getValue('userid');
+        $pagar->proximo_vencimento_lancamento = $vencimento;
+        $pagar->store();
+
+        $lanc = new Lancamento();
+        $lanc->conta_id = $pagar->id;
+        $lanc->parcela = 1;
+        $lanc->valor = $valor;
+        $lanc->valor_total = $valor;
+        $lanc->dt_vencimento = $vencimento;
+        $lanc->tipo_pagamento_id = $f->cliente_tipo_pagamento_id ?: TipoPagamento::TRANSFERENCIA;
+        $lanc->store();
+
+        self::registrarContaCliente($c, $fichaId, (int) $pagar->id, (int) $lanc->id, (int) $receber->id, (int) $parcela->id, $extratoId ?: null, $valor, $valorRecebido, $data);
+        return (int) $pagar->id;
+    }
+
+    /** Liga a conta do cliente ao recebimento que a gerou; a ficha aponta para a mais recente. */
+    private static function registrarContaCliente(PDO $c, int $fichaId, int $pagarId, ?int $lancPagarId, int $receberId, ?int $lancReceberId, ?int $extratoId, float $valor, float $valorRecebido, string $data): void
+    {
+        $c->prepare('INSERT INTO levantamento_conta_cliente (levantamento_financeiro_id, conta_pagar_id, lancamento_pagar_id, conta_receber_id,
+                         lancamento_receber_id, extrato_recebimento_id, valor, valor_recebido, data_recebimento, criacao_user_id)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+          ->execute([$fichaId, $pagarId, $lancPagarId, $receberId, $lancReceberId, $extratoId, round($valor, 2), round($valorRecebido, 2), $data, TSession::getValue('userid')]);
+        $c->prepare('UPDATE levantamento_financeiro SET conta_pagar_id = ? WHERE id = ?')->execute([$pagarId, $fichaId]);
+    }
+
+    /**
+     * Recebimento $extratoId desfeito (desquitar): apaga as contas do cliente geradas por ele; recusa se alguma tiver
+     * pagamento. Usa a transacao aberta.
+     */
+    public static function estornarClientePorRecebimento(int $extratoId): void
+    {
+        if ($extratoId <= 0) {
+            return;
+        }
+        $c = TTransaction::get();
+        $st = $c->prepare('SELECT lancamento_id FROM extrato WHERE id = ?');
+        $st->execute([$extratoId]);
+        $lancReceber = (int) $st->fetchColumn();
+        // registros sem extrato: contas do cliente anteriores a esta regra, ligadas a parcela recebida
+        $st = $c->prepare('SELECT id, conta_pagar_id, levantamento_financeiro_id FROM levantamento_conta_cliente
+                            WHERE extrato_recebimento_id = ? OR (extrato_recebimento_id IS NULL AND lancamento_receber_id = ?) ORDER BY id');
+        $st->execute([$extratoId, $lancReceber]);
+        $linhas = $st->fetchAll(PDO::FETCH_OBJ);
+        foreach ($linhas as $l) {
+            if (self::contaComPagamento($c, (int) $l->conta_pagar_id)) {
+                throw new Exception('A conta a pagar ao cliente gerada por este recebimento já foi paga (total ou parcialmente). Desquite o pagamento ao cliente antes.');
+            }
+        }
+        foreach ($linhas as $l) {
+            $c->prepare('DELETE FROM levantamento_conta_cliente WHERE id = ?')->execute([(int) $l->id]);
+            // a ficha aponta para a conta do cliente mais recente que sobrar
+            $c->prepare('UPDATE levantamento_financeiro SET conta_pagar_id = (SELECT conta_pagar_id FROM levantamento_conta_cliente
+                             WHERE levantamento_financeiro_id = ? ORDER BY id DESC LIMIT 1) WHERE id = ?')
+              ->execute([(int) $l->levantamento_financeiro_id, (int) $l->levantamento_financeiro_id]);
+            $c->prepare('DELETE FROM lancamento WHERE conta_id = ?')->execute([(int) $l->conta_pagar_id]);
+            $c->prepare('DELETE FROM conta WHERE id = ?')->execute([(int) $l->conta_pagar_id]);
+        }
+    }
+
+    /** Contas a pagar ao cliente do financeiro (todas as geradas pelos recebimentos, mais a da ficha). */
+    public static function contasDoCliente(PDO $c, int $fichaId): array
+    {
+        $st = $c->prepare('SELECT conta_pagar_id FROM levantamento_conta_cliente WHERE levantamento_financeiro_id = ?
+                           UNION SELECT conta_pagar_id FROM levantamento_financeiro WHERE id = ? AND conta_pagar_id IS NOT NULL');
+        $st->execute([$fichaId, $fichaId]);
+        return array_map('intval', $st->fetchAll(PDO::FETCH_COLUMN));
     }
 
     public static function exigirContaNaoGerada(int $contaId, bool $bloqueiaPagar = true): void
@@ -396,10 +515,18 @@ class LevantamentoFinanceiroService
             $ficha->conta_receber_id = $receber->id;
             $ficha->conta_pagar_id = $pagarId;
             $ficha->extrato_id = $extrato->id;
+            // dados da conta do cliente: ela e recriada com eles se o recebimento for desquitado e quitado de novo
+            $ficha->cliente_vencimento = ($z > 0) ? $vencimento : null;
+            $ficha->cliente_categoria_conta_id = (int) $d['categoria_conta_id'];
+            $ficha->cliente_tipo_documento_id = !empty($d['tipo_documento_pagar_id']) ? (int) $d['tipo_documento_pagar_id'] : null;
+            $ficha->cliente_tipo_pagamento_id = !empty($d['tipo_pagamento_id']) ? (int) $d['tipo_pagamento_id'] : null;
             $ficha->conta_caixa_id = $ccId;
             $ficha->data_criacao = date('Y-m-d H:i:s');
             $ficha->criacao_user_id = $userId;
             $ficha->store();
+            if ($pagarId) {
+                self::registrarContaCliente($c, (int) $ficha->id, (int) $pagarId, (int) $parcelaPagar->id, (int) $receber->id, (int) $parcela->id, (int) $extrato->id, $z, $y, $x);
+            }
 
             foreach ($res['repasses'] as $r) {
                 $fr = new LevantamentoFinanceiroRepasse();
@@ -458,7 +585,8 @@ class LevantamentoFinanceiroService
             $ficha = $st->fetch(PDO::FETCH_OBJ);
             $userId = TSession::getValue('userid');
 
-            $contas = array_values(array_filter([(int) $ficha->conta_receber_id, (int) $ficha->conta_pagar_id]));
+            // conta a receber e todas as contas a pagar ao cliente (uma por recebimento)
+            $contas = array_values(array_unique(array_filter(array_merge([(int) $ficha->conta_receber_id], self::contasDoCliente($c, (int) $ficha->id)))));
             $lista  = $contas ? implode(',', $contas) : '0';
             $parcelas = self::ids($c, 'SELECT id FROM lancamento WHERE conta_id = ' . (int) $ficha->conta_receber_id);
             $lancs    = $parcelas ? implode(',', $parcelas) : '0';
@@ -571,13 +699,15 @@ class LevantamentoFinanceiroService
 
     private static function motivoBloqueio(PDO $c, int $etapa3Id): ?string
     {
-        $st = $c->prepare('SELECT conta_pagar_id FROM levantamento_financeiro WHERE requisicao_pagamento_etapa3_id = ?');
+        $st = $c->prepare('SELECT id, conta_pagar_id FROM levantamento_financeiro WHERE requisicao_pagamento_etapa3_id = ?');
         $st->execute([$etapa3Id]);
         $ficha = $st->fetch(PDO::FETCH_OBJ);
         if (!$ficha) { return 'Este pagamento não tem financeiro gerado.'; }
 
-        if ($ficha->conta_pagar_id && self::contaComPagamento($c, (int) $ficha->conta_pagar_id)) {
-            return 'A conta a pagar ao cliente já foi paga (total ou parcialmente). Estorne o pagamento ao cliente antes de desfazer.';
+        foreach (self::contasDoCliente($c, (int) $ficha->id) as $pagar) {
+            if (self::contaComPagamento($c, $pagar)) {
+                return 'A conta a pagar ao cliente já foi paga (total ou parcialmente). Estorne o pagamento ao cliente antes de desfazer.';
+            }
         }
         $st = $c->prepare('SELECT DISTINCT r.extrato_recebimento_id FROM repasse_colaborador r JOIN levantamento_financeiro lf ON lf.id = r.levantamento_financeiro_id WHERE lf.requisicao_pagamento_etapa3_id = ?');
         $st->execute([$etapa3Id]);

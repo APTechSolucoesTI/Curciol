@@ -79,6 +79,8 @@ class LevantamentoPrestacaoContasService
         $linhas = [];
         if ((float) $b->requisitado > 0) { $linhas[] = ['Cálculos Homologados (bruto)', (float) $b->requisitado, false]; }
         $linhas[] = ['Valor Atualizado para Depósito (bruto)', round($bruto + (float) $b->saldo_bruto, 2), false];
+        // tres quadros separados: calculo do deposito, o deposito e seus descontos, o levantado
+        $linhas[] = ['separador', null, false];
         $linhas[] = ['Valor Depositado (atualizado)', $bruto, false];
         if ($ficha->desconto_previdenciario !== null && $ficha->desconto_previdenciario !== '') {
             $linhas[] = ['Desconto Previdenciário (-)', (float) $ficha->desconto_previdenciario, false];
@@ -168,14 +170,20 @@ class LevantamentoPrestacaoContasService
         $just = ['alignment' => \PhpOffice\PhpWord\SimpleType\Jc::BOTH, 'spaceAfter' => 120];
         foreach (self::paragrafosAbertura() as $t) { $secao->addText($t, [], $just); }
 
-        $tabela = $secao->addTable(['alignment' => \PhpOffice\PhpWord\SimpleType\JcTable::CENTER, 'cellMargin' => 60]);
-        foreach ($d['linhas'] as [$rotulo, $valor, $destaque]) {
-            if ($rotulo === 'separador') { $tabela->addRow(120); $tabela->addCell(5400); $tabela->addCell(2400); continue; }
-            $fonte = $destaque ? ['bold' => true] : [];
-            $estilo = $destaque ? ['borderTopSize' => 8, 'borderTopColor' => '1F3A5F', 'bgColor' => 'EAF0F7'] : ['borderBottomSize' => 4, 'borderBottomColor' => 'D9D9D9'];
-            $tabela->addRow();
-            $tabela->addCell(5400, $estilo)->addText($rotulo, $fonte, ['spaceAfter' => 0]);
-            $tabela->addCell(2400, $estilo)->addText(self::moeda($valor), $fonte, ['alignment' => \PhpOffice\PhpWord\SimpleType\Jc::END, 'spaceAfter' => 0]);
+        // um quadro (tabela com grade) por grupo de linhas, com espaco entre eles
+        foreach (self::quadros($d['linhas']) as $i => $quadro) {
+            if ($i > 0) { $secao->addText('', ['size' => 4], ['spaceAfter' => 0]); }
+            $tabela = $secao->addTable(['alignment' => \PhpOffice\PhpWord\SimpleType\JcTable::CENTER, 'cellMargin' => 50,
+                                        'borderSize' => 6, 'borderColor' => '404040']);
+            foreach ($quadro as [$rotulo, $valor, $destaque]) {
+                [$nome, $nota] = self::rotuloENota($rotulo);
+                $fonte = $destaque ? ['bold' => true] : [];
+                $tabela->addRow();
+                $celula = $tabela->addCell(5400)->addTextRun(['spaceAfter' => 0]);
+                $celula->addText($nome, $fonte);
+                if ($nota !== '') { $celula->addText(' ' . $nota, $fonte + ['size' => 8]); }
+                $tabela->addCell(2400)->addText(self::valorDaLinha($rotulo, $valor), $fonte, ['alignment' => \PhpOffice\PhpWord\SimpleType\Jc::END, 'spaceAfter' => 0]);
+            }
         }
 
         $secao->addTextBreak(1);
@@ -204,11 +212,17 @@ class LevantamentoPrestacaoContasService
     public static function html(array $d): string
     {
         $e = function ($t) { return htmlspecialchars((string) $t, ENT_QUOTES, 'UTF-8'); };
+        // um quadro por grupo de linhas (o "separador" fecha o quadro e abre outro, com espaco entre eles)
         $linhas = '';
-        foreach ($d['linhas'] as [$rotulo, $valor, $destaque]) {
-            if ($rotulo === 'separador') { $linhas .= '<tr><td colspan="2" style="height:8px;border:0"></td></tr>'; continue; }
-            $cls = $destaque ? ' class="destaque"' : '';
-            $linhas .= "<tr{$cls}><td>{$e($rotulo)}</td><td class=\"valor\">{$e(self::moeda($valor))}</td></tr>";
+        foreach (self::quadros($d['linhas']) as $quadro) {
+            $linhas .= '<table class="valores">';
+            foreach ($quadro as [$rotulo, $valor, $destaque]) {
+                [$nome, $nota] = self::rotuloENota($rotulo);
+                $cls = $destaque ? ' class="destaque"' : '';
+                $linhas .= "<tr{$cls}><td>{$e($nome)}" . ($nota !== '' ? " <span class=\"nota-rotulo\">{$e($nota)}</span>" : '')
+                    . "</td><td class=\"valor\">{$e(self::valorDaLinha($rotulo, $valor))}</td></tr>";
+            }
+            $linhas .= '</table>';
         }
         $abertura = implode('', array_map(function ($t) use ($e) { return '<p class="just">' . $e($t) . '</p>'; }, self::paragrafosAbertura()));
         $banco = implode('', array_map(function ($t) use ($e) { return '<p class="banco">' . $e($t) . '</p>'; }, self::linhasDadosBancarios()));
@@ -224,10 +238,11 @@ class LevantamentoPrestacaoContasService
             .dest div { margin: 0; }
             .proc { margin-top: 14px; }
             .just { text-align: justify; margin: 0 0 8px 0; }
-            table.valores { width: 82%; margin: 6px auto 14px auto; border-collapse: collapse; }
-            table.valores td { padding: 4px 6px; border-bottom: 1px solid #ddd; }
+            table.valores { width: 82%; margin: 6px auto 10px auto; border-collapse: collapse; }
+            table.valores td { padding: 3px 6px; border: 1px solid #404040; }
             table.valores td.valor { text-align: right; white-space: nowrap; width: 32%; }
-            table.valores tr.destaque td { font-weight: bold; background: #eaf0f7; border-top: 2px solid #1f3a5f; border-bottom: 0; }
+            table.valores tr.destaque td { font-weight: bold; }
+            .nota-rotulo { font-size: 7.5pt; }
             .caixa { border: 1px solid #1f3a5f; padding: 8px 12px; margin: 8px auto 0 auto; width: 82%; }
             .caixa h4 { text-align: center; margin: 0 0 8px 0; font-size: 10.5pt; }
             .banco { margin: 0 0 6px 0; }
@@ -312,6 +327,38 @@ class LevantamentoPrestacaoContasService
     private static function numeroProcesso(Processo $p): string
     {
         return trim((string) ($p->numero_cnj_numero ?: $p->numero_outro));
+    }
+
+    /** Linhas agrupadas em quadros: cada "separador" fecha um quadro. */
+    private static function quadros(array $linhas): array
+    {
+        $quadros = [[]];
+        foreach ($linhas as $linha) {
+            if ($linha[0] === 'separador') {
+                $quadros[] = [];
+                continue;
+            }
+            $quadros[count($quadros) - 1][] = $linha;
+        }
+        return array_values(array_filter($quadros));
+    }
+
+    /** "Valor Depositado (atualizado)" => ["Valor Depositado", "(atualizado)"]: a nota sai em letra menor, como no modelo. */
+    private static function rotuloENota(string $rotulo): array
+    {
+        if (preg_match('/^(.*?)\s*(\((?:bruto|atualizado)\))$/u', $rotulo, $m)) {
+            return [$m[1], $m[2]];
+        }
+        return [$rotulo, ''];
+    }
+
+    /** Desconto zerado aparece como "-", como no modelo. */
+    private static function valorDaLinha(string $rotulo, $valor): string
+    {
+        if (strpos($rotulo, '(-)') !== false && round((float) $valor, 2) == 0.0) {
+            return '-';
+        }
+        return self::moeda($valor);
     }
 
     private static function moeda($v): string

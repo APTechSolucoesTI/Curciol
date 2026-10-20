@@ -97,6 +97,11 @@ class RepasseColaboradorService
             }
         }
 
+        // levantamento: a conta a pagar ao cliente segue o mesmo padrao (nasce do recebimento)
+        if ($levantamentoId) {
+            LevantamentoFinanceiroService::gerarContaClientePorRecebimento($levantamentoId, $receber, $parcela, $extratoId, $valorRecebido, $data, $quitacao);
+        }
+
         $profissionais = LancamentoProfissional::where('lancamento_id', '=', $parcela->id)->orderBy('id')->load();
         if (!$profissionais) { return []; }
 
@@ -106,7 +111,7 @@ class RepasseColaboradorService
             throw new Exception('Configure a categoria e o documento padrão do repasse em Configurações › Financeiro › Configuração do financeiro.');
         }
         $data = substr($data, 0, 10);
-        $vencimento = date('Y-m-d', strtotime($data . ' +' . (int) $config['dias'] . ' days'));
+        $vencimento = FinanceiroConfiguracao::vencimentoRepasse($data, $config);
         $baseParcela = (float) $parcela->valor;
         $criadas = [];
 
@@ -147,6 +152,8 @@ class RepasseColaboradorService
         $st->execute([$extratoId]);
         $ids = array_map('intval', $st->fetchAll(PDO::FETCH_COLUMN));
         foreach ($ids as $id) { self::exigirRepasseEmAberto($c, $id); }
+        // conta a pagar ao cliente gerada por este recebimento (levantamento): mesma regra
+        LevantamentoFinanceiroService::estornarClientePorRecebimento($extratoId);
         foreach ($ids as $id) { self::apagarRepasse($c, $id); }
     }
 

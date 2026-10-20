@@ -140,12 +140,7 @@ class ParceriaLevantamentoForm extends TPage
         $row2 = $this->form->addFields([new TLabel("Primeiro marco (nível 1 até esta data):", null, '14px', null, '100%'),$marco1],[new TLabel("Segundo marco (nível 2 até esta data):", null, '14px', null, '100%'),$marco2]);
         $row2->layout = [' col-sm-4',' col-sm-4'];
 
-        // pessoas parceiras: abre o cadastro de parceiros numa nova aba, para nao perder o que foi digitado aqui
-        $btnNovaPessoa = new TButton('btnNovaPessoaParceira');
-        $btnNovaPessoa->class = 'btn btn-sm btn-default';
-        $btnNovaPessoa->setLabel("Nova pessoa parceira");
-        $btnNovaPessoa->setImage('fas:plus #69aa46');
-        $btnNovaPessoa->onClick = "window.open('index.php?class=ParceiroForm&method=onShow', '_blank'); return false;";
+        // participantes: so pessoas ja cadastradas (o cadastro de parceiros e feito na tela de Parceiros)
 
         $row3 = $this->form->addFields([new TFormSeparator("Participantes", '#333', '18', '#eee')]);
         $row3->layout = [' col-sm-12'];
@@ -157,8 +152,8 @@ class ParceriaLevantamentoForm extends TPage
         $soma = new TElement('div');
         $soma->id = 'soma_participantes';
         $soma->style = 'font-weight:bold; font-size:12px; margin-bottom:8px;';
-        $row4 = $this->form->addFields([$ajuda, $soma], [$btnNovaPessoa]);
-        $row4->layout = [' col-sm-9',' col-sm-3 text-right'];
+        $row4 = $this->form->addFields([$ajuda, $soma]);
+        $row4->layout = [' col-sm-12'];
 
         $row5 = $this->form->addFields([$this->fieldList_participantes]);
         $row5->layout = [' col-sm-12'];
