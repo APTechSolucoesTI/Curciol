@@ -888,7 +888,7 @@ class RequisicaoPagamentoListagemHeaderList extends TPage
         if (isset($data->numero_processo) AND ( (is_scalar($data->numero_processo) AND $data->numero_processo !== '') OR (is_array($data->numero_processo) AND (!empty($data->numero_processo)) )) )
         {
 
-            $filters[] = new TFilter('numero_processo', 'like', "%{$data->numero_processo}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(numero_processo AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->numero_processo) . '%');// create the filter 
         }
 
         if (isset($data->tipo_requisicao) AND ( (is_scalar($data->tipo_requisicao) AND $data->tipo_requisicao !== '') OR (is_array($data->tipo_requisicao) AND (!empty($data->tipo_requisicao)) )) )

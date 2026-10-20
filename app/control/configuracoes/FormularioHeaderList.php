@@ -508,7 +508,7 @@ class FormularioHeaderList extends TPage
         if (isset($data->nome) AND ( (is_scalar($data->nome) AND $data->nome !== '') OR (is_array($data->nome) AND (!empty($data->nome)) )) )
         {
 
-            $filters[] = new TFilter('nome', 'like', "%{$data->nome}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(nome AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->nome) . '%');// create the filter 
         }
 
         if (isset($data->ordem) AND ( (is_scalar($data->ordem) AND $data->ordem !== '') OR (is_array($data->ordem) AND (!empty($data->ordem)) )) )

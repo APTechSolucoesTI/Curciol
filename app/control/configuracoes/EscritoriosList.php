@@ -519,6 +519,8 @@ class EscritoriosList extends TPage
             $object->cnpj = null;
             $object->email = null;
 
+            // a cortina mostra os filtros aplicados agora (eles se somam aos das colunas e dos botoes rapidos)
+            $object = (object) array_merge((array) $object, (array) (TSession::getValue(__CLASS__.'_filter_data') ?: []));
             TForm::sendData(self::$formName, $object);
 
                         $filter = new self([]);
@@ -594,13 +596,13 @@ class EscritoriosList extends TPage
         if (isset($data->cnpj) AND ( (is_scalar($data->cnpj) AND $data->cnpj !== '') OR (is_array($data->cnpj) AND (!empty($data->cnpj)) )) )
         {
 
-            $filters[] = new TFilter('cnpj', 'like', "%{$data->cnpj}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(cnpj AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->cnpj) . '%');// create the filter 
         }
 
         if (isset($data->email) AND ( (is_scalar($data->email) AND $data->email !== '') OR (is_array($data->email) AND (!empty($data->email)) )) )
         {
 
-            $filters[] = new TFilter('email', 'like', "%{$data->email}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(email AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->email) . '%');// create the filter 
         }
 
         if (isset($data->nome_col) AND ( (is_scalar($data->nome_col) AND $data->nome_col !== '') OR (is_array($data->nome_col) AND (!empty($data->nome_col)) )) )
@@ -618,19 +620,19 @@ class EscritoriosList extends TPage
         if (isset($data->cnpj_col) AND ( (is_scalar($data->cnpj_col) AND $data->cnpj_col !== '') OR (is_array($data->cnpj_col) AND (!empty($data->cnpj_col)) )) )
         {
 
-            $filters[] = new TFilter('cnpj', 'like', "%{$data->cnpj_col}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(cnpj AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->cnpj_col) . '%');// create the filter 
         }
 
         if (isset($data->telefone_col) AND ( (is_scalar($data->telefone_col) AND $data->telefone_col !== '') OR (is_array($data->telefone_col) AND (!empty($data->telefone_col)) )) )
         {
 
-            $filters[] = new TFilter('telefone', 'like', "%{$data->telefone_col}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(telefone AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->telefone_col) . '%');// create the filter 
         }
 
         if (isset($data->email_col) AND ( (is_scalar($data->email_col) AND $data->email_col !== '') OR (is_array($data->email_col) AND (!empty($data->email_col)) )) )
         {
 
-            $filters[] = new TFilter('email', 'like', "%{$data->email_col}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(email AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->email_col) . '%');// create the filter 
         }
 
         $this->button_filtros->style = 'position: relative';

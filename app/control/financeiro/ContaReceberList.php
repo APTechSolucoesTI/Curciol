@@ -930,6 +930,8 @@ class ContaReceberList extends TPage
             $object->entidade_devedora_id = null;
             $object->processo_requisicao = null;
 
+            // a cortina mostra os filtros aplicados agora (eles se somam aos das colunas e dos botoes rapidos)
+            $object = (object) array_merge((array) $object, (array) (TSession::getValue(__CLASS__.'_filter_data') ?: []));
             TForm::sendData(self::$formName, $object);
 
                         $filter = new self([]);
@@ -1070,7 +1072,7 @@ class ContaReceberList extends TPage
         if (isset($data->descricao) AND ( (is_scalar($data->descricao) AND $data->descricao !== '') OR (is_array($data->descricao) AND (!empty($data->descricao)) )) )
         {
 
-            $filters[] = new TFilter('descricao', 'like', "%{$data->descricao}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(descricao AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->descricao) . '%');// create the filter 
         }
 
         if (isset($data->categoria_conta_id) AND ( (is_scalar($data->categoria_conta_id) AND $data->categoria_conta_id !== '') OR (is_array($data->categoria_conta_id) AND (!empty($data->categoria_conta_id)) )) )
@@ -1100,13 +1102,13 @@ class ContaReceberList extends TPage
         if (isset($data->numero_documento) AND ( (is_scalar($data->numero_documento) AND $data->numero_documento !== '') OR (is_array($data->numero_documento) AND (!empty($data->numero_documento)) )) )
         {
 
-            $filters[] = new TFilter('numero_documento', 'like', "%{$data->numero_documento}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(numero_documento AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->numero_documento) . '%');// create the filter 
         }
 
         if (isset($data->quitada) AND ( (is_scalar($data->quitada) AND $data->quitada !== '') OR (is_array($data->quitada) AND (!empty($data->quitada)) )) )
         {
 
-            $filters[] = new TFilter('quitada', 'like', "%{$data->quitada}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(quitada AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->quitada) . '%');// create the filter 
         }
 
         if (isset($data->data_emissao_ini) AND ( (is_scalar($data->data_emissao_ini) AND $data->data_emissao_ini !== '') OR (is_array($data->data_emissao_ini) AND (!empty($data->data_emissao_ini)) )) )

@@ -1014,19 +1014,19 @@ class PessoaEditHeaderList extends TPage
         if (isset($data->nome) AND ( (is_scalar($data->nome) AND $data->nome !== '') OR (is_array($data->nome) AND (!empty($data->nome)) )) )
         {
 
-            $filters[] = new TFilter('nome', 'like', "%{$data->nome}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(nome AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->nome) . '%');// create the filter 
         }
 
         if (isset($data->email) AND ( (is_scalar($data->email) AND $data->email !== '') OR (is_array($data->email) AND (!empty($data->email)) )) )
         {
 
-            $filters[] = new TFilter('email', 'like', "%{$data->email}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(email AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->email) . '%');// create the filter 
         }
 
         if (isset($data->telefone) AND ( (is_scalar($data->telefone) AND $data->telefone !== '') OR (is_array($data->telefone) AND (!empty($data->telefone)) )) )
         {
 
-            $filters[] = new TFilter('telefone', 'like', "%{$data->telefone}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(telefone AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->telefone) . '%');// create the filter 
         }
 
         if (isset($data->aceita_receber_mensagen_whatsapp) AND ( (is_scalar($data->aceita_receber_mensagen_whatsapp) AND $data->aceita_receber_mensagen_whatsapp !== '') OR (is_array($data->aceita_receber_mensagen_whatsapp) AND (!empty($data->aceita_receber_mensagen_whatsapp)) )) )
@@ -1050,19 +1050,19 @@ class PessoaEditHeaderList extends TPage
         if (isset($data->cpf_cnpj) AND ( (is_scalar($data->cpf_cnpj) AND $data->cpf_cnpj !== '') OR (is_array($data->cpf_cnpj) AND (!empty($data->cpf_cnpj)) )) )
         {
 
-            $filters[] = new TFilter('cpf_cnpj', 'like', "%{$data->cpf_cnpj}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(cpf_cnpj AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->cpf_cnpj) . '%');// create the filter 
         }
 
         if (isset($data->rg_ie) AND ( (is_scalar($data->rg_ie) AND $data->rg_ie !== '') OR (is_array($data->rg_ie) AND (!empty($data->rg_ie)) )) )
         {
 
-            $filters[] = new TFilter('rg_ie', 'like', "%{$data->rg_ie}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(rg_ie AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->rg_ie) . '%');// create the filter 
         }
 
         if (isset($data->orgao_emissor) AND ( (is_scalar($data->orgao_emissor) AND $data->orgao_emissor !== '') OR (is_array($data->orgao_emissor) AND (!empty($data->orgao_emissor)) )) )
         {
 
-            $filters[] = new TFilter('orgao_emissor', 'like', "%{$data->orgao_emissor}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(orgao_emissor AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->orgao_emissor) . '%');// create the filter 
         }
 
         if (isset($data->sexo_id) AND ( (is_scalar($data->sexo_id) AND $data->sexo_id !== '') OR (is_array($data->sexo_id) AND (!empty($data->sexo_id)) )) )
@@ -1086,19 +1086,19 @@ class PessoaEditHeaderList extends TPage
         if (isset($data->profissao) AND ( (is_scalar($data->profissao) AND $data->profissao !== '') OR (is_array($data->profissao) AND (!empty($data->profissao)) )) )
         {
 
-            $filters[] = new TFilter('profissao', 'like', "%{$data->profissao}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(profissao AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->profissao) . '%');// create the filter 
         }
 
         if (isset($data->nit) AND ( (is_scalar($data->nit) AND $data->nit !== '') OR (is_array($data->nit) AND (!empty($data->nit)) )) )
         {
 
-            $filters[] = new TFilter('nit', 'like', "%{$data->nit}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(nit AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->nit) . '%');// create the filter 
         }
 
         if (isset($data->ctps) AND ( (is_scalar($data->ctps) AND $data->ctps !== '') OR (is_array($data->ctps) AND (!empty($data->ctps)) )) )
         {
 
-            $filters[] = new TFilter('ctps', 'like', "%{$data->ctps}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(ctps AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->ctps) . '%');// create the filter 
         }
 
         if (isset($data->situacao_profissional_id) AND ( (is_scalar($data->situacao_profissional_id) AND $data->situacao_profissional_id !== '') OR (is_array($data->situacao_profissional_id) AND (!empty($data->situacao_profissional_id)) )) )
@@ -1110,13 +1110,13 @@ class PessoaEditHeaderList extends TPage
         if (isset($data->orgao) AND ( (is_scalar($data->orgao) AND $data->orgao !== '') OR (is_array($data->orgao) AND (!empty($data->orgao)) )) )
         {
 
-            $filters[] = new TFilter('orgao', 'like', "%{$data->orgao}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(orgao AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->orgao) . '%');// create the filter 
         }
 
         if (isset($data->unidade) AND ( (is_scalar($data->unidade) AND $data->unidade !== '') OR (is_array($data->unidade) AND (!empty($data->unidade)) )) )
         {
 
-            $filters[] = new TFilter('unidade', 'like', "%{$data->unidade}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(unidade AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->unidade) . '%');// create the filter 
         }
 
         if (isset($data->data_modificacao) AND ( (is_scalar($data->data_modificacao) AND $data->data_modificacao !== '') OR (is_array($data->data_modificacao) AND (!empty($data->data_modificacao)) )) )

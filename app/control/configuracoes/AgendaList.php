@@ -513,6 +513,8 @@ class AgendaList extends TPage
             $object->dias = null;
             $object->profissional_id = null;
 
+            // a cortina mostra os filtros aplicados agora (eles se somam aos das colunas e dos botoes rapidos)
+            $object = (object) array_merge((array) $object, (array) (TSession::getValue(__CLASS__.'_filter_data') ?: []));
             TForm::sendData(self::$formName, $object);
 
                         $filter = new self([]);
@@ -620,7 +622,7 @@ class AgendaList extends TPage
         if (isset($data->dias) AND ( (is_scalar($data->dias) AND $data->dias !== '') OR (is_array($data->dias) AND (!empty($data->dias)) )) )
         {
 
-            $filters[] = new TFilter('dias', 'like', "%{$data->dias}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(dias AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->dias) . '%');// create the filter 
         }
 
         if (isset($data->profissional_id) AND ( (is_scalar($data->profissional_id) AND $data->profissional_id !== '') OR (is_array($data->profissional_id) AND (!empty($data->profissional_id)) )) )

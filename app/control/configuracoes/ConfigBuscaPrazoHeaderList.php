@@ -510,7 +510,7 @@ class ConfigBuscaPrazoHeaderList extends TPage
         if (isset($data->titulo) AND ( (is_scalar($data->titulo) AND $data->titulo !== '') OR (is_array($data->titulo) AND (!empty($data->titulo)) )) )
         {
 
-            $filters[] = new TFilter('titulo', 'like', "%{$data->titulo}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(titulo AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->titulo) . '%');// create the filter 
         }
 
         if (isset($data->prazo) AND ( (is_scalar($data->prazo) AND $data->prazo !== '') OR (is_array($data->prazo) AND (!empty($data->prazo)) )) )

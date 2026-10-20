@@ -237,12 +237,12 @@ class SystemProgramList extends TPage
 
         if (isset($data->name) AND ( (is_scalar($data->name) AND $data->name !== '') OR (is_array($data->name) AND (!empty($data->name)) )) )
         {
-            $filters[] = new TFilter('name', 'like', "%{$data->name}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(name AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->name) . '%');// create the filter 
         }
 
         if (isset($data->controller) AND ( (is_scalar($data->controller) AND $data->controller !== '') OR (is_array($data->controller) AND (!empty($data->controller)) )) )
         {
-            $filters[] = new TFilter('controller', 'like', "%{$data->controller}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(controller AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->controller) . '%');// create the filter 
         }
 
         // fill the form with data again

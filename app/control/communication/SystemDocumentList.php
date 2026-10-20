@@ -218,7 +218,7 @@ class SystemDocumentList extends TPage
         TSession::setValue('SystemDocumentList_filter_filename',   NULL);
 
         if (isset($data->title) AND ($data->title)) {
-            $filter = new TFilter('title', 'like', "%{$data->title}%"); // create the filter
+            $filter = new TFilter('title', 'ilike', '%' . $data->title . '%'); // create the filter
             TSession::setValue('SystemDocumentList_filter_title',   $filter); // stores the filter in the session
         }
 
@@ -230,7 +230,7 @@ class SystemDocumentList extends TPage
 
 
         if (isset($data->filename) AND ($data->filename)) {
-            $filter = new TFilter('filename', 'like', "%{$data->filename}%"); // create the filter
+            $filter = new TFilter('filename', 'ilike', '%' . $data->filename . '%'); // create the filter
             TSession::setValue('SystemDocumentList_filter_filename',   $filter); // stores the filter in the session
         }
 

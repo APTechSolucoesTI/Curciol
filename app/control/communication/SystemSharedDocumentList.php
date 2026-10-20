@@ -158,7 +158,7 @@ class SystemSharedDocumentList extends TPage
         TSession::setValue('SystemDocumentList_filter_category_id',   NULL);
 
         if (isset($data->title) AND ($data->title)) {
-            $filter = new TFilter('title', 'like', "%{$data->title}%"); // create the filter
+            $filter = new TFilter('title', 'ilike', '%' . $data->title . '%'); // create the filter
             TSession::setValue('SystemDocumentList_filter_title',   $filter); // stores the filter in the session
         }
 

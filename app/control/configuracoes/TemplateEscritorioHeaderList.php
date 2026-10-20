@@ -306,7 +306,7 @@ class TemplateEscritorioHeaderList extends TPage
         if (isset($data->descricao) AND ( (is_scalar($data->descricao) AND $data->descricao !== '') OR (is_array($data->descricao) AND (!empty($data->descricao)) )) )
         {
 
-            $filters[] = new TFilter('descricao', 'like', "%{$data->descricao}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(descricao AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->descricao) . '%');// create the filter 
         }
 
         if (isset($data->habilitado) AND ( (is_scalar($data->habilitado) AND $data->habilitado !== '') OR (is_array($data->habilitado) AND (!empty($data->habilitado)) )) )

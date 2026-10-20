@@ -360,7 +360,7 @@ class CidadeHeaderList extends TPage
         if (isset($data->nome) AND ( (is_scalar($data->nome) AND $data->nome !== '') OR (is_array($data->nome) AND (!empty($data->nome)) )) )
         {
 
-            $filters[] = new TFilter('nome', 'like', "%{$data->nome}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(nome AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->nome) . '%');// create the filter 
         }
 
         if (isset($data->estado_id) AND ( (is_scalar($data->estado_id) AND $data->estado_id !== '') OR (is_array($data->estado_id) AND (!empty($data->estado_id)) )) )
@@ -372,7 +372,7 @@ class CidadeHeaderList extends TPage
         if (isset($data->codigo_ibge) AND ( (is_scalar($data->codigo_ibge) AND $data->codigo_ibge !== '') OR (is_array($data->codigo_ibge) AND (!empty($data->codigo_ibge)) )) )
         {
 
-            $filters[] = new TFilter('codigo_ibge', 'like', "%{$data->codigo_ibge}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(codigo_ibge AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->codigo_ibge) . '%');// create the filter 
         }
 
         // fill the form with data again

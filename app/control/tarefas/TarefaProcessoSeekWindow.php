@@ -202,7 +202,7 @@ class TarefaProcessoSeekWindow extends TWindow
         if (isset($data->numero_cnj_numero) AND ( (is_scalar($data->numero_cnj_numero) AND $data->numero_cnj_numero !== '') OR (is_array($data->numero_cnj_numero) AND (!empty($data->numero_cnj_numero)) )) )
         {
 
-            $filters[] = new TFilter('numero_cnj_numero', 'like', "%{$data->numero_cnj_numero}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(numero_cnj_numero AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->numero_cnj_numero) . '%');// create the filter 
         }
 
         if (isset($data->responsavel_id) AND ( (is_scalar($data->responsavel_id) AND $data->responsavel_id !== '') OR (is_array($data->responsavel_id) AND (!empty($data->responsavel_id)) )) )

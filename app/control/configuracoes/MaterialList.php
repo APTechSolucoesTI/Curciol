@@ -478,6 +478,8 @@ class MaterialList extends TPage
 
             */
 
+            // a cortina mostra os filtros aplicados agora (eles se somam aos das colunas e dos botoes rapidos)
+            $object = (object) array_merge((array) $object, (array) (TSession::getValue(__CLASS__.'_filter_data') ?: []));
             TForm::sendData(self::$formName, $object);
 
                         $filter = new self([]);
@@ -565,7 +567,7 @@ class MaterialList extends TPage
         if (isset($data->lote) AND ( (is_scalar($data->lote) AND $data->lote !== '') OR (is_array($data->lote) AND (!empty($data->lote)) )) )
         {
 
-            $filters[] = new TFilter('lote', 'like', "%{$data->lote}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(lote AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->lote) . '%');// create the filter 
         }
 
         if (isset($data->id) AND ( (is_scalar($data->id) AND $data->id !== '') OR (is_array($data->id) AND (!empty($data->id)) )) )

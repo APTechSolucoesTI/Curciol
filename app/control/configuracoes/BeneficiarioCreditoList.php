@@ -278,6 +278,8 @@ class BeneficiarioCreditoList extends TPage
             $object->nome = null;
             $object->regra = null;
 
+            // a cortina mostra os filtros aplicados agora (eles se somam aos das colunas e dos botoes rapidos)
+            $object = (object) array_merge((array) $object, (array) (TSession::getValue(__CLASS__.'_filter_data') ?: []));
             TForm::sendData(self::$formName, $object);
 
             $filter = new self([]);

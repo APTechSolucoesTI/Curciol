@@ -539,13 +539,13 @@ class ContratoStatusHeaderList extends TPage
         if (isset($data->nome) AND ( (is_scalar($data->nome) AND $data->nome !== '') OR (is_array($data->nome) AND (!empty($data->nome)) )) )
         {
 
-            $filters[] = new TFilter('nome', 'like', "%{$data->nome}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(nome AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->nome) . '%');// create the filter 
         }
 
         if (isset($data->cor) AND ( (is_scalar($data->cor) AND $data->cor !== '') OR (is_array($data->cor) AND (!empty($data->cor)) )) )
         {
 
-            $filters[] = new TFilter('cor', 'like', "%{$data->cor}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(cor AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->cor) . '%');// create the filter 
         }
 
         // fill the form with data again

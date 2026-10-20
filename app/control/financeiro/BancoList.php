@@ -529,6 +529,8 @@ class BancoList extends TPage
             $object->nome = null;
             $object->codigo = null;
 
+            // a cortina mostra os filtros aplicados agora (eles se somam aos das colunas e dos botoes rapidos)
+            $object = (object) array_merge((array) $object, (array) (TSession::getValue(__CLASS__.'_filter_data') ?: []));
             TForm::sendData(self::$formName, $object);
 
                         $filter = new self([]);
@@ -621,7 +623,7 @@ class BancoList extends TPage
         if (isset($data->codigo_col) AND ( (is_scalar($data->codigo_col) AND $data->codigo_col !== '') OR (is_array($data->codigo_col) AND (!empty($data->codigo_col)) )) )
         {
 
-            $filters[] = new TFilter('codigo', 'like', "%{$data->codigo_col}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(codigo AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->codigo_col) . '%');// create the filter 
         }
 
         if (isset($data->nome_col) AND ( (is_scalar($data->nome_col) AND $data->nome_col !== '') OR (is_array($data->nome_col) AND (!empty($data->nome_col)) )) )

@@ -652,6 +652,8 @@ class ExtratoList extends TPage
             $object->entrada_valor = null;
             $object->saida_valor = null;
 
+            // a cortina mostra os filtros aplicados agora (eles se somam aos das colunas e dos botoes rapidos)
+            $object = (object) array_merge((array) $object, (array) (TSession::getValue(__CLASS__.'_filter_data') ?: []));
             TForm::sendData(self::$formName, $object);
 
                         $filter = new self([]);
@@ -835,7 +837,7 @@ class ExtratoList extends TPage
         if (isset($data->historico) AND ( (is_scalar($data->historico) AND $data->historico !== '') OR (is_array($data->historico) AND (!empty($data->historico)) )) )
         {
 
-            $filters[] = new TFilter('historico', 'like', "%{$data->historico}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(historico AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->historico) . '%');// create the filter 
         }
 
         if (isset($data->entrada_valor) AND ( (is_scalar($data->entrada_valor) AND $data->entrada_valor !== '') OR (is_array($data->entrada_valor) AND (!empty($data->entrada_valor)) )) )
@@ -883,7 +885,7 @@ class ExtratoList extends TPage
         if (isset($data->historico_col) AND ( (is_scalar($data->historico_col) AND $data->historico_col !== '') OR (is_array($data->historico_col) AND (!empty($data->historico_col)) )) )
         {
 
-            $filters[] = new TFilter('historico', 'like', "%{$data->historico_col}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(historico AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->historico_col) . '%');// create the filter 
         }
 
         // fill the form with data again (os dois formularios mostram os filtros somados)

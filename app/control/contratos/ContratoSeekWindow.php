@@ -277,13 +277,13 @@ class ContratoSeekWindow extends TWindow
         if (isset($data->numero) AND ( (is_scalar($data->numero) AND $data->numero !== '') OR (is_array($data->numero) AND (!empty($data->numero)) )) )
         {
 
-            $filters[] = new TFilter('numero', 'like', "%{$data->numero}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(numero AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->numero) . '%');// create the filter 
         }
 
         if (isset($data->objeto) AND ( (is_scalar($data->objeto) AND $data->objeto !== '') OR (is_array($data->objeto) AND (!empty($data->objeto)) )) )
         {
 
-            $filters[] = new TFilter('objeto', 'like', "%{$data->objeto}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(objeto AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->objeto) . '%');// create the filter 
         }
 
         // fill the form with data again

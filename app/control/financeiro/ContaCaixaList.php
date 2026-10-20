@@ -602,6 +602,8 @@ class ContaCaixaList extends TPage
             $object->nome = null;
             $object->tipo_conta_caixa_id = null;
 
+            // a cortina mostra os filtros aplicados agora (eles se somam aos das colunas e dos botoes rapidos)
+            $object = (object) array_merge((array) $object, (array) (TSession::getValue(__CLASS__.'_filter_data') ?: []));
             TForm::sendData(self::$formName, $object);
 
                         $filter = new self([]);
@@ -671,7 +673,7 @@ class ContaCaixaList extends TPage
         if (isset($data->nome) AND ( (is_scalar($data->nome) AND $data->nome !== '') OR (is_array($data->nome) AND (!empty($data->nome)) )) )
         {
 
-            $filters[] = new TFilter('nome', 'like', "%{$data->nome}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(nome AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->nome) . '%');// create the filter 
         }
 
         if (isset($data->tipo_conta_caixa_id) AND ( (is_scalar($data->tipo_conta_caixa_id) AND $data->tipo_conta_caixa_id !== '') OR (is_array($data->tipo_conta_caixa_id) AND (!empty($data->tipo_conta_caixa_id)) )) )
@@ -683,7 +685,7 @@ class ContaCaixaList extends TPage
         if (isset($data->nome_col) AND ( (is_scalar($data->nome_col) AND $data->nome_col !== '') OR (is_array($data->nome_col) AND (!empty($data->nome_col)) )) )
         {
 
-            $filters[] = new TFilter('nome', 'like', "%{$data->nome_col}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(nome AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->nome_col) . '%');// create the filter 
         }
 
         if (isset($data->tipo_conta_caixa_nome_col) AND ( (is_scalar($data->tipo_conta_caixa_nome_col) AND $data->tipo_conta_caixa_nome_col !== '') OR (is_array($data->tipo_conta_caixa_nome_col) AND (!empty($data->tipo_conta_caixa_nome_col)) )) )

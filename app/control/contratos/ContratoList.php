@@ -333,6 +333,8 @@ class ContratoList extends TPage
             $object->contrato_pessoa_pessoa_id = null;
             $object->contrato_profissional_profissional_id = null;
 
+            // a cortina mostra os filtros aplicados agora (eles se somam aos das colunas e dos botoes rapidos)
+            $object = (object) array_merge((array) $object, (array) (TSession::getValue(__CLASS__.'_filter_data') ?: []));
             TForm::sendData(self::$formName, $object);
 
                         $filter = new self([]);
@@ -727,7 +729,7 @@ class ContratoList extends TPage
         if (isset($data->numero) AND ( (is_scalar($data->numero) AND $data->numero !== '') OR (is_array($data->numero) AND (!empty($data->numero)) )) )
         {
 
-            $filters[] = new TFilter('numero', 'like', "%{$data->numero}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(numero AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->numero) . '%');// create the filter 
         }
 
         if (isset($data->contrato_pessoa_pessoa_id) AND ( (is_scalar($data->contrato_pessoa_pessoa_id) AND $data->contrato_pessoa_pessoa_id !== '') OR (is_array($data->contrato_pessoa_pessoa_id) AND (!empty($data->contrato_pessoa_pessoa_id)) )) )
@@ -757,13 +759,13 @@ class ContratoList extends TPage
         if (isset($data->objeto) AND ( (is_scalar($data->objeto) AND $data->objeto !== '') OR (is_array($data->objeto) AND (!empty($data->objeto)) )) )
         {
 
-            $filters[] = new TFilter('objeto', 'like', "%{$data->objeto}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(objeto AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->objeto) . '%');// create the filter 
         }
 
         if (isset($data->numero_col) AND ( (is_scalar($data->numero_col) AND $data->numero_col !== '') OR (is_array($data->numero_col) AND (!empty($data->numero_col)) )) )
         {
 
-            $filters[] = new TFilter('numero', 'like', "%{$data->numero_col}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(numero AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->numero_col) . '%');// create the filter 
         }
 
         if (isset($data->assunto_nome) AND ( (is_scalar($data->assunto_nome) AND $data->assunto_nome !== '') OR (is_array($data->assunto_nome) AND (!empty($data->assunto_nome)) )) )
