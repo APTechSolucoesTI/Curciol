@@ -111,6 +111,9 @@ try {
     saida(function () use ($lancCliente) { ContaFormView::onSalvarVencimento(['lancamento_id' => $lancCliente, 'novo_vencimento' => '31/12/2026']); });
     igual('vencimento da conta do cliente alterado', ['2026-12-31', '2026-12-31'], [valor('SELECT dt_vencimento FROM lancamento WHERE id = ?', [$lancCliente]),
         valor('SELECT proximo_vencimento_lancamento FROM conta WHERE id = ?', [$novaCliente])]);
+    $msg = saida(function () use ($lancCliente) { ContaFormView::onSalvarVencimento(['lancamento_id' => $lancCliente, 'novo_vencimento' => '01/01/2026']); });
+    ok('conta gerada pelo recebimento nao vence antes da baixa', strpos($msg, 'não pode ser anterior') !== false, $msg);
+    igual('vencimento recusado nao muda', '2026-12-31', valor('SELECT dt_vencimento FROM lancamento WHERE id = ?', [$lancCliente]));
     $lancReceber = (int) valor('SELECT id FROM lancamento WHERE conta_id = ?', [$cr]);
     $msg = saida(function () use ($lancReceber) { ContaFormView::onSalvarVencimento(['lancamento_id' => $lancReceber, 'novo_vencimento' => '31/12/2026']); });
     ok('parcela quitada nao muda o vencimento', strpos($msg, 'ainda não foi quitada') !== false, $msg);

@@ -584,6 +584,7 @@ class ContaFormView extends TPage
             if (!self::canPagar($lancamento)) {
                 throw new Exception('Só é possível alterar o vencimento de parcela que ainda não foi quitada.');
             }
+            $minimo = self::vencimentoMinimo((int) $lancamento->conta_id);
             TTransaction::close();
 
             $form = new BootstrapFormBuilder('form_ContaAlterarVencimento');
@@ -595,6 +596,12 @@ class ContaFormView extends TPage
             $data->setSize('100%');
             $data->setValue($lancamento->dt_vencimento ? date('d/m/Y', strtotime($lancamento->dt_vencimento)) : '');
             $form->addFields([new TLabel('Novo vencimento', '#ff0000')], [$data]);
+            if ($minimo) {
+                // conta gerada automaticamente pelo recebimento: nao vence antes da baixa da conta a receber
+                $data->setOption('startDate', date('d/m/Y', strtotime($minimo)));
+                $form->addContent(["<div style='font-size:12px;color:#64748b'>Não pode ser anterior a " . date('d/m/Y', strtotime($minimo))
+                    . ', data da baixa da conta a receber que gerou esta conta.</div>']);
+            }
             $form->addFields([$id]);
             $form->addAction('Salvar', new TAction([__CLASS__, 'onSalvarVencimento'], ['static' => '1']), 'fas:save #ffffff')->class = 'btn btn-sm btn-primary';
             new TInputDialog('Alterar vencimento da parcela ' . (int) $lancamento->parcela, $form);
@@ -602,6 +609,20 @@ class ContaFormView extends TPage
             TTransaction::rollback();
             new TMessage('error', $e->getMessage());
         }
+    }
+
+    /**
+     * Conta a pagar gerada automaticamente por um recebimento (repasse a colaborador ou conta do cliente do levantamento):
+     * data da baixa desse recebimento, antes da qual ela nao pode vencer. Null nas demais contas. Usa a transacao aberta.
+     */
+    private static function vencimentoMinimo(int $contaId): ?string
+    {
+        $st = TTransaction::get()->prepare('SELECT COALESCE(
+                (SELECT MAX(data_recebimento) FROM repasse_colaborador WHERE conta_pagar_id = :c),
+                (SELECT MAX(data_recebimento) FROM levantamento_conta_cliente WHERE conta_pagar_id = :c))');
+        $st->execute(['c' => $contaId]);
+        $data = $st->fetchColumn();
+        return $data ? substr((string) $data, 0, 10) : null;
     }
 
     /** Grava o novo vencimento da parcela e o proximo vencimento da conta. */
@@ -621,6 +642,10 @@ class ContaFormView extends TPage
             }
             if (!self::canPagar($lancamento)) {
                 throw new Exception('Só é possível alterar o vencimento de parcela que ainda não foi quitada.');
+            }
+            $minimo = self::vencimentoMinimo((int) $lancamento->conta_id);
+            if ($minimo && $d->format('Y-m-d') < $minimo) {
+                throw new Exception('O vencimento não pode ser anterior a ' . date('d/m/Y', strtotime($minimo)) . ', data da baixa da conta a receber que gerou esta conta.');
             }
             $lancamento->dt_vencimento = $d->format('Y-m-d');
             $lancamento->store();

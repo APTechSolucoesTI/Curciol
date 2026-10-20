@@ -69,6 +69,25 @@
         Template.onAfterPost = Template.onAfterLoad;
     }
 
+    // dialogo do Adianti (TInputDialog) aberto de dentro da cortina: o modal ficava dentro dela e o fundo escuro,
+    // que fica no body, cobria o proprio dialogo (tela cinza, nada clicavel). Vai para o body antes de abrir.
+    function corrigirDialogo() {
+        if (typeof window.tdialog_start !== 'function' || window.tdialog_start.__curciol) {
+            return;
+        }
+        var abrirDialogo = window.tdialog_start;
+        window.tdialog_start = function (id) {
+            var dialogo = $(id);
+            if (dialogo.closest('#adianti_right_panel').length) {
+                dialogo.appendTo(document.body);
+            }
+            return abrirDialogo.apply(this, arguments);
+        };
+        window.tdialog_start.__curciol = true;
+    }
+    corrigirDialogo();
+    $(corrigirDialogo);
+
     var fecharCortina = Template.closeRightPanel;
     Template.closeRightPanel = function () {
         var ultima = $('#adianti_right_panel > [page_name]').length <= 1;
