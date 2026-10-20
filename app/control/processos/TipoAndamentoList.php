@@ -551,14 +551,20 @@ class TipoAndamentoList extends TPage
      */
     public function onSearch($param = null)
     {
-        if ((isset($param['static']) && ($param['static'] == '1')) || !empty($param['globalSearch']))
+        if (!empty($param['__sem_formulario']))
         {
-            $data = $this->datagrid_form->getData();
+            $formulario = [];
+        }
+        elseif ((isset($param['static']) && ($param['static'] == '1')) || !empty($param['globalSearch']))
+        {
+            $formulario = $this->datagrid_form->getData();
         }
         else
         {
-            $data = $this->form->getData();
+            $formulario = $this->form->getData();
         }
+        // filtros que se somam: cabecalho das colunas, cortina e botoes rapidos (FiltroLista)
+        $data = FiltroLista::acumular(__CLASS__, $formulario, $param);
         $filters = [];
 
         if (isset($data->nome) AND ( (is_scalar($data->nome) AND $data->nome !== '') OR (is_array($data->nome) AND (!empty($data->nome)) )) )
@@ -596,15 +602,9 @@ class TipoAndamentoList extends TPage
             $data->nome_col = $nome_col;
         }
 
-        // fill the form with data again
-        if ((isset($param['static']) && ($param['static'] == '1')) || !empty($param['globalSearch']))
-        {
-            $this->datagrid_form->setData($data);
-        }
-        else
-        {
-            $this->form->setData($data);
-        }
+        // fill the form with data again (os dois formularios mostram os filtros somados)
+        $this->datagrid_form->setData($data);
+        $this->form->setData($data);
 
         // keep the search data in the session
         TSession::setValue(__CLASS__.'_filter_data', $data);

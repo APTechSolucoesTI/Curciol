@@ -872,12 +872,14 @@ class RequisicaoPagamentoListagemHeaderList extends TPage
         // filtros das colunas (static) ou da cortina (sufixo _f)
         if (isset($param['static']) && ($param['static'] == '1'))
         {
-            $data = $this->datagrid_form->getData();
+            $formulario = $this->datagrid_form->getData();
         }
         else
         {
-            $data = self::semSufixo($this->form->getData());
+            $formulario = self::semSufixo($this->form->getData());
         }
+        // filtros que se somam: cabecalho das colunas e cortina (FiltroLista)
+        $data = FiltroLista::acumular(__CLASS__, $formulario, $param);
         $filters = [];
 
         TSession::setValue(__CLASS__.'_filter_data', NULL);

@@ -976,66 +976,30 @@ class ContaReceberList extends TPage
     {
         $this->onReload([]);
     }
+    // botoes rapidos: ligam/desligam o filtro somando aos demais (clicar de novo tira); o ativo fica destacado
     public function onVencidas($param = null) 
     {
-        try 
-        {
-            $filters = [new TFilter('id', 'in', "(SELECT conta_id FROM lancamento WHERE dt_vencimento < '". date('Y-m-d 00:00') ."' and quitada = 'N')")];
-
-            $data = new stdClass;
-            $data->filtro_rapido = '1';
-
-            TSession::setValue(__CLASS__.'_filter_data', $data);
-            TSession::setValue(__CLASS__.'_filters', $filters);
-
-            $this->onReload([]);
-            //</autoCode>
-        }
-        catch (Exception $e) 
-        {
-            new TMessage('error', $e->getMessage());    
-        }
+        $this->onSearch(['__sem_formulario' => 1, '__filtros_extra' => FiltroLista::alternar(__CLASS__, ['filtro_rapido' => '1'])]);
     }
     public function onVencer($param = null) 
     {
-        try 
-        {
-            $filters = [new TFilter('id', 'in', "(SELECT conta_id FROM lancamento WHERE dt_vencimento >= '". date('Y-m-d 00:00') ."' and quitada = 'N')")];
-
-            $data = new stdClass;
-            $data->filtro_rapido = '2';
-
-            TSession::setValue(__CLASS__.'_filter_data', $data);
-            TSession::setValue(__CLASS__.'_filters', $filters);
-
-            $this->onReload([]);
-            //</autoCode>
-        }
-        catch (Exception $e) 
-        {
-            new TMessage('error', $e->getMessage());    
-        }
+        $this->onSearch(['__sem_formulario' => 1, '__filtros_extra' => FiltroLista::alternar(__CLASS__, ['filtro_rapido' => '2'])]);
     }
     public function onEmAberto($param = null) 
     {
-        try 
-        {
-            $filters = [new TFilter('quitada', '=', 'N')];
+        $this->onSearch(['__sem_formulario' => 1, '__filtros_extra' => FiltroLista::alternar(__CLASS__, ['quitada' => 'N'])]);
+    }
 
-            $data = new stdClass;
-            $data->quitada = 'N';
-
-            TSession::setValue(__CLASS__.'_filter_data', $data);
-            TSession::setValue(__CLASS__.'_filters', $filters);
-
-            $this->onReload([]);
-
-            //</autoCode>
-        }
-        catch (Exception $e) 
-        {
-            new TMessage('error', $e->getMessage());    
-        }
+    /** Destaca os botoes rapidos que estao filtrando agora. */
+    private static function marcarBotoesRapidos(): void
+    {
+        $ativos = [
+            'button_mostrar_vencidas' => FiltroLista::aplicado(__CLASS__, 'filtro_rapido', '1'),
+            'button_vencer' => FiltroLista::aplicado(__CLASS__, 'filtro_rapido', '2'),
+            'button_em_aberto' => FiltroLista::aplicado(__CLASS__, 'quitada', 'N'),
+        ];
+        TScript::create('setTimeout(function () { var ativos = ' . json_encode($ativos) . '; Object.keys(ativos).forEach(function (n) {'
+            . ' $(\'[name="\' + n + \'"]\').css(ativos[n] ? {"background-color": "#dbeafe", "border-color": "#2563eb", "font-weight": "600"} : {"background-color": "", "border-color": "", "font-weight": ""}); }); }, 300);');
     }
 
     /**
@@ -1043,14 +1007,20 @@ class ContaReceberList extends TPage
      */
     public function onSearch($param = null)
     {
-        if ((isset($param['static']) && ($param['static'] == '1')) || !empty($param['globalSearch']))
+        if (!empty($param['__sem_formulario']))
         {
-            $data = $this->datagrid_form->getData();
+            $formulario = [];
+        }
+        elseif ((isset($param['static']) && ($param['static'] == '1')) || !empty($param['globalSearch']))
+        {
+            $formulario = $this->datagrid_form->getData();
         }
         else
         {
-            $data = $this->form->getData();
+            $formulario = $this->form->getData();
         }
+        // filtros que se somam: cabecalho das colunas, cortina e botoes rapidos (FiltroLista)
+        $data = FiltroLista::acumular(__CLASS__, $formulario, $param);
         $filters = [];
 
         $clienteFiltroPrincipal = $data->pessoa_id ?? null;
@@ -1226,15 +1196,9 @@ class ContaReceberList extends TPage
             $filters[] = $filtroRequisicao;
         }
 
-        // fill the form with data again
-        if ((isset($param['static']) && ($param['static'] == '1')) || !empty($param['globalSearch']))
-        {
-            $this->datagrid_form->setData($data);
-        }
-        else
-        {
-            $this->form->setData($data);
-        }
+        // fill the form with data again (os dois formularios mostram os filtros somados)
+        $this->datagrid_form->setData($data);
+        $this->form->setData($data);
 
         // keep the search data in the session
         TSession::setValue(__CLASS__.'_filter_data', $data);
@@ -1258,6 +1222,7 @@ class ContaReceberList extends TPage
      */
     public function onReload($param = NULL)
     {
+        self::marcarBotoesRapidos();
         try
         {
             // open a transaction with database 'escritorio'
