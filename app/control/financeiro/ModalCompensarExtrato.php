@@ -107,7 +107,7 @@ class ModalCompensarExtrato extends TWindow
             TTransaction::close();
 
             TToast::show("success", "Compensação concluída", "topRight", "");
-            TApplication::loadPage('ExtratoList', 'onReload');
+            Navegacao::voltarParaLista('ExtratoList', __CLASS__);
             TScript::create("$(\"[page_name='ModalCompensarExtrato']\").remove()");
         }
         catch (Exception $e)

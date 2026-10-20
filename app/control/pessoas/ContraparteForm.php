@@ -1100,9 +1100,8 @@ class ContraparteForm extends TPage
             }
 
             TToast::show('success', "Registro salvo", 'topRight', 'far:check-circle');
-            TApplication::loadPage('ContraparteList', 'onShow', $loadPageParam); 
+            Navegacao::voltarParaLista('ContraparteList', __CLASS__);
 
-                        TScript::create("Template.closeRightPanel();"); 
 
         }
         catch (Exception $e) // in case of exception
@@ -1150,8 +1149,7 @@ class ContraparteForm extends TPage
                 $param['delete']=NULL;
 
                 TToast::show('success', "Registro excluído", 'topRight', 'far:check-circle');
-                TApplication::loadPage('ContraparteList', 'onShow', $loadPageParam);
-                TScript::create("Template.closeRightPanel();");
+                Navegacao::voltarParaLista('ContraparteList', __CLASS__);
 
             }
             catch (Exception $e) // in case of exception
@@ -1298,7 +1296,7 @@ class ContraparteForm extends TPage
             $objeto->pessoa_id = $param['pessoa_id'];
             $objeto->grupo_id = Grupo::CONTRAPARTE;
             $objeto->store();
-            TApplication::loadPage('ContraparteList', 'onShow');
+            Navegacao::voltarParaLista('ContraparteList', __CLASS__);
             TTransaction::close();
         }
         catch (Exception $e) 

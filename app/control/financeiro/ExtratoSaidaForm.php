@@ -195,9 +195,8 @@ class ExtratoSaidaForm extends TPage
             TTransaction::close(); // close the transaction
 
             TToast::show('success', "Registro salvo", 'topRight', 'far:check-circle');
-            TApplication::loadPage('ExtratoList', 'onShow', $loadPageParam); 
+            Navegacao::voltarParaLista('ExtratoList', __CLASS__);
 
-                        TScript::create("Template.closeRightPanel();"); 
 
         }
         catch (Exception $e) // in case of exception

@@ -824,7 +824,7 @@ class ParceiroForm extends TPage
 //</generatedAutoCode>
 
             if(isset($param['page'])){
-                TApplication::loadPage('ParceirosHeaderList', 'onShow');
+                Navegacao::voltarParaLista('ParceirosHeaderList', __CLASS__);
             }
             //</endTryAutoCode> //</blockLine>
 //<generatedAutoCode>
@@ -877,9 +877,8 @@ class ParceiroForm extends TPage
                 // close the transaction
                 TTransaction::close();
 
-                TApplication::loadPage('ParceirosHeaderList', 'onShow');
+                Navegacao::voltarParaLista('ParceirosHeaderList', __CLASS__);
                 TToast::show('success', "Registro excluído", 'topRight', 'far:check-circle');
-                TScript::create("Template.closeRightPanel();");
 
             }
             catch (Exception $e) // in case of exception
@@ -1029,7 +1028,7 @@ class ParceiroForm extends TPage
             $objeto->pessoa_id = $param['pessoa_id'];
             $objeto->grupo_id = Grupo::PARCEIRO;
             $objeto->store();
-            TApplication::loadPage('ParceirosHeaderList', 'onShow');
+            Navegacao::voltarParaLista('ParceirosHeaderList', __CLASS__);
             TTransaction::close();
         }
         catch (Exception $e) 

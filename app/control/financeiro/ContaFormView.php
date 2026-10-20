@@ -664,7 +664,7 @@ class ContaFormView extends TPage
             TTransaction::close();
 
             TToast::show('success', 'Vencimento alterado', 'topRight', 'far:check-circle');
-            TApplication::loadPage('ContaFormView', 'onShow', ['key' => $contaId, 'id' => $contaId]);
+            Navegacao::abrirConta($contaId);
         } catch (Exception $e) {
             TTransaction::rollback();
             new TMessage('error', $e->getMessage());
@@ -859,15 +859,9 @@ class ContaFormView extends TPage
             TTransaction::close();
 
             TToast::show('success', 'Lançamento desquitado com sucesso', 'bottom right');
-            TScript::create("Template.closeRightPanel();");
 
-            if ($tipoConta == TipoConta::RECEBER) {
-                TApplication::loadPage('ContaReceberList', 'onShow');
-            } elseif ($tipoConta == TipoConta::PAGAR) {
-                TApplication::loadPage('ContaPagarList', 'onShow');
-            }
-
-            TApplication::loadPage('ContaFormView', 'onShow', ['key' => $contaId]);
+            // continua na conta (a tela de baixo nao muda; a lista se atualiza ao fechar a cortina)
+            Navegacao::abrirConta((int) $contaId);
         }
         catch (Exception $e) 
         {
@@ -972,9 +966,9 @@ class ContaFormView extends TPage
                 // close the transaction
                 TTransaction::close();
 
-                TApplication::loadPage($tela, 'onShow');
                 TToast::show('success', "Registro excluído", 'topRight', 'far:check-circle');
-                TScript::create("Template.closeRightPanel();");
+                // fecha o detalhe e atualiza a lista de baixo (mantendo os filtros), sem trocar de tela
+                Navegacao::fecharCortinaEAtualizar();
             }
             catch (Exception $e) // in case of exception
             {

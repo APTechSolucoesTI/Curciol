@@ -600,9 +600,8 @@ class ProcessoFormView extends TPage
 
                 TTransaction::close();
 
-                TApplication::loadPage('ProcessoList', 'onShow');
+                Navegacao::voltarParaLista('ProcessoList', __CLASS__);
                 TToast::show('success', "Registro excluído", 'topRight', 'far:check-circle');
-                TScript::create("Template.closeRightPanel();");
             }
             catch (Exception $e) // in case of exception
             {

@@ -474,9 +474,8 @@ class AgendaForm extends TPage
             TTransaction::close(); // close the transaction
 
             TToast::show('success', "Registro salvo", 'topRight', 'far:check-circle');
-            TApplication::loadPage('AgendaList', 'onShow', $loadPageParam); 
+            Navegacao::voltarParaLista('AgendaList', __CLASS__);
 
-                        TScript::create("Template.closeRightPanel();"); 
 
         }
         catch (Exception $e) // in case of exception

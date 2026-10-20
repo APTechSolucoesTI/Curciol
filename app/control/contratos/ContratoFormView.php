@@ -944,9 +944,8 @@ class ContratoFormView extends TPage
                 // close the transaction
                 TTransaction::close();
 
-                TApplication::loadPage('ContratoList', 'onShow');
+                Navegacao::voltarParaLista('ContratoList', __CLASS__);
                 TToast::show('success', "Registro excluído", 'topRight', 'far:check-circle');
-                TScript::create("Template.closeRightPanel();");
             }
             catch (Exception $e) // in case of exception
             {

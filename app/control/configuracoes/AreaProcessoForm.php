@@ -172,9 +172,8 @@ class AreaProcessoForm extends TPage
             TTransaction::close(); // close the transaction
 
             TToast::show('success', "Registro salvo", 'topRight', 'far:check-circle');
-            TApplication::loadPage('AreaProcessoList', 'onShow', $loadPageParam); 
+            Navegacao::voltarParaLista('AreaProcessoList', __CLASS__);
 
-                        TScript::create("Template.closeRightPanel();");
             TForm::sendData(self::$formName, (object)['id' => $object->id]);
 
         }

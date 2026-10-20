@@ -1885,9 +1885,8 @@ class ContaForm extends TPage
             TTransaction::close(); // close the transaction
 
             TToast::show('success', "Registro salvo", 'topRight', 'far:check-circle');
-            TApplication::loadPage('ContaReceberList', 'onShow', $loadPageParam); 
-
-                        TScript::create("Template.closeRightPanel();");
+            // abre o detalhe da conta salva na cortina; a tela de baixo nao muda (a lista se atualiza ao fechar)
+            Navegacao::abrirConta((int) $object->id, 'ContaForm');
             TForm::sendData(self::$formName, (object)['id' => $object->id]);
 
         }

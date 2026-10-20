@@ -1054,11 +1054,10 @@ class RepresentanteLegalForm extends TPage
             {
 
             TToast::show('success', "Registro salvo", 'topRight', 'far:check-circle');
-            TApplication::loadPage('RepresentantesLegaisList', 'onShow', $loadPageParam); 
+            Navegacao::voltarParaLista('RepresentantesLegaisList', __CLASS__);
 
             }
 
-                        TScript::create("Template.closeRightPanel();"); 
 
         }
         catch (Exception $e) // in case of exception
@@ -1104,9 +1103,8 @@ class RepresentanteLegalForm extends TPage
                 // close the transaction
                 TTransaction::close();
 
-                TApplication::loadPage('RepresentantesLegaisList', 'onShow');
+                Navegacao::voltarParaLista('RepresentantesLegaisList', __CLASS__);
                 TToast::show('success', "Registro excluído", 'topRight', 'far:check-circle');
-                TScript::create("Template.closeRightPanel();");
 
             }
             catch (Exception $e) // in case of exception
@@ -1253,7 +1251,7 @@ class RepresentanteLegalForm extends TPage
             $objeto->pessoa_id = $param['pessoa_id'];
             $objeto->grupo_id = Grupo::REPRESENTANTE_LEGAL;
             $objeto->store();
-            TApplication::loadPage('RepresentantesLegaisList', 'onShow');
+            Navegacao::voltarParaLista('RepresentantesLegaisList', __CLASS__);
             TTransaction::close();
         }
         catch (Exception $e) 

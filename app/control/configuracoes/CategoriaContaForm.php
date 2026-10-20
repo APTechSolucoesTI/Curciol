@@ -134,9 +134,8 @@ class CategoriaContaForm extends TPage
             TTransaction::close(); // close the transaction
 
             TToast::show('success', "Registro salvo", 'topRight', 'far:check-circle');
-            TApplication::loadPage('CategoriaContaHeaderList', 'onShow', $loadPageParam); 
+            Navegacao::voltarParaLista('CategoriaContaHeaderList', __CLASS__);
 
-                        TScript::create("Template.closeRightPanel();"); 
 
         }
         catch (Exception $e) // in case of exception

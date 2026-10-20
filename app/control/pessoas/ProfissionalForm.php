@@ -834,9 +834,8 @@ class ProfissionalForm extends TPage
             }
 
             TToast::show('success', "Registro salvo", 'topRight', 'far:check-circle');
-            TApplication::loadPage('ProfissionalList', 'onShow', $loadPageParam); 
+            Navegacao::voltarParaLista('ProfissionalList', __CLASS__);
 
-                        TScript::create("Template.closeRightPanel();");
             TForm::sendData(self::$formName, (object)['id' => $object->id]);
 
         }
@@ -886,9 +885,8 @@ class ProfissionalForm extends TPage
                 // close the transaction
                 TTransaction::close();
 
-                TApplication::loadPage('ProfissionalList', 'onShow');
+                Navegacao::voltarParaLista('ProfissionalList', __CLASS__);
                 TToast::show('success', "Registro excluído", 'topRight', 'far:check-circle');
-                TScript::create("Template.closeRightPanel();");
 
             }
             catch (Exception $e) // in case of exception
@@ -1029,7 +1027,7 @@ class ProfissionalForm extends TPage
             $objeto->pessoa_id = $param['pessoa_id'];
             $objeto->grupo_id = Grupo::PROFISSIONAL;
             $objeto->store();
-            TApplication::loadPage('ProfissionalList', 'onShow');
+            Navegacao::voltarParaLista('ProfissionalList', __CLASS__);
             TTransaction::close();
         }
         catch (Exception $e) 

@@ -477,7 +477,7 @@ class RequisicaoPagamentoListagemHeaderList extends TPage
         $container->style = 'width: 100%';
         if(empty($param['target_container']))
         {
-            $container->add(TBreadCrumb::create(["Processos","RequisicaoPagamentoListagemHeaderList"]));
+            $container->add(TBreadCrumb::create(["Processos","Requisição de Pagamento"]));
         }
 
         $container->add($panel);

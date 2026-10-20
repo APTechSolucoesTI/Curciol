@@ -326,7 +326,7 @@ class ProcessoSeekWindow extends TWindow
 
             $pageParam = ['key' => TSession::getValue('publicacao_id')];
 
-            TApplication::loadPage('PublicacaoHeaderList', 'onShow');
+            Navegacao::voltarParaLista('PublicacaoHeaderList', __CLASS__);
 
             TApplication::loadPage('PublicacaoFormView', 'onShow', $pageParam);
 

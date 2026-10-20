@@ -421,7 +421,7 @@ class ModalQuitarParcela extends TWindow
 
             TToast::show('success', 'Lançamento quitado com sucesso', 'bottom right');
 
-            AdiantiCoreApplication::loadPage('ContaFormView', 'onShow', ['key' => $lancamento->conta_id]);
+            Navegacao::abrirConta((int) $lancamento->conta_id);
             TScript::create("$(\"[page_name='ModalQuitarParcela']\").remove()");
 
             TTransaction::close();

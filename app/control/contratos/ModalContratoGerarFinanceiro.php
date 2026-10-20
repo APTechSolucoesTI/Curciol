@@ -1117,7 +1117,12 @@ else
             }
 
             TScript::create("$(\"[page_name='ModalContratoGerarFinanceiro']\").remove()");
+            // contrato atualizado no lugar e a conta gerada aberta por cima dele (fechando a conta, volta ao contrato)
             TApplication::loadPage('ContratoFormView', 'onShow', ['key' => $data->contrato_id, 'id' => $data->contrato_id, 'current_tab_abas' => 3]);
+            $contaGerada = (int) (array_keys($contasGeradas ?? [])[0] ?? 0);
+            if ($contaGerada > 0) {
+                Navegacao::abrirConta($contaGerada, null, 900);
+            }
 
             TTransaction::close();
         }

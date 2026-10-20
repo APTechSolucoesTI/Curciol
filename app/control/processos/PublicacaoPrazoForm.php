@@ -140,7 +140,7 @@ class PublicacaoPrazoForm extends TWindow
             $this->form->setData($data); // fill form data
             TTransaction::close(); // close the transaction
 
-            TApplication::loadPage('PublicacaoHeaderList', 'onShow');
+            Navegacao::voltarParaLista('PublicacaoHeaderList', __CLASS__);
 
             TToast::show('success', "Registro salvo", 'topRight', 'far:check-circle'); 
 

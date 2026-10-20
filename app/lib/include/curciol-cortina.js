@@ -69,12 +69,29 @@
         Template.onAfterPost = Template.onAfterLoad;
     }
 
+    // acao feita na cortina (Navegacao::atualizarListaAoFechar): ao fechar a ultima, a lista de baixo se atualiza
+    // mantendo os filtros (onReload); outras telas (requisicao, processo...) ficam como estao
+    function atualizarListaDeBaixo() {
+        if (!window.curciolAtualizarListaAoFechar) {
+            return;
+        }
+        window.curciolAtualizarListaAoFechar = false;
+        var pagina = $('#adianti_div_content > [page_name]').first().attr('page_name') || '';
+        if (/List$/.test(pagina) && !$('.ui-dialog:visible').length) {
+            setTimeout(function () {
+                Adianti.waitMessage = false;
+                __adianti_load_page('index.php?class=' + pagina + '&method=onReload');
+            }, 350);
+        }
+    }
+
     var fecharCortina = Template.closeRightPanel;
     Template.closeRightPanel = function () {
         var ultima = $('#adianti_right_panel > [page_name]').length <= 1;
         var resultado = fecharCortina.apply(this, arguments);
         if (ultima) {
             devolverJanelas();
+            atualizarListaDeBaixo();
         }
         return resultado;
     };

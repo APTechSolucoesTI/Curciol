@@ -825,7 +825,7 @@ class ProcessoPublicacoesTimeLine extends TPage
 
             if(empty($param['target_container']))
             {    
-                $container->add(TBreadCrumb::create(["Processos","ProcessoPublicacoesTimeLine"]));
+                $container->add(TBreadCrumb::create(["Processos","Linha do tempo do processo"]));
             }
 
             $desktopTimeline = new TElement('div');
@@ -859,7 +859,7 @@ class ProcessoPublicacoesTimeLine extends TPage
             $container->class = 'form-container';
             if(empty($param['target_container']))
             {    
-                $container->add(TBreadCrumb::create(["Processos","ProcessoPublicacoesTimeLine"]));
+                $container->add(TBreadCrumb::create(["Processos","Linha do tempo do processo"]));
             }
             $container->add($this->timeline);
 
@@ -871,21 +871,7 @@ class ProcessoPublicacoesTimeLine extends TPage
             $container->class = 'form-container';
             if(empty($param['target_container']))
             {    
-                $container->add(TBreadCrumb::create(["Processos","ProcessoPublicacoesTimeLine"]));
-            }
-            $container->add($this->timeline);
-
-            //<onAfterAddTimeline>
-
-/*
-
-            //</onBeforeAddTimeline>
-
-            $container->style = 'width: 100%';
-            $container->class = 'form-container';
-            if(empty($param['target_container']))
-            {    
-                $container->add(TBreadCrumb::create(["Processos","ProcessoPublicacoesTimeLine"]));
+                $container->add(TBreadCrumb::create(["Processos","Linha do tempo do processo"]));
             }
             $container->add($this->timeline);
 
@@ -899,7 +885,7 @@ class ProcessoPublicacoesTimeLine extends TPage
             $container->class = 'form-container';
             if(empty($param['target_container']))
             {    
-                $container->add(TBreadCrumb::create(["Processos","ProcessoPublicacoesTimeLine"]));
+                $container->add(TBreadCrumb::create(["Processos","Linha do tempo do processo"]));
             }
             $container->add($this->timeline);
 
@@ -913,7 +899,7 @@ class ProcessoPublicacoesTimeLine extends TPage
             $container->class = 'form-container';
             if(empty($param['target_container']))
             {    
-                $container->add(TBreadCrumb::create(["Processos","ProcessoPublicacoesTimeLine"]));
+                $container->add(TBreadCrumb::create(["Processos","Linha do tempo do processo"]));
             }
             $container->add($this->timeline);
 
@@ -927,7 +913,21 @@ class ProcessoPublicacoesTimeLine extends TPage
             $container->class = 'form-container';
             if(empty($param['target_container']))
             {    
-                $container->add(TBreadCrumb::create(["Processos","ProcessoPublicacoesTimeLine"]));
+                $container->add(TBreadCrumb::create(["Processos","Linha do tempo do processo"]));
+            }
+            $container->add($this->timeline);
+
+            //<onAfterAddTimeline>
+
+/*
+
+            //</onBeforeAddTimeline>
+
+            $container->style = 'width: 100%';
+            $container->class = 'form-container';
+            if(empty($param['target_container']))
+            {    
+                $container->add(TBreadCrumb::create(["Processos","Linha do tempo do processo"]));
             }
             $container->add($this->timeline);
 
@@ -940,7 +940,7 @@ class ProcessoPublicacoesTimeLine extends TPage
             $container->class = 'form-container';
             if(empty($param['target_container']))
             {    
-                $container->add(TBreadCrumb::create(["Processos","ProcessoPublicacoesTimeLine"]));
+                $container->add(TBreadCrumb::create(["Processos","Linha do tempo do processo"]));
             }
             $container->add($this->timeline);
 

@@ -133,9 +133,8 @@ class BancoForm extends TPage
             TTransaction::close(); // close the transaction
 
             TToast::show('success', "Registro salvo", 'topRight', 'far:check-circle');
-            TApplication::loadPage('BancoList', 'onShow', $loadPageParam); 
+            Navegacao::voltarParaLista('BancoList', __CLASS__);
 
-                        TScript::create("Template.closeRightPanel();"); 
 
         }
         catch (Exception $e) // in case of exception

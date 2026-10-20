@@ -76,7 +76,7 @@ class SincronizarPublicacoesAPIForm extends TWindow
             APIPublicacaoController::buscarPublicacoes($objeto);
             APIPublicacaoController::onVerificaPublicacaoEtapa();
 
-            TApplication::loadPage('PublicacaoHeaderList', 'onShow');
+            Navegacao::voltarParaLista('PublicacaoHeaderList', __CLASS__);
 
             TWindow::closeWindow();
 

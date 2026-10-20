@@ -1457,10 +1457,9 @@ class ClienteForm extends TPage
                 TSession::setValue(__CLASS__.'_filters', NULL);
 
             TToast::show('success', "Registro salvo", 'topRight', 'far:check-circle');
-            TApplication::loadPage('ClienteList', 'onShow', $loadPageParam); 
+            Navegacao::voltarParaLista('ClienteList', __CLASS__);
 
             }
-                        TScript::create("Template.closeRightPanel();"); 
 
         }
         catch (Exception $e) // in case of exception
@@ -1518,7 +1517,7 @@ class ClienteForm extends TPage
                     $loadPageParam['key'] = $agendamento;
                     TApplication::loadPage('AgendamentoFormView', 'onShow', $loadPageParam);
                 }else{
-                    TApplication::loadPage('ClienteList', 'onShow');
+                    Navegacao::voltarParaLista('ClienteList', __CLASS__);
                 }
                 TSession::setValue(__CLASS__.'_filter_data', NULL);
                 TSession::setValue(__CLASS__.'_filters', NULL);
@@ -1745,7 +1744,7 @@ class ClienteForm extends TPage
             TTransaction::close();
 
             TToast::show('success', "Registro salvo", 'topRight', 'far:check-circle');
-            TApplication::loadPage('ClienteList', 'onShow');
+            Navegacao::voltarParaLista('ClienteList', __CLASS__);
         }
         catch (Exception $e) 
         {

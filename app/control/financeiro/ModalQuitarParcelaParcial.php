@@ -306,7 +306,7 @@ class ModalQuitarParcelaParcial extends TWindow
 
             TToast::show('success', "Pagamento parcial realizado. Saldo restante: R$ ".number_format($novoSaldo, 2, ',', '.'), 'bottom right');
 
-            AdiantiCoreApplication::loadPage('ContaFormView', 'onShow', ['key' => $contaId]);
+            Navegacao::abrirConta((int) $contaId);
             TScript::create("$(\"[page_name='ModalQuitarParcelaParcial']\").remove();");
 
         }

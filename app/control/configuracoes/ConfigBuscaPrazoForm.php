@@ -193,9 +193,8 @@ class ConfigBuscaPrazoForm extends TPage
             TTransaction::close(); // close the transaction
 
             TToast::show('success', "Registro salvo", 'topRight', 'far:check-circle');
-            TApplication::loadPage('ConfigBuscaPrazoHeaderList', 'onShow', $loadPageParam); 
+            Navegacao::voltarParaLista('ConfigBuscaPrazoHeaderList', __CLASS__);
 
-                        TScript::create("Template.closeRightPanel();");
             TForm::sendData(self::$formName, (object)['id' => $object->id]);
 
         }

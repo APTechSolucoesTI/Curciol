@@ -119,9 +119,8 @@ class BeneficiarioCreditoForm extends TPage
             TTransaction::close(); // close the transaction
 
             TToast::show('success', "Registro salvo", 'topRight', 'far:check-circle');
-            TApplication::loadPage('BeneficiarioCreditoList', 'onShow');
+            Navegacao::voltarParaLista('BeneficiarioCreditoList', __CLASS__);
 
-            TScript::create("Template.closeRightPanel();");
         }
         catch (Exception $e) // in case of exception
         {
@@ -200,8 +199,7 @@ class BeneficiarioCreditoForm extends TPage
             TTransaction::close();
 
             TToast::show('success', "Registro excluído", 'topRight', 'far:check-circle');
-            TApplication::loadPage('BeneficiarioCreditoList', 'onShow');
-            TScript::create("Template.closeRightPanel();");
+            Navegacao::voltarParaLista('BeneficiarioCreditoList', __CLASS__);
         }
         catch (Exception $e)
         {

@@ -864,9 +864,8 @@ class ModeloDocumentoForm extends TPage
             TTransaction::close(); // close the transaction
 
             TToast::show('success', "Registro salvo", 'topRight', 'far:check-circle');
-            TApplication::loadPage('ModeloDocumentoHeaderList', 'onShow', $loadPageParam); 
+            Navegacao::voltarParaLista('ModeloDocumentoHeaderList', __CLASS__);
 
-                        TScript::create("Template.closeRightPanel();"); 
 
         }
         catch (Exception $e) // in case of exception

@@ -398,9 +398,8 @@ class ParceriaLevantamentoForm extends TPage
             TTransaction::close(); // close the transaction
 
             TToast::show('success', "Registro salvo", 'topRight', 'far:check-circle');
-            TApplication::loadPage('ParceriaLevantamentoList', 'onShow');
+            Navegacao::voltarParaLista('ParceriaLevantamentoList', __CLASS__);
 
-            TScript::create("Template.closeRightPanel();");
         }
         catch (Exception $e) // in case of exception
         {
@@ -477,8 +476,7 @@ class ParceriaLevantamentoForm extends TPage
             TTransaction::close();
 
             TToast::show('success', "Registro excluído", 'topRight', 'far:check-circle');
-            TApplication::loadPage('ParceriaLevantamentoList', 'onShow');
-            TScript::create("Template.closeRightPanel();");
+            Navegacao::voltarParaLista('ParceriaLevantamentoList', __CLASS__);
         }
         catch (Exception $e)
         {

@@ -241,7 +241,7 @@ class DocumentoAvulsoForm extends TPage
                         }
 
                         DocumentoAvulsoForm::onChangeTipo(['tipo_modelo_documento_id' => $modelo_documento->tipo_modelo_documento_id]);
-                        TApplication::loadPage('TmpDocumentoSimpleList', 'onShow');
+                        Navegacao::voltarParaLista('TmpDocumentoSimpleList', __CLASS__);
                     }else{
                         //Não tem cliente
                         TDBMultiSearch::enableField(self::$formName, 'cliente_id');

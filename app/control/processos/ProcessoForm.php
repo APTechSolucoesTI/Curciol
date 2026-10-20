@@ -953,17 +953,15 @@ class ProcessoForm extends TPage
             if($data->publicacao != null){
                 TToast::show('success', "Registro salvo", 'topRight', 'far:check-circle');
                 TScript::create("Template.closeRightPanel();");
-                TApplication::loadPage('PublicacaoHeaderList', 'onShow');
+                Navegacao::voltarParaLista('PublicacaoHeaderList', __CLASS__);
             }elseif(isset($data->principal_id) && !empty($data->principal_id)){
                 TToast::show('success', "Registro salvo", 'topRight', 'far:check-circle');
-                TScript::create("Template.closeRightPanel();");
                 TApplication::loadPage('ProcessoFormView', 'onShow',['key'=>$data->principal_id,'current_tab'=>2]);
             }else{
 
             TToast::show('success', "Registro salvo", 'topRight', 'far:check-circle');
-            TApplication::loadPage('ProcessoList', 'onShow', $loadPageParam); 
+            Navegacao::voltarParaLista('ProcessoList', __CLASS__);
 
-                        TScript::create("Template.closeRightPanel();");
             TForm::sendData(self::$formName, (object)['id' => $object->id]);
 
             }

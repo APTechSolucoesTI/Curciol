@@ -732,7 +732,7 @@ class FornecedorForm extends TPage
             TToast::show('success', "Registro salvo", 'topRight', 'far:check-circle'); 
 
             if(isset($param['page'])){
-                TApplication::loadPage('FornecedorList', 'onShow');
+                Navegacao::voltarParaLista('FornecedorList', __CLASS__);
             }
                         TScript::create("Template.closeRightPanel();"); 
 
@@ -779,9 +779,8 @@ class FornecedorForm extends TPage
                 // close the transaction
                 TTransaction::close();
 
-                TApplication::loadPage('FornecedorList', 'onShow');
+                Navegacao::voltarParaLista('FornecedorList', __CLASS__);
                 TToast::show('success', "Registro excluído", 'topRight', 'far:check-circle');
-                TScript::create("Template.closeRightPanel();");
 
             }
             catch (Exception $e) // in case of exception
@@ -905,7 +904,7 @@ class FornecedorForm extends TPage
             $objeto->pessoa_id = $param['pessoa_id'];
             $objeto->grupo_id = Grupo::FORNECEDOR;
             $objeto->store();
-            TApplication::loadPage('FornecedorList', 'onShow');
+            Navegacao::voltarParaLista('FornecedorList', __CLASS__);
             TTransaction::close();
         }
         catch (Exception $e) 

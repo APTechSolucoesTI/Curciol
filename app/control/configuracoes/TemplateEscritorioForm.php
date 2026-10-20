@@ -265,9 +265,8 @@ class TemplateEscritorioForm extends TPage
             TTransaction::close(); // close the transaction
 
             TToast::show('success', "Registro salvo", 'topRight', 'far:check-circle');
-            TApplication::loadPage('TemplateEscritorioHeaderList', 'onShow', $loadPageParam); 
+            Navegacao::voltarParaLista('TemplateEscritorioHeaderList', __CLASS__);
 
-                        TScript::create("Template.closeRightPanel();");
             TForm::sendData(self::$formName, (object)['id' => $object->id]);
 
         }
