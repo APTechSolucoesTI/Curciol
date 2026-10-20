@@ -254,7 +254,7 @@ class LevantamentoPrestacaoContasService
             . '<div class="dest" style="margin-top:14px"><div>Ilmo(a) Sr(a)</div><div><b>' . $e($d['cliente']) . '</b></div>' . $documento . '</div>'
             . '<div class="dest proc"><div><b>Processo ' . $e($d['processo']) . '</b></div>' . $objeto . '</div>'
             . '<div style="margin-top:14px">' . $abertura . '</div>'
-            . '<table class="valores">' . $linhas . '</table>'
+            . $linhas
             . '<p class="just">' . $e(self::textoDadosBancarios()) . '</p>'
             . '<div class="caixa"><h4>DADOS BANCÁRIOS PARA CRÉDITO</h4>' . $banco . '<p class="nota">' . $e(self::notaPix()) . '</p></div>'
             . '<p style="margin-top:18px">Atenciosamente,</p>'

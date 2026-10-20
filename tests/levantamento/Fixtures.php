@@ -134,6 +134,15 @@ class Fixtures
                     self::apagar($c, 'lote_pagamento', 'id', $lotes);
                 }
             }
+            // lotes que sobraram sem contas (ex.: financeiro desfeito depois de quitar em lote): pela conta-caixa ou pelas pessoas
+            $pessoasFixture = array_map('intval', $f['pessoas_ids'] ?? []) ?: [0];
+            $orfaos = self::coluna($c, 'SELECT id FROM lote_pagamento WHERE ' . ($cc ? 'conta_caixa_id = ' . (int) $cc . ' OR ' : '')
+                . 'pessoa_id IN (' . implode(',', $pessoasFixture) . ')');
+            if ($orfaos) {
+                $c->exec('UPDATE lancamento SET extrato_id = NULL WHERE extrato_id IN (SELECT id FROM extrato WHERE lote_pagamento_id IN (' . implode(',', $orfaos) . '))');
+                $c->exec('DELETE FROM extrato WHERE lote_pagamento_id IN (' . implode(',', $orfaos) . ')');
+                self::apagar($c, 'lote_pagamento', 'id', $orfaos);
+            }
             self::apagar($c, 'levantamento_financeiro_repasse', 'levantamento_financeiro_id', $levs);
             self::apagar($c, 'levantamento_financeiro', 'id', $levs);
 
