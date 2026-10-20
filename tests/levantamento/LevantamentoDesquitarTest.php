@@ -29,14 +29,14 @@ igual('repasse vence N dias depois (opcao)', '2026-02-15', FinanceiroConfiguraca
 TTransaction::open('escritorio');
 $id = function ($nome) { $st = TTransaction::get()->prepare('SELECT id FROM pessoa WHERE normalize(nome, NFC) = normalize(?, NFC) ORDER BY id LIMIT 1'); $st->execute([$nome]); return (int) $st->fetchColumn(); };
 $pessoas = ['JUAN WILLIAN DE OLIVEIRA', 'LUMES GESTAO IMOBILIARIA LTDA', 'CURCIOL SOCIEDADE DE ADVOGADOS', 'DANIELLE DOS SANTOS MARQUES CURCIOL',
-            'ALLIANCE ADMINISTRAÇÃO COMÉRCIO E ENGENHARIA LTDA', 'KLEBER CURCIOL', 'JOSÉ ALMIR CURCIOL', 'IVAN PAULO FIORANI', 'KBÇA'];
+            'ALLIANCE ADMINISTRAÇÃO COMÉRCIO E ENGENHARIA LTDA', 'KLEBER CURCIOL', 'JOSÉ ALMIR CURCIOL', 'IVAN PAULO FIORANI', 'KLEBER ANDRE FERREIRA'];
 $itens = array_map(function ($n) use ($id) { return ['pessoa_id' => $id($n), 'nome' => $n]; }, $pessoas);
 TTransaction::close();
 $itens[] = ['pessoa_id' => 999999999, 'nome' => 'AAA FORA DA LISTA'];
 $ordem = array_column(RepasseColaboradorService::ordenarPorColaborador($itens, function ($x) { return $x['pessoa_id']; }, function ($x) { return $x['nome']; }), 'nome');
 igual('ordem da planilha (Curciol, Jac, Kcur, Dani, Ivan, Juan, Kbça, Alliance, Estrutura; depois os outros)', [
     'CURCIOL SOCIEDADE DE ADVOGADOS', 'JOSÉ ALMIR CURCIOL', 'KLEBER CURCIOL', 'DANIELLE DOS SANTOS MARQUES CURCIOL', 'IVAN PAULO FIORANI',
-    'JUAN WILLIAN DE OLIVEIRA', 'KBÇA', 'ALLIANCE ADMINISTRAÇÃO COMÉRCIO E ENGENHARIA LTDA', 'LUMES GESTAO IMOBILIARIA LTDA', 'AAA FORA DA LISTA'], $ordem);
+    'JUAN WILLIAN DE OLIVEIRA', 'KLEBER ANDRE FERREIRA', 'ALLIANCE ADMINISTRAÇÃO COMÉRCIO E ENGENHARIA LTDA', 'LUMES GESTAO IMOBILIARIA LTDA', 'AAA FORA DA LISTA'], $ordem);
 ok('Alliance e Lumes no grupo Parceiro', (int) valor("SELECT COUNT(*) FROM pessoa_grupo g JOIN pessoa p ON p.id = g.pessoa_id WHERE g.grupo_id = 6
     AND normalize(p.nome, NFC) IN (normalize('ALLIANCE ADMINISTRAÇÃO COMÉRCIO E ENGENHARIA LTDA', NFC), 'LUMES GESTAO IMOBILIARIA LTDA')") === 2);
 igual('cadastros provisorios ALLIANCE/ESTRUTURA nao existem mais', 0, (int) valor("SELECT COUNT(*) FROM pessoa WHERE nome IN ('ALLIANCE', 'ESTRUTURA')"));

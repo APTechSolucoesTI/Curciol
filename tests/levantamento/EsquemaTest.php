@@ -65,8 +65,8 @@ igual('so a Curciol recebe a diferenca na Parceria Juan', ['CURCIOL SOCIEDADE DE
 
 // Parceiros criados pela carga existem no grupo 6
 $g = $c->prepare('select count(*) from pessoa pe join pessoa_grupo g on g.pessoa_id = pe.id and g.grupo_id = 6 where normalize(pe.nome, NFC) = normalize(?, NFC)');
-// Alliance e Estrutura usam os cadastros reais (2026-10-20-parceiros-alliance-estrutura.sql)
-foreach (['KBÇA', 'CAMPOS', 'ALLIANCE ADMINISTRAÇÃO COMÉRCIO E ENGENHARIA LTDA', 'LUMES GESTAO IMOBILIARIA LTDA'] as $n) {
+// parceiros com os cadastros reais (2026-10-20-parceiros-alliance-estrutura.sql e 2026-10-20-grupos-profissional-parceiro-fornecedor.sql)
+foreach (['KLEBER ANDRE FERREIRA', 'CARLOS ROBERTO DE CAMPOS FILHO', 'ALLIANCE ADMINISTRAÇÃO COMÉRCIO E ENGENHARIA LTDA', 'LUMES GESTAO IMOBILIARIA LTDA'] as $n) {
     $g->execute([$n]);
     ok("parceiro {$n} no grupo 6", (int) $g->fetchColumn() >= 1);
 }

@@ -19,12 +19,13 @@ class RepasseColaboradorService
     const ESTORNE_PRIMEIRO = 'O repasse ao colaborador %s já foi pago (%s). Estorne o pagamento ao colaborador antes.';
 
     /**
-     * Ordem dos colaboradores da planilha do escritorio: Curciol, Jac, Kcur, Dani, Ivan, Juan, Kbça (ou Campos),
-     * Alliance, Estrutura (cadastro provisorio: LUMES). Quem nao esta aqui vem depois, por nome.
+     * Ordem dos colaboradores da planilha do escritorio: Curciol, Jac, Kcur, Dani, Ivan, Juan, Kbça (Kleber Andre Ferreira;
+     * ou Campos, Carlos Roberto de Campos Filho), Alliance, Estrutura (cadastro provisorio: LUMES). Quem nao esta aqui vem
+     * depois, por nome.
      */
     const ORDEM_COLABORADORES = [
         'CURCIOL SOCIEDADE DE ADVOGADOS', 'JOSÉ ALMIR CURCIOL', 'KLEBER CURCIOL', 'DANIELLE DOS SANTOS MARQUES CURCIOL',
-        'IVAN PAULO FIORANI', 'JUAN WILLIAN DE OLIVEIRA', 'KBÇA', 'CAMPOS',
+        'IVAN PAULO FIORANI', 'JUAN WILLIAN DE OLIVEIRA', 'KLEBER ANDRE FERREIRA', 'CARLOS ROBERTO DE CAMPOS FILHO',
         'ALLIANCE ADMINISTRAÇÃO COMÉRCIO E ENGENHARIA LTDA', 'LUMES GESTAO IMOBILIARIA LTDA',
     ];
 

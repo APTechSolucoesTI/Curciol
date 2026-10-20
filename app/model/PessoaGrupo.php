@@ -24,6 +24,24 @@ class PessoaGrupo extends TRecord
             
     }
 
+    /** Grupos que acompanham outro (regra do escritorio, 20/10/2026): Profissional e tambem Parceiro, Parceiro e tambem Fornecedor. */
+    const GRUPOS_IMPLICITOS = [
+        Grupo::PROFISSIONAL => [Grupo::PARCEIRO, Grupo::FORNECEDOR],
+        Grupo::PARCEIRO     => [Grupo::FORNECEDOR],
+    ];
+
+    public function onAfterStore($object)
+    {
+        foreach (self::GRUPOS_IMPLICITOS[(string) ($object->grupo_id ?? '')] ?? [] as $grupoId) {
+            if (self::where('pessoa_id', '=', $object->pessoa_id)->where('grupo_id', '=', $grupoId)->count() == 0) {
+                $implicito = new self();
+                $implicito->pessoa_id = $object->pessoa_id;
+                $implicito->grupo_id = $grupoId;
+                $implicito->store();
+            }
+        }
+    }
+
     /**
      * Method set_pessoa
      * Sample of usage: $var->pessoa = $object;

@@ -37,7 +37,8 @@ class ParceriaLevantamentoForm extends TPage
         $this->form->setFormTitle("Cadastro de parceria de levantamento");
 
         $criteria_pessoa = new TCriteria();
-        $criteria_pessoa->add(new TFilter('id', 'in', "(SELECT pessoa_id FROM pessoa_grupo WHERE grupo_id IN (" . Grupo::PROFISSIONAL . "," . Grupo::PARCEIRO . "))"));
+        // so parceiros (todo profissional tambem e parceiro)
+        $criteria_pessoa->add(new TFilter('id', 'in', "(SELECT pessoa_id FROM pessoa_grupo WHERE grupo_id = " . Grupo::PARCEIRO . ")"));
 
         $id = new TEntry('id');
         $nome = new TEntry('nome');
