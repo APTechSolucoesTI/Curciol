@@ -27,8 +27,27 @@
         return $('#adianti_right_panel').is(':visible') && $('#adianti_right_panel > [page_name]').length > 0;
     }
 
+    // janelas que ja existiam antes de cada navegacao: a URL de uma janela aberta de dentro da cortina tambem
+    // carrega target_container=adianti_right_panel (o Adianti repete o parametro), e ela nao pode ser escondida
+    var anteriores = null;
+    function anotarJanelas() {
+        anteriores = $('.ui-dialog, .ui-widget-overlay').toArray();
+    }
+    ['onBeforeLoad', 'onBeforePost'].forEach(function (gancho) {
+        var original = Template[gancho];
+        Template[gancho] = function () {
+            anotarJanelas();
+            return (typeof original === 'function') ? original.apply(this, arguments) : undefined;
+        };
+    });
+
     function esconderJanelas() {
-        $('.ui-dialog:visible, .ui-widget-overlay:visible').not('#adianti_right_panel *').addClass(MARCA).hide();
+        var lista = anteriores ? $(anteriores) : $('.ui-dialog, .ui-widget-overlay');
+        lista.filter(':visible').not('#adianti_right_panel *').addClass(MARCA).hide();
+    }
+
+    function abriuJanelaNova() {
+        return anteriores !== null && $('.ui-dialog').not(anteriores).length > 0;
     }
 
     function devolverJanelas() {
@@ -38,7 +57,7 @@
     var depoisDeCarregar = Template.onAfterLoad;
     Template.onAfterLoad = function (url, data) {
         var resultado = depoisDeCarregar.apply(this, arguments);
-        if (vaiParaCortina(url, data)) {
+        if (vaiParaCortina(url, data) && !abriuJanelaNova()) {
             esconderJanelas();
         } else if (!cortinaAberta()) {
             // a cortina foi fechada por outra navegacao: as janelas voltam
