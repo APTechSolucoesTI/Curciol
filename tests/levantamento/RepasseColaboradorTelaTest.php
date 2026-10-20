@@ -90,7 +90,7 @@ try {
     // ---------- quadros na conta a receber, na conta do repasse e no Ver financeiro ----------
     $cr = (int) $lf->conta_receber_id;
     $v = saida(function () use ($cr) { (new ContaFormView(['key' => $cr, 'id' => $cr]))->show(); });
-    ok('conta a receber mostra os repasses aos colaboradores', strpos($v, 'Repasses aos colaboradores') !== false && substr_count($v, 'Abrir a conta a pagar') === 4 && substr_count($v, 'Pago em ') === 2, erro($v));
+    ok('conta a receber mostra os repasses aos colaboradores', strpos($v, 'Repasses aos colaboradores') !== false && substr_count($v, 'title="Abrir a conta a pagar"') === 4 && substr_count($v, 'Pago em ') === 2, erro($v));
     ok('conta a receber tem os vinculos do levantamento no topo', strpos($v, 'conta-vinculos') !== false && strpos($v, 'Financeiro do levantamento') !== false
         && strpos($v, 'Conta a pagar ao cliente') !== false && strpos($v, 'Requisição de pagamento') !== false && strpos($v, 'Conta a receber de origem') === false, erro($v));
     $v = saida(function () use ($contaJac) { (new ContaFormView(['key' => $contaJac, 'id' => $contaJac]))->show(); });
