@@ -367,9 +367,25 @@ class ContaFormView extends TPage
 
         $this->form->addContent([$panel]);
 
-        // repasses aos colaboradores: so na conta a receber (as contas a pagar geradas); a conta de repasse mostra a origem nos vinculos do topo
+        // conta a receber do levantamento: a conta a pagar ao cliente gerada junto (a volta e o botao de origem no topo dela)
+        $contaCliente = ((string) $conta->tipo_conta_id === (string) TipoConta::RECEBER) ? self::contaPagarClienteHtml((int) $conta->id) : '';
+        if ($contaCliente !== '') {
+            $panelCliente = new TPanelGroup(new TTextDisplay(new TImage('fas:user #1f3a5f') . ' Conta a pagar ao cliente', '#555555', '16px'), '#FFFFFF');
+            $panelCliente->class = 'panel panel-default formView-detail';
+            $divCliente = new TElement('div');
+            $divCliente->class = 'table-responsive';
+            $divCliente->add($contaCliente);
+            $panelCliente->add($divCliente);
+            $this->form->addContent([$panelCliente]);
+        }
+
+        // repasses aos colaboradores: so na conta a receber (as contas a pagar geradas), na ordem da planilha do escritorio;
+        // a conta de repasse mostra a origem nos vinculos do topo
         $repassesDaConta = ((string) $conta->tipo_conta_id === (string) TipoConta::RECEBER)
-            ? RepasseColaboradorService::listar(['conta_receber_id' => (int) $conta->id])
+            ? RepasseColaboradorService::ordenarPorColaborador(
+                RepasseColaboradorService::listar(['conta_receber_id' => (int) $conta->id]),
+                function ($r) { return $r->pessoa_id; },
+                function ($r) { return $r->colaborador; })
             : [];
         if ($repassesDaConta) {
             $tituloRepasses = new TTextDisplay(new TImage('fas:hand-holding-usd #1f3a5f') . ' Repasses aos colaboradores', '#555555', '16px');
@@ -500,6 +516,38 @@ class ContaFormView extends TPage
             . '<style>.conta-vinculos { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:4px; } .conta-vinculos .conta-vinculo { font-size:12px; padding:3px 9px; } .conta-vinculos .conta-vinculo i { color:#0d4069; margin-right:3px; }</style>';
     }
 
+    /** Quadro da conta a pagar ao cliente do levantamento (conta a receber gerada pelo Gerar financeiro). Usa a transacao aberta. */
+    private static function contaPagarClienteHtml(int $contaReceberId): string
+    {
+        $st = TTransaction::get()->prepare("
+            SELECT c.id, pe.nome AS cliente, c.total_conta, l.dt_vencimento, l.dt_pagamento, x.compensado
+              FROM levantamento_financeiro lf
+              JOIN conta c ON c.id = lf.conta_pagar_id
+              LEFT JOIN pessoa pe ON pe.id = c.pessoa_id
+              LEFT JOIN LATERAL (SELECT * FROM lancamento WHERE conta_id = c.id ORDER BY parcela, id LIMIT 1) l ON true
+              LEFT JOIN extrato x ON x.id = l.extrato_id
+             WHERE lf.conta_receber_id = ?
+             ORDER BY lf.id DESC LIMIT 1");
+        $st->execute([$contaReceberId]);
+        $r = $st->fetch(PDO::FETCH_OBJ);
+        if (!$r) {
+            return '';
+        }
+        $td = 'padding:4px 8px;border-bottom:1px solid #eef2f7;font-size:12px;text-align:left';
+        $th = $td . ';background:#f8fafc';
+        $id = (int) $r->id;
+        $url = "index.php?class=ContaFormView&method=onShow&key={$id}&id={$id}&target_container=adianti_right_panel";
+        $abrir = '<a href="javascript:void(0)" title="Abrir a conta a pagar ao cliente" onclick="' . htmlspecialchars('Adianti.waitMessage = false; __adianti_load_page(' . json_encode($url) . '); return false;') . '"><i class="fas fa-external-link-alt"></i> Abrir conta</a>';
+        $sit = $r->dt_pagamento
+            ? "<span style='color:#065f46'>Pago em " . date('d/m/Y', strtotime($r->dt_pagamento)) . ($r->compensado === 'S' ? ' · compensado' : '') . '</span>'
+            : "<span style='color:#9a3412;font-weight:600'>A pagar</span>";
+        return "<table style='width:100%;border-collapse:collapse'><thead><tr>"
+            . "<th style='{$th}'>Cliente</th><th style='{$th}'>Vencimento</th><th style='{$th};text-align:right'>Valor</th><th style='{$th}'>Situação</th><th style='{$th}'></th></tr></thead><tbody>"
+            . "<tr><td style='{$td}'>" . htmlspecialchars((string) $r->cliente) . "</td><td style='{$td}'>" . ($r->dt_vencimento ? date('d/m/Y', strtotime($r->dt_vencimento)) : '')
+            . "</td><td style='{$td};text-align:right;white-space:nowrap'>R$ " . number_format((float) $r->total_conta, 2, ',', '.')
+            . "</td><td style='{$td}'>{$sit}</td><td style='{$td}'>{$abrir}</td></tr></tbody></table>";
+    }
+
     public static function onPagar($param = null) 
     {
 
@@ -588,7 +636,9 @@ class ContaFormView extends TPage
             if (!$lancamento) {
                 throw new Exception('Parcela não encontrada.');
             }
-            LevantamentoFinanceiroService::exigirContaNaoGerada((int) $lancamento->conta_id, false);
+            // conta a receber do levantamento: so se a conta a pagar ao cliente nao tiver pagamento
+            LevantamentoFinanceiroService::exigirDesquitavel((int) $lancamento->conta_id);
+            $doLevantamento = LevantamentoFinanceiroService::contaDoLevantamento((int) $lancamento->conta_id);
 
             if (empty($lancamento->dt_pagamento)) {
                 throw new Exception('Esta parcela não está quitada.');
@@ -605,6 +655,9 @@ class ContaFormView extends TPage
                         . ' e o saldo dela será recalculado.';
                 } else {
                     $mensagem .= ' será desfeito.';
+                }
+                if ($doLevantamento && $doLevantamento['papel'] === 'RECEBER') {
+                    $mensagem .= '<br><br>As contas a pagar dos colaboradores geradas por este recebimento serão apagadas (voltam a ser geradas ao quitar de novo). A conta a pagar ao cliente continua.';
                 }
                 TTransaction::close();
 
@@ -655,6 +708,7 @@ class ContaFormView extends TPage
             $lancamento->store();
 
             if ($extratoQuitacao) {
+                LevantamentoFinanceiroService::desvincularExtrato((int) $extratoQuitacao->id);
                 $extratoQuitacao->delete();
                 ContaCaixaSaldoService::recalcular($contaCaixaId);
             }

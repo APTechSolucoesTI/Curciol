@@ -18,6 +18,57 @@ class RepasseColaboradorService
 {
     const ESTORNE_PRIMEIRO = 'O repasse ao colaborador %s já foi pago (%s). Estorne o pagamento ao colaborador antes.';
 
+    /**
+     * Ordem dos colaboradores da planilha do escritorio: Curciol, Jac, Kcur, Dani, Ivan, Juan, Kbça (ou Campos),
+     * Alliance, Estrutura (cadastro provisorio: LUMES). Quem nao esta aqui vem depois, por nome.
+     */
+    const ORDEM_COLABORADORES = [
+        'CURCIOL SOCIEDADE DE ADVOGADOS', 'JOSÉ ALMIR CURCIOL', 'KLEBER CURCIOL', 'DANIELLE DOS SANTOS MARQUES CURCIOL',
+        'IVAN PAULO FIORANI', 'JUAN WILLIAN DE OLIVEIRA', 'KBÇA', 'CAMPOS',
+        'ALLIANCE ADMINISTRAÇÃO COMÉRCIO E ENGENHARIA LTDA', 'LUMES GESTAO IMOBILIARIA LTDA',
+    ];
+
+    private static $posicoes = null;
+
+    /** pessoa_id => posicao na ORDEM_COLABORADORES (pelo nome, sem diferenca de acentuacao NFC/NFD). */
+    private static function posicoes(): array
+    {
+        if (self::$posicoes !== null) { return self::$posicoes; }
+        $propria = self::abrir();
+        try {
+            $nomes = array_map(function ($n) { return class_exists('Normalizer') ? (Normalizer::normalize($n, Normalizer::FORM_C) ?: $n) : $n; }, self::ORDEM_COLABORADORES);
+            $marcas = implode(', ', array_fill(0, count($nomes), 'normalize(?, NFC)'));
+            $st = TTransaction::get()->prepare("SELECT id, normalize(nome, NFC) AS nome FROM pessoa WHERE normalize(nome, NFC) IN ({$marcas})");
+            $st->execute($nomes);
+            self::$posicoes = [];
+            foreach ($st->fetchAll(PDO::FETCH_OBJ) as $p) {
+                self::$posicoes[(int) $p->id] = array_search($p->nome, $nomes, true);
+            }
+            if ($propria) { TTransaction::close(); }
+        } catch (Throwable $e) {
+            if ($propria) { TTransaction::rollback(); }
+            throw $e;
+        }
+        return self::$posicoes;
+    }
+
+    /**
+     * Ordena itens pelo colaborador na ordem da planilha. $pessoa e $nome extraem o pessoa_id e o nome de cada item
+     * (o nome desempata quem nao esta na lista).
+     */
+    public static function ordenarPorColaborador(array $itens, callable $pessoa, ?callable $nome = null): array
+    {
+        $pos = self::posicoes();
+        $fim = count(self::ORDEM_COLABORADORES);
+        usort($itens, function ($a, $b) use ($pos, $fim, $pessoa, $nome) {
+            $pa = $pos[(int) $pessoa($a)] ?? $fim;
+            $pb = $pos[(int) $pessoa($b)] ?? $fim;
+            if ($pa !== $pb) { return $pa <=> $pb; }
+            return $nome ? strcmp((string) $nome($a), (string) $nome($b)) : ((int) $pessoa($a) <=> (int) $pessoa($b));
+        });
+        return $itens;
+    }
+
     // ------------------------------------------------------------------ geracao
 
     /**
@@ -35,6 +86,16 @@ class RepasseColaboradorService
         if (!$parcela) { return []; }
         $receber = Conta::find((int) $parcela->conta_id);
         if (!$receber || (string) $receber->tipo_conta_id !== (string) TipoConta::RECEBER) { return []; }
+
+        // conta a receber do levantamento quitada de novo (depois de desquitada): os repasses voltam ligados a ficha
+        if ($levantamentoId === null) {
+            $st = $c->prepare('SELECT id FROM levantamento_financeiro WHERE conta_receber_id = ? ORDER BY id DESC LIMIT 1');
+            $st->execute([(int) $receber->id]);
+            $levantamentoId = ($ficha = $st->fetchColumn()) ? (int) $ficha : null;
+            if ($levantamentoId && $quitacao && $extratoId) {
+                $c->prepare('UPDATE levantamento_financeiro SET extrato_id = ? WHERE id = ? AND extrato_id IS NULL')->execute([$extratoId, $levantamentoId]);
+            }
+        }
 
         $profissionais = LancamentoProfissional::where('lancamento_id', '=', $parcela->id)->orderBy('id')->load();
         if (!$profissionais) { return []; }

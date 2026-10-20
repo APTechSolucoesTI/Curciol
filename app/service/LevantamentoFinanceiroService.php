@@ -156,6 +156,38 @@ class LevantamentoFinanceiroService
      * Conta gerada pelo financeiro do levantamento: bloqueia a acao fora de "Desfazer financeiro".
      * $bloqueiaPagar = false deixa passar a conta a pagar ao cliente (quitar/desquitar sao o pagamento real).
      */
+    /**
+     * Desquitar a conta a receber do levantamento: permitido se a conta a pagar ao cliente nao tiver pagamento
+     * (os repasses aos colaboradores sao conferidos e apagados pelo estorno do recebimento). Usa a transacao aberta.
+     */
+    public static function exigirDesquitavel(int $contaId): void
+    {
+        $c = TTransaction::get();
+        $st = $c->prepare('SELECT conta_pagar_id FROM levantamento_financeiro WHERE conta_receber_id = ? ORDER BY id DESC LIMIT 1');
+        $st->execute([$contaId]);
+        $pagar = (int) $st->fetchColumn();
+        if ($pagar > 0 && self::contaComPagamento($c, $pagar)) {
+            throw new Exception('A conta a pagar ao cliente deste levantamento já foi paga (total ou parcialmente). Desquite o pagamento ao cliente antes de desquitar o recebimento.');
+        }
+    }
+
+    /** O recebimento desquitado sai do extrato: a ficha deixa de apontar para ele (a nova quitacao grava o novo). */
+    public static function desvincularExtrato(int $extratoId): void
+    {
+        TTransaction::get()->prepare('UPDATE levantamento_financeiro SET extrato_id = NULL WHERE extrato_id = ?')->execute([$extratoId]);
+    }
+
+    /** Conta com pagamento: parcela paga (dt_pagamento/extrato_id) ou parcial (saldo menor que o valor, ou extrato da parcela). */
+    private static function contaComPagamento(PDO $c, int $contaId): bool
+    {
+        $st = $c->prepare('SELECT COUNT(*) FROM lancamento l WHERE l.conta_id = ?
+            AND (l.dt_pagamento IS NOT NULL OR l.extrato_id IS NOT NULL
+                 OR (l.saldo IS NOT NULL AND l.saldo <> l.valor)
+                 OR EXISTS (SELECT 1 FROM extrato x WHERE x.lancamento_id = l.id))');
+        $st->execute([$contaId]);
+        return (int) $st->fetchColumn() > 0;
+    }
+
     public static function exigirContaNaoGerada(int $contaId, bool $bloqueiaPagar = true): void
     {
         $g = self::contaDoLevantamento($contaId);
@@ -544,16 +576,8 @@ class LevantamentoFinanceiroService
         $ficha = $st->fetch(PDO::FETCH_OBJ);
         if (!$ficha) { return 'Este pagamento não tem financeiro gerado.'; }
 
-        if ($ficha->conta_pagar_id) {
-            // pago (dt_pagamento/extrato_id) ou parcialmente (saldo menor que o valor, ou extrato de saida da parcela)
-            $st = $c->prepare('SELECT COUNT(*) FROM lancamento l WHERE l.conta_id = ?
-                AND (l.dt_pagamento IS NOT NULL OR l.extrato_id IS NOT NULL
-                     OR (l.saldo IS NOT NULL AND l.saldo <> l.valor)
-                     OR EXISTS (SELECT 1 FROM extrato x WHERE x.lancamento_id = l.id))');
-            $st->execute([(int) $ficha->conta_pagar_id]);
-            if ((int) $st->fetchColumn() > 0) {
-                return 'A conta a pagar ao cliente já foi paga (total ou parcialmente). Estorne o pagamento ao cliente antes de desfazer.';
-            }
+        if ($ficha->conta_pagar_id && self::contaComPagamento($c, (int) $ficha->conta_pagar_id)) {
+            return 'A conta a pagar ao cliente já foi paga (total ou parcialmente). Estorne o pagamento ao cliente antes de desfazer.';
         }
         $st = $c->prepare('SELECT DISTINCT r.extrato_recebimento_id FROM repasse_colaborador r JOIN levantamento_financeiro lf ON lf.id = r.levantamento_financeiro_id WHERE lf.requisicao_pagamento_etapa3_id = ?');
         $st->execute([$etapa3Id]);

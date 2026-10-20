@@ -172,8 +172,14 @@ class LevantamentoFinanceiroView extends TWindow
                 }
             }
 
+            // colaboradores na ordem da planilha do escritorio
+            $r->repasses = RepasseColaboradorService::ordenarPorColaborador($r->repasses,
+                function ($x) { return $x->pessoa_id; }, function ($x) use ($r) { return $r->nomes[(int) $x->pessoa_id] ?? ''; });
+
             $r->receber = $ficha->conta_receber_id ? $c->query('SELECT id, total_conta, quitada FROM conta WHERE id = ' . (int) $ficha->conta_receber_id)->fetch(PDO::FETCH_OBJ) : null;
-            $r->repassesColaboradores = RepasseColaboradorService::listar(['levantamento_ids' => [(int) $ficha->id]]);
+            $r->repassesColaboradores = RepasseColaboradorService::ordenarPorColaborador(
+                RepasseColaboradorService::listar(['levantamento_ids' => [(int) $ficha->id]]),
+                function ($x) { return $x->pessoa_id; }, function ($x) { return $x->colaborador; });
             $r->pagar = $ficha->conta_pagar_id ? $c->query('SELECT id, total_conta, quitada FROM conta WHERE id = ' . (int) $ficha->conta_pagar_id)->fetch(PDO::FETCH_OBJ) : null;
 
             // origem (so para exibir; se o pagamento mudou e o contexto nao carrega, a ficha continua valendo)

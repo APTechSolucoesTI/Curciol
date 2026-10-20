@@ -585,6 +585,9 @@ JS;
 
         if (!empty($r['repasses'])) {
             $nomes = self::nomesDePessoas(array_column($r['repasses'], 'pessoa_id'));
+            // colaboradores na ordem da planilha do escritorio (so a exibicao; o calculo nao muda)
+            $r['repasses'] = RepasseColaboradorService::ordenarPorColaborador($r['repasses'],
+                function ($x) { return $x['pessoa_id']; }, function ($x) use ($nomes) { return $nomes[(int) $x['pessoa_id']] ?? ''; });
             $h .= '<table class="lf-tabela"><thead><tr><th>Parceiro</th><th class="lf-num">%</th><th class="lf-num">Repasse (R$)</th></tr></thead><tbody>';
             foreach ($r['repasses'] as $rp) {
                 $aj = ((float) $rp['ajuste_centavos'] != 0.0) ? ' <small>(inclui ' . self::moeda($rp['ajuste_centavos']) . ' de ajuste de centavos)</small>' : '';
