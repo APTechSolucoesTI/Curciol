@@ -46,8 +46,9 @@ try {
     igual('levantamento: 4 contas a pagar (sem a Curciol)', 4, count($rep));
     ok('levantamento: nenhuma para o escritorio', !in_array($curciol, array_map('intval', array_column($rep, 'pessoa_id')), true));
     igual('levantamento: cada uma 464,20', [464.2, 464.2, 464.2, 464.2], array_map(function ($x) { return round((float) $x['valor'], 2); }, $rep));
-    $vencEsperado = date('Y-m-d', strtotime('2026-02-10 +' . $cfg['dias'] . ' days'));
-    ok('levantamento: vencimento = recebimento + dias, conta a pagar em nome do colaborador, ligada a origem',
+    // regra da configuracao (padrao: ultimo dia do mes do recebimento)
+    $vencEsperado = FinanceiroConfiguracao::vencimentoRepasse('2026-02-10', $cfg);
+    ok('levantamento: vencimento pela regra da configuracao, conta a pagar em nome do colaborador, ligada a origem',
         substr($rep[0]['dt_vencimento'], 0, 10) === $vencEsperado && (int) $rep[0]['cp'] === (int) $rep[0]['pessoa_id'] && (string) $rep[0]['tipo_conta_id'] === (string) TipoConta::PAGAR
         && (int) $rep[0]['conta_origem_id'] === (int) $lf->conta_receber_id && (int) $rep[0]['requisicao_pagamento_id'] === (int) $f['requisicao_id']
         && (int) $rep[0]['categoria_conta_id'] === $cfg['categoria_id'] && (int) $rep[0]['tipo_documento_financeiro_id'] === $cfg['documento_id'] && (int) $rep[0]['levantamento_financeiro_id'] === (int) $lf->id,
