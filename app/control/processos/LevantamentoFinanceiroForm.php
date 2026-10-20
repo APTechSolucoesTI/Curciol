@@ -955,7 +955,7 @@ JS;
             .lf-linha-bloqueio { background: #fff7ed; border: 1px solid #fed7aa; color: #9a3412; padding: 8px 12px; border-radius: 6px; font-size: 13px; margin: 8px 0; }
             .lf-contas-geradas a { margin-right: 14px; font-weight: 600; }
             /* perguntas (bootbox) e dialogos do Adianti (TInputDialog, ex.: alterar vencimento) acima do fundo escuro abaixo */
-            .bootbox.modal, .modal[id^="tinputdialog_"] { z-index: 70000 !important; }
+            .bootbox.modal, .modal[id^='tinputdialog_'] { z-index: 70000 !important; }
             .bootbox.modal + .modal-backdrop, .modal-backdrop { z-index: 69990 !important; }
             @media (max-width: 900px) { .lf-grade { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
         ");
