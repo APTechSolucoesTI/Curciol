@@ -61,8 +61,9 @@ try {
     ok('quadro Conta a pagar ao cliente com link', strpos($v, 'Conta a pagar ao cliente') !== false && strpos($v, 'Abrir a conta a pagar ao cliente') !== false
         && strpos($v, 'key=' . (int) $lf->conta_pagar_id) !== false);
     ok('quadro do cliente vem antes dos repasses', strpos($v, ' Conta a pagar ao cliente') < strpos($v, 'Repasses aos colaboradores'));
+    $v = Normalizer::normalize($v, Normalizer::FORM_C);
     $posJac = strpos($v, 'JOSÉ ALMIR CURCIOL'); $posKleber = strpos($v, 'KLEBER CURCIOL'); $posDani = strpos($v, 'DANIELLE DOS SANTOS'); $posJuan = strpos($v, 'JUAN WILLIAN');
-    ok('repasses na ordem Jac, Kcur, Dani, Juan', $posJac !== false && $posJac < $posKleber && $posKleber < $posDani && $posDani < $posJuan);
+    ok('repasses na ordem Jac, Kcur, Dani, Juan', $posJac !== false && $posJac < $posKleber && $posKleber < $posDani && $posDani < $posJuan, json_encode([$posJac, $posKleber, $posDani, $posJuan]));
 
     // ---------- conta do cliente paga: desquitar recusado ----------
     TTransaction::open('escritorio');
