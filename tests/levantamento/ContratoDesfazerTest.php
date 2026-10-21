@@ -79,7 +79,7 @@ try {
     igual('lista sem mudancas: passa', '', erro($preservar([$linha($A), $linha($B, ['complemento_indexador' => '15'])])));
     ok('botao Excluir da lista: motivo', strpos((string) ContratoFinanceiroService::motivoNaoExcluir($B), 'não pode ser excluído') !== false);
     $s = saida(function () use ($linha, $B) { ContratoForm::onDeleteDetailContratoPagamentoParcela(['__row__data' => $linha($B), '__row__id' => 'xB']); });
-    ok('botao Excluir da lista: mostra o motivo e nao tira a linha', strpos(erro($s), 'não pode ser excluído') !== false && strpos($s, 'removeRowById') === false && strpos($s, 'remove_row') === false, $s);
+    ok('botao Excluir da lista: mostra o motivo e nao tira a linha', strpos($s, '__adianti_error') !== false && strpos($s, 'não pode ser excluído') !== false && strpos($s, 'removeRowById') === false && strpos($s, 'remove_row') === false, $s);
 
     // ---------- desfazer B: so a parcela de B sai; a conta fica com as de A ----------
     $s = saida(function () use ($B, $ct) { ContratoFormView::onDesfazerFinanceiro(['contrato_parcela_id' => $B, 'contrato_id' => $ct]); });
