@@ -46,6 +46,26 @@ class FiltroLista
         return $valores;
     }
 
+    /**
+     * Pessoas de um grupo, para o autocomplete dos filtros de nome (TDBUniqueSearch com chave = nome: o filtro continua
+     * sendo pelo nome, so que escolhido numa lista).
+     */
+    public static function criterioGrupo(string $grupoId): TCriteria
+    {
+        $c = new TCriteria();
+        $c->add(new TFilter('id', 'in', '(SELECT pessoa_id FROM pessoa_grupo WHERE grupo_id = ' . (int) $grupoId . ')'));
+        return $c;
+    }
+
+    /** Aba fechada e aberta de novo: a tela comeca sem filtros (chamado pelo engine.php com curciol_limpar_filtros=1). */
+    public static function limparSessao(string $classe): void
+    {
+        $classe = preg_replace('/[^A-Za-z0-9_]/', '', $classe);
+        foreach (['_filter_data', '_filters', '_filtros', '_colunas', '_parametros'] as $sufixo) {
+            TSession::setValue($classe . $sufixo, null);
+        }
+    }
+
     /** O valor esta aplicado agora? (para destacar o botao rapido ativo) */
     public static function aplicado(string $classe, string $campo, string $valor): bool
     {

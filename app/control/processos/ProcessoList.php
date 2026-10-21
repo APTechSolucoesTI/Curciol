@@ -75,11 +75,15 @@ class ProcessoList extends TPage
         $cliente_id_parte_contraria = new TDBUniqueSearch('cliente_id_parte_contraria', 'escritorio', 'Pessoa', 'id', 'nome','nome asc' , $criteria_cliente_id_parte_contraria );
         $tipo_processo_nome = new BDBSelectCheck('tipo_processo_nome', 'escritorio', 'TipoProcesso', 'id', '{nome}','nome asc' , $criteria_tipo_processo_nome );
         $numero_cnj_numero_col = new TEntry('numero_cnj_numero_col');
-        $cliente_col = new TEntry('cliente_col');
+        // autocomplete: a lista sugere as pessoas pelo nome (o filtro continua sendo pelo nome)
+        $cliente_col = new TDBUniqueSearch('cliente_col', 'escritorio', 'Pessoa', 'nome', 'nome', 'nome asc', FiltroLista::criterioGrupo(Grupo::CLIENTE));
+        $cliente_col->setMinLength(2);
         $contraparte_col = new TEntry('contraparte_col');
         $area_nome = new BDBSelectCheck('area_nome', 'escritorio', 'Area', 'id', '{nome}','nome asc' , $criteria_area_nome );
         $assunto_nome = new BDBSelectCheck('assunto_nome', 'escritorio', 'Assunto', 'id', '{nome}','nome asc' , $criteria_assunto_nome );
-        $responsavel_col = new TEntry('responsavel_col');
+        // autocomplete: a lista sugere as pessoas pelo nome (o filtro continua sendo pelo nome)
+        $responsavel_col = new TDBUniqueSearch('responsavel_col', 'escritorio', 'Pessoa', 'nome', 'nome', 'nome asc', FiltroLista::criterioGrupo(Grupo::PROFISSIONAL));
+        $responsavel_col->setMinLength(2);
         $status_processual_nome = new BDBSelectCheck('status_processual_nome', 'escritorio', 'StatusProcessual', 'id', '{nome}','nome asc' , $criteria_status_processual_nome );
 
         $tipo_processo_id->setChangeAction(new TAction([$this,'onSelectTipoProcesso']));
@@ -90,9 +94,9 @@ class ProcessoList extends TPage
         $responsavel_col->exitOnEnter();
 
         $numero_cnj_numero_col->setExitAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
-        $cliente_col->setExitAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
+        $cliente_col->setChangeAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
         $contraparte_col->setExitAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
-        $responsavel_col->setExitAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
+        $responsavel_col->setChangeAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
 
         $tipo_processo_nome->setChangeAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
         $area_nome->setChangeAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
@@ -537,6 +541,10 @@ class ProcessoList extends TPage
     {
         TSession::setValue(__CLASS__.'_filter_data', NULL);
         TSession::setValue(__CLASS__.'_filters', NULL);
+
+        // os formularios tambem (senao o cabecalho continuava mostrando os filtros antigos)
+        if (!empty($this->form)) { $this->form->clear(true); }
+        if (!empty($this->datagrid_form)) { $this->datagrid_form->clear(true); }
 
         $this->onReload(['offset' => 0, 'first_page' => 1]);
     }

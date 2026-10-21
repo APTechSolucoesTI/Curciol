@@ -35,7 +35,9 @@ class PublicacaoHeaderList extends TPage
         $criteria_jornal = new TCriteria();
         $criteria_etapa = new TCriteria();
 
-        $responsavel = new TEntry('responsavel');
+        // autocomplete: a lista sugere as pessoas pelo nome (o filtro continua sendo pelo nome)
+        $responsavel = new TDBUniqueSearch('responsavel', 'escritorio', 'Pessoa', 'nome', 'nome', 'nome asc', FiltroLista::criterioGrupo(Grupo::PROFISSIONAL));
+        $responsavel->setMinLength(2);
         $jornal = new TDBCombo('jornal', 'escritorio', 'Jornal', 'nome', '{nome}','nome asc' , $criteria_jornal );
         $numero_processo_principal = new TEntry('numero_processo_principal');
         $titulo = new TEntry('titulo');
@@ -56,7 +58,7 @@ class PublicacaoHeaderList extends TPage
 
         $global_filter->setEnterAction(new TAction([$this, 'onGlobalSearch']));
 
-        $responsavel->setExitAction(new TAction([$this, 'onSearch'], ['static'=>'1', 'target_container' => $param['target_container'] ?? null]));
+        $responsavel->setChangeAction(new TAction([$this, 'onSearch'], ['static'=>'1', 'target_container' => $param['target_container'] ?? null]));
         $numero_processo_principal->setExitAction(new TAction([$this, 'onSearch'], ['static'=>'1', 'target_container' => $param['target_container'] ?? null]));
         $titulo->setExitAction(new TAction([$this, 'onSearch'], ['static'=>'1', 'target_container' => $param['target_container'] ?? null]));
         $data_disponibilizacao->setExitAction(new TAction([$this, 'onSearch'], ['static'=>'1', 'target_container' => $param['target_container'] ?? null]));
@@ -734,6 +736,10 @@ class PublicacaoHeaderList extends TPage
     {
         TSession::setValue(__CLASS__.'_filter_data', NULL);
         TSession::setValue(__CLASS__.'_filters', NULL);
+
+        // os formularios tambem (senao o cabecalho continuava mostrando os filtros antigos)
+        if (!empty($this->form)) { $this->form->clear(true); }
+        if (!empty($this->datagrid_form)) { $this->datagrid_form->clear(true); }
 
         $this->onReload(['offset' => 0, 'first_page' => 1]);
     }

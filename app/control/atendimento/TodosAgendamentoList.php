@@ -51,14 +51,16 @@ class TodosAgendamentoList extends TPage
         $cliente_id = new TDBUniqueSearch('cliente_id', 'escritorio', 'Pessoa', 'id', 'nome','nome asc' , $criteria_cliente_id );
         $dt_inicial = new TDate('dt_inicial');
         $ate = new TDate('ate');
-        $cliente_col = new TEntry('cliente_col');
+        // autocomplete: a lista sugere as pessoas pelo nome (o filtro continua sendo pelo nome)
+        $cliente_col = new TDBUniqueSearch('cliente_col', 'escritorio', 'Pessoa', 'nome', 'nome', 'nome asc', FiltroLista::criterioGrupo(Grupo::CLIENTE));
+        $cliente_col->setMinLength(2);
         $especialidade_descricao = new TDBCombo('especialidade_descricao', 'escritorio', 'Especialidade', 'id', '{descricao}','descricao asc' , $criteria_especialidade_descricao );
         $agenda_nome = new TDBCombo('agenda_nome', 'escritorio', 'Agenda', 'id', '{nome}','nome asc' , $criteria_agenda_nome );
         $estado_agenda_nome = new TDBCombo('estado_agenda_nome', 'escritorio', 'EstadoAgenda', 'id', '{nome}','nome asc' , $criteria_estado_agenda_nome );
 
         $cliente_col->exitOnEnter();
 
-        $cliente_col->setExitAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
+        $cliente_col->setChangeAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
 
         $especialidade_descricao->setChangeAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
         $agenda_nome->setChangeAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
@@ -585,6 +587,10 @@ class TodosAgendamentoList extends TPage
     {
         TSession::setValue(__CLASS__.'_filter_data', NULL);
         TSession::setValue(__CLASS__.'_filters', NULL);
+
+        // os formularios tambem (senao o cabecalho continuava mostrando os filtros antigos)
+        if (!empty($this->form)) { $this->form->clear(true); }
+        if (!empty($this->datagrid_form)) { $this->datagrid_form->clear(true); }
 
         $this->onReload(['offset' => 0, 'first_page' => 1]);
     }

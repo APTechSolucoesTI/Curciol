@@ -58,14 +58,16 @@ class AgendaAgendamentoList extends TPage
         $estado_agenda_id = new TDBCombo('estado_agenda_id', 'escritorio', 'EstadoAgenda', 'id', '{nome}','nome asc' , $criteria_estado_agenda_id );
         $dt_inicial = new TDate('dt_inicial');
         $dt_final = new TDate('dt_final');
-        $cliente_col = new TEntry('cliente_col');
+        // autocomplete: a lista sugere as pessoas pelo nome (o filtro continua sendo pelo nome)
+        $cliente_col = new TDBUniqueSearch('cliente_col', 'escritorio', 'Pessoa', 'nome', 'nome', 'nome asc', FiltroLista::criterioGrupo(Grupo::CLIENTE));
+        $cliente_col->setMinLength(2);
         $especialidade_descricao = new TDBCombo('especialidade_descricao', 'escritorio', 'Especialidade', 'id', '{descricao}','descricao asc' , $criteria_especialidade_descricao );
         $is_online = new TCombo('is_online');
         $estado_agenda_nome = new TDBCombo('estado_agenda_nome', 'escritorio', 'EstadoAgenda', 'id', '{nome}','nome asc' , $criteria_estado_agenda_nome );
 
         $cliente_col->exitOnEnter();
 
-        $cliente_col->setExitAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
+        $cliente_col->setChangeAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
 
         $especialidade_descricao->setChangeAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
         $is_online->setChangeAction(new TAction([$this, 'onSearch'], ['static'=>'1']));

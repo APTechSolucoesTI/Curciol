@@ -287,6 +287,17 @@ class RepasseColaboradorList extends TPage
         AdiantiCoreApplication::loadPage(__CLASS__, 'onShow');
     }
 
+    /** Clique no colaborador do resumo: filtra a lista por ele (coluna Colaborador), somando aos outros filtros; de novo, tira. */
+    public static function onFiltrarColaborador($param = null)
+    {
+        $id = (int) ($param['pessoa_id'] ?? 0);
+        $colunas = TSession::getValue(__CLASS__ . '_colunas');
+        $colunas = is_array($colunas) ? $colunas : [];
+        $colunas['colaborador_id'] = ($id > 0 && (int) ($colunas['colaborador_id'] ?? 0) !== $id) ? $id : null;
+        TSession::setValue(__CLASS__ . '_colunas', $colunas);
+        AdiantiCoreApplication::loadPage(__CLASS__, 'onShow');
+    }
+
     public function onClearFilters($param = null)
     {
         TSession::setValue(__CLASS__ . '_filtros', null);
@@ -324,7 +335,7 @@ class RepasseColaboradorList extends TPage
         $aberto = 0.0; $pago = 0.0;
         foreach ($linhas as $r) {
             $p = &$por[$r->colaborador];
-            if (!isset($p)) { $p = ['aberto' => 0.0, 'pago' => 0.0, 'qtd' => 0]; }
+            if (!isset($p)) { $p = ['aberto' => 0.0, 'pago' => 0.0, 'qtd' => 0, 'pessoa_id' => (int) $r->pessoa_id]; }
             $p['qtd']++;
             if ($r->pago_em) { $p['pago'] += (float) $r->valor; $pago += (float) $r->valor; } else { $p['aberto'] += (float) $r->valor; $aberto += (float) $r->valor; }
             unset($p);
@@ -332,8 +343,14 @@ class RepasseColaboradorList extends TPage
         $h = "<div class='rc-resumo'><div class='rc-total'><span>A pagar</span><b>" . self::moeda($aberto) . "</b></div><div class='rc-total'><span>Pago</span><b>" . self::moeda($pago) . "</b></div><div class='rc-total'><span>Repasses</span><b>" . count($linhas) . '</b></div></div>';
         if ($por) {
             $h .= "<table class='rc-por'><thead><tr><th>Colaborador</th><th>Repasses</th><th class='v'>A pagar</th><th class='v'>Pago</th></tr></thead><tbody>";
+            // clicar no colaborador filtra a lista por ele (somando aos outros filtros); clicar de novo tira o filtro
+            $filtrado = (int) ((TSession::getValue(__CLASS__ . '_colunas') ?: [])['colaborador_id'] ?? 0);
             foreach ($por as $nome => $p) {
-                $h .= '<tr><td>' . htmlspecialchars($nome) . '</td><td>' . $p['qtd'] . "</td><td class='v'>" . self::moeda($p['aberto']) . "</td><td class='v'>" . self::moeda($p['pago']) . '</td></tr>';
+                $acao = htmlspecialchars("Adianti.waitMessage = false; __adianti_ajax_exec('class=RepasseColaboradorList&method=onFiltrarColaborador&pessoa_id=" . (int) $p['pessoa_id'] . "'); return false;");
+                $ativo = ($filtrado === (int) $p['pessoa_id']);
+                $nomeLink = "<a href='javascript:void(0)' class='rc-colab" . ($ativo ? ' rc-colab-ativo' : '') . "' title='" . ($ativo ? 'Tirar o filtro deste colaborador' : 'Filtrar por este colaborador') . "' onclick=\"{$acao}\">"
+                    . ($ativo ? '<i class="fas fa-filter"></i> ' : '') . htmlspecialchars($nome) . '</a>';
+                $h .= '<tr><td>' . $nomeLink . '</td><td>' . $p['qtd'] . "</td><td class='v'>" . self::moeda($p['aberto']) . "</td><td class='v'>" . self::moeda($p['pago']) . '</td></tr>';
             }
             $h .= '</tbody></table>';
         }
@@ -384,6 +401,9 @@ class RepasseColaboradorList extends TPage
             table.rc-por { border-collapse:collapse; margin-bottom:12px; min-width:420px; }
             table.rc-por th, table.rc-por td { padding:4px 10px; border-bottom:1px solid #eef2f7; text-align:left; font-size:12px; }
             table.rc-por .v { text-align:right; white-space:nowrap; }
+            table.rc-por a.rc-colab { color:#1f3a5f; text-decoration:none; border-bottom:1px dashed #94a3b8; }
+            table.rc-por a.rc-colab:hover { color:#2563eb; border-bottom-color:#2563eb; }
+            table.rc-por a.rc-colab-ativo { font-weight:600; color:#2563eb; border-bottom:0; }
             a.rc-origem { color:#1f3a5f; }
             .rc-aberto { color:#9a3412; font-weight:600; } .rc-pago { color:#065f46; } .rc-comp { background:#dcfce7; color:#166534; border-radius:4px; padding:0 5px; font-size:11px; }
             .rc-vazio { padding:30px; text-align:center; color:#64748b; }

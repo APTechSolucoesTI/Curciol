@@ -28,6 +28,12 @@ class TApplication extends AdiantiCoreApplication
                 
                 if( isset($programs[$class]) OR $public OR $public_mobile)
                 {
+                    // aba aberta de novo pelo menu (depois de fechada): a tela comeca sem filtros (curciol-navegacao.js);
+                    // restaurar as abas guardadas (adianti_reload_tab) mantem os filtros
+                    if (!empty($_REQUEST['curciol_limpar_filtros']) && empty($_REQUEST['adianti_reload_tab']))
+                    {
+                        FiltroLista::limparSessao($class);
+                    }
                     parent::run($debug);
                 }
                 else

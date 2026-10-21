@@ -700,6 +700,10 @@ class ExtratoList extends TPage
     {
         TSession::setValue(__CLASS__.'_filter_data', NULL);
         TSession::setValue(__CLASS__.'_filters', NULL);
+
+        // os formularios tambem (senao o cabecalho continuava mostrando os filtros antigos)
+        if (!empty($this->form)) { $this->form->clear(true); }
+        if (!empty($this->datagrid_form)) { $this->datagrid_form->clear(true); }
         TSession::setValue(ExtratoParametrosService::SESSAO, NULL);
 
         $this->onReload(['offset' => 0, 'first_page' => 1]);

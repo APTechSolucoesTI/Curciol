@@ -46,7 +46,9 @@ class PrintPublicacaoProcessoList extends TWindow
         $data_disponibilizacao = new TDateTime('data_disponibilizacao');
         $prazo = new TDate('prazo');
         $data_entrega = new TDateTime('data_entrega');
-        $responsavel = new TEntry('responsavel');
+        // autocomplete: a lista sugere as pessoas pelo nome (o filtro continua sendo pelo nome)
+        $responsavel = new TDBUniqueSearch('responsavel', 'escritorio', 'Pessoa', 'nome', 'nome', 'nome asc', FiltroLista::criterioGrupo(Grupo::PROFISSIONAL));
+        $responsavel->setMinLength(2);
         $jornal = new TDBCombo('jornal', 'escritorio', 'Jornal', 'nome', '{nome}','nome asc' , $criteria_jornal );
 
 

@@ -61,6 +61,28 @@
         });
     }
 
+    // abas do topo: aba nova (aberta pelo menu, inclusive depois de fechada) comeca sem filtros; clicar no menu de uma
+    // aba que continua aberta recarrega a lista mantendo os filtros (onReload em vez de onShow, que os zerava)
+    if (typeof window.__adianti_load_page === 'function' && !window.__adianti_load_page.__curciol) {
+        var carregarPagina = window.__adianti_load_page;
+        window.__adianti_load_page = function (page) {
+            var args = Array.prototype.slice.call(arguments);
+            if (typeof page === 'string' && page.indexOf('adianti_open_tab=1') >= 0 && page.indexOf('adianti_reload_tab=1') < 0
+                && page.indexOf('curciol_limpar_filtros') < 0) {
+                var nome = (typeof __adianti_query_to_json === 'function') ? (__adianti_query_to_json(page).adianti_tab_name || '') : '';
+                if (window.Adianti && Adianti.tabs && nome && Adianti.tabs[nome]) {
+                    if (/List$/.test(classe(page))) {
+                        args[0] = page.replace(/([?&]method=)onShow\b/, '$1onReload');
+                    }
+                } else {
+                    args[0] = page + '&curciol_limpar_filtros=1';
+                }
+            }
+            return carregarPagina.apply(this, args);
+        };
+        window.__adianti_load_page.__curciol = true;
+    }
+
     var depoisDeCarregar = Template.onAfterLoad;
     Template.onAfterLoad = function () {
         var resultado = (typeof depoisDeCarregar === 'function') ? depoisDeCarregar.apply(this, arguments) : undefined;

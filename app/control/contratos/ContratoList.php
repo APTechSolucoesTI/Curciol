@@ -52,9 +52,13 @@ class ContratoList extends TPage
         $assunto_id = new TCombo('assunto_id');
         $objeto = new TText('objeto');
         $numero_col = new TEntry('numero_col');
-        $cliente_col = new TEntry('cliente_col');
+        // autocomplete: a lista sugere as pessoas pelo nome (o filtro continua sendo pelo nome)
+        $cliente_col = new TDBUniqueSearch('cliente_col', 'escritorio', 'Pessoa', 'nome', 'nome', 'nome asc', FiltroLista::criterioGrupo(Grupo::CLIENTE));
+        $cliente_col->setMinLength(2);
         $assunto_nome = new BDBSelectCheck('assunto_nome', 'escritorio', 'Assunto', 'id', '{nome}','nome asc' , $criteria_assunto_nome );
-        $parceiro_col = new TEntry('parceiro_col');
+        // autocomplete: a lista sugere as pessoas pelo nome (o filtro continua sendo pelo nome)
+        $parceiro_col = new TDBUniqueSearch('parceiro_col', 'escritorio', 'Pessoa', 'nome', 'nome', 'nome asc', FiltroLista::criterioGrupo(Grupo::PARCEIRO));
+        $parceiro_col->setMinLength(2);
         $contrato_status_nome = new TDBCombo('contrato_status_nome', 'escritorio', 'ContratoStatus', 'id', '{nome}','nome asc' , $criteria_contrato_status_nome );
 
         $area_id->setChangeAction(new TAction([$this,'onChangearea_id']));
@@ -64,8 +68,8 @@ class ContratoList extends TPage
         $parceiro_col->exitOnEnter();
 
         $numero_col->setExitAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
-        $cliente_col->setExitAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
-        $parceiro_col->setExitAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
+        $cliente_col->setChangeAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
+        $parceiro_col->setChangeAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
 
         $assunto_nome->setChangeAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
         $contrato_status_nome->setChangeAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
@@ -369,6 +373,10 @@ class ContratoList extends TPage
     {
         TSession::setValue(__CLASS__.'_filter_data', NULL);
         TSession::setValue(__CLASS__.'_filters', NULL);
+
+        // os formularios tambem (senao o cabecalho continuava mostrando os filtros antigos)
+        if (!empty($this->form)) { $this->form->clear(true); }
+        if (!empty($this->datagrid_form)) { $this->datagrid_form->clear(true); }
 
         $this->onReload(['offset' => 0, 'first_page' => 1]);
     }

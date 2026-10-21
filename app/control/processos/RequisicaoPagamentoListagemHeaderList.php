@@ -37,7 +37,9 @@ class RequisicaoPagamentoListagemHeaderList extends TPage
 
         $numero_processo = new TEntry('numero_processo');
         $tipo_requisicao = new TDBCombo('tipo_requisicao', 'escritorio', 'TiposRequisicaoPagamento', 'id', '{nome}','id asc' , $criteria_tipo_requisicao );
-        $cliente = new TEntry('cliente');
+        // autocomplete: a lista sugere as pessoas pelo nome (o filtro continua sendo pelo nome)
+        $cliente = new TDBUniqueSearch('cliente', 'escritorio', 'Pessoa', 'nome', 'nome', 'nome asc', FiltroLista::criterioGrupo(Grupo::CLIENTE));
+        $cliente->setMinLength(2);
         $data_requerimento = new BDateRange('data_requerimento', 'data_requerimento1');
         $data_deferimento_expedicao_requisitorio = new BDateRange('data_deferimento_expedicao_requisitorio', 'data_deferimento_expedicao_requisitorio1');
         $data_pedido_mle = new BDateRange('data_pedido_mle', 'data_pedido_mle1');
@@ -48,7 +50,7 @@ class RequisicaoPagamentoListagemHeaderList extends TPage
         $cliente->exitOnEnter();
 
         $numero_processo->setExitAction(new TAction([$this, 'onSearch'], ['static'=>'1', 'target_container' => $param['target_container'] ?? null]));
-        $cliente->setExitAction(new TAction([$this, 'onSearch'], ['static'=>'1', 'target_container' => $param['target_container'] ?? null]));
+        $cliente->setChangeAction(new TAction([$this, 'onSearch'], ['static'=>'1', 'target_container' => $param['target_container'] ?? null]));
         $data_requerimento->setExitAction(new TAction([$this, 'onSearch'], ['static'=>'1', 'target_container' => $param['target_container'] ?? null]));
         $data_deferimento_expedicao_requisitorio->setExitAction(new TAction([$this, 'onSearch'], ['static'=>'1', 'target_container' => $param['target_container'] ?? null]));
         $data_pedido_mle->setExitAction(new TAction([$this, 'onSearch'], ['static'=>'1', 'target_container' => $param['target_container'] ?? null]));
@@ -89,7 +91,9 @@ class RequisicaoPagamentoListagemHeaderList extends TPage
 
         $numero_processo_f = new TEntry('numero_processo_f');
         $tipo_requisicao_f = new TDBCombo('tipo_requisicao_f', 'escritorio', 'TiposRequisicaoPagamento', 'id', '{nome}', 'id asc');
-        $cliente_f = new TEntry('cliente_f');
+        // autocomplete: a lista sugere as pessoas pelo nome (o filtro continua sendo pelo nome)
+        $cliente_f = new TDBUniqueSearch('cliente_f', 'escritorio', 'Pessoa', 'nome', 'nome', 'nome asc', FiltroLista::criterioGrupo(Grupo::CLIENTE));
+        $cliente_f->setMinLength(2);
         $status_f = new TDBCombo('status_f', 'escritorio', 'StatusRequisicaoPagamento', 'id', '{nome}', 'id asc');
         $data_requerimento_f = new BDateRange('data_requerimento_f', 'data_requerimento1_f');
         $data_deferimento_expedicao_requisitorio_f = new BDateRange('data_deferimento_expedicao_requisitorio_f', 'data_deferimento_expedicao_requisitorio1_f');

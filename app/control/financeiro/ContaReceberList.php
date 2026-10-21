@@ -971,6 +971,10 @@ class ContaReceberList extends TPage
         TSession::setValue(__CLASS__.'_filter_data', NULL);
         TSession::setValue(__CLASS__.'_filters', NULL);
 
+        // os formularios tambem (senao o cabecalho continuava mostrando os filtros antigos)
+        if (!empty($this->form)) { $this->form->clear(true); }
+        if (!empty($this->datagrid_form)) { $this->datagrid_form->clear(true); }
+
         $this->onReload(['offset' => 0, 'first_page' => 1]);
 
     }
@@ -978,27 +982,47 @@ class ContaReceberList extends TPage
     {
         $this->onReload([]);
     }
-    // botoes rapidos: ligam/desligam o filtro somando aos demais (clicar de novo tira); o ativo fica destacado
+    // botoes rapidos: um de cada vez (Vencidas, A vencer ou Em aberto), somando aos demais filtros; clicar no ativo tira
     public function onVencidas($param = null) 
     {
-        $this->onSearch(['__sem_formulario' => 1, '__filtros_extra' => FiltroLista::alternar(__CLASS__, ['filtro_rapido' => '1'])]);
+        $this->onSearch(['__sem_formulario' => 1, '__filtros_extra' => self::filtroRapido('vencidas')]);
     }
     public function onVencer($param = null) 
     {
-        $this->onSearch(['__sem_formulario' => 1, '__filtros_extra' => FiltroLista::alternar(__CLASS__, ['filtro_rapido' => '2'])]);
+        $this->onSearch(['__sem_formulario' => 1, '__filtros_extra' => self::filtroRapido('vencer')]);
     }
     public function onEmAberto($param = null) 
     {
-        $this->onSearch(['__sem_formulario' => 1, '__filtros_extra' => FiltroLista::alternar(__CLASS__, ['quitada' => 'N'])]);
+        $this->onSearch(['__sem_formulario' => 1, '__filtros_extra' => self::filtroRapido('aberto')]);
     }
 
-    /** Destaca os botoes rapidos que estao filtrando agora. */
+    /** Qual botao rapido esta ativo agora ('vencidas', 'vencer', 'aberto' ou ''). */
+    private static function filtroRapidoAtivo(): string
+    {
+        if (FiltroLista::aplicado(__CLASS__, 'filtro_rapido', '1')) { return 'vencidas'; }
+        if (FiltroLista::aplicado(__CLASS__, 'filtro_rapido', '2')) { return 'vencer'; }
+        if (FiltroLista::aplicado(__CLASS__, 'quitada', 'N')) { return 'aberto'; }
+        return '';
+    }
+
+    /** Valores do botao rapido: liga ele e desliga os outros; se ja era o ativo, desliga. */
+    private static function filtroRapido(string $botao): array
+    {
+        $valores = [
+            'vencidas' => ['filtro_rapido' => '1', 'quitada' => ''],
+            'vencer'   => ['filtro_rapido' => '2', 'quitada' => ''],
+            'aberto'   => ['filtro_rapido' => '', 'quitada' => 'N'],
+        ];
+        return (self::filtroRapidoAtivo() === $botao) ? ['filtro_rapido' => '', 'quitada' => ''] : $valores[$botao];
+    }
+
+    /** Destaca o botao rapido que esta filtrando agora. */
     private static function marcarBotoesRapidos(): void
     {
         $ativos = [
-            'button_mostrar_vencidas' => FiltroLista::aplicado(__CLASS__, 'filtro_rapido', '1'),
-            'button_vencer' => FiltroLista::aplicado(__CLASS__, 'filtro_rapido', '2'),
-            'button_em_aberto' => FiltroLista::aplicado(__CLASS__, 'quitada', 'N'),
+            'button_mostrar_vencidas' => self::filtroRapidoAtivo() === 'vencidas',
+            'button_vencer' => self::filtroRapidoAtivo() === 'vencer',
+            'button_em_aberto' => self::filtroRapidoAtivo() === 'aberto',
         ];
         TScript::create('setTimeout(function () { var ativos = ' . json_encode($ativos) . '; Object.keys(ativos).forEach(function (n) {'
             . ' $(\'[name="\' + n + \'"]\').css(ativos[n] ? {"background-color": "#dbeafe", "border-color": "#2563eb", "font-weight": "600"} : {"background-color": "", "border-color": "", "font-weight": ""}); }); }, 300);');

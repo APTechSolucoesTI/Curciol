@@ -31,6 +31,14 @@ class RepasseColaboradorService
 
     private static $posicoes = null;
 
+    /** A conta a pagar e um repasse a colaborador? (a pessoa dela e o colaborador, nao o cliente do contrato) Usa a transacao aberta. */
+    public static function ehRepasse(int $contaId): bool
+    {
+        $st = TTransaction::get()->prepare('SELECT 1 FROM repasse_colaborador WHERE conta_pagar_id = ? LIMIT 1');
+        $st->execute([$contaId]);
+        return (bool) $st->fetchColumn();
+    }
+
     /** pessoa_id => posicao na ORDEM_COLABORADORES (pelo nome, sem diferenca de acentuacao NFC/NFD). */
     private static function posicoes(): array
     {

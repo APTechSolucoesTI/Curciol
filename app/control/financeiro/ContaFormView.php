@@ -54,7 +54,8 @@ class ContaFormView extends TPage
                  * busca todos os clientes do contrato.
                  */
                 // conta gerada pelo financeiro do levantamento (tem requisicao): a pessoa e a da propria conta
-                if (!empty($conta->contrato_id) && empty($conta->requisicao_pagamento_id))
+                // repasse a colaborador copia o contrato da conta a receber: a pessoa e o colaborador
+                if (!empty($conta->contrato_id) && empty($conta->requisicao_pagamento_id) && !RepasseColaboradorService::ehRepasse((int) $conta->id))
                 {
                     $clientesContrato = ContratoPessoa::where(
                         'contrato_id',
