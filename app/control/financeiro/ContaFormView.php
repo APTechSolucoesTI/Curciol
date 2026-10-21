@@ -26,6 +26,12 @@ class ContaFormView extends TPage
         $this->form = new BootstrapFormBuilder(self::$formName);
         $this->form->setTagName('div');
 
+        // link de uma tela aberta antes da conta ser excluida (ou do financeiro ser desfeito)
+        if (empty($param['key']) || !Conta::find((int) $param['key'])) {
+            TTransaction::close();
+            throw new Exception('Esta conta não existe mais: ela foi excluída ou o financeiro que a gerou foi desfeito. Atualize a tela para ver a situação atual.');
+        }
+
         $conta = new Conta($param['key']);
         // define the form title
         $this->form->setFormTitle("Detalhe da conta #{$param['key']}");

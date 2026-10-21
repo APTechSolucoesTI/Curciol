@@ -213,6 +213,65 @@ class ContratoFinanceiroService
         }
     }
 
+    /**
+     * Conta com parcelas geradas por pagamento do contrato: excluir/editar/cancelar so pelo "Desfazer financeiro" do
+     * contrato (editar recriava as parcelas em aberto e perdia a ligacao com o pagamento e a divisao dos profissionais).
+     * Conta antiga, sem parcelas ligadas a pagamento, continua ajustavel pela propria conta. Null quando pode.
+     */
+    public static function motivoConta(int $contaId): ?string
+    {
+        if ($contaId <= 0) {
+            return null;
+        }
+        $propria = (TTransaction::get() === null);
+        if ($propria) { TTransaction::open('escritorio'); }
+        try {
+            $st = TTransaction::get()->prepare('SELECT DISTINCT contrato_parcela_id FROM lancamento WHERE conta_id = ? AND contrato_parcela_id IS NOT NULL ORDER BY 1');
+            $st->execute([$contaId]);
+            $pagamentos = [];
+            $contrato = null;
+            foreach ($st->fetchAll(PDO::FETCH_COLUMN) as $pid) {
+                $p = ContratoPagamentoParcela::find((int) $pid);
+                if ($p) {
+                    $pagamentos[] = self::descricao($p);
+                    $contrato = $contrato ?: Contrato::find((int) $p->contrato_id);
+                }
+            }
+            if ($propria) { TTransaction::close(); }
+        } catch (Throwable $e) {
+            if ($propria) { TTransaction::rollback(); }
+            throw $e;
+        }
+        if (!$pagamentos) {
+            return null;
+        }
+        return 'Esta conta foi gerada pelo financeiro do contrato' . (!empty($contrato->numero) ? ' ' . $contrato->numero : '')
+            . ' (' . (count($pagamentos) > 1 ? 'pagamentos ' : 'pagamento ') . implode(', ', $pagamentos) . ') e não pode ser excluída nem alterada por aqui. '
+            . 'Use "Desfazer financeiro" na aba Pagamentos do contrato (possível enquanto nenhuma parcela tiver sido recebida).';
+    }
+
+    /** Contrato com financeiro gerado nao pode ser excluido: desfazer antes, mesmo sem nada recebido. Usa a transacao aberta. */
+    public static function exigirContratoExcluivel(int $contratoId): void
+    {
+        $comFinanceiro = [];
+        foreach (ContratoPagamentoParcela::where('contrato_id', '=', $contratoId)->load() as $p) {
+            if (self::temFinanceiro((int) $p->id)) {
+                $comFinanceiro[] = self::descricao($p);
+            }
+        }
+        if ($comFinanceiro) {
+            throw new Exception('Este contrato tem financeiro gerado (' . (count($comFinanceiro) > 1 ? 'pagamentos ' : 'pagamento ') . implode(', ', $comFinanceiro)
+                . ') e não pode ser excluído. Use "Desfazer financeiro" em cada pagamento na aba Pagamentos antes de excluir o contrato.');
+        }
+        // contas do contrato sem ligacao com pagamento (geradas antes da ligacao): ajustar pela propria conta
+        $st = TTransaction::get()->prepare("SELECT COUNT(*) FROM conta WHERE contrato_id = ? AND tipo_conta_id = '1'");
+        $st->execute([$contratoId]);
+        $contas = (int) $st->fetchColumn();
+        if ($contas > 0) {
+            throw new Exception("Este contrato tem {$contas} conta(s) a receber gerada(s) e não pode ser excluído. Exclua as contas a receber do contrato antes.");
+        }
+    }
+
     private static function descricao(ContratoPagamentoParcela $p): string
     {
         $opcao = $p->contrato_opcao_pagamento_id ? ContratoPagamentoOpcao::find((int) $p->contrato_opcao_pagamento_id) : null;

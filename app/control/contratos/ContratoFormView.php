@@ -1184,6 +1184,9 @@ class ContratoFormView extends TPage
                 // instantiates object
                 $object = new Contrato($key, FALSE);
 
+                // financeiro gerado: desfazer antes (mesmo sem nada recebido)
+                ContratoFinanceiroService::exigirContratoExcluivel((int) $object->id);
+
                 if($object->loadComposite('ContratoProcesso', 'contrato_id', $object->id)){
                     throw new Exception("Esse contrato está vinculado a um processo e não pode ser removido!");
                 }

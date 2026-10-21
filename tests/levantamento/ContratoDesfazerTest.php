@@ -69,6 +69,19 @@ try {
     igual('conta com 3 parcelas (A, A, B)', [[1, $A], [2, $A], [3, $B]],
         array_map(function ($l) { return [(int) $l['parcela'], (int) $l['contrato_parcela_id']]; }, q("SELECT parcela, contrato_parcela_id FROM lancamento WHERE conta_id = {$contaId} ORDER BY parcela")));
 
+    // ---------- conta gerada pelo contrato: nao exclui nem edita pela conta; contrato com financeiro nao exclui ----------
+    $m = (string) ContratoFinanceiroService::motivoConta($contaId);
+    ok('conta do contrato: motivo cita o contrato e o desfazer', strpos($m, 'financeiro do contrato TESTE LEVANTAMENTO 1') !== false && strpos($m, 'pagamentos') !== false && strpos($m, 'Desfazer financeiro') !== false, $m);
+    lanca('editar a conta do contrato: recusado', function () use ($contaId) { LevantamentoFinanceiroService::exigirContaNaoGerada($contaId); }, 'financeiro do contrato');
+    $s = saida(function () use ($contaId) { (new ContaFormView(['key' => $contaId]))->onDelete(['key' => $contaId, 'delete' => 1]); });
+    ok('excluir a conta do contrato pela tela: aviso', strpos($s, 'financeiro do contrato') !== false, substr($s, -600));
+    igual('conta e parcelas continuam', 3, (int) q("SELECT count(*) n FROM lancamento WHERE conta_id = {$contaId}")[0]['n']);
+    $s = saida(function () use ($ct) { (new ContratoFormView(['key' => $ct]))->onDelete(['key' => $ct, 'delete' => 1]); });
+    ok('excluir o contrato com financeiro: aviso para desfazer', strpos($s, 'tem financeiro gerado') !== false && strpos($s, 'Desfazer financeiro') !== false, substr($s, -600));
+    igual('contrato continua', 1, (int) q("SELECT count(*) n FROM contrato WHERE id = {$ct}")[0]['n']);
+    $s = saida(function () { new ContaFormView(['key' => 999999999]); });
+    ok('abrir conta que nao existe mais: mensagem clara', strpos($s, 'Esta conta não existe mais') !== false, $s);
+
     // ---------- cadastro do contrato: pagamento com financeiro nao sai nem muda ----------
     $s = $preservar([$linha($A)]);
     ok('excluir B (com financeiro) no cadastro: mensagem clara', strpos(erro($s), 'não pode ser excluído') !== false && strpos(erro($s), 'Desfazer financeiro') !== false, $s);

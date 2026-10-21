@@ -316,6 +316,10 @@ class LevantamentoFinanceiroService
         // conta a pagar de repasse a colaborador: so muda pelo estorno do recebimento que a gerou
         if ($bloqueiaPagar) {
             RepasseColaboradorService::exigirNaoRepasse($contaId);
+            // conta gerada pelo financeiro do contrato: so pelo "Desfazer financeiro" do contrato
+            if ($motivo = ContratoFinanceiroService::motivoConta($contaId)) {
+                throw new Exception($motivo);
+            }
         }
     }
 

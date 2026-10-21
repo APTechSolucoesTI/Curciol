@@ -147,22 +147,22 @@ class RequisicaoPagamentoEtapa3Visualizacao extends TWindow
     }
 
     /**
-     * Botao de excluir o pagamento: ativo quando nada vindo dele foi compensado ou quitado; senao desabilitado com o motivo.
+     * Botao de excluir o pagamento. Bloqueado (ex.: financeiro gerado): fica apagado, e o clique mostra o motivo.
      * $origem/$urlRecarga: tela a recarregar depois (janela ou aba da requisicao). $texto: botao com rotulo (detalhe).
      */
     public static function botaoExcluir(int $etapa3Id, ?string $motivo, string $origem, string $urlRecarga, bool $texto = false): string
     {
-        if ($motivo !== null) {
-            $titulo = htmlspecialchars('Não pode excluir: ' . $motivo, ENT_QUOTES, 'UTF-8');
-            return $texto
-                ? "<span class='btn btn-sm btn-default disabled' title='{$titulo}' style='pointer-events:auto;cursor:not-allowed'><i class='fas fa-trash-alt'></i> Excluir pagamento</span>"
-                : "<span class='req-action-btn' title='{$titulo}' style='opacity:.35;cursor:not-allowed'><i class='fas fa-trash-alt'></i></span>";
-        }
         $url = 'engine.php?' . http_build_query([
             'class' => __CLASS__, 'method' => 'onExcluir', 'static' => '1', 'key' => $etapa3Id,
             'origem' => $origem, 'url_recarga' => $urlRecarga, 'fechar_detalhe' => $texto ? '1' : '0',
         ]);
         $onclick = htmlspecialchars('Adianti.waitMessage = false; __adianti_ajax_exec(' . json_encode(substr($url, strlen('engine.php?'))) . '); return false;', ENT_QUOTES, 'UTF-8');
+        if ($motivo !== null) {
+            $titulo = htmlspecialchars('Não pode excluir: ' . $motivo, ENT_QUOTES, 'UTF-8');
+            return $texto
+                ? "<a href='javascript:void(0)' class='btn btn-sm btn-default' title='{$titulo}' style='opacity:.55' onclick=\"{$onclick}\"><i class='fas fa-trash-alt'></i> Excluir pagamento</a>"
+                : "<a href='javascript:void(0)' class='req-action-btn' title='{$titulo}' style='opacity:.35' onclick=\"{$onclick}\"><i class='fas fa-trash-alt'></i></a>";
+        }
         return $texto
             ? "<a href='javascript:void(0)' class='btn btn-sm btn-default' style='color:#b91c1c' onclick=\"{$onclick}\"><i class='fas fa-trash-alt'></i> Excluir pagamento</a>"
             : "<a href='javascript:void(0)' class='req-action-btn' title='Excluir pagamento' style='color:#b91c1c' onclick=\"{$onclick}\"><i class='fas fa-trash-alt'></i></a>";
@@ -173,14 +173,17 @@ class RequisicaoPagamentoEtapa3Visualizacao extends TWindow
     {
         try {
             $id = (int) ($param['key'] ?? 0);
-            $comFinanceiro = (LevantamentoFinanceiroService::existePara($id) !== null);
+            // bloqueado (financeiro gerado, ...): so o aviso com o motivo
+            if ($motivo = PagamentoExclusaoService::motivoBloqueio($id)) {
+                new TMessage('warning', 'Não é possível excluir este pagamento.<br><br>' . htmlspecialchars($motivo));
+                self::caixaNaFrente();
+                return;
+            }
             $acao = new TAction([__CLASS__, 'onExcluirConfirmado'], [
                 'static' => '1', 'key' => $id, 'origem' => $param['origem'] ?? '',
                 'url_recarga' => $param['url_recarga'] ?? '', 'fechar_detalhe' => $param['fechar_detalhe'] ?? '0',
             ]);
-            new TQuestion('Excluir este pagamento?' . ($comFinanceiro
-                ? '<br><br>O financeiro gerado por ele também será desfeito: a conta a receber, a conta a pagar ao cliente e as contas a pagar dos colaboradores serão apagadas.'
-                : ''), $acao);
+            new TQuestion('Excluir este pagamento?', $acao);
             self::caixaNaFrente();
         } catch (Exception $e) {
             new TMessage('error', $e->getMessage());

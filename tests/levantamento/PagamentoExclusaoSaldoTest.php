@@ -73,29 +73,26 @@ try {
     lanca('excluir de novo: nao encontrado', function () use ($E, $segundo) { $E::excluir($segundo); }, 'não encontrado');
 } finally { Fixtures::limpar($f); }
 
-// ---------- excluir com financeiro ----------
-$f = Fixtures::criar();
-try {
-    $lf = LevantamentoFinanceiroService::gerar($f['etapa3_id'], $dados($f, 'S'));
-    ok('recebimento compensado bloqueia', strpos((string) $E::motivoBloqueio($f['etapa3_id']), 'compensado') !== false);
-    lanca('excluir recusado', function () use ($E, $f) { $E::excluir($f['etapa3_id']); }, 'compensado');
-    $html = saida(function () use ($f) { (new RequisicaoPagamentoVisualizacao(['key' => $f['requisicao_id']]))->show(); });
-    ok('botao de excluir desabilitado com o motivo', strpos($html, 'Não pode excluir: O recebimento deste pagamento já foi compensado') !== false);
-} finally { Fixtures::limpar($f); }
-
+// ---------- excluir com financeiro: recusado com aviso, mesmo sem nada pago (desfazer antes) ----------
 $f = Fixtures::criar();
 try {
     $lf = LevantamentoFinanceiroService::gerar($f['etapa3_id'], $dados($f, 'N'));
-    TTransaction::open('escritorio');
-    $parc = Lancamento::where('conta_id', '=', $lf->conta_pagar_id)->first(); $parc->dt_pagamento = '2026-02-15'; $parc->store();
-    TTransaction::close();
-    ok('conta a pagar ao cliente paga bloqueia', strpos((string) $E::motivoBloqueio($f['etapa3_id']), 'cliente') !== false);
-    TTransaction::open('escritorio'); $parc = Lancamento::where('conta_id', '=', $lf->conta_pagar_id)->first(); $parc->dt_pagamento = null; $parc->store(); TTransaction::close();
+    ok('com financeiro: motivo pede desfazer antes', strpos((string) $E::motivoBloqueio($f['etapa3_id']), 'Desfazer financeiro') !== false);
+    lanca('excluir recusado', function () use ($E, $f) { $E::excluir($f['etapa3_id']); }, 'financeiro gerado');
+    igual('nada foi apagado', [1, 1], [
+        (int) valor('SELECT COUNT(*) FROM requisicao_pagamento_etapa3 WHERE id = ?', [$f['etapa3_id']]),
+        (int) valor('SELECT COUNT(*) FROM levantamento_financeiro WHERE id = ?', [$lf->id]),
+    ]);
+    $html = saida(function () use ($f) { (new RequisicaoPagamentoVisualizacao(['key' => $f['requisicao_id']]))->show(); });
+    ok('botao de excluir apagado com o motivo', strpos($html, 'Não pode excluir: Este pagamento tem financeiro gerado') !== false);
+    $s = saida(function () use ($f) { RequisicaoPagamentoEtapa3Visualizacao::onExcluir(['key' => $f['etapa3_id']]); });
+    ok('clique no botao: aviso com o motivo, sem pergunta', strpos($s, 'Não é possível excluir este pagamento') !== false && strpos($s, 'onExcluirConfirmado') === false, $s);
 
-    igual('nada pago nem compensado: pode excluir', null, $E::motivoBloqueio($f['etapa3_id']));
     igual('requisicao estava Quitado', 7, (int) valor('SELECT status_requisicao_pagamento_id FROM requisicao_pagamento_cliente WHERE id = ?', [$f['rpc_id']]));
+    LevantamentoFinanceiroService::desfazer($f['etapa3_id']);
+    igual('desfeito o financeiro: pode excluir', null, $E::motivoBloqueio($f['etapa3_id']));
     $E::excluir($f['etapa3_id']);
-    igual('pagamento excluido com o financeiro', [0, 0, 0], [
+    igual('pagamento excluido e contas do financeiro ja apagadas', [0, 0, 0], [
         (int) valor('SELECT COUNT(*) FROM requisicao_pagamento_etapa3 WHERE id = ?', [$f['etapa3_id']]),
         (int) valor('SELECT COUNT(*) FROM levantamento_financeiro WHERE id = ?', [$lf->id]),
         (int) valor('SELECT COUNT(*) FROM conta WHERE id IN (?, ?)', [$lf->conta_receber_id, $lf->conta_pagar_id]),
