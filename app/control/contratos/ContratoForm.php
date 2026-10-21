@@ -1162,6 +1162,12 @@ class ContratoForm extends TPage
 
             $__row__data = unserialize(base64_decode($param['__row__data']));
 
+            // pagamento com financeiro gerado nao sai da lista: o usuario ve o motivo (antes dava erro de banco ao salvar)
+            $idPagamento = (int) ($__row__data->id ?? ($__row__data->__display__->id ?? 0));
+            if ($motivo = ContratoFinanceiroService::motivoNaoExcluir($idPagamento)) {
+                throw new Exception($motivo);
+            }
+
             $data = new stdClass;
             $data->contrato_pagamento_parcela_contrato_contrato_opcao_pagamento_id = '';
             $data->contrato_pagamento_parcela_contrato_id = '';
@@ -1312,6 +1318,8 @@ class ContratoForm extends TPage
 //<generatedAutoCode>
             $this->contrato_pagamento_parcela_contrato_criteria->setProperty('order', 'contrato_opcao_pagamento_id asc');
 //</generatedAutoCode>
+            // pagamento com financeiro gerado: nao pode sair nem mudar valor, data, opcao ou parcelas (desfazer o financeiro antes)
+            ContratoFinanceiroService::exigirPagamentosPreservados((int) $object->id, $param['contrato_pagamento_parcela_contrato_list___row__data'] ?? []);
             $contrato_pagamento_parcela_contrato_items = $this->storeMasterDetailItems('ContratoPagamentoParcela', 'contrato_id', 'contrato_pagamento_parcela_contrato', $object, $param['contrato_pagamento_parcela_contrato_list___row__data'] ?? [], $this->form, $this->contrato_pagamento_parcela_contrato_list, function($masterObject, $detailObject){ 
 
                 try{

@@ -1334,8 +1334,8 @@ class ContaReceberList extends TPage
     public function onShow($param = null)
     {
 
+        // abre sem filtro nenhum (antes ja vinha com "Em aberto" ligado)
         $this->onClearFilters($param);
-        $this->onEmAberto($param);
 
     }
 

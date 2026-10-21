@@ -238,6 +238,18 @@ class ContratoFormView extends TPage
         $action_onAddFinanceiro->setParameter('contrato_parcela_id', '{id}');
         $this->contrato_pagamento_parcela_contrato_id_list->addAction($action_onAddFinanceiro);
 
+        // desfaz as contas geradas pelo pagamento sem apagar o pagamento (como na requisicao de pagamento)
+        $action_onDesfazerFinanceiro = new TDataGridAction(array('ContratoFormView', 'onDesfazerFinanceiro'));
+        $action_onDesfazerFinanceiro->setUseButton(false);
+        $action_onDesfazerFinanceiro->setButtonClass('btn btn-default btn-sm');
+        $action_onDesfazerFinanceiro->setLabel("Desfazer financeiro");
+        $action_onDesfazerFinanceiro->setImage('fas:undo #dd5a43');
+        $action_onDesfazerFinanceiro->setField('id');
+        $action_onDesfazerFinanceiro->setDisplayCondition('ContratoFormView::canDesfazer');
+        $action_onDesfazerFinanceiro->setParameter('contrato_parcela_id', '{id}');
+        $action_onDesfazerFinanceiro->setParameter('contrato_id', '{contrato_id}');
+        $this->contrato_pagamento_parcela_contrato_id_list->addAction($action_onDesfazerFinanceiro);
+
         $action_onEdit = new TDataGridAction(array('ContratoPagamentoParcelaDescritivoForm', 'onEdit'));
         $action_onEdit->setUseButton(false);
         $action_onEdit->setButtonClass('btn btn-default btn-sm');
@@ -463,6 +475,63 @@ class ContratoFormView extends TPage
         $panel = new TElement('div');
         $panel->class = 'formView-detail';
         $panel->add(new BootstrapDatagridWrapper($this->contrato_pagamento_parcela_contrato_id_list));
+
+        $tab_64e5fbabf05b7->addContent([$panel]);
+
+        // processos vinculados ao contrato (contrato_processo); o numero abre o processo na cortina
+        $tab_64e5fbabf05b7->appendPage("Processos");
+
+        $this->contrato_processo_list = new TQuickGrid;
+        $this->contrato_processo_list->style = 'width:100%';
+        $this->contrato_processo_list->disableDefaultClick();
+
+        $column_processo_numero = $this->contrato_processo_list->addQuickColumn("Processo", 'numero', 'left');
+        $this->contrato_processo_list->addQuickColumn("Tipo", 'tipo', 'left');
+        $this->contrato_processo_list->addQuickColumn("Área", 'area', 'left');
+        $this->contrato_processo_list->addQuickColumn("Status processual", 'status', 'left');
+        $this->contrato_processo_list->addQuickColumn("Responsável", 'responsavel', 'left');
+        $column_processo_distribuicao = $this->contrato_processo_list->addQuickColumn("Distribuição", 'data_distribuicao_protocolo', 'left');
+
+        $column_processo_numero->setTransformer(function($value, $object, $row, $cell = null, $last_row = null)
+        {
+            $texto = trim((string) $value) !== '' ? $value : 'Processo sem número';
+            if (!empty($object->pre_processo) && $object->pre_processo !== 'N') {
+                $texto .= ' (pré-processo)';
+            }
+            $url = "engine.php?class=ProcessoFormView&method=onShow&key=" . (int) $object->id . "&register_state=false&target_container=adianti_right_panel";
+            return '<a href="javascript:void(0)" title="Abrir processo" onclick="'
+                . htmlspecialchars('Adianti.waitMessage = false; __adianti_load_page(' . json_encode($url) . '); return false;') . '">'
+                . '<i class="fas fa-folder-open"></i> ' . htmlspecialchars($texto) . '</a>';
+        });
+
+        $column_processo_distribuicao->setTransformer(function($value, $object, $row, $cell = null, $last_row = null)
+        {
+            return !empty($value) ? date('d/m/Y', strtotime($value)) : '';
+        });
+
+        $this->contrato_processo_list->createModel();
+
+        $st = TTransaction::get()->prepare("SELECT p.id, COALESCE(NULLIF(TRIM(p.numero_cnj_numero), ''), p.numero_outro) AS numero, p.pre_processo,
+                                                   t.nome AS tipo, a.nome AS area, s.nome AS status, r.nome AS responsavel, p.data_distribuicao_protocolo
+                                              FROM contrato_processo cp
+                                              JOIN processo p ON p.id = cp.processo_id
+                                              LEFT JOIN tipo_processo t ON t.id = p.tipo_processo_id
+                                              LEFT JOIN area a ON a.id = p.area_id
+                                              LEFT JOIN status_processual s ON s.id = p.status_processual_id
+                                              LEFT JOIN pessoa r ON r.id = p.responsavel_id
+                                             WHERE cp.contrato_id = ?
+                                             ORDER BY p.id DESC");
+        $st->execute([(int) $contrato->id]);
+        $processos = $st->fetchAll(PDO::FETCH_OBJ);
+        $this->contrato_processo_list->addItems($processos);
+
+        $panel = new TElement('div');
+        $panel->class = 'formView-detail';
+        if ($processos) {
+            $panel->add(new BootstrapDatagridWrapper($this->contrato_processo_list));
+        } else {
+            $panel->add('<div style="padding:12px;color:#777">Nenhum processo vinculado a este contrato.</div>');
+        }
 
         $tab_64e5fbabf05b7->addContent([$panel]);
         $row5 = $this->form->addFields([$tab_64e5fbabf05b7]);
@@ -914,6 +983,80 @@ class ContratoFormView extends TPage
         }
         catch (Exception $e) 
         {
+            new TMessage('error', $e->getMessage());
+        }
+    }
+
+    /** "Desfazer financeiro" aparece para quem pode gerar (profissional) quando o pagamento ja tem financeiro gerado. */
+    public static function canDesfazer($object)
+    {
+        if (!in_array((int) ($object->status_contrato_pagamento_id ?? 1), [2, 3], true)) {
+            return false;
+        }
+        try
+        {
+            TTransaction::open(self::$database);
+            $pessoa = Pessoa::where('system_users_id', '=', TSession::getValue('userid'))->first();
+            $pode = $pessoa && PessoaGrupo::where('pessoa_id', '=', $pessoa->id)->where('grupo_id', '=', Grupo::PROFISSIONAL)->count() > 0;
+            TTransaction::close();
+            return $pode;
+        }
+        catch (Exception $e)
+        {
+            TTransaction::rollback();
+            return false;
+        }
+    }
+
+    /**
+     * Desfaz o financeiro gerado por um pagamento do contrato: apaga as parcelas da conta a receber geradas por ele
+     * (e a conta, se ficar vazia) e o pagamento volta a "Em aberto", sem ser apagado. Bloqueado se alguma parcela ja
+     * foi recebida (o motivo aparece para o usuario).
+     */
+    public static function onDesfazerFinanceiro($param = null)
+    {
+        try
+        {
+            $pagamentoId = (int) ($param['contrato_parcela_id'] ?? $param['id'] ?? 0);
+            if ($pagamentoId <= 0) {
+                throw new Exception('Pagamento do contrato não informado.');
+            }
+
+            if (empty($param['confirmado'])) {
+                TTransaction::open(self::$database);
+                $motivo = ContratoFinanceiroService::motivoBloqueioDesfazer($pagamentoId);
+                $lancs = $motivo ? [] : ContratoFinanceiroService::lancamentosDoPagamento($pagamentoId);
+                TTransaction::close();
+                if ($motivo) {
+                    throw new Exception('Não é possível desfazer o financeiro deste pagamento. ' . $motivo);
+                }
+                $total = array_sum(array_map(function ($l) { return (float) $l->valor; }, $lancs));
+                $acao = new TAction([__CLASS__, 'onDesfazerFinanceiro']);
+                $acao->setParameters(['contrato_parcela_id' => $pagamentoId, 'contrato_id' => $param['contrato_id'] ?? '', 'confirmado' => 1]);
+                new TQuestion('Desfazer o financeiro deste pagamento?<br><br>'
+                    . count($lancs) . ' parcela(s) da conta a receber (total R$ ' . number_format($total, 2, ',', '.') . ') e a divisão entre os profissionais serão apagadas. '
+                    . 'Se a conta ficar sem parcelas, ela também é apagada.<br><br>O pagamento continua lançado no contrato e volta para "Em aberto", podendo ser editado, excluído ou ter o financeiro gerado de novo.', $acao);
+                return;
+            }
+
+            ContratoFinanceiroService::desfazer($pagamentoId);
+
+            $contratoId = (int) ($param['contrato_id'] ?? 0);
+            if ($contratoId <= 0) {
+                TTransaction::open(self::$database);
+                $contratoId = (int) (ContratoPagamentoParcela::find($pagamentoId)->contrato_id ?? 0);
+                TTransaction::close();
+            }
+
+            Navegacao::atualizarListaAoFechar();
+            TToast::show('success', 'Financeiro do pagamento desfeito. O pagamento voltou para "Em aberto".', 'topRight', 'far:check-circle');
+            TApplication::loadPage('ContratoFormView', 'onShow', ['key' => $contratoId, 'id' => $contratoId, 'current_tab_tab_64e5fbabf05b7' => 2]);
+        }
+        catch (Exception $e)
+        {
+            if (TTransaction::get()) {
+                TTransaction::rollback();
+            }
             new TMessage('error', $e->getMessage());    
         }
     }

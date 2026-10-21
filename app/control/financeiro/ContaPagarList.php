@@ -1152,8 +1152,8 @@ class ContaPagarList extends TPage
     {
 
         $param['order'] = ('proximo_vencimento_lancamento, pessoa_id');
+        // abre sem filtro nenhum (antes ja vinha com "Em aberto" ligado)
         $this->onClearFilters($param);
-        $this->onEmAberto($param);
     }
 
     /**
