@@ -202,7 +202,7 @@ class ContratoFormView extends TPage
         $column_percentual = $this->contrato_pessoa_contrato_id_list->addQuickColumn("Percentual", 'percentual', 'left');
 
         $column_percentual->setTotalFunction( function($values) { 
-            return array_sum((array) $values); 
+            return array_sum(array_map('floatval', (array) $values)); 
         }); 
 
         $this->contrato_pessoa_contrato_id_list->createModel();
@@ -583,7 +583,7 @@ class ContratoFormView extends TPage
         $column_percentual1 = $this->contrato_repasse_contrato_id_list->addQuickColumn("Percentual", 'percentual', 'left');
 
         $column_percentual1->setTotalFunction( function($values) { 
-            return array_sum((array) $values); 
+            return array_sum(array_map('floatval', (array) $values)); 
         }); 
 
         $this->contrato_repasse_contrato_id_list->createModel();
