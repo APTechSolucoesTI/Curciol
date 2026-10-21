@@ -11,6 +11,14 @@
     }
     window.__curciolFiltrosEnter = true;
 
+    // filtro da coluna com lista de sugestoes (autocomplete/combo): escolher ja aplica, sem precisar clicar em Aplicar
+    $(document).on('select2:select select2:unselect', '.popover select', function () {
+        var aplicar = $(this).closest('.popover').find('.apply-filter').first();
+        if (aplicar.length) {
+            setTimeout(function () { aplicar.trigger('click'); }, 50);
+        }
+    });
+
     $(document).on('keydown', 'input', function (e) {
         if (e.key !== 'Enter' || e.isComposing) {
             return;
