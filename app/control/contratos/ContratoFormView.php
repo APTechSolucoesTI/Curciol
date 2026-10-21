@@ -492,10 +492,16 @@ class ContratoFormView extends TPage
         $vincular_processo_id->setSize('100%');
         $vincular_processo_id->placeholder = 'Digite o número do processo';
 
-        $btn_vincular_processo = new TButton('btn_vincular_processo');
-        $btn_vincular_processo->setAction(new TAction([__CLASS__, 'onVincularProcesso'], ['contrato_id' => $contrato->id, 'static' => 1]), 'Vincular');
-        $btn_vincular_processo->addStyleClass('btn-default');
-        $btn_vincular_processo->setImage('fas:link #2ecc71');
+        // a aba nao e um <form> de verdade (o formulario da tela e um div): o botao le o processo escolhido no campo
+        // desta tela e chama o servidor com ele (um TButton postaria um formulario vazio)
+        $btn_vincular_processo = new TElement('button');
+        $btn_vincular_processo->type = 'button';
+        $btn_vincular_processo->name = 'btn_vincular_processo';
+        $btn_vincular_processo->class = 'btn btn-default';
+        $btn_vincular_processo->onclick = "var campo = $(this).closest('[page_name=ContratoFormView]').find('select[name=vincular_processo_id]');"
+            . " __adianti_ajax_exec('class=ContratoFormView&method=onVincularProcesso&static=1&contrato_id=" . (int) $contrato->id
+            . "&vincular_processo_id=' + encodeURIComponent(campo.val() || '')); return false;";
+        $btn_vincular_processo->add('<i class="fas fa-link" style="color:#2ecc71"></i> Vincular');
 
         $row_vincular = $tab_64e5fbabf05b7->addFields([new TLabel('Vincular processo:', null, '14px', null, '100%'), $vincular_processo_id], [new TLabel(' ', null, '14px', null, '100%'), $btn_vincular_processo]);
         $row_vincular->layout = [' col-sm-8', ' col-sm-4'];
