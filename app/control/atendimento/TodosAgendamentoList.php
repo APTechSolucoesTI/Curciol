@@ -52,7 +52,7 @@ class TodosAgendamentoList extends TPage
         $dt_inicial = new TDate('dt_inicial');
         $ate = new TDate('ate');
         // autocomplete: a lista sugere as pessoas pelo nome (o filtro continua sendo pelo nome)
-        $cliente_col = new TDBUniqueSearch('cliente_col', 'escritorio', 'Pessoa', 'nome', 'nome', 'nome asc', FiltroLista::criterioGrupo(Grupo::CLIENTE));
+        $cliente_col = new TDBUniqueSearch('cliente_col', 'escritorio', 'Pessoa', 'nome', 'nome', 'nome asc', FiltroLista::criterioPessoasDe('agendamento', 'cliente_id'));
         $cliente_col->setMinLength(2);
         $especialidade_descricao = new TDBCombo('especialidade_descricao', 'escritorio', 'Especialidade', 'id', '{descricao}','descricao asc' , $criteria_especialidade_descricao );
         $agenda_nome = new TDBCombo('agenda_nome', 'escritorio', 'Agenda', 'id', '{nome}','nome asc' , $criteria_agenda_nome );

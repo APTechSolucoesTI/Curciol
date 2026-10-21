@@ -57,6 +57,16 @@ class FiltroLista
         return $c;
     }
 
+    /** Pessoas que aparecem na listagem (ex.: clientes de requisicao), para o autocomplete so sugerir quem tem registro. */
+    public static function criterioPessoasDe(string $tabela, string $coluna): TCriteria
+    {
+        $tabela = preg_replace('/[^a-z_]/', '', $tabela);
+        $coluna = preg_replace('/[^a-z_]/', '', $coluna);
+        $c = new TCriteria();
+        $c->add(new TFilter('id', 'in', "(SELECT DISTINCT {$coluna} FROM {$tabela} WHERE {$coluna} IS NOT NULL)"));
+        return $c;
+    }
+
     /** Aba fechada e aberta de novo: a tela comeca sem filtros (chamado pelo engine.php com curciol_limpar_filtros=1). */
     public static function limparSessao(string $classe): void
     {

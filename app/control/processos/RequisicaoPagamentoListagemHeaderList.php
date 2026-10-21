@@ -38,7 +38,7 @@ class RequisicaoPagamentoListagemHeaderList extends TPage
         $numero_processo = new TEntry('numero_processo');
         $tipo_requisicao = new TDBCombo('tipo_requisicao', 'escritorio', 'TiposRequisicaoPagamento', 'id', '{nome}','id asc' , $criteria_tipo_requisicao );
         // autocomplete: a lista sugere as pessoas pelo nome (o filtro continua sendo pelo nome)
-        $cliente = new TDBUniqueSearch('cliente', 'escritorio', 'Pessoa', 'nome', 'nome', 'nome asc', FiltroLista::criterioGrupo(Grupo::CLIENTE));
+        $cliente = new TDBUniqueSearch('cliente', 'escritorio', 'Pessoa', 'nome', 'nome', 'nome asc', FiltroLista::criterioPessoasDe('requisicao_pagamento_cliente', 'pessoa_id'));
         $cliente->setMinLength(2);
         $data_requerimento = new BDateRange('data_requerimento', 'data_requerimento1');
         $data_deferimento_expedicao_requisitorio = new BDateRange('data_deferimento_expedicao_requisitorio', 'data_deferimento_expedicao_requisitorio1');
@@ -91,7 +91,7 @@ class RequisicaoPagamentoListagemHeaderList extends TPage
         $numero_processo_f = new TEntry('numero_processo_f');
         $tipo_requisicao_f = new TDBCombo('tipo_requisicao_f', 'escritorio', 'TiposRequisicaoPagamento', 'id', '{nome}', 'id asc');
         // autocomplete: a lista sugere as pessoas pelo nome (o filtro continua sendo pelo nome)
-        $cliente_f = new TDBUniqueSearch('cliente_f', 'escritorio', 'Pessoa', 'nome', 'nome', 'nome asc', FiltroLista::criterioGrupo(Grupo::CLIENTE));
+        $cliente_f = new TDBUniqueSearch('cliente_f', 'escritorio', 'Pessoa', 'nome', 'nome', 'nome asc', FiltroLista::criterioPessoasDe('requisicao_pagamento_cliente', 'pessoa_id'));
         $cliente_f->setMinLength(2);
         $status_f = new TDBCombo('status_f', 'escritorio', 'StatusRequisicaoPagamento', 'id', '{nome}', 'id asc');
         $data_requerimento_f = new BDateRange('data_requerimento_f', 'data_requerimento1_f');

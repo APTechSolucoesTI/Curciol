@@ -53,7 +53,7 @@ class ContratoList extends TPage
         $objeto = new TText('objeto');
         $numero_col = new TEntry('numero_col');
         // autocomplete: a lista sugere as pessoas pelo nome (o filtro continua sendo pelo nome)
-        $cliente_col = new TDBUniqueSearch('cliente_col', 'escritorio', 'Pessoa', 'nome', 'nome', 'nome asc', FiltroLista::criterioGrupo(Grupo::CLIENTE));
+        $cliente_col = new TDBUniqueSearch('cliente_col', 'escritorio', 'Pessoa', 'nome', 'nome', 'nome asc', FiltroLista::criterioPessoasDe('contrato_pessoa', 'cliente_id'));
         $cliente_col->setMinLength(2);
         $assunto_nome = new BDBSelectCheck('assunto_nome', 'escritorio', 'Assunto', 'id', '{nome}','nome asc' , $criteria_assunto_nome );
         // autocomplete: a lista sugere as pessoas pelo nome (o filtro continua sendo pelo nome)
