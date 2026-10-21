@@ -50,7 +50,6 @@ class PublicacaoHeaderList extends TPage
         $etapa_verificada = new TCombo('etapa_verificada');
         $global_filter = new TEntry('global_filter');
 
-        $responsavel->exitOnEnter();
         $numero_processo_principal->exitOnEnter();
         $titulo->exitOnEnter();
         $numero_arquivo->exitOnEnter();
@@ -73,7 +72,6 @@ class PublicacaoHeaderList extends TPage
 
         $etapa_verificada->addItems(["S"=>"Verificada","N"=>"Não Verificada"]);
         $global_filter->setInnerIcon(new TImage('fas:search #9E9E9E'), 'left');
-        $responsavel->forceUpperCase();
         $global_filter->forceUpperCase();
 
         $etapa->enableSearch();

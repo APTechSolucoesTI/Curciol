@@ -58,7 +58,6 @@ class TodosAgendamentoList extends TPage
         $agenda_nome = new TDBCombo('agenda_nome', 'escritorio', 'Agenda', 'id', '{nome}','nome asc' , $criteria_agenda_nome );
         $estado_agenda_nome = new TDBCombo('estado_agenda_nome', 'escritorio', 'EstadoAgenda', 'id', '{nome}','nome asc' , $criteria_estado_agenda_nome );
 
-        $cliente_col->exitOnEnter();
 
         $cliente_col->setChangeAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
 

@@ -47,7 +47,6 @@ class RequisicaoPagamentoListagemHeaderList extends TPage
         $status = new TDBCombo('status', 'escritorio', 'StatusRequisicaoPagamento', 'id', '{nome}','id asc' , $criteria_status );
 
         $numero_processo->exitOnEnter();
-        $cliente->exitOnEnter();
 
         $numero_processo->setExitAction(new TAction([$this, 'onSearch'], ['static'=>'1', 'target_container' => $param['target_container'] ?? null]));
         $cliente->setChangeAction(new TAction([$this, 'onSearch'], ['static'=>'1', 'target_container' => $param['target_container'] ?? null]));

@@ -65,7 +65,6 @@ class AgendaAgendamentoList extends TPage
         $is_online = new TCombo('is_online');
         $estado_agenda_nome = new TDBCombo('estado_agenda_nome', 'escritorio', 'EstadoAgenda', 'id', '{nome}','nome asc' , $criteria_estado_agenda_nome );
 
-        $cliente_col->exitOnEnter();
 
         $cliente_col->setChangeAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
 
@@ -74,7 +73,6 @@ class AgendaAgendamentoList extends TPage
         $estado_agenda_nome->setChangeAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
 
         $cliente_id->setMinLength(3);
-        $cliente_col->forceUpperCase();
         $is_online->addItems(["T"=>"Sim","F"=>"Não"]);
         $dt_final->setDatabaseMask('yyyy-mm-dd');
         $dt_inicial->setDatabaseMask('yyyy-mm-dd');

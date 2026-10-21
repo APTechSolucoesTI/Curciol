@@ -64,8 +64,6 @@ class ContratoList extends TPage
         $area_id->setChangeAction(new TAction([$this,'onChangearea_id']));
 
         $numero_col->exitOnEnter();
-        $cliente_col->exitOnEnter();
-        $parceiro_col->exitOnEnter();
 
         $numero_col->setExitAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
         $cliente_col->setChangeAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
@@ -77,9 +75,6 @@ class ContratoList extends TPage
         $numero->setMaxLength(30);
         $contrato_pessoa_pessoa_id->setMinLength(3);
         $contrato_pessoa_pessoa_id->setMask('{nome}');
-        $parceiro_col->enableToggleVisibility(false);
-        $cliente_col->forceUpperCase();
-        $parceiro_col->forceUpperCase();
 
         $area_id->enableSearch();
         $assunto_id->enableSearch();

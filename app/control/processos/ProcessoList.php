@@ -89,9 +89,7 @@ class ProcessoList extends TPage
         $tipo_processo_id->setChangeAction(new TAction([$this,'onSelectTipoProcesso']));
 
         $numero_cnj_numero_col->exitOnEnter();
-        $cliente_col->exitOnEnter();
         $contraparte_col->exitOnEnter();
-        $responsavel_col->exitOnEnter();
 
         $numero_cnj_numero_col->setExitAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
         $cliente_col->setChangeAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
