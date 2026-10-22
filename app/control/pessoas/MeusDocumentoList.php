@@ -109,6 +109,18 @@ class MeusDocumentoList extends TPage
 
             if(!empty($param['key']))
             {
+                // Curciol (seguranca 22/10/2026): so gera documento de atendimento do cliente logado no portal
+                // (o mesmo filtro da listagem)
+                TTransaction::open(self::$database);
+                $doCliente = Documento::where('id', '=', SqlSeguro::id($param['key']))
+                                      ->where('atendimento_id', 'in', "(SELECT id FROM atendimento WHERE cliente_id = " . SqlSeguro::id(TSession::getValue('portal_cliente_id')) . ")")
+                                      ->count() > 0;
+                TTransaction::close();
+                if (!$doCliente)
+                {
+                    throw new Exception('Documento não encontrado');
+                }
+
                 $file = DocumentoDocument::onGenerate(['key'=>$param['key'], 'returnFile'=>true]);
 
                 TToast::show("success", "Documento gerado com sucesso!", "topRight", "fas:check");

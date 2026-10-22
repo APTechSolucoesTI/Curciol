@@ -95,6 +95,17 @@ class SystemDocumentForm extends TPage
             
             $object = new SystemDocument;  // create an empty object
             $data = $this->form->getData(); // get form data as array
+
+            // Curciol (seguranca 22/10/2026): mesma regra do onEdit, so o dono (ou admin) altera um documento existente
+            if (!empty($data->id))
+            {
+                $existente = SystemDocument::find($data->id);
+                if ($existente AND $existente->system_user_id != TSession::getValue('userid') AND TSession::getValue('login') !== 'admin')
+                {
+                    throw new Exception(_t('Permission denied'));
+                }
+            }
+
             $object->fromArray( (array) $data); // load the object with data
             $object->system_user_id = TSession::getValue('userid');
             $object->filename = TSession::getValue('system_document_upload_file');

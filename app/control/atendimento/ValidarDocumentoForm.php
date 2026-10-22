@@ -77,6 +77,8 @@ class ValidarDocumentoForm extends TPage
             }
 
             $document = DocumentoDocument::onGenerate(['returnFile' => 1, 'key' => $documento->id]);
+            // Curciol (seguranca 22/10/2026): openDocument so entrega o PDF gerado aqui, nesta sessao
+            TSession::setValue(__CLASS__ . '_arquivo', $document);
 
             new TMessage('info', "<b>Documento válido</b><br/><br/><a class='btn btn-default' target='newwindow' href='engine.php?class=ValidarDocumentoForm&method=openDocument&file={$document}'>Clique aqui para visualizar o documento original</a><br/><br/>");
 
@@ -98,6 +100,10 @@ class ValidarDocumentoForm extends TPage
     public function openDocument($param)
     {
         $file              = $param['file']??'';
+        if (!is_string($file) OR $file === '' OR $file !== TSession::getValue(__CLASS__ . '_arquivo') OR strpos($file, 'tmp/') !== 0 OR basename($file) !== substr($file, 4))
+        {
+            echo 'Oopss: Essa solicitação não é válida'; die;
+        }
         $info              = pathinfo($file);
         $extension         = $info['extension'];
         $content_type_list = ['pdf' => 'application/pdf'];
