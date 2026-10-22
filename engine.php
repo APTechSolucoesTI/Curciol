@@ -18,6 +18,13 @@ class TApplication extends AdiantiCoreApplication
             $ini = AdiantiApplicationConfig::get();
             
             $class  = isset($_REQUEST['class']) ? $_REQUEST['class'] : '';
+            // Curciol (seguranca 22/10/2026): telas do instalador desativadas (sistema ja instalado). Continuam em
+            // public_classes no application.ini, que e preservado em producao; por isso o bloqueio fica aqui.
+            if (in_array($class, ['DatabaseInstall', 'ExtensionsInstall', 'PathInstall', 'SummaryDatabaseInstall']))
+            {
+                http_response_code(404);
+                exit;
+            }
             $public = in_array($class, $ini['permission']['public_classes']);
             $public_mobile = in_array($class, array_keys($ini['user_public_pages']??[]));
             $debug  = is_null($debug)? $ini['general']['debug'] : $debug;

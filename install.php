@@ -1,4 +1,10 @@
 <?php
+// Curciol (seguranca 22/10/2026): instalador do Mad Builder desativado (sistema ja instalado; ultimo uso em 04/12/2025).
+// Para reativar, remova este bloco.
+http_response_code(404);
+exit;
+?>
+<?php
 
 require_once 'init.php';
 
