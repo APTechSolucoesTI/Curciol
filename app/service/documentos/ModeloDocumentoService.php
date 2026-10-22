@@ -31,6 +31,16 @@
 
 class ModeloDocumentoService
 {
+    /**
+     * Curciol (seguranca 22/10/2026): nome usado como pasta em files/documents. Barras e "." / ".." nao podem sair da
+     * pasta do modelo; nomes normais ficam iguais (os arquivos ja gerados continuam no mesmo lugar).
+     */
+    public static function nomePasta($nome)
+    {
+        $nome = str_replace(['/', '\\', "\0"], '-', (string) $nome);
+        return in_array(trim($nome), ['', '.', '..'], true) ? '_' : $nome;
+    }
+
     public static function onVerificarDadosCliente(
         $cliente,
         $modelo,
@@ -648,6 +658,7 @@ class ModeloDocumentoService
                 self::ensureFile($nome_arquivo);
                 self::dbg('Template base MULTI', $nome_arquivo);
 
+                \PhpOffice\PhpWord\Settings::setOutputEscapingEnabled(true); // Curciol (seguranca 22/10/2026): dados do cliente escapados no XML do DOCX
                 $templateProcessor = new \PhpOffice\PhpWord\TemplateProcessor($nome_arquivo);
 
                 $qtd = count($idsClientes);
@@ -1461,7 +1472,7 @@ class ModeloDocumentoService
                         $label = mb_substr($label, 0, 117) . '...';
                     }
 
-                    $pastaGrupo = $destino_base . $label . ' ' . date('Y-m-d') . '/';
+                    $pastaGrupo = $destino_base . self::nomePasta($label) . ' ' . date('Y-m-d') . '/';
                     if (!file_exists($pastaGrupo)) mkdir($pastaGrupo, 0777, true);
 
                 $nome_arquivo_saida = str_replace(' ','_', $modeloDocumento->nome . "_MULTI_" . date("Y-m-d"));
@@ -1520,6 +1531,7 @@ class ModeloDocumentoService
             $nome_arquivo = $documento->filename;
             self::ensureFile($nome_arquivo);
 
+           \PhpOffice\PhpWord\Settings::setOutputEscapingEnabled(true); // Curciol (seguranca 22/10/2026): dados do cliente escapados no XML do DOCX
            $templateProcessor = new \PhpOffice\PhpWord\TemplateProcessor($nome_arquivo);
 
             // Se o template tiver blocos do modo MULTI, clona 1 vez e troca os marcadores
@@ -1642,7 +1654,7 @@ class ModeloDocumentoService
             // garante também o 'objeto' nas duas formas
             $set('objeto', $objeto);
 
-            $destino = "files/documents/{$modeloDocumento->id}/".$cliente->nome."/";
+            $destino = "files/documents/{$modeloDocumento->id}/".self::nomePasta($cliente->nome)."/";
             if (!file_exists($destino)) mkdir($destino, 0777, true);
             $nome_arquivo = str_replace(' ','_', $modeloDocumento->nome."_".date("Y-m-d"));
             $docPath = $destino.$nome_arquivo.".docx";

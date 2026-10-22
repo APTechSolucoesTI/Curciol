@@ -263,7 +263,7 @@ class PrintTarefaList extends TWindow
 
             // opções do Dompdf
             $options = new Options();
-            $options->set('isRemoteEnabled', true);     // se tiver CSS/imagens externas
+            $options->set('isRemoteEnabled', false);    // Curciol (seguranca 22/10/2026): sem recursos remotos
             $options->set('isHtml5ParserEnabled', true);
             $options->set('defaultFont', 'DejaVu Sans');
             $options->set('isFontSubsetting', true);

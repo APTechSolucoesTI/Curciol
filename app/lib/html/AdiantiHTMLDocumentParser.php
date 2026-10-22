@@ -444,7 +444,8 @@ class AdiantiHTMLDocumentParser
         {
             $options = new Options();
             $options->set('dpi', '128');
-            $options->setIsRemoteEnabled(true);
+            // Curciol (seguranca 22/10/2026): sem busca de recursos remotos (dados de cliente entram no HTML); logos sao locais
+            $options->setIsRemoteEnabled(false);
         }
         $options->setChroot(getcwd());
         

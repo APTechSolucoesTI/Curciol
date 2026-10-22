@@ -1069,6 +1069,7 @@ class GerarContratoForm extends TPage
             // Nome do arquivo tipo
             $nome_arquivo = $modelo_documento->filename;
 
+            \PhpOffice\PhpWord\Settings::setOutputEscapingEnabled(true); // Curciol (seguranca 22/10/2026): dados do cliente escapados no XML do DOCX
             @$templateProcessor = new \PhpOffice\PhpWord\TemplateProcessor($nome_arquivo);
 
             // Substituir palavras usando str_replace
@@ -1136,7 +1137,7 @@ class GerarContratoForm extends TPage
 
             $templateProcessor->setValues($substituicoes);
 
-            $destino = "files/documents/$modelo_documento->id/$cliente->nome/";
+            $destino = "files/documents/$modelo_documento->id/" . ModeloDocumentoService::nomePasta($cliente->nome) . "/";
             $nome_arquivo = str_replace(' ','_',$modelo_documento->nome."_".date("Y-m-d"));
 
             // Checking whether file exists or not
