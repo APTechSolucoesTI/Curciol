@@ -30,6 +30,21 @@ class TApplication extends AdiantiCoreApplication
             $debug  = is_null($debug)? $ini['general']['debug'] : $debug;
             if (TSession::getValue('logged')) // logged
             {
+                // Curciol (seguranca 22/10/2026): POST de usuario logado vindo de outro site e recusado. So vale quando
+                // o navegador informa a origem (cabecalho Origin); requisicoes do proprio sistema tem a mesma origem.
+                if (($_SERVER['REQUEST_METHOD'] ?? '') == 'POST' AND !empty($_SERVER['HTTP_ORIGIN']))
+                {
+                    $origem = parse_url($_SERVER['HTTP_ORIGIN']);
+                    $origem_host = strtolower(($origem['host'] ?? '') . (isset($origem['port']) ? ':' . $origem['port'] : ''));
+                    $hosts = array_filter([strtolower($_SERVER['HTTP_HOST'] ?? ''), strtolower($_SERVER['HTTP_X_FORWARDED_HOST'] ?? '')]);
+                    if (!in_array($origem_host, $hosts, true))
+                    {
+                        error_log('Curciol: POST recusado por origem diferente: ' . $_SERVER['HTTP_ORIGIN'] . ' -> ' . implode(',', $hosts));
+                        http_response_code(403);
+                        new TMessage('error', _t('Permission denied'));
+                        return;
+                    }
+                }
                 $programs = (array) TSession::getValue('programs'); // programs with permission
                 $programs = array_merge($programs, self::getDefaultPermissions());
                 
