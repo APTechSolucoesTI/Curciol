@@ -233,6 +233,8 @@ class ModalQuitarParcela extends TWindow
 
             TTransaction::open('escritorio');
 
+            // Curciol (seguranca 22/10/2026): trava a parcela ate o fim da transacao (duas baixas simultaneas)
+            TTransaction::get()->query('SELECT id FROM lancamento WHERE id = ' . SqlSeguro::id($param['id'] ?? 0) . ' FOR UPDATE');
             $lancamento = Lancamento::find($param['id']);
 
             if(!$lancamento){
@@ -241,6 +243,10 @@ class ModalQuitarParcela extends TWindow
 
             if($lancamento->dt_pagamento){
                 throw new Exception('Esse lançamento já foi quitado em '.TDate::date2br($lancamento->dt_pagamento));
+            }
+
+            if($lancamento->cancelado == 'S'){
+                throw new Exception('Essa parcela está cancelada.');
             }
 
             if($dadosConfirmacao){
@@ -270,6 +276,9 @@ class ModalQuitarParcela extends TWindow
 
             // vai para o extrato agora
             $valorMovimentado = round($valorQuitacao + $acrescimo - $desconto, 2);
+            if($valorMovimentado < 0){
+                throw new Exception('O desconto não pode ser maior que o valor a quitar.');
+            }
 
             // fica salvo como valor final completo do lancamento
             $novoValorTotal = round($valorBaseLancamento + $acrescimo - $desconto, 2);

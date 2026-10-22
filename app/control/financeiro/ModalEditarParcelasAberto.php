@@ -199,6 +199,16 @@ class ModalEditarParcelasAberto extends TWindow
                 return $valor !== '' && $valor !== null && is_numeric($valor);
             }));
 
+            // Curciol (seguranca 22/10/2026): so edita parcela desta conta e ainda nao paga (as que a tela mostra)
+            foreach ($idsAtuais as $idAtual)
+            {
+                $parcela = Lancamento::find((int) $idAtual);
+                if (!$parcela OR $parcela->conta_id != $id OR !empty($parcela->dt_pagamento))
+                {
+                    throw new Exception('Parcela inválida para esta conta.');
+                }
+            }
+
             if(!empty($idsAtuais)){
                 $search = Lancamento::where('id','not in',$idsAtuais)
                                     ->where('conta_id','=',$id)
