@@ -92,6 +92,7 @@ class ContaReceberList extends TPage
         $descricao_col = new TEntry('descricao_col');
         $data_emissao = new TDate('data_emissao');
         $quitada22 = new TCombo('quitada22');
+        $camposCabecalho = ContaListaColunas::camposCabecalho($this);
 
         $descricao_col->exitOnEnter();
 
@@ -216,22 +217,21 @@ class ContaReceberList extends TPage
         $column_id_transformed = new TDataGridColumn('id', "Profissional", 'left');
         $column_tipo_documento_financeiro_nome = new TDataGridColumn('tipo_documento_financeiro->nome', "Tipo de documento", 'left');
         $column_numero_documentoatendimento_idcontrato_idprocesso_id = new TDataGridColumn('{numero_documento}{atendimento_id}{contrato_id}{processo_id}', "Número do documento", 'left');
-        $column_requisicao_pagamento_id = new TDataGridColumn('requisicao_pagamento_id', "Requisição", 'center');
+        // Origem: requisicao e/ou contrato que gerou a conta (com link) ou "Manual" (ContaListaColunas)
+        $column_requisicao_pagamento_id = new TDataGridColumn('requisicao_pagamento_id', "Origem", 'left');
         $column_requisicao_pagamento_id->setTransformer(function($value, $object)
         {
-            if (empty($value)) {
-                return '';
-            }
-            $id = (int) $value;
-            // abre na aba do cliente a que a conta se refere (a requisicao pode ter varios clientes)
-            $rpc = !empty($object->id) ? LevantamentoFinanceiroService::clienteDaRequisicao((int) $object->id) : null;
-            $aba = $rpc ? "&requisicao_pagamento_cliente_id={$rpc}" : '';
-            return "<a generator='adianti' href='index.php?class=RequisicaoPagamentoVisualizacao&method=onShow&key={$id}{$aba}&register_state=false'>#{$id}</a>";
+            return ContaListaColunas::origem($object);
         });
         $column_descricao = new TDataGridColumn('descricao', "Descrição", 'left' , '20%');
         $column_total_conta_transformed = new TDataGridColumn('total_conta', "Total", 'center' , '100px');
         $column_data_emissao_transformed = new TDataGridColumn('data_emissao', "Emissão", 'center' , '100px');
         $column_quitada_transformed = new TDataGridColumn('quitada', "Quitada", 'center' , '100px');
+        $column_vencimento = new TDataGridColumn('proximo_vencimento_lancamento', "Vencimento", 'center' , '100px');
+        $column_vencimento->setTransformer(function($value, $object)
+        {
+            return ContaListaColunas::vencimentoFormatado($object);
+        });
 
         $column_pessoa_nome_transformed->setTransformer(function($value, $object, $row, $cell = null, $last_row = null)
         {   
@@ -536,6 +536,9 @@ class ContaReceberList extends TPage
         $order_quitada_transformed = new TAction(array($this, 'onReload'));
         $order_quitada_transformed->setParameter('order', 'quitada');
         $column_quitada_transformed->setAction($order_quitada_transformed);
+        $order_vencimento = new TAction(array($this, 'onReload'));
+        $order_vencimento->setParameter('order', 'proximo_vencimento_lancamento');
+        $column_vencimento->setAction($order_vencimento);
 
         $this->loteColunaSelecao();
         $this->datagrid->addColumn($column_pessoa_nome_transformed);
@@ -546,6 +549,7 @@ class ContaReceberList extends TPage
         $this->datagrid->addColumn($column_descricao);
         $this->datagrid->addColumn($column_total_conta_transformed);
         $this->datagrid->addColumn($column_data_emissao_transformed);
+        $this->datagrid->addColumn($column_vencimento);
         $this->datagrid->addColumn($column_quitada_transformed);
 
         $action_onShow = new TDataGridAction(array('ContaFormView', 'onShow'));
@@ -588,15 +592,14 @@ class ContaReceberList extends TPage
         $tr->add($td_id);
         $td_tipo_documento_financeiro_nome = TElement::tag('td', $tipo_documento_financeiro_nome);
         $tr->add($td_tipo_documento_financeiro_nome);
-        $td_empty = TElement::tag('td', "");
-        $tr->add($td_empty);
-        $tr->add(TElement::tag('td', ''));
+        $tr->add(ContaListaColunas::celula($camposCabecalho['numero']));
+        $tr->add(ContaListaColunas::celula($camposCabecalho['origem']));
         $td_descricao_col = TElement::tag('td', $descricao_col);
         $tr->add($td_descricao_col);
-        $td_empty = TElement::tag('td', "");
-        $tr->add($td_empty);
+        $tr->add(ContaListaColunas::celula($camposCabecalho['total']));
         $td_data_emissao = TElement::tag('td', $data_emissao);
         $tr->add($td_data_emissao);
+        $tr->add(ContaListaColunas::celula($camposCabecalho['vencimento']));
         $td_quitada22 = TElement::tag('td', $quitada22);
         $tr->add($td_quitada22);
         $tr->add(TElement::tag('td', ''));
@@ -607,6 +610,13 @@ class ContaReceberList extends TPage
         $this->datagrid_form->addField($descricao_col);
         $this->datagrid_form->addField($data_emissao);
         $this->datagrid_form->addField($quitada22);
+        foreach ($camposCabecalho as $camposColuna)
+        {
+            foreach ($camposColuna as $campoColuna)
+            {
+                $this->datagrid_form->addField($campoColuna);
+            }
+        }
 
         $this->datagrid_form->setData( TSession::getValue(__CLASS__.'_filter_data') );
 
@@ -1217,6 +1227,11 @@ class ContaReceberList extends TPage
             $data->pessoa_col = $clienteFiltroColuna;
         }
 
+        // filtros do cabecalho: numero do documento, origem, total e vencimento (ContaListaColunas)
+        foreach (ContaListaColunas::filtros($data) as $filtroColuna) {
+            $filters[] = $filtroColuna;
+        }
+
         // filtros por requisicao de pagamento (requisicao, cliente, entidade devedora, processo)
         foreach (ContaRequisicaoFiltro::filtros($data) as $filtroRequisicao) {
             $filters[] = $filtroRequisicao;
@@ -1261,7 +1276,9 @@ class ContaReceberList extends TPage
 
             if (empty($param['order']))
             {
-                $param['order'] = 'proximo_vencimento_lancamento';    
+                // ordem padrao: emissao, da mais recente para a mais antiga
+                $param['order'] = 'data_emissao desc, id';
+                $param['direction'] = 'desc';    
             }
 
             if (empty($param['direction']))
