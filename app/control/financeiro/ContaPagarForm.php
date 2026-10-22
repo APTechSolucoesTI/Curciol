@@ -1372,7 +1372,7 @@ class ContaPagarForm extends TPage
                     }else{
                         TScript::create("$('label:contains(\"Motivo do cancelamento das parcelas:\")').show();");
                         TScript::create("$('label:contains(\"MOTIVO CANCELAMENTO\")').show();");
-                        TScript::create("$('label:contains(\"MOTIVO CANCELAMENTO\")').html('".$object->motivo_cancelamento."')");
+                        TScript::create("$('label:contains(\"MOTIVO CANCELAMENTO\")').text(" . json_encode((string) $object->motivo_cancelamento, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) . ")");
                     }
                 }
 

@@ -135,11 +135,11 @@ class SystemProfileForm extends TPage
             
             if ($object->photo)
             {
-                $source_file   = 'tmp/'.$object->photo;
-                $target_file   = 'app/images/photos/' . TSession::getValue('login') . '.jpg';
+                $source_file   = 'tmp/' . basename((string) $object->photo);
+                $target_file   = 'app/images/photos/' . basename((string) TSession::getValue('login')) . '.jpg';
                 $finfo         = new finfo(FILEINFO_MIME_TYPE);
                 
-                if (file_exists($source_file))
+                if (is_file($source_file) AND $finfo->file($source_file) == 'image/jpeg')
                 {
                     // move to the target directory
                     rename($source_file, $target_file);

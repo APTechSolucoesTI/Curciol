@@ -1061,7 +1061,7 @@ class ContaFormView extends TPage
             if($cancelado){
                 TScript::create("$('label:contains(\"Motivo do cancelamento:\")').show();");
                 TScript::create("$('label:contains(\"MOTIVO CANCELAMENTO\")').show();");
-                TScript::create("$('label:contains(\"MOTIVO CANCELAMENTO\")').html('".$motivo_cancelamento."')");
+                TScript::create("$('label:contains(\"MOTIVO CANCELAMENTO\")').text(" . json_encode((string) $motivo_cancelamento, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) . ")");
             }
             TTransaction::close();
     }

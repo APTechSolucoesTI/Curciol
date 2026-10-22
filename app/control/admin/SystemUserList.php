@@ -377,6 +377,7 @@ class SystemUserList extends TPage
             {
                 // get the paramseter $key
                 $key = $param['key'];
+                ContaAdmin::exigirPermissao($key);
                 // open a transaction with database
                 TTransaction::open($this->database);
 
@@ -494,6 +495,7 @@ class SystemUserList extends TPage
     {
         try
         {
+            ContaAdmin::exigirPermissao($param['id']);
             TTransaction::open('permission');
             $user = SystemUsers::find($param['id']);
             if ($user instanceof SystemUsers)
@@ -520,6 +522,7 @@ class SystemUserList extends TPage
     {
         try
         {
+            ContaAdmin::exigirPermissao($param['id']);
             TTransaction::open('permission');
             $user = new SystemUsers($param['id']);
             $user->cloneUser();
@@ -542,6 +545,7 @@ class SystemUserList extends TPage
         try
         {
             $login_impersonated = TSession::getValue('login');
+            ContaAdmin::exigirPermissaoLogin($param['login']);
 
             TTransaction::open('permission');
             TSession::regenerate();
