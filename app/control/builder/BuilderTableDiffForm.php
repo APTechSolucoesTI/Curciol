@@ -28,7 +28,7 @@ class BuilderTableDiffForm extends TPage
 		{
 			parent::__construct();
 
-			BuilderPermissionService::checkPermission();
+			BuilderPermissionService::recursoDesativado();
 
 			$databaseMergeSession = TSession::getValue('databaseMergeSession');
 
@@ -188,7 +188,7 @@ class BuilderTableDiffForm extends TPage
 	{
 		try
 		{
-			BuilderPermissionService::checkPermission();
+			BuilderPermissionService::recursoDesativado();
 			$databaseMergeSession = TSession::getValue('databaseMergeSession');
 
 			$param['renames'] = self::getRenameTables($param);

@@ -59,6 +59,8 @@ class TApplication extends AdiantiCoreApplication
      */
     public static function getDefaultPermissions()
     {
+        // Curciol (seguranca 22/10/2026): telas de sincronizacao/diff do Mad Builder sairam desta lista (o sistema nao usa
+        // mais o Mad Builder). BuilderConfigForm fica pelo seletor de tema (setTheme).
         return array('Adianti\Base\TStandardSeek' => TRUE,
                      'LoginForm' => TRUE,
                      'AdiantiMultiSearchService' => TRUE,
@@ -70,23 +72,8 @@ class TApplication extends AdiantiCoreApplication
                      'NotificationList' => TRUE,
                      'SearchBox' => TRUE,
                      'SearchInputBox' => TRUE,
-                     'BuilderPageService' => TRUE,
-                     'BuilderPageBatchUpdate' => TRUE,
-                     'BuilderPermissionUpdate' => TRUE,
                      'BuilderConfigForm' => TRUE,
-                     'BuilderConfigList' => TRUE,
-                     'BuilderMenuUpdate' => TRUE,
-                     'BuilderColumnDiffForm' => TRUE,
-                     'BuilderConfirmCommandsDiffForm' => TRUE,
-                     'BuilderCustomCssService' => TRUE,
-                     'BuilderDatabaseDiffForm' => TRUE,
-                     'BuilderTableDiffForm' => TRUE,
-                     'BuilderViewsDiffForm' => TRUE,
-                     'SystemFrameworkUpdate' => TRUE,
-                     'SystemPageService' => TRUE,
-                     'SystemPageBatchUpdate' => TRUE,
-                     'SystemPermissionUpdate' => TRUE,
-                     'SystemMenuUpdate' => TRUE);
+                     'BuilderCustomCssService' => TRUE);
     } 
 }
 

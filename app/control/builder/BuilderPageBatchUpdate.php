@@ -28,7 +28,7 @@ class BuilderPageBatchUpdate extends TPage
         {
             parent::__construct();
             
-            BuilderPermissionService::checkPermission();
+            BuilderPermissionService::recursoDesativado();
             
             $this->form = new BootstrapFormBuilder('builder_page_batch_update_form');
             $this->form->setFormTitle('Atualizar códigos');
@@ -235,7 +235,7 @@ class BuilderPageBatchUpdate extends TPage
     {
         try
         {
-            BuilderPermissionService::checkPermission();
+            BuilderPermissionService::recursoDesativado();
             // check_conflicts
             if (empty($param['conflicts']))
             {
@@ -290,7 +290,7 @@ class BuilderPageBatchUpdate extends TPage
     {
         try
         {
-            BuilderPermissionService::checkPermission();
+            BuilderPermissionService::recursoDesativado();
 
             $projectFiles = self::listAllFiles();
             $file_name = $param['key'];
@@ -337,7 +337,7 @@ class BuilderPageBatchUpdate extends TPage
     {
         try
         {
-            BuilderPermissionService::checkPermission();
+            BuilderPermissionService::recursoDesativado();
             
             $db = ['name' => 'app/database/.cache.db', 'type' => 'sqlite'];
             TTransaction::open(NULL, $db); // open transaction 
@@ -405,7 +405,7 @@ class BuilderPageBatchUpdate extends TPage
      */
     public static function onSave($param)
     {
-        BuilderPermissionService::checkPermission();
+        BuilderPermissionService::recursoDesativado();
         
         if ($param)
         {

@@ -17,7 +17,7 @@ class BuilderConfirmCommandsDiffForm extends TPage
 		{
 			parent::__construct();
 
-			BuilderPermissionService::checkPermission();
+			BuilderPermissionService::recursoDesativado();
 
 			$databaseMergeSession = TSession::getValue('databaseMergeSession');
 
@@ -92,7 +92,7 @@ class BuilderConfirmCommandsDiffForm extends TPage
 
 		try
 		{
-			BuilderPermissionService::checkPermission();
+			BuilderPermissionService::recursoDesativado();
 
 			$databaseMergeSession = TSession::getValue('databaseMergeSession');
 

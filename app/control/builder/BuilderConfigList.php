@@ -17,7 +17,7 @@ class BuilderConfigList extends TPage
     {
         parent::__construct();
         
-        BuilderPermissionService::checkPermission();
+        BuilderPermissionService::recursoDesativado();
         
         // creates one datagrid
         $this->datagrid = new BootstrapDatagridWrapper(new TDataGrid);
