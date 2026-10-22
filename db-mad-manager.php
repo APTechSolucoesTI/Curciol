@@ -1,4 +1,10 @@
 <?php
+// Curciol (seguranca 22/10/2026): gerenciador de banco do Mad Builder desativado. O sistema nao usa mais o Mad Builder
+// (nenhum acesso em producao desde dez/2025). Para reativar, remova este bloco.
+http_response_code(404);
+exit;
+?>
+<?php
 
 require_once 'init.php';
 

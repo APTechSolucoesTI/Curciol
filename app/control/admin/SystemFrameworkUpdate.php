@@ -37,6 +37,8 @@ class SystemFrameworkUpdate extends TPage
      */
     public function __construct()
     {
+        // Curciol (seguranca 22/10/2026): o sistema nao usa mais o Mad Builder; a atualizacao baixava e aplicava codigo remoto
+        throw new Exception('Atualização do framework desativada: o sistema não usa mais o Mad Builder.');
         parent::__construct();
         
         BuilderPermissionService::checkPermission();
@@ -107,6 +109,8 @@ class SystemFrameworkUpdate extends TPage
     
     public static function onUpdate($param)
     {
+        // Curciol (seguranca 22/10/2026): o sistema nao usa mais o Mad Builder; a atualizacao baixava e aplicava codigo remoto
+        throw new Exception('Atualização do framework desativada: o sistema não usa mais o Mad Builder.');
         try
         {
             BuilderPermissionService::checkPermission();
