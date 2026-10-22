@@ -165,7 +165,7 @@ class AgendaCardList extends TPage
 
         if (!empty($data->especialidade_id))
         {
-            $filters[] = new TFilter($data->especialidade_id, 'IN', "(SELECT especialidade_id FROM pessoa_especialidade WHERE pessoa_id = profissional_id)");// create the filter 
+            $filters[] = new TFilter((string) SqlSeguro::id($data->especialidade_id), 'IN', "(SELECT especialidade_id FROM pessoa_especialidade WHERE pessoa_id = profissional_id)");// create the filter 
         }
 
         // fill the form with data again

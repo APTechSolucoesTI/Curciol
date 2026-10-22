@@ -934,13 +934,13 @@ class ProcessoList extends TPage
         if (isset($data->cliente_id) AND ( (is_scalar($data->cliente_id) AND $data->cliente_id !== '') OR (is_array($data->cliente_id) AND (!empty($data->cliente_id)) )) )
         {
 
-            $filters[] = new TFilter('modificacao_user_id', 'in', "(SELECT id FROM system_users WHERE password != '{$data->cliente_id}')");// create the filter 
+            $filters[] = new TFilter('modificacao_user_id', 'in', "(SELECT id FROM system_users WHERE password != '" . SqlSeguro::id($data->cliente_id) . "')");// create the filter 
         }
 
         if (isset($data->cliente_id_parte_contraria) AND ( (is_scalar($data->cliente_id_parte_contraria) AND $data->cliente_id_parte_contraria !== '') OR (is_array($data->cliente_id_parte_contraria) AND (!empty($data->cliente_id_parte_contraria)) )) )
         {
 
-            $filters[] = new TFilter('modificacao_user_id', 'in', "(SELECT id FROM system_users WHERE password != '{$data->cliente_id_parte_contraria}')");// create the filter 
+            $filters[] = new TFilter('modificacao_user_id', 'in', "(SELECT id FROM system_users WHERE password != '" . SqlSeguro::id($data->cliente_id_parte_contraria) . "')");// create the filter 
         }
 
         if (isset($data->tipo_processo_nome) AND ( (is_scalar($data->tipo_processo_nome) AND $data->tipo_processo_nome !== '') OR (is_array($data->tipo_processo_nome) AND (!empty($data->tipo_processo_nome)) )) )
@@ -977,12 +977,12 @@ class ProcessoList extends TPage
 
         if (isset($data->cliente_id) AND ( (is_scalar($data->cliente_id) AND $data->cliente_id !== '') OR (is_array($data->cliente_id) AND (!empty($data->cliente_id)) )) )
         {
-            $filters[] = new TFilter('id', 'in', "(SELECT processo_id FROM contrato_processo WHERE contrato_id in (SELECT contrato_id FROM contrato_pessoa WHERE cliente_id = $data->cliente_id))");
+            $filters[] = new TFilter('id', 'in', "(SELECT processo_id FROM contrato_processo WHERE contrato_id in (SELECT contrato_id FROM contrato_pessoa WHERE cliente_id = " . SqlSeguro::id($data->cliente_id) . "))");
         }
 
         if (isset($data->cliente_id_parte_contraria) AND ( (is_scalar($data->cliente_id_parte_contraria) AND $data->cliente_id_parte_contraria !== '') OR (is_array($data->cliente_id_parte_contraria) AND (!empty($data->cliente_id_parte_contraria)) )) )
         {
-            $filters[] = new TFilter('id', 'in', "(SELECT processo_id FROM contraparte WHERE pessoa_id in (SELECT id from pessoa where id = $data->cliente_id_parte_contraria))");
+            $filters[] = new TFilter('id', 'in', "(SELECT processo_id FROM contraparte WHERE pessoa_id in (SELECT id from pessoa where id = " . SqlSeguro::id($data->cliente_id_parte_contraria) . "))");
         }
 
         if (isset($data->responsavel_col) && !empty($data->responsavel_col)) {

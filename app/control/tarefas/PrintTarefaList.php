@@ -488,10 +488,10 @@ class PrintTarefaList extends TWindow
             if (isset($data->numero_processo) AND ( (is_scalar($data->numero_processo) AND $data->numero_processo !== '') OR (is_array($data->numero_processo) AND (!empty($data->numero_processo)) )) )
             {
                 $criteria1 = new TCriteria;
-                $criteria1->add(new TFilter('andamento_id',  'in', "(SELECT id FROM andamento  WHERE processo_id in (SELECT id FROM processo WHERE numero_cnj_numero like '%{$data->numero_processo}%' ))"), TExpression::OR_OPERATOR);
-                $criteria1->add(new TFilter('publicacao_id', 'in', "(SELECT id FROM publicacao WHERE processo_id in (SELECT id FROM processo WHERE numero_cnj_numero like '%{$data->numero_processo}%'))"), TExpression::OR_OPERATOR);
-                $criteria1->add(new TFilter('publicacao_id', 'in', "(SELECT id FROM publicacao WHERE numero_unico_processo like '%{$data->numero_processo}%')"), TExpression::OR_OPERATOR);
-                $criteria1->add(new TFilter('publicacao_id', 'in', "(SELECT id FROM publicacao WHERE numero_processo_principal like '%{$data->numero_processo}%')"), TExpression::OR_OPERATOR);
+                $criteria1->add(new TFilter('andamento_id',  'in', "(SELECT id FROM andamento  WHERE processo_id in (SELECT id FROM processo WHERE numero_cnj_numero like '%" . SqlSeguro::texto($data->numero_processo) . "%' ))"), TExpression::OR_OPERATOR);
+                $criteria1->add(new TFilter('publicacao_id', 'in', "(SELECT id FROM publicacao WHERE processo_id in (SELECT id FROM processo WHERE numero_cnj_numero like '%" . SqlSeguro::texto($data->numero_processo) . "%'))"), TExpression::OR_OPERATOR);
+                $criteria1->add(new TFilter('publicacao_id', 'in', "(SELECT id FROM publicacao WHERE numero_unico_processo like '%" . SqlSeguro::texto($data->numero_processo) . "%')"), TExpression::OR_OPERATOR);
+                $criteria1->add(new TFilter('publicacao_id', 'in', "(SELECT id FROM publicacao WHERE numero_processo_principal like '%" . SqlSeguro::texto($data->numero_processo) . "%')"), TExpression::OR_OPERATOR);
                 $criteria->add($criteria1); 
             }
 

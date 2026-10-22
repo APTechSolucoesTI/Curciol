@@ -829,13 +829,13 @@ class ExtratoList extends TPage
         if (isset($data->prev_compensacao_inicio) AND ( (is_scalar($data->prev_compensacao_inicio) AND $data->prev_compensacao_inicio !== '') OR (is_array($data->prev_compensacao_inicio) AND (!empty($data->prev_compensacao_inicio)) )) )
         {
 
-            $filters[] = new TFilter('lancamento_id', 'in', "(SELECT id FROM lancamento WHERE dt_vencimento >= '{$data->prev_compensacao_inicio}')");// create the filter 
+            $filters[] = new TFilter('lancamento_id', 'in', "(SELECT id FROM lancamento WHERE dt_vencimento >= '" . (SqlSeguro::data($data->prev_compensacao_inicio) ?? '0001-01-01') . "')");// create the filter 
         }
 
         if (isset($data->prev_compensacao_fim) AND ( (is_scalar($data->prev_compensacao_fim) AND $data->prev_compensacao_fim !== '') OR (is_array($data->prev_compensacao_fim) AND (!empty($data->prev_compensacao_fim)) )) )
         {
 
-            $filters[] = new TFilter('lancamento_id', 'in', "(SELECT id FROM lancamento WHERE dt_vencimento <= '{$data->prev_compensacao_fim}')");// create the filter 
+            $filters[] = new TFilter('lancamento_id', 'in', "(SELECT id FROM lancamento WHERE dt_vencimento <= '" . (SqlSeguro::data($data->prev_compensacao_fim) ?? '9999-12-31') . "')");// create the filter 
         }
 
         if (isset($data->historico) AND ( (is_scalar($data->historico) AND $data->historico !== '') OR (is_array($data->historico) AND (!empty($data->historico)) )) )

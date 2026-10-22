@@ -661,7 +661,7 @@ class AgendaAgendamentoList extends TPage
         if (isset($data->profissional_id) AND ( (is_scalar($data->profissional_id) AND $data->profissional_id !== '') OR (is_array($data->profissional_id) AND (!empty($data->profissional_id)) )) )
         {
 
-            $filters[] = new TFilter('agenda_id', 'in', "(SELECT id FROM agenda WHERE profissional_id = '{$data->profissional_id}')");// create the filter 
+            $filters[] = new TFilter('agenda_id', 'in', "(SELECT id FROM agenda WHERE profissional_id = '" . SqlSeguro::id($data->profissional_id) . "')");// create the filter 
         }
 
         if (isset($data->especialidade_id) AND ( (is_scalar($data->especialidade_id) AND $data->especialidade_id !== '') OR (is_array($data->especialidade_id) AND (!empty($data->especialidade_id)) )) )

@@ -265,7 +265,7 @@ class ContratoSeekWindow extends TWindow
         if (isset($data->cliente_id) AND ( (is_scalar($data->cliente_id) AND $data->cliente_id !== '') OR (is_array($data->cliente_id) AND (!empty($data->cliente_id)) )) )
         {
 
-            $filters[] = new TFilter('id', 'in', "(SELECT contrato_id FROM contrato_pessoa WHERE cliente_id = '{$data->cliente_id}')");// create the filter 
+            $filters[] = new TFilter('id', 'in', "(SELECT contrato_id FROM contrato_pessoa WHERE cliente_id = '" . SqlSeguro::id($data->cliente_id) . "')");// create the filter 
         }
 
         if (isset($data->assunto_id) AND ( (is_scalar($data->assunto_id) AND $data->assunto_id !== '') OR (is_array($data->assunto_id) AND (!empty($data->assunto_id)) )) )

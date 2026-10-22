@@ -955,7 +955,7 @@ class ContaPagarList extends TPage
         if (isset($data->escritorio_id) AND ( (is_scalar($data->escritorio_id) AND $data->escritorio_id !== '') OR (is_array($data->escritorio_id) AND (!empty($data->escritorio_id)) )) )
         {
 
-            $filters[] = new TFilter('escritorio_id', 'in', "(SELECT id FROM conta WHERE escritorio_id = '{$data->escritorio_id}')");// create the filter 
+            $filters[] = new TFilter('escritorio_id', 'in', "(SELECT id FROM conta WHERE escritorio_id = '" . SqlSeguro::id($data->escritorio_id) . "')");// create the filter 
         }
 
         if (isset($data->quitada) AND ( (is_scalar($data->quitada) AND $data->quitada !== '') OR (is_array($data->quitada) AND (!empty($data->quitada)) )) )
@@ -991,13 +991,13 @@ class ContaPagarList extends TPage
         if (isset($data->dt_vencimento_ini) AND ( (is_scalar($data->dt_vencimento_ini) AND $data->dt_vencimento_ini !== '') OR (is_array($data->dt_vencimento_ini) AND (!empty($data->dt_vencimento_ini)) )) )
         {
 
-            $filters[] = new TFilter('id', 'in', "(SELECT conta_id FROM lancamento WHERE dt_vencimento >= '{$data->dt_vencimento_ini}')");// create the filter 
+            $filters[] = new TFilter('id', 'in', "(SELECT conta_id FROM lancamento WHERE dt_vencimento >= '" . (SqlSeguro::data($data->dt_vencimento_ini) ?? '0001-01-01') . "')");// create the filter 
         }
 
         if (isset($data->data_vencimento_fim) AND ( (is_scalar($data->data_vencimento_fim) AND $data->data_vencimento_fim !== '') OR (is_array($data->data_vencimento_fim) AND (!empty($data->data_vencimento_fim)) )) )
         {
 
-            $filters[] = new TFilter('id', 'in', "(SELECT conta_id FROM lancamento WHERE dt_vencimento <= '{$data->data_vencimento_fim}')");// create the filter 
+            $filters[] = new TFilter('id', 'in', "(SELECT conta_id FROM lancamento WHERE dt_vencimento <= '" . (SqlSeguro::data($data->data_vencimento_fim) ?? '9999-12-31') . "')");// create the filter 
         }
 
         if (isset($data->pessoa_nome) AND ( (is_scalar($data->pessoa_nome) AND $data->pessoa_nome !== '') OR (is_array($data->pessoa_nome) AND (!empty($data->pessoa_nome)) )) )

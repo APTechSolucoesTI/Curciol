@@ -1023,10 +1023,10 @@ class TarefaList extends TPage
             {
 
                 $criteria1 = new TCriteria;
-                $criteria1->add(new TFilter('processo_id',   'in', "(SELECT id FROM processo   WHERE numero_cnj_numero like '%{$data->numero_processo}%' )"), TExpression::OR_OPERATOR);
-                $criteria1->add(new TFilter('publicacao_id', 'in', "(SELECT id FROM publicacao WHERE processo_id in (SELECT id FROM processo WHERE numero_cnj_numero like '%{$data->numero_processo}%'))"), TExpression::OR_OPERATOR);
-                $criteria1->add(new TFilter('publicacao_id', 'in', "(SELECT id FROM publicacao WHERE numero_unico_processo like '%{$data->numero_processo}%')"), TExpression::OR_OPERATOR);
-                $criteria1->add(new TFilter('publicacao_id', 'in', "(SELECT id FROM publicacao WHERE numero_processo_principal like '%{$data->numero_processo}%')"), TExpression::OR_OPERATOR);
+                $criteria1->add(new TFilter('processo_id',   'in', "(SELECT id FROM processo   WHERE numero_cnj_numero like '%" . SqlSeguro::texto($data->numero_processo) . "%' )"), TExpression::OR_OPERATOR);
+                $criteria1->add(new TFilter('publicacao_id', 'in', "(SELECT id FROM publicacao WHERE processo_id in (SELECT id FROM processo WHERE numero_cnj_numero like '%" . SqlSeguro::texto($data->numero_processo) . "%'))"), TExpression::OR_OPERATOR);
+                $criteria1->add(new TFilter('publicacao_id', 'in', "(SELECT id FROM publicacao WHERE numero_unico_processo like '%" . SqlSeguro::texto($data->numero_processo) . "%')"), TExpression::OR_OPERATOR);
+                $criteria1->add(new TFilter('publicacao_id', 'in', "(SELECT id FROM publicacao WHERE numero_processo_principal like '%" . SqlSeguro::texto($data->numero_processo) . "%')"), TExpression::OR_OPERATOR);
                 $criteria->add($criteria1); 
             }
             if (isset($data->cliente_vinculado_col) AND ( (is_scalar($data->cliente_vinculado_col) AND $data->cliente_vinculado_col !== '') OR (is_array($data->cliente_vinculado_col) AND (!empty($data->cliente_vinculado_col)) )) )

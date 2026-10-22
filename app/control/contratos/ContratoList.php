@@ -738,13 +738,13 @@ class ContratoList extends TPage
         if (isset($data->contrato_pessoa_pessoa_id) AND ( (is_scalar($data->contrato_pessoa_pessoa_id) AND $data->contrato_pessoa_pessoa_id !== '') OR (is_array($data->contrato_pessoa_pessoa_id) AND (!empty($data->contrato_pessoa_pessoa_id)) )) )
         {
 
-            $filters[] = new TFilter('id', 'in', "(SELECT contrato_id FROM contrato_pessoa WHERE cliente_id in  (SELECT id FROM pessoa WHERE nome like '%{$data->contrato_pessoa_pessoa_id}%') )");// create the filter 
+            $filters[] = new TFilter('id', 'in', "(SELECT contrato_id FROM contrato_pessoa WHERE cliente_id in  (SELECT id FROM pessoa WHERE nome like '%" . SqlSeguro::texto($data->contrato_pessoa_pessoa_id) . "%') )");// create the filter 
         }
 
         if (isset($data->contrato_profissional_profissional_id) AND ( (is_scalar($data->contrato_profissional_profissional_id) AND $data->contrato_profissional_profissional_id !== '') OR (is_array($data->contrato_profissional_profissional_id) AND (!empty($data->contrato_profissional_profissional_id)) )) )
         {
 
-            $filters[] = new TFilter('id', 'in', "(SELECT contrato_id FROM contrato_repasse WHERE pessoa_id in  (SELECT id FROM pessoa WHERE nome like '%{$data->contrato_profissional_profissional_id}%') )");// create the filter 
+            $filters[] = new TFilter('id', 'in', "(SELECT contrato_id FROM contrato_repasse WHERE pessoa_id in  (SELECT id FROM pessoa WHERE nome like '%" . SqlSeguro::texto($data->contrato_profissional_profissional_id) . "%') )");// create the filter 
         }
 
         if (isset($data->area_id) AND ( (is_scalar($data->area_id) AND $data->area_id !== '') OR (is_array($data->area_id) AND (!empty($data->area_id)) )) )

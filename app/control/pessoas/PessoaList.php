@@ -628,7 +628,7 @@ class PessoaList extends TPage
         if (isset($data->search_cadastro) AND ( (is_scalar($data->search_cadastro) AND $data->search_cadastro !== '') OR (is_array($data->search_cadastro) AND (!empty($data->search_cadastro)) )) )
         {
 
-            $filters[] = new TFilter('id', 'in', "(SELECT pessoa_id FROM pessoa_grupo WHERE grupo_id = '{$data->search_cadastro}')");// create the filter 
+            $filters[] = new TFilter('id', 'in', "(SELECT pessoa_id FROM pessoa_grupo WHERE grupo_id = '" . SqlSeguro::id($data->search_cadastro) . "')");// create the filter 
         }
 
         if (isset($data->cpf_cnpj) AND ( (is_scalar($data->cpf_cnpj) AND $data->cpf_cnpj !== '') OR (is_array($data->cpf_cnpj) AND (!empty($data->cpf_cnpj)) )) )
@@ -682,7 +682,7 @@ class PessoaList extends TPage
         if (isset($data->select_cadastro) AND ( (is_scalar($data->select_cadastro) AND $data->select_cadastro !== '') OR (is_array($data->select_cadastro) AND (!empty($data->select_cadastro)) )) )
         {
 
-            $filters[] = new TFilter('id', 'in', "(SELECT pessoa_id FROM pessoa_grupo WHERE grupo_id = '{$data->select_cadastro}')");// create the filter 
+            $filters[] = new TFilter('id', 'in', "(SELECT pessoa_id FROM pessoa_grupo WHERE grupo_id = '" . SqlSeguro::id($data->select_cadastro) . "')");// create the filter 
         }
 
         if (isset($data->nome_col) AND ( (is_scalar($data->nome_col) AND $data->nome_col !== '') OR (is_array($data->nome_col) AND (!empty($data->nome_col)) )) ){

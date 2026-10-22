@@ -116,7 +116,7 @@ class ProcessoContratoPessoaSimpleList extends TPage
             }
 
             if($param['processo_id']){
-                $criteria->add(new TFilter('contrato_id', 'in', "(SELECT contrato_id FROM contrato_processo WHERE processo_id = ".$param['processo_id'].")"));
+                $criteria->add(new TFilter('contrato_id', 'in', "(SELECT contrato_id FROM contrato_processo WHERE processo_id = " . SqlSeguro::id($param['processo_id']) . ")"));
             }
 
             // load the objects according to criteria

@@ -644,7 +644,7 @@ class AgendaList extends TPage
         if (isset($data->escritorio_nome) AND ( (is_scalar($data->escritorio_nome) AND $data->escritorio_nome !== '') OR (is_array($data->escritorio_nome) AND (!empty($data->escritorio_nome)) )) )
         {
 
-            $filters[] = new TFilter('escritorio_id', 'in', "(SELECT id FROM escritorio WHERE nome like '%{$data->escritorio_nome}%')");// create the filter 
+            $filters[] = new TFilter('escritorio_id', 'in', "(SELECT id FROM escritorio WHERE nome like '%" . SqlSeguro::texto($data->escritorio_nome) . "%')");// create the filter 
         }
 
         $this->button_filtros->style = 'position: relative';

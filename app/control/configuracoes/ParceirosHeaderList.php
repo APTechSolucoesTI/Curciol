@@ -476,7 +476,7 @@ class ParceirosHeaderList extends TPage
         if (isset($data->pessoa_nome) AND ( (is_scalar($data->pessoa_nome) AND $data->pessoa_nome !== '') OR (is_array($data->pessoa_nome) AND (!empty($data->pessoa_nome)) )) )
         {
 
-            $filters[] = new TFilter('pessoa_id', 'in', "(SELECT id FROM pessoa WHERE id = '{$data->pessoa_nome}')");// create the filter 
+            $filters[] = new TFilter('pessoa_id', 'in', "(SELECT id FROM pessoa WHERE id = '" . SqlSeguro::id($data->pessoa_nome) . "')");// create the filter 
         }
 
         if (isset($data->percentual) AND ( (is_scalar($data->percentual) AND $data->percentual !== '') OR (is_array($data->percentual) AND (!empty($data->percentual)) )) )

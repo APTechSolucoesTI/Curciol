@@ -631,7 +631,7 @@ class ProcedimentosList extends TPage
         if (isset($data->convenio) AND ( (is_scalar($data->convenio) AND $data->convenio !== '') OR (is_array($data->convenio) AND (!empty($data->convenio)) )) )
         {
 
-            $filters[] = new TFilter('id', 'in', "(SELECT procedimento_id FROM procedimento_preco WHERE parceiro_id = '{$data->convenio}')");// create the filter 
+            $filters[] = new TFilter('id', 'in', "(SELECT procedimento_id FROM procedimento_preco WHERE parceiro_id = '" . SqlSeguro::id($data->convenio) . "')");// create the filter 
         }
 
         if (isset($data->nome_col) AND ( (is_scalar($data->nome_col) AND $data->nome_col !== '') OR (is_array($data->nome_col) AND (!empty($data->nome_col)) )) )

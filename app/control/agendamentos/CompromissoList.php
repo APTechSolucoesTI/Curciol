@@ -671,7 +671,7 @@ class CompromissoList extends TPage
         if (isset($data->agenda_nome) AND ( (is_scalar($data->agenda_nome) AND $data->agenda_nome !== '') OR (is_array($data->agenda_nome) AND (!empty($data->agenda_nome)) )) )
         {
 
-            $filters[] = new TFilter('agenda_id', 'in', "(SELECT id FROM agenda WHERE nome like '%{$data->agenda_nome}%')");// create the filter 
+            $filters[] = new TFilter('agenda_id', 'in', "(SELECT id FROM agenda WHERE nome like '%" . SqlSeguro::texto($data->agenda_nome) . "%')");// create the filter 
         }
 
         if (isset($data->tipo_compromisso_nome) AND ( (is_scalar($data->tipo_compromisso_nome) AND $data->tipo_compromisso_nome !== '') OR (is_array($data->tipo_compromisso_nome) AND (!empty($data->tipo_compromisso_nome)) )) )

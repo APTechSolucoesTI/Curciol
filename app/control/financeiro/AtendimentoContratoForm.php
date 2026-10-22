@@ -113,7 +113,7 @@ class AtendimentoContratoForm extends TPage
             {
                 TTransaction::open(self::$database);
                 $criteria = new TCriteria();
-                $criteria->add(new TFilter('id', 'in', "(SELECT contrato_id FROM contrato_pessoa WHERE cliente_id = '{$param['contrato_pessoa_id']}')"));
+                $criteria->add(new TFilter('id', 'in', "(SELECT contrato_id FROM contrato_pessoa WHERE cliente_id = '" . SqlSeguro::texto($param['contrato_pessoa_id']) . "')"));
 
                 TCombo::reload(self::$formName, 'contrato_id', Contrato::getIndexedArray('id', 'numero', $criteria));
                 TTransaction::close();
@@ -139,7 +139,7 @@ class AtendimentoContratoForm extends TPage
             {
                 TTransaction::open(self::$database);
                 $criteria = new TCriteria();
-                $criteria->add(new TFilter('id', 'in', "(SELECT contrato_id FROM contrato_profissional WHERE profissional_id = '{$param['contrato_profissional_id']}')"));
+                $criteria->add(new TFilter('id', 'in', "(SELECT contrato_id FROM contrato_profissional WHERE profissional_id = '" . SqlSeguro::texto($param['contrato_profissional_id']) . "')"));
 
                 TCombo::reload(self::$formName, 'contrato_id', Contrato::getIndexedArray('id', 'numero', $criteria));
                 TTransaction::close();
