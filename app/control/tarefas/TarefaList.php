@@ -1033,16 +1033,16 @@ class TarefaList extends TPage
             {
                 $criteria1 = new TCriteria;
                 $criteria1->add(new TFilter('id', 'in', 
-                    "(SELECT tarefa_id FROM tarefa_cliente WHERE cliente_id in (SELECT id FROM pessoa WHERE nome_busca ilike '%$data->cliente_vinculado_col%'))"
+                    "(SELECT tarefa_id FROM tarefa_cliente WHERE cliente_id in (SELECT id FROM pessoa WHERE nome_busca ilike '%" . SqlSeguro::texto($data->cliente_vinculado_col) . "%'))"
                     ), TExpression::OR_OPERATOR); 
                 $criteria1->add(new TFilter('processo_id', 'in', 
                     "(SELECT processo_id FROM contrato_processo WHERE processo_id in (SELECT processo_id FROM contrato_processo WHERE contrato_id in 
-                        (SELECT contrato_id FROM contrato_pessoa WHERE cliente_id in (SELECT id FROM pessoa WHERE nome_busca ilike '%$data->cliente_vinculado_col%'))))"
+                        (SELECT contrato_id FROM contrato_pessoa WHERE cliente_id in (SELECT id FROM pessoa WHERE nome_busca ilike '%" . SqlSeguro::texto($data->cliente_vinculado_col) . "%'))))"
                     ), TExpression::OR_OPERATOR); 
                 $criteria1->add(new TFilter('publicacao_id', 'in', 
                     "(SELECT id FROM publicacao WHERE processo_id in 
                 		(SELECT processo_id FROM contrato_processo WHERE processo_id in (SELECT processo_id FROM contrato_processo WHERE contrato_id in 
-                		(SELECT contrato_id FROM contrato_pessoa WHERE cliente_id in (SELECT id FROM pessoa WHERE nome_busca ilike '%$data->cliente_vinculado_col%')))))"
+                		(SELECT contrato_id FROM contrato_pessoa WHERE cliente_id in (SELECT id FROM pessoa WHERE nome_busca ilike '%" . SqlSeguro::texto($data->cliente_vinculado_col) . "%')))))"
                     ), TExpression::OR_OPERATOR); 
                 $criteria->add($criteria1); 
             }
