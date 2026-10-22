@@ -120,30 +120,7 @@ class AdiantiRecordService
         
         TTransaction::open($database);
         
-        $criteria = new TCriteria;
-        if (isset($param['offset']))
-        {
-            $criteria->setProperty('offset', $param['offset']);
-        }
-        if (isset($param['limit']))
-        {
-            $criteria->setProperty('limit', $param['limit']);
-        }
-        if (isset($param['order']))
-        {
-            $criteria->setProperty('order', $param['order']);
-        }
-        if (isset($param['direction']))
-        {
-            $criteria->setProperty('direction', $param['direction']);
-        }
-        if (isset($param['filters']))
-        {
-            foreach ($param['filters'] as $filter)
-            {
-                $criteria->add(new TFilter($filter[0], $filter[1], $filter[2]));
-            }
-        }
+        $criteria = self::criteriaSeguro($param, TRUE);
         
         $repository = new TRepository($activeRecord);
         $objects = $repository->load($criteria, FALSE);
@@ -179,14 +156,7 @@ class AdiantiRecordService
         
         TTransaction::open($database);
         
-        $criteria = new TCriteria;
-        if (isset($param['filters']))
-        {
-            foreach ($param['filters'] as $filter)
-            {
-                $criteria->add(new TFilter($filter[0], $filter[1], $filter[2]));
-            }
-        }
+        $criteria = self::criteriaSeguro($param, FALSE);
         
         $repository = new TRepository($activeRecord);
         $return = $repository->delete($criteria);
@@ -212,30 +182,7 @@ class AdiantiRecordService
 
         TTransaction::open($database);
 
-        $criteria = new TCriteria;
-        if (isset($param['offset']))
-        {
-            $criteria->setProperty('offset', $param['offset']);
-        }
-        if (isset($param['limit']))
-        {
-            $criteria->setProperty('limit', $param['limit']);
-        }
-        if (isset($param['order']))
-        {
-            $criteria->setProperty('order', $param['order']);
-        }
-        if (isset($param['direction']))
-        {
-            $criteria->setProperty('direction', $param['direction']);
-        }
-        if (isset($param['filters']))
-        {
-            foreach ($param['filters'] as $filter)
-            {
-                $criteria->add(new TFilter($filter[0], $filter[1], $filter[2]));
-            }
-        }
+        $criteria = self::criteriaSeguro($param, TRUE);
 
         $repository = new TRepository($activeRecord);
         $count = $repository->count($criteria, FALSE);
@@ -291,5 +238,61 @@ class AdiantiRecordService
                 }
                 break;
         }
+    }
+
+    /**
+     * Curciol (seguranca 22/10/2026): monta o criterio de loadAll/countAll/deleteAll validando o que vem da
+     * requisicao. Coluna e order so nomes de coluna; operador de uma lista fixa; valor nunca como SQL cru
+     * (TFilter trata "(SELECT" e "NOESC:" como SQL). Antes coluna, operador e order iam crus para o SQL.
+     */
+    private static function criteriaSeguro($param, $paginacao)
+    {
+        $criteria = new TCriteria;
+        if ($paginacao)
+        {
+            if (isset($param['offset']))
+            {
+                $criteria->setProperty('offset', (int) $param['offset']);
+            }
+            if (isset($param['limit']))
+            {
+                $criteria->setProperty('limit', (int) $param['limit']);
+            }
+            if (isset($param['order']))
+            {
+                if (!TCriteria::ordemValida($param['order']))
+                {
+                    throw new Exception('Ordenação inválida');
+                }
+                $criteria->setProperty('order', $param['order']);
+            }
+            if (isset($param['direction']))
+            {
+                $criteria->setProperty('direction', strtolower((string) $param['direction']) == 'desc' ? 'desc' : 'asc');
+            }
+        }
+        if (isset($param['filters']))
+        {
+            $operadores = ['=', '<>', '!=', '<', '<=', '>', '>=', 'like', 'ilike', 'not like', 'in', 'not in', 'is', 'is not'];
+            foreach ((array) $param['filters'] as $filter)
+            {
+                $coluna   = $filter[0] ?? '';
+                $operador = strtolower(trim((string) ($filter[1] ?? '')));
+                $valor    = $filter[2] ?? null;
+                if (!is_string($coluna) OR !preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $coluna) OR !in_array($operador, $operadores, TRUE))
+                {
+                    throw new Exception('Filtro inválido');
+                }
+                foreach ((array) $valor as $v)
+                {
+                    if (is_string($v) AND preg_match('/^s*((s*SELECT|NOESC:)/i', $v))
+                    {
+                        throw new Exception('Filtro inválido');
+                    }
+                }
+                $criteria->add(new TFilter($coluna, $operador, $valor));
+            }
+        }
+        return $criteria;
     }
 }
