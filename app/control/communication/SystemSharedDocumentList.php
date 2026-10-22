@@ -108,7 +108,12 @@ class SystemSharedDocumentList extends TPage
                     if (strtolower(substr($object->filename, -4)) == 'html')
                     {
                         $win = TWindow::create( $object->filename, 0.8, 0.8 );
-                        $win->add( file_get_contents( "files/documents/{$id}/".$object->filename ) );
+                        // Curciol (seguranca 22/10/2026): HTML enviado por usuario aparece isolado (iframe sandbox, sem scripts nem sessao)
+                        $quadro = new TElement('iframe');
+                        $quadro->sandbox = '';
+                        $quadro->srcdoc  = htmlspecialchars((string) file_get_contents( "files/documents/{$id}/".$object->filename ), ENT_QUOTES | ENT_HTML5, "UTF-8");
+                        $quadro->style   = 'width: 100%; height: calc(100% - 10px); border: 0';
+                        $win->add( $quadro );
                         $win->show();
                     }
                     else if (strtolower(substr($object->filename, -3)) == 'pdf')
