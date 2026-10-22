@@ -77,7 +77,7 @@ class ContaListaColunas
             // abre na aba do cliente a que a conta se refere (a requisicao pode ter varios clientes)
             $rpc = !empty($conta->id) ? LevantamentoFinanceiroService::clienteDaRequisicao((int) $conta->id) : null;
             $aba = $rpc ? "&requisicao_pagamento_cliente_id={$rpc}" : '';
-            $partes[] = "<a generator='adianti' href='index.php?class=RequisicaoPagamentoVisualizacao&method=onShow&key={$id}{$aba}&register_state=false'>Requisição nº {$id}</a>";
+            $partes[] = "<a generator='adianti' style='color:#1a73e8; text-decoration:underline' href='index.php?class=RequisicaoPagamentoVisualizacao&method=onShow&key={$id}{$aba}&register_state=false'>Requisição nº {$id}</a>";
         }
         if (!empty($conta->contrato_id))
         {
@@ -93,7 +93,7 @@ class ContaListaColunas
                 TTransaction::close();
             }
             $numero = $contrato && trim((string) $contrato->numero) !== '' ? htmlspecialchars((string) $contrato->numero) : "#{$id}";
-            $partes[] = "<a generator='adianti' href='index.php?class=ContratoFormView&method=onShow&key={$id}&register_state=false'>Contrato {$numero}</a>";
+            $partes[] = "<a generator='adianti' style='color:#1a73e8; text-decoration:underline' href='index.php?class=ContratoFormView&method=onShow&key={$id}&register_state=false'>Contrato {$numero}</a>";
         }
         return $partes ? implode('<br>', $partes) : '<span style="color:#888">Manual</span>';
     }
