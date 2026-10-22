@@ -884,22 +884,22 @@ class ContratoFormView extends TPage
             if ($qtdProfissionais > 0)
             {
                 // valor de cada colaborador = valor disponivel x % do contrato (aba Profissionais);
-                // se os % somam 100, o ultimo fica com os centavos
+                // se os % somam 100, a Curciol fica com os centavos (ou o ultimo, se ela nao participa)
                 $disponivelCentavos = (int) round($valorDisponivel * 100);
                 $fechaCem = abs(array_sum(array_map($toFloat, $percentuaisRepasse)) - 100) < 0.01;
-                $valorAcumulado = 0;
+                $receptor = $fechaCem ? RepasseColaboradorService::indiceDaDiferenca($profissionaisRepasse, $qtdProfissionais - 1) : null;
+                $centavosPorProfissional = [];
 
                 for ($i = 0; $i < $qtdProfissionais; $i++)
                 {
-                    if ($fechaCem && $i == $qtdProfissionais - 1)
-                    {
-                        $centavos = $disponivelCentavos - $valorAcumulado;
-                    }
-                    else
-                    {
-                        $centavos = (int) round($disponivelCentavos * $toFloat($percentuaisRepasse[$i]) / 100);
-                        $valorAcumulado += $centavos;
-                    }
+                    $centavosPorProfissional[$i] = (int) round($disponivelCentavos * $toFloat($percentuaisRepasse[$i]) / 100);
+                }
+                if ($receptor !== null)
+                {
+                    $centavosPorProfissional[$receptor] = $disponivelCentavos - (array_sum($centavosPorProfissional) - $centavosPorProfissional[$receptor]);
+                }
+                foreach ($centavosPorProfissional as $centavos)
+                {
                     $valoresProfissionais[] = $centavos / 100;
                 }
             }

@@ -6,8 +6,8 @@
  *
  * MLE do sistema = W da planilha (liquido apos descontos legais), logo
  * S = N - MLE. AA e arredondado a centavos e Z = Y - AA (Z + AA = Y sempre).
- * Repasses: arredondados a centavos; a diferenca vai para o participante
- * marcado "recebe a diferenca". Se a diferenca deixar algum repasse negativo,
+ * Repasses: arredondados a centavos; a diferenca vai para a Curciol ($e['pessoas_curciol']) ou, se ela nao
+ * participa, para o participante marcado "recebe a diferenca". Se a diferenca deixar algum repasse negativo,
  * ou a soma nao fechar em AD, o calculo para com erro (nada e descartado).
  */
 class LevantamentoCalculoService
@@ -69,13 +69,17 @@ class LevantamentoCalculoService
         $repasses = [];
         if ($ad > 0) {
             if (empty($e['participantes'])) { throw new Exception('Escolha a parceria para dividir os honorários.'); }
-            $soma = 0.0; $indiceDif = null;
+            $soma = 0.0; $indiceDif = null; $indiceCurciol = null;
+            $curciol = array_map('intval', (array) ($e['pessoas_curciol'] ?? []));
             foreach (array_values($e['participantes']) as $i => $p) {
                 $valor = round($ad * (float) $p['percentual'], 2);
                 $repasses[] = ['pessoa_id' => (int) $p['pessoa_id'], 'percentual' => (float) $p['percentual'], 'valor' => $valor, 'ajuste_centavos' => 0.0];
                 $soma += $valor;
                 if (ParceriaPercentualService::marcado($p['recebe_diferenca'] ?? false)) { $indiceDif = $i; }
+                if ($indiceCurciol === null && in_array((int) $p['pessoa_id'], $curciol, true)) { $indiceCurciol = $i; }
             }
+            // a diferenca de centavos fica sempre com a Curciol quando ela participa (regra de 22/10/2026)
+            if ($indiceCurciol !== null) { $indiceDif = $indiceCurciol; }
             $diferenca = round($ad - $soma, 2);
             if ($diferenca != 0.0) {
                 if ($indiceDif === null) { throw new Exception('A parceria não tem participante para receber a diferença de centavos.'); }

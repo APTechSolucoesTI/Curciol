@@ -674,6 +674,7 @@ class LevantamentoFinanceiroService
             'pct_honorarios'    => $d['pct_honorarios'] ?? null,
             'pct_nf'            => $d['pct_nf'] ?? null,
             'participantes'     => $per['participantes'],
+            'pessoas_curciol'   => RepasseColaboradorService::pessoasCurciol(), // ficam com a diferenca de centavos
         ];
         $resultado = LevantamentoCalculoService::calcular($entrada);
 

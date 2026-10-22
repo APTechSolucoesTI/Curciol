@@ -173,7 +173,7 @@ class RepasseColaboradorService
 
     /**
      * Grava a divisao dos colaboradores na parcela (lancamento_profissional), base dos repasses no recebimento.
-     * $profissionais: [[pessoa_id, percentual], ...]. Valor = parcela x %; se os % somam 100, o ultimo fica com os centavos.
+     * $profissionais: [[pessoa_id, percentual], ...]. Valor = parcela x %; se os % somam 100, a Curciol fica com os centavos.
      * Substitui a divisao que a parcela tiver. Usa a transacao aberta.
      */
     public static function dividirParcela(int $lancamentoId, array $profissionais): void
@@ -191,11 +191,17 @@ class RepasseColaboradorService
 
         $baseCentavos = (int) round((float) $parcela->valor * 100);
         $fechaCem = abs(array_sum(array_column($linhas, 1)) - 100) < 0.01;
-        $acumulado = 0;
-        $ultimo = count($linhas) - 1;
+        // se os % somam 100, a diferenca de centavos fica com a Curciol (ou com o ultimo, se ela nao participa)
+        $receptor = $fechaCem ? self::indiceDaDiferenca(array_column($linhas, 0), count($linhas) - 1) : null;
+        $valores = [];
         foreach ($linhas as $i => [$pessoa, $pct]) {
-            $centavos = ($fechaCem && $i === $ultimo) ? $baseCentavos - $acumulado : (int) round($baseCentavos * $pct / 100);
-            $acumulado += $centavos;
+            $valores[$i] = (int) round($baseCentavos * $pct / 100);
+        }
+        if ($receptor !== null) {
+            $valores[$receptor] = $baseCentavos - (array_sum($valores) - $valores[$receptor]);
+        }
+        foreach ($linhas as $i => [$pessoa, $pct]) {
+            $centavos = $valores[$i];
             $lp = new LancamentoProfissional();
             $lp->lancamento_id = $lancamentoId;
             $lp->pessoa_id = $pessoa;
@@ -380,6 +386,40 @@ class RepasseColaboradorService
         $st = $c->prepare("SELECT COALESCE(SUM(CASE WHEN tipo = 'A' THEN valor WHEN tipo = 'D' THEN -valor ELSE 0 END), 0) FROM lancamento_profissional_ajuste WHERE lancamento_profissional_id = ?");
         $st->execute([$lancamentoProfissionalId]);
         return (float) $st->fetchColumn();
+    }
+
+    private static $pessoasCurciol = null;
+
+    /** Pessoas que sao a Curciol: a do CNPJ de um escritorio e a de nome CURCIOL SOCIEDADE DE ADVOGADOS. */
+    public static function pessoasCurciol(): array
+    {
+        if (self::$pessoasCurciol !== null) { return self::$pessoasCurciol; }
+        $propria = self::abrir();
+        try {
+            $ids = array_keys(array_filter(self::posicoes(), function ($posicao) { return $posicao === 0; }));
+            $st = TTransaction::get()->query("SELECT p.id FROM escritorio e JOIN pessoa p
+                                                ON regexp_replace(COALESCE(p.cpf_cnpj, ''), '\\D', '', 'g') = regexp_replace(COALESCE(e.cnpj, ''), '\\D', '', 'g')
+                                             WHERE regexp_replace(COALESCE(e.cnpj, ''), '\\D', '', 'g') <> ''");
+            foreach ($st->fetchAll(PDO::FETCH_COLUMN) as $id) { $ids[] = (int) $id; }
+            if ($propria) { TTransaction::close(); }
+        } catch (Throwable $e) {
+            if ($propria) { TTransaction::rollback(); }
+            throw $e;
+        }
+        return self::$pessoasCurciol = array_values(array_unique(array_map('intval', $ids)));
+    }
+
+    /**
+     * Quem fica com a diferenca de centavos de uma divisao (regra do escritorio, 22/10/2026): sempre a Curciol.
+     * Devolve o indice da Curciol em $pessoaIds; se ela nao participa, $padrao.
+     */
+    public static function indiceDaDiferenca(array $pessoaIds, ?int $padrao): ?int
+    {
+        $curciol = self::pessoasCurciol();
+        foreach (array_values($pessoaIds) as $i => $pessoaId) {
+            if (in_array((int) $pessoaId, $curciol, true)) { return $i; }
+        }
+        return $padrao;
     }
 
     /** Pessoa que e o proprio escritorio (mesmo CNPJ), ou 0. */

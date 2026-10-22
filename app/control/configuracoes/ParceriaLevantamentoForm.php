@@ -344,7 +344,16 @@ class ParceriaLevantamentoForm extends TPage
 
             self::exigirNomeUnico($nome, (int) $data->id);
 
-            $participantes = $this->participantesDoPost($tipo);
+            $participantes = array_values($this->participantesDoPost($tipo));
+            // a diferenca de centavos fica sempre com a Curciol quando ela participa (regra de 22/10/2026)
+            $curciol = RepasseColaboradorService::indiceDaDiferenca(array_column($participantes, 'pessoa_id'), null);
+            if ($curciol !== null)
+            {
+                foreach (array_keys($participantes) as $i)
+                {
+                    $participantes[$i]['recebe_diferenca'] = ($i === $curciol) ? 'S' : 'N';
+                }
+            }
 
             // as mesmas regras (soma 100, nivel, diferenca, repetidos) da geracao do financeiro
             ParceriaPercentualService::validar($tipo, $participantes);
