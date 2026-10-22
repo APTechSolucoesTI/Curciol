@@ -140,6 +140,16 @@ class ExtratoSaidaForm extends TPage
             $data = $this->form->getData(); // get form data as array
             $object->fromArray( (array) $data); // load the object with data
 
+            // Curciol (seguranca 22/10/2026): mesma regra do botao Editar do extrato (ExtratoList::canEdit)
+            if (!empty($object->id))
+            {
+                $existente = Extrato::find($object->id);
+                if (!$existente OR !ExtratoList::canEdit($existente))
+                {
+                    throw new Exception('Este lançamento do extrato não pode ser alterado.');
+                }
+            }
+
             if(!$object->compensado){
 
                 $object->compensado = 'N';

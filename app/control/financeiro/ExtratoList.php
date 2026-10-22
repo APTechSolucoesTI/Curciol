@@ -519,6 +519,11 @@ class ExtratoList extends TPage
             TTransaction::open(self::$database);
 
             $extrato = Extrato::find($param['id']);
+            // Curciol (seguranca 22/10/2026): a condicao do botao vale tambem no servidor
+            if (!$extrato OR !self::canEdit($extrato))
+            {
+                throw new Exception('Este lançamento do extrato não pode ser alterado.');
+            }
 
             $pageParam['key'] = $extrato->id;
 
@@ -574,6 +579,11 @@ class ExtratoList extends TPage
 
                 // instantiates object
                 $object = new Extrato($key, FALSE); 
+                // Curciol (seguranca 22/10/2026): a condicao do botao vale tambem no servidor
+                if (!self::canDelete($object))
+                {
+                    throw new Exception('Este lançamento do extrato não pode ser excluído.');
+                }
                 $contasAfetadas = [$object->conta_caixa_id];
                 if ($object->lancamento_id) {
                     $lancGerado = Lancamento::find($object->lancamento_id);
