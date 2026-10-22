@@ -630,7 +630,6 @@ class ParceirosHeaderList extends TPage
         }
          if (isset($data->nome_col) AND ( (is_scalar($data->nome_col) AND $data->nome_col !== '') OR (is_array($data->nome_col) AND (!empty($data->nome_col)) )) ){
             $nome_col = $data->nome_col;
-            $data->nome_col = str_replace(' ','%',TratamentosService::removerAcentos($data->nome_col));
         }
         //</onBeforeDatagridSearch> 
 
@@ -646,7 +645,7 @@ class ParceirosHeaderList extends TPage
         if (isset($data->nome) AND ( (is_scalar($data->nome) AND $data->nome !== '') OR (is_array($data->nome) AND (!empty($data->nome)) )) )
         {
 
-            $filters[] = new TFilter('unaccent(nome)', 'ilike', "%{$data->nome}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(nome AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->nome) . '%');// create the filter 
         }
 
         if (isset($data->cpf_cnpj) AND ( (is_scalar($data->cpf_cnpj) AND $data->cpf_cnpj !== '') OR (is_array($data->cpf_cnpj) AND (!empty($data->cpf_cnpj)) )) )
@@ -670,7 +669,7 @@ class ParceirosHeaderList extends TPage
         if (isset($data->nome_col) AND ( (is_scalar($data->nome_col) AND $data->nome_col !== '') OR (is_array($data->nome_col) AND (!empty($data->nome_col)) )) )
         {
 
-            $filters[] = new TFilter('unaccent(nome)', 'ilike', "%{$data->nome_col}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(nome AS TEXT))', 'ilike', '%' . str_replace(' ', '%', TratamentosService::removerAcentos((string) $data->nome_col)) . '%');// create the filter 
         }
 
         if (isset($data->cpf_cnpj_col) AND ( (is_scalar($data->cpf_cnpj_col) AND $data->cpf_cnpj_col !== '') OR (is_array($data->cpf_cnpj_col) AND (!empty($data->cpf_cnpj_col)) )) )
@@ -695,11 +694,11 @@ class ParceirosHeaderList extends TPage
         {
             $globalCriteria = new TCriteria();
 
-            $globalCriteria->add(new TFilter('cpf_cnpj', 'ilike', "%{$data->globfiltpar}%"), ' OR ');
+            $globalCriteria->add(new TFilter('unaccent(CAST(cpf_cnpj AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->globfiltpar) . '%'), ' OR ');
 
-            $globalCriteria->add(new TFilter('unaccent(nome)', 'ilike', "%{$data->globfiltpar}%"), ' OR ');
+            $globalCriteria->add(new TFilter('unaccent(CAST(nome AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->globfiltpar) . '%'), ' OR ');
 
-            $globalCriteria->add(new TFilter('telefone', 'ilike', "%{$data->globfiltpar}%"), ' OR ');
+            $globalCriteria->add(new TFilter('unaccent(CAST(telefone AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->globfiltpar) . '%'), ' OR ');
 
             $filters[] = $globalCriteria;
         }

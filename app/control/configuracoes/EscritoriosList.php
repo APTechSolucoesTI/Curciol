@@ -594,7 +594,7 @@ class EscritoriosList extends TPage
         if (isset($data->nome) AND ( (is_scalar($data->nome) AND $data->nome !== '') OR (is_array($data->nome) AND (!empty($data->nome)) )) )
         {
 
-            $filters[] = new TFilter('unaccent(nome)', 'ilike', "%{$data->nome}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(nome AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->nome) . '%');// create the filter 
         }
 
         if (isset($data->cnpj) AND ( (is_scalar($data->cnpj) AND $data->cnpj !== '') OR (is_array($data->cnpj) AND (!empty($data->cnpj)) )) )
@@ -612,7 +612,7 @@ class EscritoriosList extends TPage
         if (isset($data->nome_col) AND ( (is_scalar($data->nome_col) AND $data->nome_col !== '') OR (is_array($data->nome_col) AND (!empty($data->nome_col)) )) )
         {
 
-            $filters[] = new TFilter('unaccent(nome)', 'ilike', "%{$data->nome_col}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(nome AS TEXT))', 'ilike', '%' . str_replace(' ', '%', TratamentosService::removerAcentos((string) $data->nome_col)) . '%');// create the filter 
         }
 
         if (isset($data->cidade_nome_col) AND ( (is_scalar($data->cidade_nome_col) AND $data->cidade_nome_col !== '') OR (is_array($data->cidade_nome_col) AND (!empty($data->cidade_nome_col)) )) )
@@ -648,7 +648,6 @@ class EscritoriosList extends TPage
         }
          if (isset($data->nome_col) AND ( (is_scalar($data->nome_col) AND $data->nome_col !== '') OR (is_array($data->nome_col) AND (!empty($data->nome_col)) )) ){
             $nome_col = $data->nome_col;
-            $data->nome_col = str_replace(' ','%',TratamentosService::removerAcentos($data->nome_col));
         }
 
         // fill the form with data again (os dois formularios mostram os filtros somados)

@@ -567,7 +567,7 @@ class LogCrontabHeaderList extends TPage
         if (isset($data->classe) AND ( (is_scalar($data->classe) AND $data->classe !== '') OR (is_array($data->classe) AND (!empty($data->classe)) )) )
         {
 
-            $filters[] = new TFilter('classe', 'ilike', "%{$data->classe}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(classe AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->classe) . '%');// create the filter 
         }
 
         if (isset($data->status) AND ( (is_scalar($data->status) AND $data->status !== '') OR (is_array($data->status) AND (!empty($data->status)) )) )

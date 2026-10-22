@@ -903,7 +903,7 @@ class RequisicaoPagamentoListagemHeaderList extends TPage
         if (isset($data->cliente) AND ( (is_scalar($data->cliente) AND $data->cliente !== '') OR (is_array($data->cliente) AND (!empty($data->cliente)) )) )
         {
 
-            $filters[] = new TFilter('cliente', 'ilike', "%{$data->cliente}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(cliente AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->cliente) . '%');// create the filter 
         }
 
         if (isset($data->data_requerimento1) AND ( (is_scalar($data->data_requerimento1) AND $data->data_requerimento1 !== '') OR (is_array($data->data_requerimento1) AND (!empty($data->data_requerimento1)) )) )

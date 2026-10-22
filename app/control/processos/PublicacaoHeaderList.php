@@ -1010,11 +1010,9 @@ class PublicacaoHeaderList extends TPage
 
         if (isset($data->titulo) AND ((is_scalar($data->titulo) AND $data->titulo !== '') OR (is_array($data->titulo) AND (!empty($data->titulo))))){
             $titulo = $data->titulo;
-            $data->titulo = str_replace(' ','%',TratamentosService::removerAcentos($data->titulo));
         }
         if (isset($data->responsavel) AND ( (is_scalar($data->responsavel) AND $data->responsavel !== '') OR (is_array($data->responsavel) AND (!empty($data->responsavel)) )) ){
             $responsavel = $data->responsavel;
-            $data->responsavel = str_replace(' ','%',TratamentosService::removerAcentos($data->responsavel));
         } 
 
         TSession::setValue(__CLASS__.'_filter_data', NULL);
@@ -1023,25 +1021,25 @@ class PublicacaoHeaderList extends TPage
         if (isset($data->responsavel) AND ( (is_scalar($data->responsavel) AND $data->responsavel !== '') OR (is_array($data->responsavel) AND (!empty($data->responsavel)) )) )
         {
 
-            $filters[] = new TFilter('unaccent(responsavel)', 'ilike', "%{$data->responsavel}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(responsavel AS TEXT))', 'ilike', '%' . str_replace(' ', '%', TratamentosService::removerAcentos((string) $data->responsavel)) . '%');// create the filter 
         }
 
         if (isset($data->jornal) AND ( (is_scalar($data->jornal) AND $data->jornal !== '') OR (is_array($data->jornal) AND (!empty($data->jornal)) )) )
         {
 
-            $filters[] = new TFilter('jornal', 'ilike', "%{$data->jornal}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(jornal AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->jornal) . '%');// create the filter 
         }
 
         if (isset($data->numero_processo_principal) AND ( (is_scalar($data->numero_processo_principal) AND $data->numero_processo_principal !== '') OR (is_array($data->numero_processo_principal) AND (!empty($data->numero_processo_principal)) )) )
         {
 
-            $filters[] = new TFilter('numero_unico_processo', 'ilike', "%{$data->numero_processo_principal}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(numero_unico_processo AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->numero_processo_principal) . '%');// create the filter 
         }
 
         if (isset($data->titulo) AND ( (is_scalar($data->titulo) AND $data->titulo !== '') OR (is_array($data->titulo) AND (!empty($data->titulo)) )) )
         {
 
-            $filters[] = new TFilter('unaccent(titulo)', 'ilike', "%{$data->titulo}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(titulo AS TEXT))', 'ilike', '%' . str_replace(' ', '%', TratamentosService::removerAcentos((string) $data->titulo)) . '%');// create the filter 
         }
 
         if (isset($data->data_disponibilizacao) AND ( (is_scalar($data->data_disponibilizacao) AND $data->data_disponibilizacao !== '') OR (is_array($data->data_disponibilizacao) AND (!empty($data->data_disponibilizacao)) )) )
@@ -1090,9 +1088,9 @@ class PublicacaoHeaderList extends TPage
         {
             $globalCriteria = new TCriteria();
 
-            $globalCriteria->add(new TFilter('unaccent(responsavel)', 'ilike', "%{$data->global_filter}%"), ' OR ');
+            $globalCriteria->add(new TFilter('unaccent(CAST(responsavel AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->global_filter) . '%'), ' OR ');
 
-            $globalCriteria->add(new TFilter('numero_unico_processo', 'ilike', "%{$data->global_filter}%"), ' OR ');
+            $globalCriteria->add(new TFilter('unaccent(CAST(numero_unico_processo AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->global_filter) . '%'), ' OR ');
 
             $filters[] = $globalCriteria;
         }

@@ -768,7 +768,7 @@ class ApchatContatoList extends TPage
             if ($texto($data->$campo ?? null))
             {
                 $busca = str_replace(' ', '%', TratamentosService::removerAcentos($data->$campo));
-                $filters[] = new TFilter('unaccent(nome)', 'ilike', "%{$busca}%");
+                $filters[] = new TFilter('unaccent(CAST(nome AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $busca) . '%');
             }
         }
 
@@ -794,9 +794,9 @@ class ApchatContatoList extends TPage
         {
             $globalCriteria = new TCriteria();
 
-            $globalCriteria->add(new TFilter('unaccent(nome)', 'ilike', "%{$data->global_filter}%"), ' OR ');
-            $globalCriteria->add(new TFilter('telefone', 'ilike', "%{$data->global_filter}%"), ' OR ');
-            $globalCriteria->add(new TFilter('cpf_cnpj', 'ilike', "%{$data->global_filter}%"), ' OR ');
+            $globalCriteria->add(new TFilter('unaccent(CAST(nome AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->global_filter) . '%'), ' OR ');
+            $globalCriteria->add(new TFilter('unaccent(CAST(telefone AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->global_filter) . '%'), ' OR ');
+            $globalCriteria->add(new TFilter('unaccent(CAST(cpf_cnpj AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->global_filter) . '%'), ' OR ');
 
             $filters[] = $globalCriteria;
         }

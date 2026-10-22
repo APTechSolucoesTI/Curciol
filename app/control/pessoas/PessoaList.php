@@ -613,7 +613,6 @@ class PessoaList extends TPage
 
         if (isset($data->nome_col) AND ( (is_scalar($data->nome_col) AND $data->nome_col !== '') OR (is_array($data->nome_col) AND (!empty($data->nome_col)) )) ){
             $nome_col = $data->nome_col;
-            $data->nome_col = str_replace(' ','%',TratamentosService::removerAcentos($data->nome_col));
         } 
 
         TSession::setValue(__CLASS__.'_filter_data', NULL);
@@ -652,7 +651,7 @@ class PessoaList extends TPage
         if (isset($data->nome_col) AND ( (is_scalar($data->nome_col) AND $data->nome_col !== '') OR (is_array($data->nome_col) AND (!empty($data->nome_col)) )) )
         {
 
-            $filters[] = new TFilter('unaccent(nome)', 'ilike', "%{$data->nome_col}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(nome AS TEXT))', 'ilike', '%' . str_replace(' ', '%', TratamentosService::removerAcentos((string) $data->nome_col)) . '%');// create the filter 
         }
 
         if (isset($data->cpf_cnpj_col) AND ( (is_scalar($data->cpf_cnpj_col) AND $data->cpf_cnpj_col !== '') OR (is_array($data->cpf_cnpj_col) AND (!empty($data->cpf_cnpj_col)) )) )

@@ -542,7 +542,7 @@ class ParceriaLevantamentoList extends TPage
             if ($texto($data->$campo ?? null))
             {
                 $busca = str_replace(' ', '%', TratamentosService::removerAcentos($data->$campo));
-                $filters[] = new TFilter('unaccent(nome)', 'ilike', "%{$busca}%");
+                $filters[] = new TFilter('unaccent(CAST(nome AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $busca) . '%');
             }
         }
 
@@ -557,7 +557,7 @@ class ParceriaLevantamentoList extends TPage
         if ($texto($data->global_filter ?? null))
         {
             $busca = str_replace(' ', '%', TratamentosService::removerAcentos($data->global_filter));
-            $filters[] = new TFilter('unaccent(nome)', 'ilike', "%{$busca}%");
+            $filters[] = new TFilter('unaccent(CAST(nome AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $busca) . '%');
         }
 
         $this->button_filtros->style = 'position: relative';

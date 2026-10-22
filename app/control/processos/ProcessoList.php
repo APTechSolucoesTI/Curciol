@@ -904,7 +904,7 @@ class ProcessoList extends TPage
 
         if (isset($data->descricao_pre_processo) AND is_scalar($data->descricao_pre_processo) AND $data->descricao_pre_processo !== '')
         {
-            $filters[] = new TFilter('descricao_pre_processo', 'ilike', "%{$data->descricao_pre_processo}%");
+            $filters[] = new TFilter('unaccent(CAST(descricao_pre_processo AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->descricao_pre_processo) . '%');
         }
 
         if (isset($data->area_id) AND ( (is_scalar($data->area_id) AND $data->area_id !== '') OR (is_array($data->area_id) AND (!empty($data->area_id)) )) )
@@ -952,7 +952,8 @@ class ProcessoList extends TPage
         if (isset($data->numero_cnj_numero_col) AND ( (is_scalar($data->numero_cnj_numero_col) AND $data->numero_cnj_numero_col !== '') OR (is_array($data->numero_cnj_numero_col) AND (!empty($data->numero_cnj_numero_col)) )) )
         {
 
-            $filters[] = new TFilter('unaccent(CAST(numero_cnj_numero AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->numero_cnj_numero_col) . '%');// create the filter 
+            // numero CNJ ou o "numero outro" (pre-processo), os dois que a coluna mostra
+            $filters[] = new TFilter("unaccent(CONCAT(COALESCE(CAST(numero_cnj_numero AS TEXT), ''), ' ', COALESCE(CAST(numero_outro AS TEXT), '')))", 'ilike', '%' . TratamentosService::removerAcentos((string) $data->numero_cnj_numero_col) . '%');// create the filter 
         }
 
         if (isset($data->area_nome) AND ( (is_scalar($data->area_nome) AND $data->area_nome !== '') OR (is_array($data->area_nome) AND (!empty($data->area_nome)) )) )

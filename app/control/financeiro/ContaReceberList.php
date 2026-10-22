@@ -1190,7 +1190,7 @@ class ContaReceberList extends TPage
         if (isset($data->descricao_col) AND ( (is_scalar($data->descricao_col) AND $data->descricao_col !== '') OR (is_array($data->descricao_col) AND (!empty($data->descricao_col)) )) )
         {
 
-            $filters[] = new TFilter('unaccent(descricao)', 'ilike', "%{$data->descricao_col}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(descricao AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->descricao_col) . '%');// create the filter 
         }
 
         if (isset($data->data_emissao) AND ( (is_scalar($data->data_emissao) AND $data->data_emissao !== '') OR (is_array($data->data_emissao) AND (!empty($data->data_emissao)) )) )

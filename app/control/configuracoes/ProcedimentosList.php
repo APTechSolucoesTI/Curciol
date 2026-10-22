@@ -611,12 +611,10 @@ class ProcedimentosList extends TPage
         if (isset($data->nome) AND ( (is_scalar($data->nome) AND $data->nome !== '') OR (is_array($data->nome) AND (!empty($data->nome)) )) )
         {
             $nome = $data->nome;
-            $data->nome = str_replace(' ','%',TratamentosService::removerAcentos($data->nome));
         }
         if (isset($data->nome_col) AND ( (is_scalar($data->nome_col) AND $data->nome_col !== '') OR (is_array($data->nome_col) AND (!empty($data->nome_col)) )) )
         {
             $nome_col = $data->nome_col;
-            $data->nome_col = str_replace(' ','%',TratamentosService::removerAcentos($data->nome_col));
         } 
 
         TSession::setValue(__CLASS__.'_filter_data', NULL);
@@ -625,7 +623,7 @@ class ProcedimentosList extends TPage
         if (isset($data->nome) AND ( (is_scalar($data->nome) AND $data->nome !== '') OR (is_array($data->nome) AND (!empty($data->nome)) )) )
         {
 
-            $filters[] = new TFilter('unaccent(nome)', 'ilike', "%{$data->nome}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(nome AS TEXT))', 'ilike', '%' . str_replace(' ', '%', TratamentosService::removerAcentos((string) $data->nome)) . '%');// create the filter 
         }
 
         if (isset($data->convenio) AND ( (is_scalar($data->convenio) AND $data->convenio !== '') OR (is_array($data->convenio) AND (!empty($data->convenio)) )) )
@@ -637,7 +635,7 @@ class ProcedimentosList extends TPage
         if (isset($data->nome_col) AND ( (is_scalar($data->nome_col) AND $data->nome_col !== '') OR (is_array($data->nome_col) AND (!empty($data->nome_col)) )) )
         {
 
-            $filters[] = new TFilter('unaccent(nome)', 'ilike', "%{$data->nome_col}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(nome AS TEXT))', 'ilike', '%' . str_replace(' ', '%', TratamentosService::removerAcentos((string) $data->nome_col)) . '%');// create the filter 
         }
 
         if (isset($data->ativo) AND ( (is_scalar($data->ativo) AND $data->ativo !== '') OR (is_array($data->ativo) AND (!empty($data->ativo)) )) )

@@ -142,7 +142,9 @@ class ContaListaColunas
 
         if ($valor('numero_documento_col') !== '')
         {
-            $filtros[] = new TFilter('unaccent(CAST(numero_documento AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos($valor('numero_documento_col')) . '%');
+            // a coluna mostra numero do documento + atendimento + contrato + processo emendados: procura no mesmo texto
+            $filtros[] = new TFilter("unaccent(CONCAT(COALESCE(CAST(numero_documento AS TEXT), ''), COALESCE(CAST(atendimento_id AS TEXT), ''), COALESCE(CAST(contrato_id AS TEXT), ''), COALESCE(CAST(processo_id AS TEXT), '')))",
+                                     'ilike', '%' . TratamentosService::removerAcentos($valor('numero_documento_col')) . '%');
         }
 
         $tipo = $valor('origem_col');

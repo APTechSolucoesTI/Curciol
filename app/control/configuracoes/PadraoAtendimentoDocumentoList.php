@@ -583,13 +583,13 @@ class PadraoAtendimentoDocumentoList extends TPage
         if (isset($data->nome) AND ( (is_scalar($data->nome) AND $data->nome !== '') OR (is_array($data->nome) AND (!empty($data->nome)) )) )
         {
 
-            $filters[] = new TFilter('unaccent(nome)', 'ilike', "%{$data->nome}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(nome AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->nome) . '%');// create the filter 
         }
 
         if (isset($data->nome_col) AND ( (is_scalar($data->nome_col) AND $data->nome_col !== '') OR (is_array($data->nome_col) AND (!empty($data->nome_col)) )) )
         {
 
-            $filters[] = new TFilter('unaccent(nome)', 'ilike', "%{$data->nome_col}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(nome AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->nome_col) . '%');// create the filter 
         }
 
         // fill the form with data again (os dois formularios mostram os filtros somados)

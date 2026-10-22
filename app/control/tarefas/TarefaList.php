@@ -781,11 +781,9 @@ class TarefaList extends TPage
 
         if (isset($data->titulo) AND ( (is_scalar($data->titulo) AND $data->titulo !== '') OR (is_array($data->titulo) AND (!empty($data->titulo)) )) ){
             $titulo = $data->titulo;
-            $data->titulo = str_replace(' ','%',TratamentosService::removerAcentos($data->titulo));
         }
         if (isset($data->titulo_col) AND ( (is_scalar($data->titulo_col) AND $data->titulo_col !== '') OR (is_array($data->titulo_col) AND (!empty($data->titulo_col)) )) ){
             $titulo_col = $data->titulo_col;
-            $data->titulo_col = str_replace(' ','%',TratamentosService::removerAcentos($data->titulo_col));
         } 
 
         TSession::setValue(__CLASS__.'_filter_data', NULL);
@@ -812,7 +810,7 @@ class TarefaList extends TPage
         if (isset($data->titulo) AND ( (is_scalar($data->titulo) AND $data->titulo !== '') OR (is_array($data->titulo) AND (!empty($data->titulo)) )) )
         {
 
-            $filters[] = new TFilter('unaccent(CAST(titulo AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->titulo) . '%');// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(titulo AS TEXT))', 'ilike', '%' . str_replace(' ', '%', TratamentosService::removerAcentos((string) $data->titulo)) . '%');// create the filter 
         }
 
         if (isset($data->tarefa_status_id) AND ( (is_scalar($data->tarefa_status_id) AND $data->tarefa_status_id !== '') OR (is_array($data->tarefa_status_id) AND (!empty($data->tarefa_status_id)) )) )
@@ -890,7 +888,7 @@ class TarefaList extends TPage
         if (isset($data->titulo_col) AND ( (is_scalar($data->titulo_col) AND $data->titulo_col !== '') OR (is_array($data->titulo_col) AND (!empty($data->titulo_col)) )) )
         {
 
-            $filters[] = new TFilter('unaccent(titulo)', 'ilike', "%{$data->titulo_col}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(titulo AS TEXT))', 'ilike', '%' . str_replace(' ', '%', TratamentosService::removerAcentos((string) $data->titulo_col)) . '%');// create the filter 
         }
 
         if (isset($data->data_entrega_col) AND ( (is_scalar($data->data_entrega_col) AND $data->data_entrega_col !== '') OR (is_array($data->data_entrega_col) AND (!empty($data->data_entrega_col)) )) )

@@ -690,6 +690,12 @@ class ContratoList extends TPage
         $data = FiltroLista::acumular(__CLASS__, $formulario, $param);
         $filters = [];
 
+        // status no funil da coluna (antes o campo existia na tela mas nao filtrava)
+        if (isset($data->contrato_status_nome) AND is_scalar($data->contrato_status_nome) AND $data->contrato_status_nome !== '')
+        {
+            $filters[] = new TFilter('contrato_status_id', '=', (int) $data->contrato_status_nome);
+        }
+
         //REMOVER ACENTUAÇÃO 
 
         if (isset($data->parceiro_col) AND !empty($data->parceiro_col)){

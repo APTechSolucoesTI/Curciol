@@ -235,7 +235,7 @@ class PreProcessoVincularList extends TPage
 
         if (!empty($data->descricao_pre_processo))
         {
-            $filters[] = new TFilter('descricao_pre_processo', 'ilike', "%{$data->descricao_pre_processo}%");
+            $filters[] = new TFilter('unaccent(CAST(descricao_pre_processo AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->descricao_pre_processo) . '%');
         }
 
         if (!empty($data->cliente_id))

@@ -1041,7 +1041,7 @@ class ContaPagarList extends TPage
         if (isset($data->descricao_col) AND ( (is_scalar($data->descricao_col) AND $data->descricao_col !== '') OR (is_array($data->descricao_col) AND (!empty($data->descricao_col)) )) )
         {
 
-            $filters[] = new TFilter('unaccent(descricao)', 'ilike', "%{$data->descricao_col}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(descricao AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->descricao_col) . '%');// create the filter 
         }
 
         if (isset($data->quitada1) AND ( (is_scalar($data->quitada1) AND $data->quitada1 !== '') OR (is_array($data->quitada1) AND (!empty($data->quitada1)) )) )
