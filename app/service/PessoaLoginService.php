@@ -2,7 +2,7 @@
 /**
  * Login do portal do cliente: o usuario e o proprio CPF/CNPJ (so numeros).
  * CPF/CNPJ valido -> usuario = os numeros; vazio ou invalido -> usuario vazio (sem login ate corrigir o cadastro).
- * A senha continua sendo gerada aleatoriamente no cadastro (6 caracteres hexadecimais).
+ * A senha continua sendo gerada aleatoriamente no cadastro (12 caracteres, ver senhaAleatoria).
  */
 class PessoaLoginService
 {
@@ -40,10 +40,33 @@ class PessoaLoginService
         }
     }
 
-    /** Senha aleatoria do portal (regra de sempre: 3 bytes em hexadecimal). */
+    /**
+     * Senha aleatoria do portal (22/10/2026): 12 caracteres com pelo menos uma letra minuscula, uma maiuscula, um numero
+     * e um caractere especial. Ficam de fora os caracteres que se confundem na leitura (0/O/o, 1/l/I), os que o
+     * WhatsApp usa como formatacao (* _ ~ `) e os que atrapalham em e-mail HTML (< > & aspas).
+     */
     public static function senhaAleatoria(): string
     {
-        return bin2hex(openssl_random_pseudo_bytes(3));
+        $grupos = [
+            'abcdefghijkmnpqrstuvwxyz',
+            'ABCDEFGHJKLMNPQRSTUVWXYZ',
+            '23456789',
+            '!@#%+=?-',
+        ];
+        $todos = implode('', $grupos);
+        $senha = [];
+        foreach ($grupos as $g) {
+            $senha[] = $g[random_int(0, strlen($g) - 1)];
+        }
+        while (count($senha) < 12) {
+            $senha[] = $todos[random_int(0, strlen($todos) - 1)];
+        }
+        // embaralha (Fisher-Yates) para os obrigatorios nao ficarem sempre no inicio
+        for ($i = count($senha) - 1; $i > 0; $i--) {
+            $j = random_int(0, $i);
+            [$senha[$i], $senha[$j]] = [$senha[$j], $senha[$i]];
+        }
+        return implode('', $senha);
     }
 
     private static function cpfValido(string $d): bool
