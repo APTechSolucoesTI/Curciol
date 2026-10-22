@@ -598,6 +598,9 @@ class FormularioHeaderList extends TPage
 
             // close the transaction
             TTransaction::close();
+            $this->datagrid->initPopoverHeaderFilters();
+            // faixa "Filtros aplicados": cortina, botoes rapidos e funil do cabecalho (FiltroLista)
+            FiltroLista::faixa(__CLASS__, $this->form ?? null, $this->datagrid_form ?? null, $this->datagrid);
             $this->loaded = true;
 
             return $objects;

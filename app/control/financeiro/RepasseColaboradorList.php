@@ -55,7 +55,6 @@ class RepasseColaboradorList extends TPage
             new TMessage('error', $e->getMessage());
         }
 
-        $painel->add("<div class='rc-filtros'>Filtros: " . htmlspecialchars($descricaoFiltros) . '</div>');
         $painel->add(self::resumo($linhas));
         $painel->add("<div class='rc-filtros'>Para pagar, use Financeiro › Contas › Contas a pagar (marque as contas e clique em Quitar selecionadas).</div>");
 
@@ -67,6 +66,9 @@ class RepasseColaboradorList extends TPage
             $painel->add("<div class='rc-filtros'>Mostrando os primeiros " . self::LIMITE . ' de ' . count($linhas) . ' repasses. Use os filtros para refinar (o relatório traz todos).</div>');
         }
         $this->datagrid->initPopoverHeaderFilters();
+        // faixa "Filtros aplicados": os da cortina vao junto com os do funil das colunas (curciol-filtros.js)
+        TScript::create('if (window.curciolFaixaFiltros) { curciolFaixaFiltros(' . json_encode((string) $this->datagrid->{'id'}) . ', '
+            . json_encode(self::filtrosDaCortina($f)) . ', "engine.php?class=RepasseColaboradorList&method=onRemoverFiltro&static=1"); }');
 
         $container->add($painel);
         $container->add(self::estilo());
@@ -164,6 +166,49 @@ class RepasseColaboradorList extends TPage
         $padrao = ['pessoa_id' => null, 'processo_id' => null, 'contrato_id' => null, 'situacao' => 'aberto',
                    'periodo_tipo' => 'recebimento', 'data_de' => null, 'data_ate' => null];
         return is_array($f) ? $f + $padrao : $padrao;
+    }
+
+    /** Filtros da cortina para a faixa "Filtros aplicados": [rotulo, valor, campos]. */
+    private static function filtrosDaCortina(array $f): array
+    {
+        $itens = [];
+        try {
+            TTransaction::open('escritorio');
+            if (!empty($f['pessoa_id']) && ($p = Pessoa::find((int) $f['pessoa_id']))) {
+                $itens[] = ['rotulo' => 'Colaborador', 'valor' => (string) $p->nome, 'campos' => ['pessoa_id']];
+            }
+            if (!empty($f['processo_id']) && ($p = Processo::find((int) $f['processo_id']))) {
+                $itens[] = ['rotulo' => 'Processo', 'valor' => (string) ($p->numero_cnj_numero ?: $p->numero_outro ?: $p->id), 'campos' => ['processo_id']];
+            }
+            if (!empty($f['contrato_id']) && ($c = Contrato::find((int) $f['contrato_id']))) {
+                $itens[] = ['rotulo' => 'Contrato', 'valor' => (string) ($c->numero ?: $c->id), 'campos' => ['contrato_id']];
+            }
+            TTransaction::close();
+        } catch (Throwable $e) {
+            TTransaction::rollback();
+        }
+        $situacoes = ['aberto' => 'Em aberto', 'pago' => 'Pagos'];
+        if (!empty($f['situacao'])) {
+            $itens[] = ['rotulo' => 'Situação', 'valor' => $situacoes[$f['situacao']] ?? $f['situacao'], 'campos' => ['situacao']];
+        }
+        if (!empty($f['data_de']) || !empty($f['data_ate'])) {
+            $data = function ($v) { return $v ? date('d/m/Y', strtotime($v)) : '...'; };
+            $tipos = ['recebimento' => 'Recebimento', 'vencimento' => 'Vencimento', 'pagamento' => 'Pagamento'];
+            $itens[] = ['rotulo' => 'Período (' . ($tipos[$f['periodo_tipo'] ?? 'recebimento'] ?? 'Recebimento') . ')',
+                        'valor' => $data($f['data_de']) . ' até ' . $data($f['data_ate']), 'campos' => ['data_de', 'data_ate']];
+        }
+        return $itens;
+    }
+
+    /** "x" de um filtro da cortina na faixa: tira so ele; os outros continuam. */
+    public static function onRemoverFiltro($param = null)
+    {
+        $f = self::filtrosAtuais();
+        foreach (array_keys((array) ($param['__filtros_extra'] ?? [])) as $campo) {
+            if (array_key_exists($campo, $f)) { $f[$campo] = ($campo === 'situacao') ? '' : null; }
+        }
+        TSession::setValue(__CLASS__ . '_filtros', $f);
+        AdiantiCoreApplication::loadPage(__CLASS__, 'onShow');
     }
 
     /** Filtros do cabecalho das colunas, ja no formato do servico. */

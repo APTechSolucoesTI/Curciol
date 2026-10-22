@@ -1173,6 +1173,8 @@ class ContaPagarList extends TPage
 
             // close the transaction
             TTransaction::close();
+            // faixa "Filtros aplicados": cortina, botoes rapidos e funil do cabecalho (FiltroLista)
+            FiltroLista::faixa(__CLASS__, $this->form ?? null, $this->datagrid_form ?? null, $this->datagrid, ['filtro_rapido' => ['Situação', ['1' => 'Vencidas', '2' => 'A vencer']]]);
             $this->loaded = true;
 
             return $objects;

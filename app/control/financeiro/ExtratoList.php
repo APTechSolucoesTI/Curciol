@@ -887,7 +887,8 @@ class ExtratoList extends TPage
         if (isset($data->lancamento_tipo_pagamento_nome) AND ( (is_scalar($data->lancamento_tipo_pagamento_nome) AND $data->lancamento_tipo_pagamento_nome !== '') OR (is_array($data->lancamento_tipo_pagamento_nome) AND (!empty($data->lancamento_tipo_pagamento_nome)) )) )
         {
 
-            $filters[] = new TFilter('lancamento_id', 'in', $data->lancamento_tipo_pagamento_nome);// create the filter 
+            // lancamentos cujo tipo de pagamento esta entre os escolhidos (antes comparava o id do lancamento com o id do tipo)
+            $filters[] = new TFilter('lancamento_id', 'in', "(SELECT id FROM lancamento WHERE tipo_pagamento_id IN (" . SqlSeguro::ids($data->lancamento_tipo_pagamento_nome) . "))");
         }
 
         if (isset($data->tipo_extrato_nome) AND ( (is_scalar($data->tipo_extrato_nome) AND $data->tipo_extrato_nome !== '') OR (is_array($data->tipo_extrato_nome) AND (!empty($data->tipo_extrato_nome)) )) )
@@ -1008,6 +1009,8 @@ class ExtratoList extends TPage
 
             // close the transaction
             TTransaction::close();
+            // faixa "Filtros aplicados": cortina, botoes rapidos e funil do cabecalho (FiltroLista)
+            FiltroLista::faixa(__CLASS__, $this->form ?? null, $this->datagrid_form ?? null, $this->datagrid);
             $this->loaded = true;
 
             return $objects;
