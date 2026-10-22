@@ -30,7 +30,6 @@ class SystemMessageFormView extends TPage
             {
                 // load customer identified in the form
                 $object = SystemMessage::find( $data->id );
-                $object->message = nl2br($object->message);
                 
                 if ($object)
                 {
@@ -48,6 +47,17 @@ class SystemMessageFormView extends TPage
                             $array_object['user'] = $user->name . ' (' . $array_object['system_user_id'] . ')';
                         }
                         TTransaction::close();
+
+                        // Curciol (seguranca 22/10/2026): texto digitado pelo usuario sempre escapado aqui. O THtmlRenderer
+                        // nao escapa valor que comeca com 'RAW:', entao o escape nao pode ficar a cargo dele.
+                        foreach ($array_object as $campo => $valor)
+                        {
+                            if (is_string($valor))
+                            {
+                                $array_object[$campo] = 'RAW:' . htmlspecialchars($valor, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+                            }
+                        }
+                        $array_object['message'] = 'RAW:' . nl2br(htmlspecialchars((string) $object->message, ENT_QUOTES | ENT_HTML5, 'UTF-8'));
                         
                         // replace variables from the main section with the object data
                         $html->enableSection('main',  $array_object);

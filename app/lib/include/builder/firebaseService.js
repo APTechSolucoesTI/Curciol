@@ -264,7 +264,7 @@ class FirebaseService {
                         }
                         
                         if(typeof room.lastMessage != 'undefined') {
-                            $(`#last-message-preview-${room.roomId}`).html(room.lastMessage.text);
+                            $(`#last-message-preview-${room.roomId}`).text(room.lastMessage.text ?? '');
                             const lastMessageTime = window.ChatApp.formatTimestamp(room.lastMessage.timestamp);    
                             
                             $(`#message-time-${room.roomId}`).html(lastMessageTime);
