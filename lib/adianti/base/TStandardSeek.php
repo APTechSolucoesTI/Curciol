@@ -323,7 +323,8 @@ class TStandardSeek extends TWindow
         $ini  = AdiantiApplicationConfig::get();
         $seed = APPLICATION_NAME . ( !empty($ini['general']['seed']) ? $ini['general']['seed'] : 's8dkld83kf73kf094' );
         
-        if (isset($param['hash']) AND $param['hash'] == md5($seed.$param['database'].$param['model'].$param['display_field']))
+        // Curciol (seguranca 22/10/2026): seed do sistema e o criterio entram no hash (o criterio volta do navegador e e desserializado)
+        if (isset($param['hash']) AND $param['hash'] == md5($seed.$param['database'].$param['model'].$param['display_field'].($param['criteria'] ?? '')))
         {
             // store the parameters in the section
             TSession::setValue('tstandardseek_filter', NULL);
