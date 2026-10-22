@@ -51,6 +51,21 @@ class TApplication extends AdiantiCoreApplication
             }
             else if ($class == 'LoginForm' OR $public )
             {
+                // Curciol (seguranca 22/10/2026): parte das classes publicas e da equipe (abertas dentro de outras telas)
+                // ou do portal do cliente. Sem login, as da equipe sao recusadas e as do portal exigem cliente logado.
+                // Para quem esta logado nada muda.
+                $somente_equipe = ['ProcessoPublicacoesForm', 'PublicacaoAlterEtapaForm', 'AndamentoAlterEtapaForm',
+                                   'ContratoDateForm', 'ParceirosHeaderList', 'RequisicaoPagamentoVisualizacaoAba',
+                                   'RequisicaoPagamentoRelatorioDinamico', 'Teste471',
+                                   'SystemModulesCheckView', 'SystemRegistrationForm'];
+                $somente_portal = ['ProcessosFormView', 'ProcessoViewHeaderList', 'ProcessosFormViewInterno',
+                                   'ProcessoPublicacoesTimeLine', 'MeusDocumentoList'];
+                if (in_array($class, $somente_equipe) OR (in_array($class, $somente_portal) AND empty(TSession::getValue('portal_cliente_id'))))
+                {
+                    http_response_code(401);
+                    new TMessage('error', _t('Permission denied'), new TAction(array('LoginForm','onLogout')) );
+                    return;
+                }
                 parent::run($debug);
             }
             else
