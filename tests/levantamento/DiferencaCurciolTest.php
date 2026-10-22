@@ -5,7 +5,12 @@ require __DIR__ . '/../bootstrap.php';
 $R = 'RepasseColaboradorService';
 
 TTransaction::open('escritorio');
-$id = function ($nome) { return (int) Pessoa::where('nome', '=', $nome)->first()->id; };
+// nomes antigos tem acento decomposto (NFD): compara normalizado
+$id = function ($nome) {
+    $st = TTransaction::get()->prepare('SELECT id FROM pessoa WHERE normalize(nome, NFC) = normalize(?, NFC) ORDER BY id LIMIT 1');
+    $st->execute([$nome]);
+    return (int) $st->fetchColumn();
+};
 $curciol = $id('CURCIOL SOCIEDADE DE ADVOGADOS'); $jac = $id('JOSÉ ALMIR CURCIOL'); $kleber = $id('KLEBER CURCIOL');
 TTransaction::close();
 
