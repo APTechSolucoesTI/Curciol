@@ -262,7 +262,7 @@ class AdiantiRecordService
             {
                 if (!TCriteria::ordemValida($param['order']))
                 {
-                    throw new Exception('Ordenação inválida');
+                    throw new \Exception('Ordenação inválida');
                 }
                 $criteria->setProperty('order', $param['order']);
             }
@@ -281,13 +281,13 @@ class AdiantiRecordService
                 $valor    = $filter[2] ?? null;
                 if (!is_string($coluna) OR !preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $coluna) OR !in_array($operador, $operadores, TRUE))
                 {
-                    throw new Exception('Filtro inválido');
+                    throw new \Exception('Filtro inválido');
                 }
                 foreach ((array) $valor as $v)
                 {
-                    if (is_string($v) AND preg_match('/^s*((s*SELECT|NOESC:)/i', $v))
+                    if (is_string($v) AND preg_match('/^\s*(\(\s*SELECT|NOESC:)/i', $v))
                     {
-                        throw new Exception('Filtro inválido');
+                        throw new \Exception('Filtro inválido');
                     }
                 }
                 $criteria->add(new TFilter($coluna, $operador, $valor));
