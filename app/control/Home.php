@@ -29,6 +29,8 @@ class Home extends TPage
                 throw new Exception('Informe seu CPF e senha para acessar seus processos.');
             }
 
+            PortalLoginLimite::exigirLiberado($documento);
+
             $pessoa = Pessoa::where('usuario', '=', $documento)
                             ->where('senha', '=', $senha)
                             ->orderBy('id')
@@ -36,6 +38,7 @@ class Home extends TPage
 
             if (empty($pessoa))
             {
+                PortalLoginLimite::registrarFalha($documento);
                 /*
                     "Nao e cliente registrado" so quando o usuario existe e
                     ainda nao tem senha cadastrada. Usuario digitado errado ou
@@ -63,6 +66,8 @@ class Home extends TPage
                 throw new Exception('CPF ou senha incorretos.');
             }
 
+            PortalLoginLimite::limpar($documento);
+            TSession::regenerate(); // Curciol (seguranca 22/10/2026): sessao nova ao entrar no portal
             TSession::setValue('portal_cliente_id', $pessoa->id);
 
             TTransaction::close();
