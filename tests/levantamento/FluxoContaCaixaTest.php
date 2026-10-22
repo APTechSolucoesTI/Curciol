@@ -131,33 +131,47 @@ try {
     igual('desquitar parcela 2: valor 100, sem desconto, sem saldo parcial', [100.0, 0.0, null], [(float) $p->valor_total, (float) $p->desconto, $p->saldo]);
     $confere('desquitar parcela 2', $cc, [30.0, 70.0]);
 
-    // 9) entrada manual: criar, editar valor (nao pode somar de novo), excluir
-    post(['id' => '', 'conta_caixa_id' => $cc, 'escritorio_id' => $f['escritorio_id'], 'entrada_valor' => '50,00', 'categoria_conta_id' => 24, 'historico' => 'TESTE LEVANTAMENTO entrada', 'compensado' => 'S', 'data_compensacao' => '14/02/2026']);
+    // 9) entrada manual nao compensada: criar, editar valor (nao pode somar de novo), excluir.
+    //    Como na tela do extrato, so lancamento ainda nao compensado pode ser editado ou excluido (ExtratoList::canEdit).
+    post(['id' => '', 'conta_caixa_id' => $cc, 'escritorio_id' => $f['escritorio_id'], 'entrada_valor' => '50,00', 'categoria_conta_id' => 24, 'historico' => 'TESTE LEVANTAMENTO entrada', 'compensado' => 'N']);
     $erro = tela(function () { (new ExtratoEntradaForm([]))->onSave([]); });
     igual('entrada manual: sem erro', '', $erro);
-    $confere('entrada manual', $cc, [80.0, 70.0]);
+    $confere('entrada manual', $cc, [30.0, 120.0]);
     TTransaction::open('escritorio'); $ent = (int) TTransaction::get()->query("SELECT max(id) FROM extrato WHERE conta_caixa_id = {$cc} AND historico = 'TESTE LEVANTAMENTO entrada'")->fetchColumn();
     $dataLanc = TTransaction::get()->query("SELECT data_lancamento FROM extrato WHERE id = {$ent}")->fetchColumn(); TTransaction::close();
     igual('entrada manual: data de lancamento = hoje (nao dia 11)', date('Y-m-d'), substr((string) $dataLanc, 0, 10));
-    post(['id' => $ent, 'conta_caixa_id' => $cc, 'escritorio_id' => $f['escritorio_id'], 'entrada_valor' => '60,00', 'categoria_conta_id' => 24, 'historico' => 'TESTE LEVANTAMENTO entrada', 'compensado' => 'S', 'data_compensacao' => '14/02/2026']);
+    post(['id' => $ent, 'conta_caixa_id' => $cc, 'escritorio_id' => $f['escritorio_id'], 'entrada_valor' => '60,00', 'categoria_conta_id' => 24, 'historico' => 'TESTE LEVANTAMENTO entrada', 'compensado' => 'N']);
     $erro = tela(function () use ($ent) { (new ExtratoEntradaForm(['key' => $ent]))->onSave(['id' => $ent]); });
     igual('editar entrada para 60: sem erro', '', $erro);
-    $confere('editar entrada', $cc, [90.0, 70.0]);
+    $confere('editar entrada', $cc, [30.0, 130.0]);
     $erro = tela(function () use ($ent) { (new ExtratoList([]))->onDelete(['key' => $ent, 'delete' => 1]); });
     igual('excluir entrada: sem erro', '', $erro);
     $confere('excluir entrada', $cc, [30.0, 70.0]);
 
-    // 10) transferencia de 40 da conta-caixa de teste para a 2, compensada; depois excluir
-    post(['id' => '', 'conta_caixa_id' => $cc, 'escritorio_id' => $f['escritorio_id'], 'transferencia_conta_caixa_id' => $cc2, 'saida_valor' => '40,00', 'categoria_conta_id' => 24, 'historico' => 'TESTE LEVANTAMENTO transferencia', 'compensado' => 'S', 'data_compensacao' => '15/02/2026']);
+    // 10) transferencia de 40 da conta-caixa de teste para a 2, nao compensada; depois excluir
+    post(['id' => '', 'conta_caixa_id' => $cc, 'escritorio_id' => $f['escritorio_id'], 'transferencia_conta_caixa_id' => $cc2, 'saida_valor' => '40,00', 'categoria_conta_id' => 24, 'historico' => 'TESTE LEVANTAMENTO transferencia', 'compensado' => 'N']);
     $erro = tela(function () { (new ExtratoTransferenciaForm([]))->onSave([]); });
     igual('transferencia: sem erro', '', $erro);
-    $confere('transferencia (origem)', $cc, [-10.0, 70.0]);
-    $confere('transferencia (destino)', $cc2, [540.0, 0.0]);
+    $confere('transferencia (origem)', $cc, [30.0, 30.0]);
+    $confere('transferencia (destino)', $cc2, [500.0, 40.0]);
     TTransaction::open('escritorio'); $tr = (int) TTransaction::get()->query("SELECT max(id) FROM extrato WHERE conta_caixa_id = {$cc} AND historico = 'TESTE LEVANTAMENTO transferencia'")->fetchColumn(); TTransaction::close();
     $erro = tela(function () use ($tr) { (new ExtratoList([]))->onDelete(['key' => $tr, 'delete' => 1]); });
     igual('excluir transferencia: sem erro', '', $erro);
     $confere('excluir transferencia (origem)', $cc, [30.0, 70.0]);
     $confere('excluir transferencia (destino)', $cc2, [500.0, 0.0]);
+
+    // 11) entrada ja compensada: editar e excluir sao recusados (a tela nem mostra os botoes) e o saldo nao muda
+    post(['id' => '', 'conta_caixa_id' => $cc, 'escritorio_id' => $f['escritorio_id'], 'entrada_valor' => '20,00', 'categoria_conta_id' => 24, 'historico' => 'TESTE LEVANTAMENTO compensada', 'compensado' => 'S', 'data_compensacao' => '16/02/2026']);
+    $erro = tela(function () { (new ExtratoEntradaForm([]))->onSave([]); });
+    igual('entrada compensada: sem erro', '', $erro);
+    $confere('entrada compensada', $cc, [50.0, 70.0]);
+    TTransaction::open('escritorio'); $comp = (int) TTransaction::get()->query("SELECT max(id) FROM extrato WHERE conta_caixa_id = {$cc} AND historico = 'TESTE LEVANTAMENTO compensada'")->fetchColumn(); TTransaction::close();
+    post(['id' => $comp, 'conta_caixa_id' => $cc, 'escritorio_id' => $f['escritorio_id'], 'entrada_valor' => '99,00', 'categoria_conta_id' => 24, 'historico' => 'TESTE LEVANTAMENTO compensada', 'compensado' => 'S', 'data_compensacao' => '16/02/2026']);
+    $erro = tela(function () use ($comp) { (new ExtratoEntradaForm(['key' => $comp]))->onSave(['id' => $comp]); });
+    igual('editar entrada compensada: recusado', 'Este lançamento do extrato não pode ser alterado.', $erro);
+    $erro = tela(function () use ($comp) { (new ExtratoList([]))->onDelete(['key' => $comp, 'delete' => 1]); });
+    igual('excluir entrada compensada: recusado', 'Este lançamento do extrato não pode ser excluído.', $erro);
+    $confere('entrada compensada recusada', $cc, [50.0, 70.0]);
 } finally {
     TTransaction::open('escritorio');
     $c = TTransaction::get();
