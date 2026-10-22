@@ -111,6 +111,8 @@ class NovoClienteForm extends TPage
 
             $data->telefone = preg_replace('/[^0-9]/', '', $data->telefone);
 
+            // Curciol (seguranca 22/10/2026): cadastro publico sempre cria pessoa nova (id postado nao vale)
+            unset($data->id);
             $object->fromArray( (array) $data); // load the object with data
 
             // login do portal = CPF/CNPJ (este formulario nao pede CPF: o usuario fica vazio ate o cadastro ter o documento)
@@ -168,6 +170,8 @@ class NovoClienteForm extends TPage
 
     public function onEdit( $param )
     {
+        // Curciol (seguranca 22/10/2026): formulario publico nao carrega cadastro existente (nao e usado para editar)
+        $param = [];
         try
         {
             if (isset($param['key']))
