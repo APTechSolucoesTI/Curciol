@@ -641,7 +641,7 @@ class CompromissoList extends TPage
         if (isset($data->id) AND ( (is_scalar($data->id) AND $data->id !== '') OR (is_array($data->id) AND (!empty($data->id)) )) )
         {
 
-            $filters[] = new TFilter('id', '=', $data->id);// create the filter 
+            $filters[] = new TFilter('id', '=', SqlSeguro::id($data->id));// create the filter 
         }
 
         if (isset($data->agenda_id) AND ( (is_scalar($data->agenda_id) AND $data->agenda_id !== '') OR (is_array($data->agenda_id) AND (!empty($data->agenda_id)) )) )

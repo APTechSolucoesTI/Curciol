@@ -520,7 +520,7 @@ class ConfigBuscaPrazoHeaderList extends TPage
         if (isset($data->prazo) AND ( (is_scalar($data->prazo) AND $data->prazo !== '') OR (is_array($data->prazo) AND (!empty($data->prazo)) )) )
         {
 
-            $filters[] = new TFilter('prazo', '=', $data->prazo);// create the filter 
+            $filters[] = new TFilter('CAST(prazo AS TEXT)', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->prazo) . '%');// create the filter 
         }
 
         // fill the form with data again

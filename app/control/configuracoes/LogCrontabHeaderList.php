@@ -555,7 +555,7 @@ class LogCrontabHeaderList extends TPage
         if (isset($data->data_hora) AND ( (is_scalar($data->data_hora) AND $data->data_hora !== '') OR (is_array($data->data_hora) AND (!empty($data->data_hora)) )) )
         {
 
-            $filters[] = new TFilter('data_hora', '=', $data->data_hora);// create the filter 
+            $filters[] = new TFilter("to_char(data_hora, 'DD/MM/YYYY HH24:MI:SS')", 'ilike', '%' . TratamentosService::removerAcentos((string) $data->data_hora) . '%');// create the filter 
         }
 
         if (isset($data->system_unit_id) AND ( (is_scalar($data->system_unit_id) AND $data->system_unit_id !== '') OR (is_array($data->system_unit_id) AND (!empty($data->system_unit_id)) )) )
