@@ -1095,6 +1095,11 @@ class ProcessoList extends TPage
                 $param['order'] = '(SELECT assunto.nome FROM assunto WHERE assunto.id = processo.assunto_id)';    
             }
 
+            // ordenacoes fixas desta tela que nao sao nome de coluna (TCriteria::setProperties so aceita as registradas)
+            TCriteria::permitirOrdem(self::ORDEM_PADRAO);
+            TCriteria::permitirOrdem('(SELECT tipo_processo.nome FROM tipo_processo WHERE tipo_processo.id = processo.tipo_processo_id)');
+            TCriteria::permitirOrdem('(SELECT assunto.nome FROM assunto WHERE assunto.id = processo.assunto_id)');
+
             $criteria->setProperties($param); // order, offset
             $criteria->setProperty('limit', $this->limit);
 
