@@ -319,7 +319,7 @@ class AgendamentoClienteCalendarFormView extends TPage
                 }
 
                 PortalLoginLimite::limpar($param['usuario'] ?? '');
-                TSession::regenerate();
+                if (session_status() == PHP_SESSION_ACTIVE) { TSession::regenerate(); }
                 TSession::setValue('portal_cliente_id', $pessoa->id);
 
                 $param['register_state']  = 'false';

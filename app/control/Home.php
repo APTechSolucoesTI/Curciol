@@ -67,7 +67,7 @@ class Home extends TPage
             }
 
             PortalLoginLimite::limpar($documento);
-            TSession::regenerate(); // Curciol (seguranca 22/10/2026): sessao nova ao entrar no portal
+            if (session_status() == PHP_SESSION_ACTIVE) { TSession::regenerate(); } // Curciol (seguranca 22/10/2026): sessao nova ao entrar no portal
             TSession::setValue('portal_cliente_id', $pessoa->id);
 
             TTransaction::close();
