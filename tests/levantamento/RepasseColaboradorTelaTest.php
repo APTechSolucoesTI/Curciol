@@ -57,7 +57,8 @@ try {
     igual('listagem: 4 repasses, sem selecao nem pagamento (so consulta)', [4, 0, 0], [substr_count($html, "class='rc-origem'"), substr_count($html, 'rc-sel'), substr_count($html, 'Pagar selecionadas')]);
     ok('listagem: filtros no cabecalho das colunas', strpos($html, 'datagrid-header-filter-row') !== false && strpos($html, 'origem_col') !== false && strpos($html, 'tdatagrid_init_header_popover_filters') !== false);
     ok('listagem: total a pagar 1.856,80', strpos($html, 'R$ 1.856,80') !== false);
-    ok('listagem: faixa de filtros aplicados', strpos($html, 'Processo') !== false && strpos($html, 'Período (Recebimento)') !== false && strpos($html, '01/02/2026 até 28/02/2026') !== false);
+    $js = function ($t) { return substr(json_encode($t), 1, -1); }; // a faixa vai para o JS via json_encode
+    ok('listagem: faixa de filtros aplicados', strpos($html, '"rotulo":"Processo"') !== false && strpos($html, $js('Período (Recebimento)')) !== false && strpos($html, $js('01/02/2026 até 28/02/2026')) !== false);
     $cortina = saida(function () { RepasseColaboradorList::onShowCurtainFilters([]); });
     ok('cortina: processo e contrato para escolher, sem requisicao', erro($cortina) === '' && strpos($cortina, 'Filtros de repasses') !== false
         && strpos($cortina, 'name="processo_id"') !== false && strpos($cortina, 'name="contrato_id"') !== false && strpos($cortina, 'requisicao_id') === false, erro($cortina));
