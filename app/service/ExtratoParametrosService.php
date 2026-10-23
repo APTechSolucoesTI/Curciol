@@ -17,6 +17,62 @@ class ExtratoParametrosService
         return is_array($p) ? $p : [];
     }
 
+    /**
+     * Parametros ativos para a faixa "Filtros aplicados" da listagem (o "x" de cada um tira so ele: remover()).
+     * Campos com prefixo __param_ para o onSearch da listagem saber que e parametro e nao filtro de coluna.
+     */
+    public static function itens(array $p): array
+    {
+        if (!$p) { return []; }
+        $propria = !TTransaction::get();
+        if ($propria) { TTransaction::open('escritorio'); }
+        try {
+            $c = TTransaction::get();
+            $nomes = function (string $tabela, array $ids, string $col = 'nome') use ($c) {
+                if (!$ids) { return ''; }
+                return implode(', ', $c->query("SELECT {$col} FROM {$tabela} WHERE id IN (" . implode(',', array_map('intval', $ids)) . ") ORDER BY 1")->fetchAll(PDO::FETCH_COLUMN));
+            };
+            $dt = function ($v) { return $v ? date('d/m/Y', strtotime($v)) : '...'; };
+            $i = [];
+            $item = function (string $rotulo, string $valor, string $chave) use (&$i) { $i[] = ['rotulo' => $rotulo, 'valor' => $valor, 'campos' => ['__param_' . $chave]]; };
+            if (!empty($p['conta_caixa_ids'])) { $item('Conta-caixa', $nomes('conta_caixa', $p['conta_caixa_ids']), 'conta_caixa_ids'); }
+            if (!empty($p['situacao'])) { $item('Situação', ['S' => 'Compensados', 'N' => 'Não compensados'][$p['situacao']] ?? $p['situacao'], 'situacao'); }
+            if (!empty($p['data_de']) || !empty($p['data_ate'])) {
+                $item('Período (' . (self::ROTULO_DATA[$p['periodo_tipo'] ?? 'compensacao'] ?? 'Compensação') . ')', $dt($p['data_de'] ?? null) . ' até ' . $dt($p['data_ate'] ?? null), 'periodo');
+            }
+            if (!empty($p['tipo_extrato_ids'])) { $item('Tipo de extrato', $nomes('tipo_extrato', $p['tipo_extrato_ids']), 'tipo_extrato_ids'); }
+            if (($p['historico'] ?? '') !== '') { $item('Histórico', $p['historico'], 'historico'); }
+            if (isset($p['entrada_valor']) && $p['entrada_valor'] !== null) { $item('Entrada', 'R$ ' . number_format($p['entrada_valor'], 2, ',', '.'), 'entrada_valor'); }
+            if (isset($p['saida_valor']) && $p['saida_valor'] !== null) { $item('Saída', 'R$ ' . number_format($p['saida_valor'], 2, ',', '.'), 'saida_valor'); }
+            if (!empty($p['pessoa_id'])) { $item('Pessoa', $nomes('pessoa', [$p['pessoa_id']]), 'pessoa_id'); }
+            if (!empty($p['processo_id'])) {
+                $n = count(self::familia((int) $p['processo_id'])) - 1;
+                $item('Processo', $nomes('processo', [$p['processo_id']], "COALESCE(numero_cnj_numero, numero_outro, id::text)") . ($n > 0 ? " (e {$n} filho(s))" : ''), 'processo_id');
+            }
+            return $i;
+        } finally {
+            if ($propria) { TTransaction::close(); }
+        }
+    }
+
+    /** Tira um parametro so (o "x" da faixa); "periodo" tira as duas datas. */
+    public static function remover(string $chave): void
+    {
+        $p = self::atuais();
+        if (!$p) { return; }
+        if ($chave === 'periodo') {
+            $p['data_de'] = null;
+            $p['data_ate'] = null;
+        } elseif (in_array($chave, ['conta_caixa_ids', 'tipo_extrato_ids'], true)) {
+            $p[$chave] = [];
+        } elseif (in_array($chave, ['situacao', 'historico'], true)) {
+            $p[$chave] = '';
+        } elseif (array_key_exists($chave, $p)) {
+            $p[$chave] = null;
+        }
+        TSession::setValue(self::SESSAO, $p);
+    }
+
     /** Normaliza o que veio do formulario (datas dd/mm/aaaa ou aaaa-mm-dd, listas, numeros). */
     public static function normalizar($d): array
     {

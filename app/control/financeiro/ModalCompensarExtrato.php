@@ -44,6 +44,22 @@ class ModalCompensarExtrato extends TWindow
         $row1 = $this->form->addFields([new TLabel("Data da compensação:", '#FF0000', '14px', null, '100%'),$data_compensacao]);
         $row1->layout = [' col-sm-12'];
 
+        // quantas linhas e quanto soma o que vai ser compensado (selecao em lote do Extrato ou da cortina do lote)
+        try {
+            $ids = array_map('intval', (array) (TSession::getValue('paramSelecionados') ?: []));
+            if ($ids) {
+                TTransaction::open('escritorio');
+                $r = TTransaction::get()->query('SELECT COUNT(*), COALESCE(SUM(entrada_valor), 0), COALESCE(SUM(saida_valor), 0) FROM extrato WHERE id IN (' . implode(',', $ids) . ')')->fetch(PDO::FETCH_NUM);
+                TTransaction::close();
+                $resumo = new TElement('div');
+                $resumo->style = 'font-size:13px; color:#334155; margin-top:4px;';
+                $resumo->add((int) $r[0] . ' linha(s) · entradas R$ ' . number_format((float) $r[1], 2, ',', '.') . ' · saídas R$ ' . number_format((float) $r[2], 2, ',', '.'));
+                $this->form->addContent([$resumo]);
+            }
+        } catch (Throwable $e) {
+            while (TTransaction::get()) { TTransaction::rollback(); }
+        }
+
         // create the form actions
         $btn_onaction = $this->form->addAction("Compensar", new TAction([$this, 'onAction']), 'fas:dollar-sign #ffffff');
         $this->btn_onaction = $btn_onaction;
@@ -107,6 +123,18 @@ class ModalCompensarExtrato extends TWindow
             TTransaction::close();
 
             TToast::show("success", "Compensação concluída", "topRight", "");
+
+            // a selecao de quem abriu a janela ja foi usada; volta para ela (listagem do Extrato ou cortina do lote)
+            $origem = (string) TSession::getValue('paramSelecionados_origem');
+            TSession::setValue('paramSelecionados', null);
+            TSession::setValue('paramSelecionados_origem', null);
+            if ($origem !== '' && method_exists($origem, 'selLimpar')) { call_user_func([$origem, 'selLimpar']); }
+            if ($origem === 'LoteExtratoView') {
+                TScript::create("$(\"[page_name='ModalCompensarExtrato']\").remove()");
+                Navegacao::atualizarListaAoFechar();
+                AdiantiCoreApplication::loadPage('LoteExtratoView', 'onReload');
+                return;
+            }
             Navegacao::voltarParaLista('ExtratoList', __CLASS__);
             TScript::create("$(\"[page_name='ModalCompensarExtrato']\").remove()");
         }

@@ -110,9 +110,7 @@ class ExtratoParametrosForm extends TWindow
         try {
             $p = ExtratoParametrosService::normalizar($this->form->getData());
             TSession::setValue(ExtratoParametrosService::SESSAO, $p);
-            // os filtros antigos (cortina e colunas) dao lugar aos parametros
-            TSession::setValue('ExtratoList_filter_data', null);
-            TSession::setValue('ExtratoList_filters', null);
+            // os filtros das colunas continuam valendo: parametros e filtros se somam (Limpar filtros da listagem tira tudo)
             TWindow::closeWindow();
             AdiantiCoreApplication::loadPage('ExtratoList', 'onReload', ['offset' => 0, 'first_page' => 1]);
         } catch (Throwable $e) {
@@ -123,9 +121,8 @@ class ExtratoParametrosForm extends TWindow
 
     public function onLimpar($param = null)
     {
+        // so os parametros; os filtros das colunas continuam (Limpar filtros da listagem tira tudo)
         TSession::setValue(ExtratoParametrosService::SESSAO, null);
-        TSession::setValue('ExtratoList_filter_data', null);
-        TSession::setValue('ExtratoList_filters', null);
         TWindow::closeWindow();
         AdiantiCoreApplication::loadPage('ExtratoList', 'onReload', ['offset' => 0, 'first_page' => 1]);
     }

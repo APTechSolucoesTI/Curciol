@@ -80,8 +80,9 @@ class FiltroLista
      * Faixa "Filtros aplicados" (22/10/2026): manda para a tela os filtros ativos da cortina e dos botoes rapidos
      * (o funil do cabecalho a tela le sozinha, curciol-filtros.js). Chamar no fim do onReload da listagem.
      * $extras: campos que nao estao em formulario nenhum (botoes rapidos): campo => [rotulo, [valor => texto]].
+     * $prontos: itens ja montados [rotulo, valor, campos] (ex.: parametros da janela do Extrato).
      */
-    public static function faixa(string $classe, $form, $datagridForm, $datagrid, array $extras = []): void
+    public static function faixa(string $classe, $form, $datagridForm, $datagrid, array $extras = [], array $prontos = []): void
     {
         $classe = preg_replace('/[^A-Za-z0-9_]/', '', $classe);
         $dados = (array) (TSession::getValue($classe . '_filter_data') ?: []);
@@ -110,6 +111,8 @@ class FiltroLista
                 $itens[] = ['rotulo' => $rotulo, 'valor' => $textos[(string) $valor] ?? (string) $valor, 'campos' => [$nome]];
             }
         }
+
+        foreach ($prontos as $item) { $itens[] = $item; }
 
         $id = $datagrid ? (string) $datagrid->{'id'} : '';
         if ($id === '') { return; }
