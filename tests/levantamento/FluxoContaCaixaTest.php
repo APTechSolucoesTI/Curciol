@@ -110,7 +110,9 @@ try {
     $confere('compensar', $cc, [100.0, 0.0]);
 
     // 6) descompensar a quitacao (lista do extrato)
-    $erro = tela(function () use ($extQuit2) { (new ExtratoList([]))->onDescompensar(['builder_datagrid_check' => [(int) $extQuit2['id']]]); });
+    // marca a linha (selecao do Extrato) e confirma o descompensar
+    ExtratoList::selLimpar();
+    $erro = tela(function () use ($extQuit2) { ExtratoList::onSelMarcar(['id' => (int) $extQuit2['id'], 'marcado' => 1]); ExtratoList::onDescompensarConfirmado([]); });
     igual('descompensar: sem erro', '', $erro);
     $confere('descompensar', $cc, [30.0, 70.0]);
 
