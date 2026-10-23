@@ -181,11 +181,11 @@ class ExtratoList extends TPage
         $column_saida_valor_transformed = new TDataGridColumn('saida_valor', "Saída", 'center');
 
         $column_entrada_valor_transformed->setTotalFunction( function($values) { 
-            return array_sum((array) $values); 
+            return array_sum(array_map('floatval', (array) $values)); // linha sem valor vem vazia
         }); 
 
         $column_saida_valor_transformed->setTotalFunction( function($values) { 
-            return array_sum((array) $values); 
+            return array_sum(array_map('floatval', (array) $values)); // linha sem valor vem vazia
         }); 
 
         $column_compensado_transformed->setTransformer(function($value, $object, $row, $cell = null, $last_row = null)
