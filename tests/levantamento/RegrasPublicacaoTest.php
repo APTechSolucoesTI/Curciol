@@ -80,7 +80,7 @@ try {
     ok('contrato com parcela anterior em aberto: Gerar financeiro bloqueado', strpos($msg, 'antes da atualização do sistema') !== false && strpos($msg, "nº {$contaAntiga}") !== false, $msg);
     $msg = $lanca(function () use ($f, $dadosGerar) { LevantamentoFinanceiroService::gerar($f['etapa3_id'], $dadosGerar); });
     ok('pagamento da requisicao do mesmo contrato: Gerar financeiro bloqueado', strpos($msg, 'antes da atualização do sistema') !== false, $msg);
-    igual('nada foi gerado pelo pagamento bloqueado', 0, (int) q('SELECT count(*) n FROM levantamento_financeiro WHERE etapa3_id = ' . (int) $f['etapa3_id'])[0]['n']);
+    igual('nada foi gerado pelo pagamento bloqueado', 0, (int) q('SELECT count(*) n FROM levantamento_financeiro WHERE requisicao_pagamento_etapa3_id = ' . (int) $f['etapa3_id'])[0]['n']);
 
     // quitar a parcela anterior nao gera repasse
     LoteFinanceiroService::quitar([$contaAntiga], (string) TipoConta::RECEBER, ['data_pagamento' => date('Y-m-d'), 'conta_caixa_id' => $cc, 'tipo_pagamento_id' => TipoPagamento::TRANSFERENCIA, 'compensado' => 'N']);
