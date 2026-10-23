@@ -33,7 +33,7 @@ class RepasseColaboradorList extends TPage
         $topo = new TElement('div');
         $topo->class = 'rc-topo';
         $qtdFiltros = count(array_filter([$f['pessoa_id'], $f['processo_id'], $f['contrato_id'], $f['data_de'], $f['data_ate']], function ($v) { return $v !== null && $v !== ''; }))
-            + (($f['situacao'] ?? '') !== 'aberto' ? 1 : 0);
+            + (($f['situacao'] ?? '') !== '' ? 1 : 0);
         $topo->add(self::botao('Filtros' . ($qtdFiltros ? " <span class='badge badge-success'>{$qtdFiltros}</span>" : ''), 'fas fa-filter', "__adianti_load_page('engine.php?class=RepasseColaboradorList&method=onShowCurtainFilters&static=1')"));
         $topo->add(self::botao('Limpar filtros', 'fas fa-eraser', "__adianti_load_page('engine.php?class=RepasseColaboradorList&method=onClearFilters')", '#f44336'));
         $topo->add(self::botao('Atualizar', 'fas fa-sync-alt', "__adianti_load_page('engine.php?class=RepasseColaboradorList&method=onShow')", '#03a9f4'));
@@ -163,7 +163,8 @@ class RepasseColaboradorList extends TPage
     private static function filtrosAtuais(): array
     {
         $f = TSession::getValue(__CLASS__ . '_filtros');
-        $padrao = ['pessoa_id' => null, 'processo_id' => null, 'contrato_id' => null, 'situacao' => 'aberto',
+        // sem filtro padrao (como as outras listagens): abrir ou "Limpar filtros" mostra todos os repasses
+        $padrao = ['pessoa_id' => null, 'processo_id' => null, 'contrato_id' => null, 'situacao' => '',
                    'periodo_tipo' => 'recebimento', 'data_de' => null, 'data_ate' => null];
         return is_array($f) ? $f + $padrao : $padrao;
     }
@@ -318,7 +319,7 @@ class RepasseColaboradorList extends TPage
             if (preg_match('/^(\d{2})\/(\d{2})\/(\d{4})$/', $v, $m)) { return "{$m[3]}-{$m[2]}-{$m[1]}"; }
             return preg_match('/^\d{4}-\d{2}-\d{2}/', $v) ? substr($v, 0, 10) : null;
         };
-        $situacao = $param['situacao'] ?? 'aberto';
+        $situacao = $param['situacao'] ?? '';
         TSession::setValue(__CLASS__ . '_filtros', [
             'pessoa_id' => $int($param['pessoa_id'] ?? null),
             'processo_id' => $int($param['processo_id'] ?? null),
