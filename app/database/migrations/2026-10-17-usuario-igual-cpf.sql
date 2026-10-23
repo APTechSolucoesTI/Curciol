@@ -1,6 +1,7 @@
 -- Portal do cliente: o login (pessoa.usuario) passa a ser o CPF/CNPJ so com numeros.
--- CPF/CNPJ valido (digitos verificadores) -> usuario = os numeros; vazio ou invalido -> usuario vazio (NULL).
--- Mesma regra de PessoaLoginService (cadastros). Senhas nao mudam. Idempotente.
+-- CPF/CNPJ valido (digitos verificadores) e de acordo com o tipo de pessoa (fisica = CPF de 11 digitos, juridica = CNPJ
+-- de 14; sem tipo, qualquer um) -> usuario = os numeros; vazio, invalido ou do tipo errado -> usuario vazio (NULL).
+-- Mesma regra de PessoaLoginService::usuarioPadrao (cadastros). As senhas NAO mudam (decisao de 23/10/2026). Idempotente.
 BEGIN;
 
 CREATE OR REPLACE FUNCTION pg_temp.cpf_cnpj_valido(doc text) RETURNS boolean
@@ -29,23 +30,32 @@ BEGIN
     RETURN false;
 END $$;
 
+-- login padrao: os numeros do documento quando ele e valido para o tipo de pessoa
+CREATE OR REPLACE FUNCTION pg_temp.login_padrao(doc text, tipo int) RETURNS text
+LANGUAGE sql IMMUTABLE AS $$
+    SELECT CASE WHEN pg_temp.cpf_cnpj_valido(doc)
+                 AND (tipo IS NULL OR (tipo = 1 AND length(regexp_replace(doc, '\D', '', 'g')) = 11)
+                                   OR (tipo = 2 AND length(regexp_replace(doc, '\D', '', 'g')) = 14))
+                THEN regexp_replace(doc, '\D', '', 'g') END
+$$;
+
 DO $$
 DECLARE com_cpf int; vazio int; muda int;
 BEGIN
-    SELECT COUNT(*) FILTER (WHERE pg_temp.cpf_cnpj_valido(cpf_cnpj)),
-           COUNT(*) FILTER (WHERE NOT pg_temp.cpf_cnpj_valido(cpf_cnpj)),
-           COUNT(*) FILTER (WHERE usuario IS DISTINCT FROM CASE WHEN pg_temp.cpf_cnpj_valido(cpf_cnpj) THEN regexp_replace(cpf_cnpj, '\D', '', 'g') END)
+    SELECT COUNT(*) FILTER (WHERE pg_temp.login_padrao(cpf_cnpj, tipo_pessoa_id) IS NOT NULL),
+           COUNT(*) FILTER (WHERE pg_temp.login_padrao(cpf_cnpj, tipo_pessoa_id) IS NULL),
+           COUNT(*) FILTER (WHERE usuario IS DISTINCT FROM pg_temp.login_padrao(cpf_cnpj, tipo_pessoa_id))
       INTO com_cpf, vazio, muda FROM pessoa;
-    RAISE NOTICE 'usuario = CPF/CNPJ: % pessoas; usuario vazio (CPF/CNPJ vazio ou invalido): %; linhas alteradas: %', com_cpf, vazio, muda;
+    RAISE NOTICE 'usuario = CPF/CNPJ: % pessoas; usuario vazio (CPF/CNPJ vazio, invalido ou do tipo errado): %; linhas alteradas: %', com_cpf, vazio, muda;
 END $$;
 
 UPDATE pessoa
-   SET usuario = CASE WHEN pg_temp.cpf_cnpj_valido(cpf_cnpj) THEN regexp_replace(cpf_cnpj, '\D', '', 'g') END
- WHERE usuario IS DISTINCT FROM CASE WHEN pg_temp.cpf_cnpj_valido(cpf_cnpj) THEN regexp_replace(cpf_cnpj, '\D', '', 'g') END;
+   SET usuario = pg_temp.login_padrao(cpf_cnpj, tipo_pessoa_id)
+ WHERE usuario IS DISTINCT FROM pg_temp.login_padrao(cpf_cnpj, tipo_pessoa_id);
 
 DO $$
 BEGIN
-    IF EXISTS (SELECT 1 FROM pessoa WHERE usuario IS NOT NULL AND usuario <> regexp_replace(COALESCE(cpf_cnpj, ''), '\D', '', 'g')) THEN
+    IF EXISTS (SELECT 1 FROM pessoa WHERE usuario IS DISTINCT FROM pg_temp.login_padrao(cpf_cnpj, tipo_pessoa_id)) THEN
         RAISE EXCEPTION 'sobrou usuario diferente do CPF/CNPJ';
     END IF;
 END $$;

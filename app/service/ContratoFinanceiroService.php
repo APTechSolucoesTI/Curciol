@@ -13,6 +13,36 @@ class ContratoFinanceiroService
 {
     const STATUS_ABERTO = 1;
 
+    /**
+     * Regra da publicacao (23/10/2026): contrato com parcela a receber anterior a publicacao ainda em aberto continua pelo
+     * modo antigo; o "Gerar financeiro" (da parcela do contrato e do pagamento da requisicao) fica bloqueado ate ela ser
+     * quitada. Usa a transacao aberta.
+     */
+    public static function exigirSemParcelaAnteriorAberta(int $contratoId): void
+    {
+        if ($contratoId <= 0) { return; }
+        $st = TTransaction::get()->prepare("SELECT c.id, count(*) AS n FROM lancamento l JOIN conta c ON c.id = l.conta_id
+            WHERE c.contrato_id = ? AND c.tipo_conta_id = ? AND l.anterior_publicacao AND l.dt_pagamento IS NULL AND COALESCE(l.cancelado, 'N') <> 'S'
+            GROUP BY c.id ORDER BY c.id");
+        $st->execute([$contratoId, (int) TipoConta::RECEBER]);
+        $contas = $st->fetchAll(PDO::FETCH_OBJ);
+        if ($contas) {
+            $total = array_sum(array_map(function ($c) { return (int) $c->n; }, $contas));
+            throw new Exception("Este contrato tem {$total} parcela(s) a receber em aberto lançada(s) antes da atualização do sistema (conta "
+                . implode(', ', array_map(function ($c) { return 'nº ' . (int) $c->id; }, $contas))
+                . '). O financeiro deste contrato continua pelo modo antigo: o "Gerar financeiro" só fica disponível depois que essas parcelas forem quitadas.');
+        }
+    }
+
+    /** A parcela foi lancada antes da publicacao (23/10/2026)? Quitar uma parcela anterior nao gera repasse. Usa a transacao aberta. */
+    public static function parcelaAnterior(int $lancamentoId): bool
+    {
+        $st = TTransaction::get()->prepare('SELECT anterior_publicacao FROM lancamento WHERE id = ?');
+        $st->execute([$lancamentoId]);
+        $v = $st->fetchColumn();
+        return $v === true || $v === 't' || $v === 1 || $v === '1';
+    }
+
     /** Parcelas (lancamentos) geradas pelo pagamento do contrato. Usa a transacao aberta. */
     public static function lancamentosDoPagamento(int $pagamentoId): array
     {

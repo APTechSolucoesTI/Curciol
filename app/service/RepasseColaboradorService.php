@@ -87,6 +87,8 @@ class RepasseColaboradorService
         if (!$parcela) { return []; }
         $receber = Conta::find((int) $parcela->conta_id);
         if (!$receber || (string) $receber->tipo_conta_id !== (string) TipoConta::RECEBER) { return []; }
+        // parcela lancada antes da publicacao (23/10/2026): o que ja estava no sistema continua igual, sem repasse
+        if (ContratoFinanceiroService::parcelaAnterior((int) $parcela->id)) { return []; }
 
         // conta a receber do levantamento quitada de novo (depois de desquitada): os repasses voltam ligados a ficha
         if ($levantamentoId === null) {

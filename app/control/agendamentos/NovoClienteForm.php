@@ -115,8 +115,6 @@ class NovoClienteForm extends TPage
             unset($data->id);
             $object->fromArray( (array) $data); // load the object with data
 
-            // login do portal = CPF/CNPJ (este formulario nao pede CPF: o usuario fica vazio ate o cadastro ter o documento)
-            $object->usuario = PessoaLoginService::usuarioPadrao($object->cpf_cnpj ?? null);
 
             if($object->aceita_receber_mensagen_whatsapp || $object->aceita_receber_mensagen_whatsapp=="T"){
                 $object->aceita_receber_mensagen_whatsapp = "T";
@@ -124,7 +122,9 @@ class NovoClienteForm extends TPage
                 $object->aceita_receber_mensagen_whatsapp = "F";
             }
 
-            $object->senha = PessoaLoginService::senhaAleatoria();
+            // login do portal = CPF/CNPJ valido para o tipo; senha so quando ha login (este formulario nao pede CPF, entao o
+            // cadastro fica sem login e sem senha ate o documento ser preenchido)
+            PessoaLoginService::aplicarLogin($object, null);
 
             $object->criacao_user_id = TSession::getValue('userid');
 

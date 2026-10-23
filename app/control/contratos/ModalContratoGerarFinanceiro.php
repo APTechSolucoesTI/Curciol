@@ -469,6 +469,9 @@ class ModalContratoGerarFinanceiro extends TWindow
             $this->form->validate(); // validate form data
             $data = $this->form->getData(); // get form data as array
 
+            // contrato com parcela a receber anterior a publicacao em aberto continua pelo modo antigo
+            ContratoFinanceiroService::exigirSemParcelaAnteriorAberta((int) ($data->contrato_id ?? 0));
+
             $profissionais = $data->coluna ?? [];
             $valoresProfissionais = $data->valor_profissional ?? [];
             $repassesProfissionais = $data->valor_repasse ?? [];

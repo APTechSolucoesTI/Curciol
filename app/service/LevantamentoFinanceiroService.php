@@ -640,6 +640,8 @@ class LevantamentoFinanceiroService
             if ((int) $ct['id'] === $contratoId) { $contratoOk = true; break; }
         }
         if (!$contratoOk) { throw new Exception('Contrato inválido para este pagamento.'); }
+        // contrato com parcela a receber anterior a publicacao em aberto continua pelo modo antigo
+        ContratoFinanceiroService::exigirSemParcelaAnteriorAberta($contratoId);
 
         $benef = BeneficiarioCredito::find((int) ($d['beneficiario_credito_id'] ?? 0));
         if (!$benef || $benef->ativo !== 'S') { throw new Exception('Beneficiário do crédito inválido.'); }

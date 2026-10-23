@@ -54,6 +54,8 @@ class ClienteForm extends TPage
         $usuario->setEditable(false);
         $usuario->setTip('Igual ao CPF/CNPJ (só números). Fica vazio se o CPF/CNPJ estiver vazio ou inválido.');
         $senha = new TEntry('senha');
+        $senha->setEditable(false);
+        $senha->setTip('Gerada pelo sistema quando o cadastro tem login (CPF/CNPJ válido). Não se altera à mão.');
         $foto = new TImageCapture('foto');
         $dt_nascimento_abertura = new TDate('dt_nascimento_abertura');
         $cpf_cnpj = new TEntry('cpf_cnpj');
@@ -1303,14 +1305,9 @@ class ClienteForm extends TPage
 
             $foto_dir = 'fotos';  
 
-            // portal do cliente: o usuario e o CPF/CNPJ (so numeros); vazio ou invalido deixa o usuario vazio
-            $object->usuario = PessoaLoginService::usuarioPadrao($object->cpf_cnpj);
-
-            // senha aleatoria quando ainda nao tem (mesma regra de antes)
-            if (trim((string) $object->senha) === '')
-            {
-                $object->senha = PessoaLoginService::senhaAleatoria();
-            }
+            // portal do cliente (23/10/2026): login = CPF/CNPJ valido para o tipo de pessoa; login e senha nao se editam
+            // a mao: fica a senha do banco, gerada so quando ha login e a pessoa ainda nao tem senha
+            PessoaLoginService::aplicarLogin($object, PessoaLoginService::senhaGravada($data->id ?? null));
             TForm::sendData(self::$formName, (object) ['usuario' => $object->usuario, 'senha' => $object->senha]);
 
             if(!$data->id){

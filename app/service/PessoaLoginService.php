@@ -21,10 +21,42 @@ class PessoaLoginService
         return false;
     }
 
-    /** Usuario padrao do portal: os numeros do CPF/CNPJ se validos; senao null (vazio). */
-    public static function usuarioPadrao($cpfCnpj): ?string
+    /**
+     * Usuario padrao do portal: os numeros do CPF/CNPJ se validos para o tipo de pessoa (fisica = CPF, juridica = CNPJ;
+     * sem tipo, vale qualquer um dos dois); senao null (vazio). Regra da publicacao em producao (23/10/2026).
+     */
+    public static function usuarioPadrao($cpfCnpj, $tipoPessoaId = null): ?string
     {
-        return self::documentoValido($cpfCnpj) ? self::digitos($cpfCnpj) : null;
+        if (!self::documentoValido($cpfCnpj)) { return null; }
+        $d = self::digitos($cpfCnpj);
+        $tipo = (string) ($tipoPessoaId ?? '');
+        if ($tipo === (string) TipoPessoa::FISICA && strlen($d) !== 11) { return null; }
+        if ($tipo === (string) TipoPessoa::JURIDICA && strlen($d) !== 14) { return null; }
+        return $d;
+    }
+
+    /**
+     * Login e senha do portal no cadastro (nao se editam a mao): login = CPF/CNPJ valido para o tipo; senha aleatoria
+     * so quando ha login e a pessoa ainda nao tem senha. A senha que ja existe fica como esta (mesmo sem login).
+     * $senhaGravada = a senha do banco (o que veio do formulario nao vale).
+     */
+    public static function aplicarLogin($object, ?string $senhaGravada): void
+    {
+        $object->usuario = self::usuarioPadrao($object->cpf_cnpj ?? null, $object->tipo_pessoa_id ?? null);
+        $object->senha = $senhaGravada;
+        if ($object->usuario !== null && trim((string) $object->senha) === '') {
+            $object->senha = self::senhaAleatoria();
+        }
+    }
+
+    /** Senha gravada no banco para a pessoa (null para cadastro novo). Usa a transacao aberta. */
+    public static function senhaGravada($pessoaId): ?string
+    {
+        if (empty($pessoaId)) { return null; }
+        $st = TTransaction::get()->prepare('SELECT senha FROM pessoa WHERE id = ?');
+        $st->execute([(int) $pessoaId]);
+        $s = $st->fetchColumn();
+        return ($s === false || $s === null) ? null : (string) $s;
     }
 
     /** Recusa CPF/CNPJ preenchido e invalido (antes de salvar). Vazio passa: a pessoa fica sem login no portal. */
