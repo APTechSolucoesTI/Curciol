@@ -143,6 +143,15 @@ try {
     ok('com filtro: mudar o filtro limpa a selecao', empty($sel['todas']) && array_keys($sel['marcadas']) === [(int) $repasses[1]], json_encode($sel));
     TSession::setValue('ContaPagarList_filters', null);
     ContaPagarList::loteLimparSelecao();
+    // "Limpar filtros" desmarca tudo, mesmo sem filtro ativo (o filtro nao muda, a selecao tem de sumir igual)
+    saida(function () { ContaPagarList::onLoteTodas(['marcado' => 1]); });
+    saida(function () { (new ContaPagarList([]))->onClearFilters([]); });
+    $sel = TSession::getValue('ContaPagarList_lote_sel');
+    ok('limpar filtros desmarca todas', empty($sel['todas']) && empty($sel['marcadas']) && empty($sel['desmarcadas']), json_encode($sel));
+    saida(function () use ($repasses) { ContaReceberList::onLoteMarcar(['id' => $repasses[0], 'marcado' => 1]); });
+    saida(function () { (new ContaReceberList([]))->onClearFilters([]); });
+    $sel = TSession::getValue('ContaReceberList_lote_sel');
+    ok('limpar filtros desmarca (contas a receber)', empty($sel['todas']) && empty($sel['marcadas']), json_encode($sel));
     $lote6 = $L::quitar([$repasses[1]], $PAGAR, ['data_pagamento' => $hoje, 'conta_caixa_id' => $cc, 'tipo_pagamento_id' => TipoPagamento::TRANSFERENCIA]);
     $html = saida(function () { (new ContaPagarList([]))->show(); });
     igual('contas a pagar: sem erro', '', erro($html));
