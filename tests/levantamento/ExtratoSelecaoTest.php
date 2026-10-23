@@ -75,10 +75,10 @@ try {
     ok('lista: 2 linhas (recebimento + lote) com Ver lote e Visualizar', substr_count($html, 'id="row_') === 2 && substr_count($html, 'LoteExtratoView') >= 1 && strpos($html, 'ExtratoFormView') !== false);
     ok('lista: checkbox de todas as paginas e um checkbox (linha do lote sem)', strpos($html, "id='sel-todas-ExtratoList'") !== false && substr_count($html, 'class="sel-ExtratoList"') === 1, (string) substr_count($html, 'class="sel-ExtratoList"'));
     ok('lista: filtros de Entrada e Saida no cabecalho', strpos($html, 'name="entrada_col"') !== false && strpos($html, 'name="saida_col"') !== false);
-    $ths = preg_match('/<thead.*?<\/thead>/s', $html, $m) ? substr_count($m[0], '<th') : -1;
+    $ths = preg_match('/<thead.*?<\/thead>/s', $html, $m) ? preg_match_all('/<th[ >]/', $m[0]) : -1;
     $filtro = preg_match('/id="datagrid-header-filter-row".*?<\/tr>/s', $html, $m2) ? substr_count($m2[0], '<td') : -2;
     igual('lista: linha de filtros com uma celula por coluna (funil no lugar certo)', $ths, $filtro);
-    ok('lista: Limpar filtros antes de Atualizar', strpos($html, 'Limpar filtros') !== false && strpos($html, 'Limpar filtros') < strpos($html, '>Atualizar'));
+    ok('lista: Limpar filtros antes de Atualizar', strpos($html, 'button_button_limpar_filtros') !== false && strpos($html, 'button_button_limpar_filtros') < strpos($html, 'button_button_atualizar'));
     ok('lista: parametro na faixa', strpos($html, js('Conta-caixa')) !== false && strpos($html, '__param_conta_caixa_ids') !== false);
 
     // selecionar todas: so as linhas fora de lote
@@ -123,7 +123,7 @@ try {
     $html = saida(function () use ($loteId) { (new LoteExtratoView(['lote_id' => $loteId]))->show(); });
     igual('cortina: sem erro', '', erro($html));
     ok('cortina: 4 linhas, selecao, filtros e botoes', substr_count($html, 'class="sel-LoteExtratoView"') === 4 && strpos($html, "id='sel-todas-LoteExtratoView'") !== false
-        && strpos($html, 'name="lote_pessoa_col"') !== false && strpos($html, 'Descompensar') !== false && strpos($html, 'Limpar filtros') < strpos($html, '>Atualizar'));
+        && strpos($html, 'name="lote_pessoa_col"') !== false && strpos($html, 'Descompensar') !== false && strpos($html, 'button_lote_ext_limpar') < strpos($html, 'button_lote_ext_atualizar'), preg_match('/alert-danger[^>]*>([^<]*)/', $html, $e) ? $e[1] : (string) substr_count($html, 'class="sel-LoteExtratoView"'));
     ok('cortina: cabecalho do lote', strpos($html, 'TESTE SELECAO') !== false && strpos($html, 'Não compensado') !== false);
     saida(function () { LoteExtratoView::onSelTodas(['marcado' => 1]); });
     saida(function () use ($doLote) { LoteExtratoView::onSelMarcar(['id' => $doLote[0], 'marcado' => 0]); });
