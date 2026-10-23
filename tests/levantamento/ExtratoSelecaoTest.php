@@ -154,3 +154,4 @@ try {
     TSession::setValue(ExtratoParametrosService::SESSAO, null);
     Fixtures::limpar($f);
 }
+fim();
