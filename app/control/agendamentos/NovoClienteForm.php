@@ -111,12 +111,10 @@ class NovoClienteForm extends TPage
 
             $data->telefone = preg_replace('/[^0-9]/', '', $data->telefone);
 
+            // Curciol (seguranca 22/10/2026): cadastro publico sempre cria pessoa nova (id postado nao vale)
+            unset($data->id);
             $object->fromArray( (array) $data); // load the object with data
 
-            $username = str_replace(' ', '_', $object->nome);
-            $username = TextService::slug($username);
-            $username = str_replace('_', '.', $username);
-            $object->usuario = $username;
 
             if($object->aceita_receber_mensagen_whatsapp || $object->aceita_receber_mensagen_whatsapp=="T"){
                 $object->aceita_receber_mensagen_whatsapp = "T";
@@ -124,21 +122,9 @@ class NovoClienteForm extends TPage
                 $object->aceita_receber_mensagen_whatsapp = "F";
             }
 
-            $consulta = Pessoa::where('usuario', '=', $username)->first();
-            $count = 1;
-
-            // gerando um nome de usuario unico
-            while($consulta)
-            {
-                $object->usuario = $username.$count;
-                $consulta = Pessoa::where('usuario', '=', $object->usuario)->first();
-                $count++;
-            }
-
-            $bytes = openssl_random_pseudo_bytes(3);
-            $pwd = bin2hex($bytes);
-
-            $object->senha = $pwd;
+            // login do portal = CPF/CNPJ valido para o tipo; senha so quando ha login (este formulario nao pede CPF, entao o
+            // cadastro fica sem login e sem senha ate o documento ser preenchido)
+            PessoaLoginService::aplicarLogin($object, null);
 
             $object->criacao_user_id = TSession::getValue('userid');
 
@@ -184,6 +170,8 @@ class NovoClienteForm extends TPage
 
     public function onEdit( $param )
     {
+        // Curciol (seguranca 22/10/2026): formulario publico nao carrega cadastro existente (nao e usado para editar)
+        $param = [];
         try
         {
             if (isset($param['key']))

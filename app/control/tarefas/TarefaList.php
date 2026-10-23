@@ -731,14 +731,20 @@ class TarefaList extends TPage
      */
     public function onSearch($param = null)
     {
-        if ((isset($param['static']) && ($param['static'] == '1')) || !empty($param['globalSearch']))
+        if (!empty($param['__sem_formulario']))
         {
-            $data = $this->datagrid_form->getData();
+            $formulario = [];
+        }
+        elseif ((isset($param['static']) && ($param['static'] == '1')) || !empty($param['globalSearch']))
+        {
+            $formulario = $this->datagrid_form->getData();
         }
         else
         {
-            $data = $this->form->getData();
+            $formulario = $this->form->getData();
         }
+        // filtros que se somam: cabecalho das colunas, cortina e botoes rapidos (FiltroLista)
+        $data = FiltroLista::acumular(__CLASS__, $formulario, $param);
         $filters = [];
 
         if (isset($data->data_disponibilizacao_de) AND ( (is_scalar($data->data_disponibilizacao_de) AND $data->data_disponibilizacao_de !== '') OR (is_array($data->data_disponibilizacao_de) AND (!empty($data->data_disponibilizacao_de)) )) )
@@ -775,11 +781,9 @@ class TarefaList extends TPage
 
         if (isset($data->titulo) AND ( (is_scalar($data->titulo) AND $data->titulo !== '') OR (is_array($data->titulo) AND (!empty($data->titulo)) )) ){
             $titulo = $data->titulo;
-            $data->titulo = str_replace(' ','%',TratamentosService::removerAcentos($data->titulo));
         }
         if (isset($data->titulo_col) AND ( (is_scalar($data->titulo_col) AND $data->titulo_col !== '') OR (is_array($data->titulo_col) AND (!empty($data->titulo_col)) )) ){
             $titulo_col = $data->titulo_col;
-            $data->titulo_col = str_replace(' ','%',TratamentosService::removerAcentos($data->titulo_col));
         } 
 
         TSession::setValue(__CLASS__.'_filter_data', NULL);
@@ -806,7 +810,7 @@ class TarefaList extends TPage
         if (isset($data->titulo) AND ( (is_scalar($data->titulo) AND $data->titulo !== '') OR (is_array($data->titulo) AND (!empty($data->titulo)) )) )
         {
 
-            $filters[] = new TFilter('titulo', 'like', "%{$data->titulo}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(titulo AS TEXT))', 'ilike', '%' . str_replace(' ', '%', TratamentosService::removerAcentos((string) $data->titulo)) . '%');// create the filter 
         }
 
         if (isset($data->tarefa_status_id) AND ( (is_scalar($data->tarefa_status_id) AND $data->tarefa_status_id !== '') OR (is_array($data->tarefa_status_id) AND (!empty($data->tarefa_status_id)) )) )
@@ -884,7 +888,7 @@ class TarefaList extends TPage
         if (isset($data->titulo_col) AND ( (is_scalar($data->titulo_col) AND $data->titulo_col !== '') OR (is_array($data->titulo_col) AND (!empty($data->titulo_col)) )) )
         {
 
-            $filters[] = new TFilter('unaccent(titulo)', 'ilike', "%{$data->titulo_col}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(titulo AS TEXT))', 'ilike', '%' . str_replace(' ', '%', TratamentosService::removerAcentos((string) $data->titulo_col)) . '%');// create the filter 
         }
 
         if (isset($data->data_entrega_col) AND ( (is_scalar($data->data_entrega_col) AND $data->data_entrega_col !== '') OR (is_array($data->data_entrega_col) AND (!empty($data->data_entrega_col)) )) )
@@ -910,15 +914,9 @@ class TarefaList extends TPage
             $filters[] = new TFilter('arquivado', 'in', ["N"]);// create the filter 
         }
 
-        // fill the form with data again
-        if ((isset($param['static']) && ($param['static'] == '1')) || !empty($param['globalSearch']))
-        {
-            $this->datagrid_form->setData($data);
-        }
-        else
-        {
-            $this->form->setData($data);
-        }
+        // fill the form with data again (os dois formularios mostram os filtros somados)
+        $this->datagrid_form->setData($data);
+        $this->form->setData($data);
 
         // keep the search data in the session
         TSession::setValue(__CLASS__.'_filter_data', $data);
@@ -1023,26 +1021,26 @@ class TarefaList extends TPage
             {
 
                 $criteria1 = new TCriteria;
-                $criteria1->add(new TFilter('processo_id',   'in', "(SELECT id FROM processo   WHERE numero_cnj_numero like '%{$data->numero_processo}%' )"), TExpression::OR_OPERATOR);
-                $criteria1->add(new TFilter('publicacao_id', 'in', "(SELECT id FROM publicacao WHERE processo_id in (SELECT id FROM processo WHERE numero_cnj_numero like '%{$data->numero_processo}%'))"), TExpression::OR_OPERATOR);
-                $criteria1->add(new TFilter('publicacao_id', 'in', "(SELECT id FROM publicacao WHERE numero_unico_processo like '%{$data->numero_processo}%')"), TExpression::OR_OPERATOR);
-                $criteria1->add(new TFilter('publicacao_id', 'in', "(SELECT id FROM publicacao WHERE numero_processo_principal like '%{$data->numero_processo}%')"), TExpression::OR_OPERATOR);
+                $criteria1->add(new TFilter('processo_id',   'in', "(SELECT id FROM processo   WHERE numero_cnj_numero like '%" . SqlSeguro::texto($data->numero_processo) . "%' )"), TExpression::OR_OPERATOR);
+                $criteria1->add(new TFilter('publicacao_id', 'in', "(SELECT id FROM publicacao WHERE processo_id in (SELECT id FROM processo WHERE numero_cnj_numero like '%" . SqlSeguro::texto($data->numero_processo) . "%'))"), TExpression::OR_OPERATOR);
+                $criteria1->add(new TFilter('publicacao_id', 'in', "(SELECT id FROM publicacao WHERE numero_unico_processo like '%" . SqlSeguro::texto($data->numero_processo) . "%')"), TExpression::OR_OPERATOR);
+                $criteria1->add(new TFilter('publicacao_id', 'in', "(SELECT id FROM publicacao WHERE numero_processo_principal like '%" . SqlSeguro::texto($data->numero_processo) . "%')"), TExpression::OR_OPERATOR);
                 $criteria->add($criteria1); 
             }
             if (isset($data->cliente_vinculado_col) AND ( (is_scalar($data->cliente_vinculado_col) AND $data->cliente_vinculado_col !== '') OR (is_array($data->cliente_vinculado_col) AND (!empty($data->cliente_vinculado_col)) )) )
             {
                 $criteria1 = new TCriteria;
                 $criteria1->add(new TFilter('id', 'in', 
-                    "(SELECT tarefa_id FROM tarefa_cliente WHERE cliente_id in (SELECT id FROM pessoa WHERE nome_busca ilike '%$data->cliente_vinculado_col%'))"
+                    "(SELECT tarefa_id FROM tarefa_cliente WHERE cliente_id in (SELECT id FROM pessoa WHERE nome_busca ilike '%" . SqlSeguro::texto($data->cliente_vinculado_col) . "%'))"
                     ), TExpression::OR_OPERATOR); 
                 $criteria1->add(new TFilter('processo_id', 'in', 
                     "(SELECT processo_id FROM contrato_processo WHERE processo_id in (SELECT processo_id FROM contrato_processo WHERE contrato_id in 
-                        (SELECT contrato_id FROM contrato_pessoa WHERE cliente_id in (SELECT id FROM pessoa WHERE nome_busca ilike '%$data->cliente_vinculado_col%'))))"
+                        (SELECT contrato_id FROM contrato_pessoa WHERE cliente_id in (SELECT id FROM pessoa WHERE nome_busca ilike '%" . SqlSeguro::texto($data->cliente_vinculado_col) . "%'))))"
                     ), TExpression::OR_OPERATOR); 
                 $criteria1->add(new TFilter('publicacao_id', 'in', 
                     "(SELECT id FROM publicacao WHERE processo_id in 
                 		(SELECT processo_id FROM contrato_processo WHERE processo_id in (SELECT processo_id FROM contrato_processo WHERE contrato_id in 
-                		(SELECT contrato_id FROM contrato_pessoa WHERE cliente_id in (SELECT id FROM pessoa WHERE nome_busca ilike '%$data->cliente_vinculado_col%')))))"
+                		(SELECT contrato_id FROM contrato_pessoa WHERE cliente_id in (SELECT id FROM pessoa WHERE nome_busca ilike '%" . SqlSeguro::texto($data->cliente_vinculado_col) . "%')))))"
                     ), TExpression::OR_OPERATOR); 
                 $criteria->add($criteria1); 
             }
@@ -1101,6 +1099,8 @@ class TarefaList extends TPage
 
             // close the transaction
             TTransaction::close();
+            // faixa "Filtros aplicados": cortina, botoes rapidos e funil do cabecalho (FiltroLista)
+            FiltroLista::faixa(__CLASS__, $this->form ?? null, $this->datagrid_form ?? null, $this->datagrid);
             $this->loaded = true;
 
             return $objects;

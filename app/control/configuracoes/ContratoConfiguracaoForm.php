@@ -112,7 +112,7 @@ class ContratoConfiguracaoForm extends TPage
             TTransaction::close(); // close the transaction
 
             TToast::show('success', "Registro salvo", 'topRight', 'far:check-circle');
-            TApplication::loadPage('ContratoList', 'onShow', $loadPageParam); 
+            Navegacao::voltarParaLista('ContratoList', __CLASS__);
 
         }
         catch (Exception $e) // in case of exception

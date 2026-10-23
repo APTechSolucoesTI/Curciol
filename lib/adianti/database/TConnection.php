@@ -306,6 +306,11 @@ class TConnection
      */
     public static function getDatabaseInfo($database)
     {
+        // Curciol (seguranca 22/10/2026): o nome vira caminho de arquivo (.ini/.php); so nome simples de conexao (outro valor = conexao inexistente)
+        if (!is_string($database) OR !preg_match('/^[A-Za-z0-9_-]+$/', $database))
+        {
+            return FALSE;
+        }
         $path  = empty(self::$config_path) ? 'app/config' : self::$config_path;
         $filei = "{$path}/{$database}.ini";
         $filep = "{$path}/{$database}.php";

@@ -101,6 +101,7 @@ class SystemTableList extends TPage
         {
             $database = $param['database'];
             $table    = $param['table'];
+            SystemDatabaseInformationService::validarTabela($database, $table);
             
             if (!is_writable('tmp'))
             {
@@ -174,6 +175,7 @@ class SystemTableList extends TPage
         {
             $database = $param['database'];
             $table    = $param['table'];
+            SystemDatabaseInformationService::validarTabela($database, $table);
             
             if (!is_writable('tmp'))
             {

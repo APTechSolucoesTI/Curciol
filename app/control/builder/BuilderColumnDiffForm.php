@@ -26,7 +26,7 @@ class BuilderColumnDiffForm extends TPage
 		{
 			parent::__construct();
 
-			BuilderPermissionService::checkPermission();
+			BuilderPermissionService::recursoDesativado();
 
 			$databaseMergeSession = TSession::getValue('databaseMergeSession');
 
@@ -91,7 +91,7 @@ class BuilderColumnDiffForm extends TPage
 	{
 		try
 		{
-			BuilderPermissionService::checkPermission();
+			BuilderPermissionService::recursoDesativado();
 
 			$params = explode('+', substr($param['_field_name'],0, -2));
 			TScript::create("Builder.defineColumnRename('{$params[2]}');");
@@ -180,7 +180,7 @@ class BuilderColumnDiffForm extends TPage
 	{
 		try
 		{
-			BuilderPermissionService::checkPermission();
+			BuilderPermissionService::recursoDesativado();
 
 			$databaseMergeSession = TSession::getValue('databaseMergeSession');
 

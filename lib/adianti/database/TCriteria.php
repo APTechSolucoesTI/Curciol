@@ -208,6 +208,30 @@ class TCriteria extends TExpression
         $this->properties['group']  = NULL;
     }
     
+    private static $ordensPermitidas = [];
+
+    /** Registra uma expressao de ordenacao fixa do codigo (ex.: subconsulta) para setProperties aceitar. */
+    public static function permitirOrdem(string $ordem)
+    {
+        self::$ordensPermitidas[trim($ordem)] = true;
+    }
+
+    /** O order e uma lista de colunas (tabela.coluna [asc|desc], ...) ou uma expressao registrada pelo codigo? */
+    public static function ordemValida($ordem)
+    {
+        if (!is_string($ordem))
+        {
+            return false;
+        }
+        $ordem = trim($ordem);
+        if (isset(self::$ordensPermitidas[$ordem]))
+        {
+            return true;
+        }
+        $coluna = '[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)?(\s+(asc|desc))?';
+        return (bool) preg_match('/^' . $coluna . '(\s*,\s*' . $coluna . ')*$/i', $ordem);
+    }
+
     /**
      * Sets multiple properties from an associative array.
      *
@@ -215,7 +239,10 @@ class TCriteria extends TExpression
      */
     public function setProperties($properties)
     {
-        if (isset($properties['order']) AND $properties['order'])
+        // Curciol (seguranca 22/10/2026): o order vem da requisicao e vai cru para o ORDER BY. So aceita nomes de
+        // coluna (lista com asc/desc opcional) ou expressoes registradas pelo proprio codigo (permitirOrdem);
+        // qualquer outro valor e ignorado e a listagem fica na ordem padrao.
+        if (isset($properties['order']) AND $properties['order'] AND self::ordemValida($properties['order']))
         {
             $this->properties['order'] = addslashes($properties['order']);
         }

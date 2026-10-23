@@ -80,6 +80,17 @@ class Pessoa extends TRecord
      * Sample of usage: $var->tipo_profissional->attribute;
      * @returns TipoProfissional instance
      */
+    /**
+     * Curciol (22/10/2026): CPF/CNPJ gravado so com numeros, venha de qualquer tela, importacao ou servico
+     * (a checagem de cadastro repetido e o login do portal comparam os digitos).
+     */
+    public function onBeforeStore($object)
+    {
+        if (isset($object->cpf_cnpj) && $object->cpf_cnpj !== null) {
+            $object->cpf_cnpj = preg_replace('/\D/', '', (string) $object->cpf_cnpj);
+        }
+    }
+
     public function get_tipo_profissional()
     {
     

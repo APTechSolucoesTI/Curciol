@@ -405,7 +405,7 @@ class ContaCaixaFormView extends TWindow
 
             $table->addRow();
             $table->addCell('Saldo anterior:', 'center', 'calcSaldo');
-            $table->addCell(number_format($dados['saldo_anterior'], 2, ',', '.'), 'center', 'calcSaldo');
+            $table->addCell(self::moeda($dados['saldo_anterior']), 'center', 'calcSaldo');
             $table->addCell('', 'left', 'data', 3);
 
             $table->addRow();
@@ -415,8 +415,8 @@ class ContaCaixaFormView extends TWindow
             $table->addCell('Data da compensação', 'center', 'title');
             $table->addCell('Tipo', 'center', 'title');
             $table->addCell('Histórico', 'center', 'title');
-            $table->addCell('Valor da entrada', 'center', 'title');
-            $table->addCell('Valor da saída', 'center', 'title');
+            $table->addCell('Valor da entrada', 'right', 'title');
+            $table->addCell('Valor da saída', 'right', 'title');
 
             $movimentado = 0;
 
@@ -428,8 +428,8 @@ class ContaCaixaFormView extends TWindow
                 $table->addCell(TDate::date2br($movimentacao->data_compensacao), 'center', 'data');
                 $table->addCell($movimentacao->tipo_extrato->nome, 'left', 'data');
                 $table->addCell($movimentacao->historico, 'left', 'data');
-                $table->addCell(number_format($entrada, 2, ',', '.'), 'right', 'data');
-                $table->addCell(number_format($saida, 2, ',', '.'), 'right', 'data');
+                $table->addCell(self::moeda($entrada), 'right', 'data');
+                $table->addCell(self::moeda($saida), 'right', 'data');
 
                 $movimentado += $entrada - $saida;
             }
@@ -439,7 +439,7 @@ class ContaCaixaFormView extends TWindow
 
             $table->addRow();
             $table->addCell('Movimentação:', 'center', 'dataSaldo');
-            $table->addCell(number_format($movimentado, 2, ',', '.'), 'center', 'dataSaldo');
+            $table->addCell(self::moeda($movimentado), 'center', 'dataSaldo');
             $table->addCell('', 'left', 'data', 3);
 
             $table->addRow();
@@ -450,7 +450,7 @@ class ContaCaixaFormView extends TWindow
 
             $table->addRow();
             $table->addCell('Saldo posterior:', 'center', 'calcSaldo');
-            $table->addCell(number_format($dados['saldo_posterior'], 2, ',', '.'), 'center', 'calcSaldo');
+            $table->addCell(self::moeda($dados['saldo_posterior']), 'center', 'calcSaldo');
             $table->addCell('', 'left', 'data', 3);
 
             $table->save($arquivo);
@@ -514,7 +514,7 @@ class ContaCaixaFormView extends TWindow
 
             $table->addRow();
             $table->addCell('Saldo anterior:', 'left', 'calcSaldo');
-            $table->addCell(number_format($dados['saldo_anterior'], 2, ',', '.'), 'center', 'calcSaldo');
+            $table->addCell(self::moeda($dados['saldo_anterior']), 'center', 'calcSaldo');
             $table->addCell('', 'left', 'data', 3);
 
             $table->addRow();
@@ -542,8 +542,8 @@ class ContaCaixaFormView extends TWindow
                 $table->addRow();
                 $table->addCell('Tipo', 'center', 'title');
                 $table->addCell('Histórico', 'center', 'title', 2);
-                $table->addCell('Valor da entrada', 'center', 'title');
-                $table->addCell('Valor da saída', 'center', 'title');
+                $table->addCell('Valor da entrada', 'right', 'title');
+                $table->addCell('Valor da saída', 'right', 'title');
 
                 $movimentado = 0;
 
@@ -554,8 +554,8 @@ class ContaCaixaFormView extends TWindow
                     $table->addRow();
                     $table->addCell($movimentacao->tipo_extrato->nome, 'left', 'data');
                     $table->addCell($movimentacao->historico, 'left', 'data', 2);
-                    $table->addCell(number_format($entrada, 2, ',', '.'), 'right', 'data');
-                    $table->addCell(number_format($saida, 2, ',', '.'), 'right', 'data');
+                    $table->addCell(self::moeda($entrada), 'right', 'data');
+                    $table->addCell(self::moeda($saida), 'right', 'data');
 
                     $movimentado += $entrada - $saida;
                 }
@@ -567,10 +567,10 @@ class ContaCaixaFormView extends TWindow
 
                 $table->addRow();
                 $table->addCell('Movimentação:', 'left', 'title');
-                $table->addCell(number_format($movimentado, 2, ',', '.'), 'center', 'dataSaldo');
+                $table->addCell(self::moeda($movimentado), 'center', 'dataSaldo');
                 $table->addCell('', 'left', 'data');
                 $table->addCell('Saldo:', 'left', 'title');
-                $table->addCell(number_format($saldo, 2, ',', '.'), 'right', 'dataSaldo');
+                $table->addCell(self::moeda($saldo), 'right', 'dataSaldo');
 
                 $table->addRow();
                 $table->addCell('', 'left', 'data', 5);
@@ -581,7 +581,7 @@ class ContaCaixaFormView extends TWindow
 
             $table->addRow();
             $table->addCell('Saldo posterior:', 'center', 'calcSaldo');
-            $table->addCell(number_format($dados['saldo_posterior'], 2, ',', '.'), 'center', 'calcSaldo');
+            $table->addCell(self::moeda($dados['saldo_posterior']), 'center', 'calcSaldo');
             $table->addCell('', 'left', 'data', 3);
 
             $table->save($arquivo);
@@ -783,6 +783,11 @@ class ContaCaixaFormView extends TWindow
         return $grid;
     }
 
+    private static function moeda($v)
+    {
+        return 'R$ ' . number_format((float) $v, 2, ',', '.');
+    }
+
     private static function nomeArquivo($nome)
     {
         $nomeAscii = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $nome);
@@ -844,8 +849,10 @@ class ContaCaixaFormView extends TWindow
         $xml .= "<Style ss:ID=\"TituloGeral\"><Alignment ss:Horizontal=\"Center\" ss:Vertical=\"Center\"/><Font ss:FontName=\"Helvetica\" ss:Size=\"14\" ss:Bold=\"1\" ss:Color=\"#FFFFFF\"/><Interior ss:Color=\"#122945\" ss:Pattern=\"Solid\"/></Style>";
         $xml .= "<Style ss:ID=\"Titulo\"><Alignment ss:Horizontal=\"Center\" ss:Vertical=\"Center\"/><Font ss:FontName=\"Helvetica\" ss:Size=\"10\" ss:Bold=\"1\" ss:Color=\"#FFFFFF\"/><Interior ss:Color=\"#005284\" ss:Pattern=\"Solid\"/></Style>";
         $xml .= "<Style ss:ID=\"Negrito\"><Font ss:FontName=\"Helvetica\" ss:Size=\"10\" ss:Bold=\"1\"/></Style>";
-        $xml .= "<Style ss:ID=\"Moeda\"><NumberFormat ss:Format=\"Currency\"/></Style>";
-        $xml .= "<Style ss:ID=\"MoedaNegrito\"><Font ss:FontName=\"Helvetica\" ss:Size=\"10\" ss:Bold=\"1\"/><NumberFormat ss:Format=\"Currency\"/></Style>";
+        // titulos das colunas de valor a direita, junto dos valores; moeda sempre com R$
+        $xml .= "<Style ss:ID=\"TituloDireita\"><Alignment ss:Horizontal=\"Right\" ss:Vertical=\"Center\"/><Font ss:FontName=\"Helvetica\" ss:Size=\"10\" ss:Bold=\"1\" ss:Color=\"#FFFFFF\"/><Interior ss:Color=\"#005284\" ss:Pattern=\"Solid\"/></Style>";
+        $xml .= "<Style ss:ID=\"Moeda\"><Alignment ss:Horizontal=\"Right\"/><NumberFormat ss:Format=\"&quot;R$&quot;\\ #,##0.00\"/></Style>";
+        $xml .= "<Style ss:ID=\"MoedaNegrito\"><Alignment ss:Horizontal=\"Right\"/><Font ss:FontName=\"Helvetica\" ss:Size=\"10\" ss:Bold=\"1\"/><NumberFormat ss:Format=\"&quot;R$&quot;\\ #,##0.00\"/></Style>";
         $xml .= "</Styles>";
 
         $nomesUsados = [];
@@ -871,7 +878,7 @@ class ContaCaixaFormView extends TWindow
             $xml .= '<Row></Row>';
             $xml .= '<Row>'.self::celulaExcelXml('Saldo anterior:', 'String', 'Negrito').self::celulaExcelXml($dados['saldo_anterior'], 'Number', 'MoedaNegrito').'</Row>';
             $xml .= '<Row></Row>';
-            $xml .= '<Row>'.self::celulaExcelXml('Data da compensação', 'String', 'Titulo').self::celulaExcelXml('Tipo', 'String', 'Titulo').self::celulaExcelXml('Histórico', 'String', 'Titulo').self::celulaExcelXml('Valor da entrada', 'String', 'Titulo').self::celulaExcelXml('Valor da saída', 'String', 'Titulo').'</Row>';
+            $xml .= '<Row>'.self::celulaExcelXml('Data da compensação', 'String', 'Titulo').self::celulaExcelXml('Tipo', 'String', 'Titulo').self::celulaExcelXml('Histórico', 'String', 'Titulo').self::celulaExcelXml('Valor da entrada', 'String', 'TituloDireita').self::celulaExcelXml('Valor da saída', 'String', 'TituloDireita').'</Row>';
 
             foreach($dados['movimentacoes'] as $movimentacao){
                 $entrada = (float) $movimentacao->entrada_valor;

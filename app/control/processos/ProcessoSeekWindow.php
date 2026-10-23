@@ -159,7 +159,7 @@ class ProcessoSeekWindow extends TWindow
         if (isset($data->numero_cnj_numero) AND ( (is_scalar($data->numero_cnj_numero) AND $data->numero_cnj_numero !== '') OR (is_array($data->numero_cnj_numero) AND (!empty($data->numero_cnj_numero)) )) )
         {
 
-            $filters[] = new TFilter('numero_cnj_numero', 'like', "%{$data->numero_cnj_numero}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(numero_cnj_numero AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->numero_cnj_numero) . '%');// create the filter 
         }
 
         if (isset($data->cliente_id) AND ( (is_scalar($data->cliente_id) AND $data->cliente_id !== '') OR (is_array($data->cliente_id) AND (!empty($data->cliente_id)) )) )
@@ -326,7 +326,7 @@ class ProcessoSeekWindow extends TWindow
 
             $pageParam = ['key' => TSession::getValue('publicacao_id')];
 
-            TApplication::loadPage('PublicacaoHeaderList', 'onShow');
+            Navegacao::voltarParaLista('PublicacaoHeaderList', __CLASS__);
 
             TApplication::loadPage('PublicacaoFormView', 'onShow', $pageParam);
 

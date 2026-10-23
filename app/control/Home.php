@@ -20,20 +20,25 @@ class Home extends TPage
         {
             TTransaction::open('escritorio');
 
-            $usuario = trim($param['usuario'] ?? '');
-            $senha   = trim($param['senha'] ?? '');
+            // login: usuario = CPF/CNPJ so com numeros (o campo pode vir com pontuacao)
+            $documento = preg_replace('/\D/', '', (string) ($param['usuario'] ?? ''));
+            $senha     = trim($param['senha'] ?? '');
 
-            if (empty($usuario) || empty($senha))
+            if ($documento === '' || $senha === '')
             {
-                throw new Exception('Informe seu usuário e senha para acessar seus processos.');
+                throw new Exception('Informe seu CPF e senha para acessar seus processos.');
             }
 
-            $pessoa = Pessoa::where('usuario', '=', $usuario)
+            PortalLoginLimite::exigirLiberado($documento);
+
+            $pessoa = Pessoa::where('usuario', '=', $documento)
                             ->where('senha', '=', $senha)
+                            ->orderBy('id')
                             ->first();
 
             if (empty($pessoa))
             {
+                PortalLoginLimite::registrarFalha($documento);
                 /*
                     "Nao e cliente registrado" so quando o usuario existe e
                     ainda nao tem senha cadastrada. Usuario digitado errado ou
@@ -43,7 +48,7 @@ class Home extends TPage
                 $tem_senha = false;
                 $existe    = false;
 
-                foreach (Pessoa::where('usuario', '=', $usuario)->load() as $cadastro)
+                foreach (Pessoa::where('usuario', '=', $documento)->load() as $cadastro)
                 {
                     $existe = true;
 
@@ -58,9 +63,11 @@ class Home extends TPage
                     throw new Exception('Você ainda não é um cliente registrado. Verifique os dados informados!');
                 }
 
-                throw new Exception('Usuário ou senha incorretos.');
+                throw new Exception('CPF ou senha incorretos.');
             }
 
+            PortalLoginLimite::limpar($documento);
+            if (session_status() == PHP_SESSION_ACTIVE) { TSession::regenerate(); } // Curciol (seguranca 22/10/2026): sessao nova ao entrar no portal
             TSession::setValue('portal_cliente_id', $pessoa->id);
 
             TTransaction::close();

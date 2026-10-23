@@ -1,4 +1,10 @@
 <?php
+// Curciol (seguranca 22/10/2026): API REST desativado. O sistema nao usa mais o Mad Builder nem a API REST/mobile
+// (nenhum acesso em producao desde dez/2025). Para reativar, remova este bloco.
+http_response_code(404);
+exit;
+?>
+<?php
 header('Content-Type: application/json; charset=utf-8');
 
 // initialization script

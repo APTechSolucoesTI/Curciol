@@ -172,9 +172,8 @@ class PadraoAtendimentoDocumentoForm extends TPage
             TTransaction::close(); // close the transaction
 
             TToast::show('success', "Registro salvo", 'topRight', 'far:check-circle');
-            TApplication::loadPage('PadraoAtendimentoDocumentoList', 'onShow', $loadPageParam); 
+            Navegacao::voltarParaLista('PadraoAtendimentoDocumentoList', __CLASS__);
 
-                        TScript::create("Template.closeRightPanel();");
             TForm::sendData(self::$formName, (object)['id' => $object->id]);
 
         }

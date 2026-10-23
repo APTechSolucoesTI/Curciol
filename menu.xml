@@ -130,6 +130,10 @@
             </menuitem>
         </menu>
         </menuitem>
+        <menuitem label="Repasses a colaboradores">
+        <icon>fas:hand-holding-usd fa-fw #1F3A5F</icon>
+        <action>RepasseColaboradorList#method=onShow</action>
+        </menuitem>
     </menu>
     </menuitem>
     <menuitem label="Dashboard">
@@ -391,6 +395,18 @@
             <menuitem label="Documentos financeiros">
             <icon>fas:angle-right fa-fw </icon>
             <action>TipoDocumentoFinanceiroList#method=onShow</action>
+            </menuitem>
+            <menuitem label="Beneficiários do crédito">
+            <icon>fas:hand-holding-usd fa-fw </icon>
+            <action>BeneficiarioCreditoList#method=onShow</action>
+            </menuitem>
+            <menuitem label="Parcerias de levantamento">
+            <icon>fas:handshake fa-fw </icon>
+            <action>ParceriaLevantamentoList#method=onShow</action>
+            </menuitem>
+            <menuitem label="Configuração do financeiro">
+            <icon>fas:cog fa-fw </icon>
+            <action>FinanceiroConfiguracaoForm#method=onEdit#key=1</action>
             </menuitem>
         </menu>
         </menuitem>

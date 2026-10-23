@@ -19,7 +19,7 @@ class BuilderMenuUpdate extends TPage
     {
         parent::__construct();
 
-        BuilderPermissionService::checkPermission();
+        BuilderPermissionService::recursoDesativado();
     }
 
     /**
@@ -29,7 +29,7 @@ class BuilderMenuUpdate extends TPage
     {
         try 
         {
-            BuilderPermissionService::checkPermission();
+            BuilderPermissionService::recursoDesativado();
             
             $action = new TAction([$this, 'onUpdateMenu']);
             
@@ -48,7 +48,7 @@ class BuilderMenuUpdate extends TPage
     {
         try 
         {
-            BuilderPermissionService::checkPermission();
+            BuilderPermissionService::recursoDesativado();
             
             $menus = BuilderPageService::getMenus();
             

@@ -279,27 +279,9 @@ class ModalQuitarParcelaParcial extends TWindow
                 $extrato->mes = date('m', strtotime($dataPagamento));
                 $extrato->ano_mes = date('Ym', strtotime($dataPagamento));
 
-                $contaCaixa = ContaCaixa::find($extrato->conta_caixa_id);
-
-                if(!$contaCaixa){
-                    throw new Exception("Conta caixa não encontrada.");
-                }
-
-                $contaCaixa->saldo_instantaneo = (float) $contaCaixa->saldo_instantaneo + (float) $extrato->entrada_valor - (float) $extrato->saida_valor;
-                $contaCaixa->modificacao_user_id = TSession::getValue('userid');
-                $contaCaixa->store();
             }else{
                 $extrato->compensado = 'N';
 
-                $contaCaixa = ContaCaixa::find($extrato->conta_caixa_id);
-
-                if(!$contaCaixa){
-                    throw new Exception("Conta caixa não encontrada.");
-                }
-
-                $contaCaixa->saldo_nao_compensado = (float) $contaCaixa->saldo_nao_compensado + (float) $extrato->entrada_valor - (float) $extrato->saida_valor;
-                $contaCaixa->modificacao_user_id = TSession::getValue('userid');
-                $contaCaixa->store();
             }
 
             $historico = trim((string) $object->historico);
@@ -310,7 +292,12 @@ class ModalQuitarParcelaParcial extends TWindow
 
             $extrato->criacao_user_id = TSession::getValue('userid');
             $extrato->store();
+            ContaCaixaSaldoService::recalcular($extrato->conta_caixa_id);
 
+            // conta a receber com repasse: nasce a conta a pagar de cada colaborador, proporcional ao recebido
+            if ((string) $conta->tipo_conta_id === (string) TipoConta::RECEBER) {
+                RepasseColaboradorService::gerarPorRecebimento((int) $lancamento->id, (int) $extrato->id, (float) $valorPago, (string) $dataPagamento, false);
+            }
             // nao liga o extrato no extrato_id do lancamento porque agora pode ter varios parciais
             $contaId = $conta->id;
             $tipoContaId = $conta->tipo_conta_id;
@@ -319,7 +306,7 @@ class ModalQuitarParcelaParcial extends TWindow
 
             TToast::show('success', "Pagamento parcial realizado. Saldo restante: R$ ".number_format($novoSaldo, 2, ',', '.'), 'bottom right');
 
-            AdiantiCoreApplication::loadPage('ContaFormView', 'onShow', ['key' => $contaId]);
+            Navegacao::abrirConta((int) $contaId);
             TScript::create("$(\"[page_name='ModalQuitarParcelaParcial']\").remove();");
 
         }
@@ -443,6 +430,8 @@ class ModalQuitarParcelaParcial extends TWindow
         $object->tipo_pagamento_id = $lancamento->tipo_pagamento_id;
 
         $object->dt_pagamento = date('d/m/Y');
+        // conta-caixa prevista na conta (ex.: gerar financeiro do contrato) vem sugerida
+        $object->conta_caixa_id = $lancamento->conta->conta_caixa_id ?: null;
 
         $categoriaConta = $lancamento->conta->categoria_conta->nome;
 

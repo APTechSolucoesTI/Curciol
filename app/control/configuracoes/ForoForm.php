@@ -128,9 +128,8 @@ class ForoForm extends TPage
             TTransaction::close(); // close the transaction
 
             TToast::show('success', "Registro salvo", 'topRight', 'far:check-circle');
-            TApplication::loadPage('ForoList', 'onShow', $loadPageParam); 
+            Navegacao::voltarParaLista('ForoList', __CLASS__);
 
-                        TScript::create("Template.closeRightPanel();"); 
         }
         catch (Exception $e) // in case of exception
         {

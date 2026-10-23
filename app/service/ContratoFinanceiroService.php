@@ -1,0 +1,326 @@
+<?php
+/**
+ * Financeiro gerado por um pagamento do contrato (contrato_pagamento_parcela), no mesmo espirito do financeiro da
+ * requisicao de pagamento (21/10/2026):
+ *  - Desfazer financeiro: apaga as parcelas (lancamentos) geradas por aquele pagamento, ajusta a conta a receber
+ *    (total, numero de parcelas; apaga a conta se ela ficar vazia) e o pagamento volta a "Em aberto", sem ser apagado.
+ *    So e possivel enquanto nenhuma dessas parcelas foi recebida.
+ *  - Pagamento com financeiro gerado nao pode ser excluido nem ter valor, data, opcao ou numero de parcelas alterados
+ *    no cadastro do contrato: primeiro desfaz o financeiro.
+ * As parcelas sao identificadas por lancamento.contrato_parcela_id.
+ */
+class ContratoFinanceiroService
+{
+    const STATUS_ABERTO = 1;
+
+    /**
+     * Regra da publicacao (23/10/2026): contrato com parcela a receber anterior a publicacao ainda em aberto continua pelo
+     * modo antigo; o "Gerar financeiro" (da parcela do contrato e do pagamento da requisicao) fica bloqueado ate ela ser
+     * quitada. Usa a transacao aberta.
+     */
+    public static function exigirSemParcelaAnteriorAberta(int $contratoId): void
+    {
+        if ($contratoId <= 0) { return; }
+        $st = TTransaction::get()->prepare("SELECT c.id, count(*) AS n FROM lancamento l JOIN conta c ON c.id = l.conta_id
+            WHERE c.contrato_id = ? AND c.tipo_conta_id = ? AND l.anterior_publicacao AND l.dt_pagamento IS NULL AND COALESCE(l.cancelado, 'N') <> 'S'
+            GROUP BY c.id ORDER BY c.id");
+        $st->execute([$contratoId, (int) TipoConta::RECEBER]);
+        $contas = $st->fetchAll(PDO::FETCH_OBJ);
+        if ($contas) {
+            $total = array_sum(array_map(function ($c) { return (int) $c->n; }, $contas));
+            throw new Exception("Este contrato tem {$total} parcela(s) a receber em aberto lançada(s) antes da atualização do sistema (conta "
+                . implode(', ', array_map(function ($c) { return 'nº ' . (int) $c->id; }, $contas))
+                . '). O financeiro deste contrato continua pelo modo antigo: o "Gerar financeiro" só fica disponível depois que essas parcelas forem quitadas.');
+        }
+    }
+
+    /** A parcela foi lancada antes da publicacao (23/10/2026)? Quitar uma parcela anterior nao gera repasse. Usa a transacao aberta. */
+    public static function parcelaAnterior(int $lancamentoId): bool
+    {
+        $st = TTransaction::get()->prepare('SELECT anterior_publicacao FROM lancamento WHERE id = ?');
+        $st->execute([$lancamentoId]);
+        $v = $st->fetchColumn();
+        return $v === true || $v === 't' || $v === 1 || $v === '1';
+    }
+
+    /** Parcelas (lancamentos) geradas pelo pagamento do contrato. Usa a transacao aberta. */
+    public static function lancamentosDoPagamento(int $pagamentoId): array
+    {
+        $st = TTransaction::get()->prepare('SELECT id, conta_id, parcela, dt_vencimento, dt_pagamento, extrato_id, valor, saldo
+                                              FROM lancamento WHERE contrato_parcela_id = ? ORDER BY conta_id, parcela, id');
+        $st->execute([$pagamentoId]);
+        return $st->fetchAll(PDO::FETCH_OBJ);
+    }
+
+    /** O pagamento tem financeiro gerado (status Gerado/Gerado com saldo ou parcelas ligadas)? Usa a transacao aberta. */
+    public static function temFinanceiro(int $pagamentoId): bool
+    {
+        $p = ContratoPagamentoParcela::find($pagamentoId);
+        if (!$p) {
+            return false;
+        }
+        return in_array((int) $p->status_contrato_pagamento_id, [2, 3], true) || self::lancamentosDoPagamento($pagamentoId);
+    }
+
+    /** Por que o financeiro do pagamento nao pode ser desfeito; null quando pode. Usa a transacao aberta ou abre a propria. */
+    public static function motivoBloqueioDesfazer(int $pagamentoId): ?string
+    {
+        $propria = (TTransaction::get() === null);
+        if ($propria) { TTransaction::open('escritorio'); }
+        try {
+            $r = self::motivo($pagamentoId);
+            if ($propria) { TTransaction::close(); }
+            return $r;
+        } catch (Throwable $e) {
+            if ($propria) { TTransaction::rollback(); }
+            throw $e;
+        }
+    }
+
+    private static function motivo(int $pagamentoId): ?string
+    {
+        $p = ContratoPagamentoParcela::find($pagamentoId);
+        if (!$p) {
+            return 'Pagamento do contrato não encontrado.';
+        }
+        $lancs = self::lancamentosDoPagamento($pagamentoId);
+        if (!$lancs) {
+            if (in_array((int) $p->status_contrato_pagamento_id, [2, 3], true)) {
+                return 'O financeiro deste pagamento foi gerado antes de o sistema ligar as parcelas ao pagamento, então não dá para identificar '
+                    . 'quais parcelas desfazer. Ajuste pela conta a receber do contrato.';
+            }
+            return 'Este pagamento não tem financeiro gerado.';
+        }
+        $c = TTransaction::get();
+        foreach ($lancs as $l) {
+            $recebida = !empty($l->dt_pagamento) || !empty($l->extrato_id)
+                || ($l->saldo !== null && round((float) $l->saldo, 2) != round((float) $l->valor, 2));
+            if (!$recebida) {
+                $st = $c->prepare('SELECT 1 FROM extrato WHERE lancamento_id = ? LIMIT 1');
+                $st->execute([(int) $l->id]);
+                $recebida = (bool) $st->fetchColumn();
+            }
+            if ($recebida) {
+                return 'A parcela ' . (int) $l->parcela . ' da conta a receber (vencimento ' . date('d/m/Y', strtotime($l->dt_vencimento)) . ') já foi recebida'
+                    . ($l->dt_pagamento ? ' em ' . date('d/m/Y', strtotime($l->dt_pagamento)) : ' (total ou parcialmente)')
+                    . '. Desquite o recebimento antes de desfazer o financeiro deste pagamento.';
+            }
+            $st = $c->prepare('SELECT 1 FROM repasse_colaborador WHERE lancamento_receber_id = ? LIMIT 1');
+            $st->execute([(int) $l->id]);
+            if ($st->fetchColumn()) {
+                return 'A parcela ' . (int) $l->parcela . ' da conta a receber já gerou repasse a colaborador. '
+                    . 'Desquite o recebimento antes de desfazer o financeiro deste pagamento.';
+            }
+        }
+        return null;
+    }
+
+    /** Desfaz o financeiro do pagamento do contrato (ver o cabecalho). Abre a propria transacao. */
+    public static function desfazer(int $pagamentoId): void
+    {
+        TTransaction::open('escritorio');
+        try {
+            $c = TTransaction::get();
+            $c->prepare('SELECT id FROM contrato_pagamento_parcela WHERE id = ? FOR UPDATE')->execute([$pagamentoId]);
+            $motivo = self::motivo($pagamentoId);
+            if ($motivo !== null) {
+                throw new Exception($motivo);
+            }
+
+            $lancs = self::lancamentosDoPagamento($pagamentoId);
+            $ids = implode(',', array_map(function ($l) { return (int) $l->id; }, $lancs));
+            $contas = array_values(array_unique(array_map(function ($l) { return (int) $l->conta_id; }, $lancs)));
+
+            $c->exec("DELETE FROM lancamento_profissional_ajuste WHERE lancamento_profissional_id IN (SELECT id FROM lancamento_profissional WHERE lancamento_id IN ({$ids}))");
+            $c->exec("DELETE FROM lancamento_profissional WHERE lancamento_id IN ({$ids})");
+            $c->exec("DELETE FROM lancamento WHERE id IN ({$ids})");
+
+            foreach ($contas as $contaId) {
+                self::ajustarConta($c, $contaId);
+            }
+
+            $c->prepare('UPDATE contrato_pagamento_parcela SET saldo = NULL, status_contrato_pagamento_id = ?, data_modificacao = now(), modificacao_user_id = ? WHERE id = ?')
+              ->execute([self::STATUS_ABERTO, TSession::getValue('userid'), $pagamentoId]);
+
+            TTransaction::close();
+        } catch (Throwable $e) {
+            TTransaction::rollback();
+            throw $e;
+        }
+    }
+
+    /** Conta depois de tirar parcelas: sem parcelas, sai; com parcelas, renumera e recalcula total e proximo vencimento. */
+    private static function ajustarConta(PDO $c, int $contaId): void
+    {
+        $st = $c->prepare('SELECT id, valor, valor_total, dt_vencimento, dt_pagamento, cancelado FROM lancamento WHERE conta_id = ? ORDER BY parcela, id');
+        $st->execute([$contaId]);
+        $restantes = $st->fetchAll(PDO::FETCH_OBJ);
+        if (!$restantes) {
+            $c->prepare('DELETE FROM conta_profissional WHERE conta_id = ?')->execute([$contaId]);
+            $c->prepare('DELETE FROM conta WHERE id = ?')->execute([$contaId]);
+            return;
+        }
+        $total = 0.0;
+        $proximo = null;
+        $ativos = 0;
+        foreach ($restantes as $i => $l) {
+            $c->prepare('UPDATE lancamento SET parcela = ? WHERE id = ?')->execute([$i + 1, (int) $l->id]);
+            if ($l->cancelado === 'S') {
+                continue;
+            }
+            $ativos++;
+            $total += ($l->valor_total !== null && $l->valor_total !== '') ? (float) $l->valor_total : (float) $l->valor;
+            if (empty($l->dt_pagamento) && ($proximo === null || $l->dt_vencimento < $proximo)) {
+                $proximo = $l->dt_vencimento;
+            }
+        }
+        $quitada = ($proximo === null) ? 'S' : 'N';
+        $c->prepare('UPDATE conta SET total_conta = ?, total_parcelas = ?, proximo_vencimento_lancamento = COALESCE(?, proximo_vencimento_lancamento), quitada = ? WHERE id = ?')
+          ->execute([round($total, 2), $ativos, $proximo, $quitada, $contaId]);
+    }
+
+    /**
+     * Cadastro do contrato: pagamentos com financeiro gerado nao podem sair da lista nem mudar valor, data, opcao ou
+     * numero de parcelas. $itensPostados: linhas da lista (__row__data). Usa a transacao aberta.
+     */
+    public static function exigirPagamentosPreservados(int $contratoId, array $itensPostados): void
+    {
+        if ($contratoId <= 0) {
+            return;
+        }
+        $postados = [];
+        foreach ($itensPostados as $linha) {
+            $d = @unserialize(base64_decode((string) $linha));
+            // campos do modelo no nivel de cima (o __display__ tem os valores formatados para a tela)
+            $valores = is_object($d) ? $d : (object) (is_array($d) ? $d : []);
+            $id = (int) ($valores->id ?? 0);
+            if ($id > 0) {
+                $postados[$id] = $valores;
+            }
+        }
+        foreach (ContratoPagamentoParcela::where('contrato_id', '=', $contratoId)->load() as $p) {
+            if (!self::temFinanceiro((int) $p->id)) {
+                continue;
+            }
+            $nome = self::descricao($p);
+            if (!isset($postados[(int) $p->id])) {
+                throw new Exception("O pagamento {$nome} já tem financeiro gerado e não pode ser excluído. "
+                    . 'Use "Desfazer financeiro" na aba Pagamentos do contrato (possível enquanto nenhuma parcela tiver sido recebida) e depois exclua.');
+            }
+            $novo = $postados[(int) $p->id];
+            $mudou = [];
+            if (round(self::numero($novo->valor ?? null), 2) != round((float) $p->valor, 2)) { $mudou[] = 'valor'; }
+            if ((int) ($novo->numero_parcelas ?? 0) !== (int) $p->numero_parcelas) { $mudou[] = 'número de parcelas'; }
+            if ((int) ($novo->contrato_opcao_pagamento_id ?? 0) !== (int) $p->contrato_opcao_pagamento_id) { $mudou[] = 'opção de pagamento'; }
+            if (self::data($novo->data_pagamento ?? null) !== self::data($p->data_pagamento)) { $mudou[] = 'data'; }
+            if ($mudou) {
+                throw new Exception("O pagamento {$nome} já tem financeiro gerado: " . implode(', ', $mudou) . ' não podem ser alterados. '
+                    . 'Use "Desfazer financeiro" na aba Pagamentos do contrato (possível enquanto nenhuma parcela tiver sido recebida), altere e gere de novo.');
+            }
+        }
+    }
+
+    /** Motivo para nao tirar o pagamento da lista do cadastro (null quando pode). Abre a propria transacao se precisar. */
+    public static function motivoNaoExcluir(int $pagamentoId): ?string
+    {
+        if ($pagamentoId <= 0) {
+            return null;
+        }
+        $propria = (TTransaction::get() === null);
+        if ($propria) { TTransaction::open('escritorio'); }
+        try {
+            $r = null;
+            if (self::temFinanceiro($pagamentoId)) {
+                $p = ContratoPagamentoParcela::find($pagamentoId);
+                $r = 'O pagamento ' . self::descricao($p) . ' já tem financeiro gerado e não pode ser excluído. '
+                    . 'Use "Desfazer financeiro" na aba Pagamentos do contrato (possível enquanto nenhuma parcela tiver sido recebida) e depois exclua.';
+            }
+            if ($propria) { TTransaction::close(); }
+            return $r;
+        } catch (Throwable $e) {
+            if ($propria) { TTransaction::rollback(); }
+            throw $e;
+        }
+    }
+
+    /**
+     * Conta com parcelas geradas por pagamento do contrato: excluir/editar/cancelar so pelo "Desfazer financeiro" do
+     * contrato (editar recriava as parcelas em aberto e perdia a ligacao com o pagamento e a divisao dos profissionais).
+     * Conta antiga, sem parcelas ligadas a pagamento, continua ajustavel pela propria conta. Null quando pode.
+     */
+    public static function motivoConta(int $contaId): ?string
+    {
+        if ($contaId <= 0) {
+            return null;
+        }
+        $propria = (TTransaction::get() === null);
+        if ($propria) { TTransaction::open('escritorio'); }
+        try {
+            $st = TTransaction::get()->prepare('SELECT DISTINCT contrato_parcela_id FROM lancamento WHERE conta_id = ? AND contrato_parcela_id IS NOT NULL ORDER BY 1');
+            $st->execute([$contaId]);
+            $pagamentos = [];
+            $contrato = null;
+            foreach ($st->fetchAll(PDO::FETCH_COLUMN) as $pid) {
+                $p = ContratoPagamentoParcela::find((int) $pid);
+                if ($p) {
+                    $pagamentos[] = self::descricao($p);
+                    $contrato = $contrato ?: Contrato::find((int) $p->contrato_id);
+                }
+            }
+            if ($propria) { TTransaction::close(); }
+        } catch (Throwable $e) {
+            if ($propria) { TTransaction::rollback(); }
+            throw $e;
+        }
+        if (!$pagamentos) {
+            return null;
+        }
+        return 'Esta conta foi gerada pelo financeiro do contrato' . (!empty($contrato->numero) ? ' ' . $contrato->numero : '')
+            . ' (' . (count($pagamentos) > 1 ? 'pagamentos ' : 'pagamento ') . implode(', ', $pagamentos) . ') e não pode ser excluída nem alterada por aqui. '
+            . 'Use "Desfazer financeiro" na aba Pagamentos do contrato (possível enquanto nenhuma parcela tiver sido recebida).';
+    }
+
+    /** Contrato com financeiro gerado nao pode ser excluido: desfazer antes, mesmo sem nada recebido. Usa a transacao aberta. */
+    public static function exigirContratoExcluivel(int $contratoId): void
+    {
+        $comFinanceiro = [];
+        foreach (ContratoPagamentoParcela::where('contrato_id', '=', $contratoId)->load() as $p) {
+            if (self::temFinanceiro((int) $p->id)) {
+                $comFinanceiro[] = self::descricao($p);
+            }
+        }
+        if ($comFinanceiro) {
+            throw new Exception('Este contrato tem financeiro gerado (' . (count($comFinanceiro) > 1 ? 'pagamentos ' : 'pagamento ') . implode(', ', $comFinanceiro)
+                . ') e não pode ser excluído. Use "Desfazer financeiro" em cada pagamento na aba Pagamentos antes de excluir o contrato.');
+        }
+        // contas do contrato sem ligacao com pagamento (geradas antes da ligacao): ajustar pela propria conta
+        $st = TTransaction::get()->prepare("SELECT COUNT(*) FROM conta WHERE contrato_id = ? AND tipo_conta_id = '1'");
+        $st->execute([$contratoId]);
+        $contas = (int) $st->fetchColumn();
+        if ($contas > 0) {
+            throw new Exception("Este contrato tem {$contas} conta(s) a receber gerada(s) e não pode ser excluído. Exclua as contas a receber do contrato antes.");
+        }
+    }
+
+    private static function descricao(ContratoPagamentoParcela $p): string
+    {
+        $opcao = $p->contrato_opcao_pagamento_id ? ContratoPagamentoOpcao::find((int) $p->contrato_opcao_pagamento_id) : null;
+        return '"' . trim(($opcao->nome ?? 'Pagamento') . ' - R$ ' . number_format((float) $p->valor, 2, ',', '.')) . '"';
+    }
+
+    private static function numero($v): float
+    {
+        if ($v === null || $v === '') { return 0.0; }
+        if (is_numeric($v)) { return (float) $v; }
+        $t = str_replace(['R$', ' '], '', (string) $v);
+        if (strpos($t, ',') !== false) { $t = str_replace(',', '.', str_replace('.', '', $t)); }
+        return (float) $t;
+    }
+
+    private static function data($v): string
+    {
+        $t = trim((string) $v);
+        if (preg_match('#^(\d{2})/(\d{2})/(\d{4})#', $t, $m)) { return "{$m[3]}-{$m[2]}-{$m[1]}"; }
+        return substr($t, 0, 10);
+    }
+}

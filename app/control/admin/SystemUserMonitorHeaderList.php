@@ -243,6 +243,10 @@ class SystemUserMonitorHeaderList extends TPage
         TSession::setValue(__CLASS__.'_filter_data', NULL);
         TSession::setValue(__CLASS__.'_filters', NULL);
 
+        // os formularios tambem (senao o cabecalho continuava mostrando os filtros antigos)
+        if (!empty($this->form)) { $this->form->clear(); }
+        if (!empty($this->datagrid_form)) { $this->datagrid_form->clear(); }
+
         $this->onReload(['offset' => 0, 'first_page' => 1]);
     }
 
@@ -260,22 +264,22 @@ class SystemUserMonitorHeaderList extends TPage
 
         if (isset($data->id) AND ( (is_scalar($data->id) AND $data->id !== '') OR (is_array($data->id) AND (!empty($data->id)) )) )
         {
-            $filters[] = new TFilter('id', '=', $data->id);// create the filter 
+            $filters[] = new TFilter('id', '=', SqlSeguro::id($data->id));// create the filter 
         }
 
         if (isset($data->name) AND ( (is_scalar($data->name) AND $data->name !== '') OR (is_array($data->name) AND (!empty($data->name)) )) )
         {
-            $filters[] = new TFilter('name', 'like', "%{$data->name}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(name AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->name) . '%');// create the filter 
         }
 
         if (isset($data->login) AND ( (is_scalar($data->login) AND $data->login !== '') OR (is_array($data->login) AND (!empty($data->login)) )) )
         {
-            $filters[] = new TFilter('login', 'like', "%{$data->login}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(login AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->login) . '%');// create the filter 
         }
 
         if (isset($data->email) AND ( (is_scalar($data->email) AND $data->email !== '') OR (is_array($data->email) AND (!empty($data->email)) )) )
         {
-            $filters[] = new TFilter('email', 'like', "%{$data->email}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(email AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->email) . '%');// create the filter 
         }
 
         // fill the form with data again

@@ -472,15 +472,15 @@ class ProcessoPublicacoesTimeLine extends TPage
                             $complemento_html = nl2br(htmlspecialchars((string) $object->complemento, ENT_QUOTES, 'UTF-8'));
 
                             $complemento_bloco_html = "
-                                <div class='curciol-timeline-detail-line'>
-                                    <b>Informações Adicionais:</b>
+                                <div class='curciol-timeline-detail-line curciol-info-adicional'>
+                                    <b>Informações Adicionais</b>
                                     <span>{$complemento_html}</span>
                                 </div>
                             ";
 
                             $mobile_complemento_bloco_html = "
                                 <div class='curciol-mobile-detail-block'>
-                                    <div class='curciol-mobile-detail-label'>Informações Adicionais</div>
+                                    <div class='curciol-mobile-detail-label curciol-info-adicional'>Informações Adicionais</div>
                                     <div class='curciol-mobile-detail-text'>{$complemento_html}</div>
                                 </div>
                             ";
@@ -517,21 +517,6 @@ class ProcessoPublicacoesTimeLine extends TPage
                                 <button
                                     type='button'
                                     class='curciol-timeline-toggle'
-                                    onclick=\"
-                                        (function() {
-                                            var detail = document.getElementById('{$detailId}');
-                                            var icon = document.getElementById('{$iconId}');
-
-                                            if (detail.style.display === 'none' || detail.style.display === '') {
-                                                detail.style.display = 'block';
-                                                icon.innerHTML = '-';
-                                            } else {
-                                                detail.style.display = 'none';
-                                                icon.innerHTML = '+';
-                                            }
-                                        })();
-                                        return false;
-                                    \"
                                     style='
                                         flex:0 0 auto;
                                         border:1px solid #cbd5e1;
@@ -547,7 +532,7 @@ class ProcessoPublicacoesTimeLine extends TPage
                                         box-shadow:0 1px 3px rgba(15,23,42,.08);
                                     '
                                 >
-                                    <span id='{$iconId}'>+</span>
+                                    <i id='{$iconId}' class='fas fa-chevron-down curciol-tl-seta' aria-hidden='true'></i>
                                 </button>
                             </div>
                         ";
@@ -587,23 +572,8 @@ class ProcessoPublicacoesTimeLine extends TPage
                                         <button
                                             type='button'
                                             class='curciol-mobile-timeline-toggle'
-                                            onclick=\"
-                                                (function() {
-                                                    var detail = document.getElementById('{$mobileDetailId}');
-                                                    var icon = document.getElementById('{$mobileIconId}');
-
-                                                    if (detail.style.display === 'none' || detail.style.display === '') {
-                                                        detail.style.display = 'block';
-                                                        icon.innerHTML = '-';
-                                                    } else {
-                                                        detail.style.display = 'none';
-                                                        icon.innerHTML = '+';
-                                                    }
-                                                })();
-                                                return false;
-                                            \"
                                         >
-                                            <span id='{$mobileIconId}'>+</span>
+                                            <i id='{$mobileIconId}' class='fas fa-chevron-down curciol-tl-seta' aria-hidden='true'></i>
                                         </button>
                                     </div>
 
@@ -751,21 +721,6 @@ class ProcessoPublicacoesTimeLine extends TPage
                             <button
                                 type='button'
                                 class='curciol-timeline-toggle'
-                                onclick=\"
-                                    (function() {
-                                        var detail = document.getElementById('{$orgDocDetailId}');
-                                        var icon = document.getElementById('{$orgDocIconId}');
-
-                                        if (detail.style.display === 'none' || detail.style.display === '') {
-                                            detail.style.display = 'block';
-                                            icon.innerHTML = '-';
-                                        } else {
-                                            detail.style.display = 'none';
-                                            icon.innerHTML = '+';
-                                        }
-                                    })();
-                                    return false;
-                                \"
                                 style='
                                     flex:0 0 auto;
                                     border:1px solid #cbd5e1;
@@ -781,7 +736,7 @@ class ProcessoPublicacoesTimeLine extends TPage
                                     box-shadow:0 1px 3px rgba(15,23,42,.08);
                                 '
                             >
-                                <span id='{$orgDocIconId}'>+</span>
+                                <i id='{$orgDocIconId}' class='fas fa-chevron-down curciol-tl-seta' aria-hidden='true'></i>
                             </button>
                         </div>
                     ";
@@ -828,23 +783,8 @@ class ProcessoPublicacoesTimeLine extends TPage
                                     <button
                                         type='button'
                                         class='curciol-mobile-timeline-toggle'
-                                        onclick=\"
-                                            (function() {
-                                                var detail = document.getElementById('{$mobileOrgDocDetailId}');
-                                                var icon = document.getElementById('{$mobileOrgDocIconId}');
-
-                                                if (detail.style.display === 'none' || detail.style.display === '') {
-                                                    detail.style.display = 'block';
-                                                    icon.innerHTML = '-';
-                                                } else {
-                                                    detail.style.display = 'none';
-                                                    icon.innerHTML = '+';
-                                                }
-                                            })();
-                                            return false;
-                                        \"
                                     >
-                                        <span id='{$mobileOrgDocIconId}'>+</span>
+                                        <i id='{$mobileOrgDocIconId}' class='fas fa-chevron-down curciol-tl-seta' aria-hidden='true'></i>
                                     </button>
                                 </div>
 
@@ -880,12 +820,12 @@ class ProcessoPublicacoesTimeLine extends TPage
             $titulo->add('Andamento das publicações do processo');
             $container->add($titulo);
 
-            $container->style = 'width:100%; max-width:100%; overflow-x:hidden; box-sizing:border-box; padding:0; margin:0; background:transparent;';
+            $container->style = 'width:100%; max-width:100%; overflow-x:clip; overflow-y:visible; height:auto; max-height:none; box-sizing:border-box; padding:0; margin:0; background:transparent;';
             $container->class = 'form-container curciol-portal curciol-timeline-page';
 
             if(empty($param['target_container']))
             {    
-                $container->add(TBreadCrumb::create(["Processos","ProcessoPublicacoesTimeLine"]));
+                $container->add(TBreadCrumb::create(["Processos","Linha do tempo do processo"]));
             }
 
             $desktopTimeline = new TElement('div');
@@ -919,7 +859,7 @@ class ProcessoPublicacoesTimeLine extends TPage
             $container->class = 'form-container';
             if(empty($param['target_container']))
             {    
-                $container->add(TBreadCrumb::create(["Processos","ProcessoPublicacoesTimeLine"]));
+                $container->add(TBreadCrumb::create(["Processos","Linha do tempo do processo"]));
             }
             $container->add($this->timeline);
 
@@ -931,21 +871,7 @@ class ProcessoPublicacoesTimeLine extends TPage
             $container->class = 'form-container';
             if(empty($param['target_container']))
             {    
-                $container->add(TBreadCrumb::create(["Processos","ProcessoPublicacoesTimeLine"]));
-            }
-            $container->add($this->timeline);
-
-            //<onAfterAddTimeline>
-
-/*
-
-            //</onBeforeAddTimeline>
-
-            $container->style = 'width: 100%';
-            $container->class = 'form-container';
-            if(empty($param['target_container']))
-            {    
-                $container->add(TBreadCrumb::create(["Processos","ProcessoPublicacoesTimeLine"]));
+                $container->add(TBreadCrumb::create(["Processos","Linha do tempo do processo"]));
             }
             $container->add($this->timeline);
 
@@ -959,7 +885,7 @@ class ProcessoPublicacoesTimeLine extends TPage
             $container->class = 'form-container';
             if(empty($param['target_container']))
             {    
-                $container->add(TBreadCrumb::create(["Processos","ProcessoPublicacoesTimeLine"]));
+                $container->add(TBreadCrumb::create(["Processos","Linha do tempo do processo"]));
             }
             $container->add($this->timeline);
 
@@ -973,7 +899,7 @@ class ProcessoPublicacoesTimeLine extends TPage
             $container->class = 'form-container';
             if(empty($param['target_container']))
             {    
-                $container->add(TBreadCrumb::create(["Processos","ProcessoPublicacoesTimeLine"]));
+                $container->add(TBreadCrumb::create(["Processos","Linha do tempo do processo"]));
             }
             $container->add($this->timeline);
 
@@ -987,7 +913,21 @@ class ProcessoPublicacoesTimeLine extends TPage
             $container->class = 'form-container';
             if(empty($param['target_container']))
             {    
-                $container->add(TBreadCrumb::create(["Processos","ProcessoPublicacoesTimeLine"]));
+                $container->add(TBreadCrumb::create(["Processos","Linha do tempo do processo"]));
+            }
+            $container->add($this->timeline);
+
+            //<onAfterAddTimeline>
+
+/*
+
+            //</onBeforeAddTimeline>
+
+            $container->style = 'width: 100%';
+            $container->class = 'form-container';
+            if(empty($param['target_container']))
+            {    
+                $container->add(TBreadCrumb::create(["Processos","Linha do tempo do processo"]));
             }
             $container->add($this->timeline);
 
@@ -1000,7 +940,7 @@ class ProcessoPublicacoesTimeLine extends TPage
             $container->class = 'form-container';
             if(empty($param['target_container']))
             {    
-                $container->add(TBreadCrumb::create(["Processos","ProcessoPublicacoesTimeLine"]));
+                $container->add(TBreadCrumb::create(["Processos","Linha do tempo do processo"]));
             }
             $container->add($this->timeline);
 

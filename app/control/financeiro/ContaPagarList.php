@@ -2,6 +2,14 @@
 
 class ContaPagarList extends TPage
 {
+    use ContaLoteListTrait;
+
+    /** Tela das acoes em lote (ContaLoteListTrait). */
+    public static function tipoContaLote()
+    {
+        return TipoConta::PAGAR;
+    }
+
     private $form; // form
     private $datagrid; // listing
     private $pageNavigation;
@@ -40,6 +48,8 @@ class ContaPagarList extends TPage
         $criteria_tipo_documento_financeiro_id = new TCriteria();
         $criteria_pessoa_nome = new TCriteria();
         $criteria_tipo_documento_financeiro_nome = new TCriteria();
+        $criteria_cliente_requisicao = new TCriteria();
+        $criteria_cliente_requisicao->add(new TFilter('id', 'in', "(SELECT pessoa_id FROM pessoa_grupo WHERE grupo_id = '" . Grupo::CLIENTE . "')"));
 
         $filterVar = Grupo::FORNECEDOR;
         $criteria_pessoa_id->add(new TFilter('id', 'in', "(SELECT pessoa_id FROM pessoa_grupo WHERE grupo_id = '{$filterVar}')")); 
@@ -69,6 +79,12 @@ class ContaPagarList extends TPage
         $tipo_documento_financeiro_nome = new TDBCombo('tipo_documento_financeiro_nome', 'escritorio', 'TipoDocumentoFinanceiro', 'id', '{nome}','nome asc' , $criteria_tipo_documento_financeiro_nome );
         $descricao_col = new TEntry('descricao_col');
         $quitada1 = new TCombo('quitada1');
+        $camposCabecalho = ContaListaColunas::camposCabecalho($this);
+        $data_emissao = new TDate('data_emissao');
+        $data_emissao->setExitAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
+        $data_emissao->setDatabaseMask('yyyy-mm-dd');
+        $data_emissao->setMask('dd/mm/yyyy');
+        $data_emissao->setSize(110);
 
         $descricao_col->exitOnEnter();
 
@@ -118,6 +134,20 @@ class ContaPagarList extends TPage
         $descricao_col->setSize('100%');
         $dt_vencimento_ini->setSize(150);
         $numero_documento->setSize('100%');
+        $requisicao_pagamento_id = new TEntry('requisicao_pagamento_id');
+        $cliente_requisicao_id = new TDBUniqueSearch('cliente_requisicao_id', 'escritorio', 'Pessoa', 'id', 'nome', 'nome asc', $criteria_cliente_requisicao);
+        $entidade_devedora_id = new TDBUniqueSearch('entidade_devedora_id', 'escritorio', 'Pessoa', 'id', 'nome', 'nome asc');
+        $processo_requisicao = new TEntry('processo_requisicao');
+        $requisicao_pagamento_id->setMask('9999999999');
+        $cliente_requisicao_id->setMinLength(3);
+        $entidade_devedora_id->setMinLength(3);
+        $cliente_requisicao_id->setMask('{nome_formatado}');
+        $entidade_devedora_id->setMask('{nome_formatado}');
+        $requisicao_pagamento_id->setSize('100%');
+        $cliente_requisicao_id->setSize('100%');
+        $entidade_devedora_id->setSize('100%');
+        $processo_requisicao->setSize('100%');
+        $processo_requisicao->setTip('Numero do processo, com ou sem pontuacao');
         $data_vencimento_fim->setSize(150);
         $categoria_conta_id->setSize('100%');
         $tipo_documento_financeiro_id->setSize('100%');
@@ -134,6 +164,9 @@ class ContaPagarList extends TPage
 
         $row4 = $this->form->addFields([new TLabel("Data de emissão:", null, '14px', null, '100%'),$data_emissao_ini,new TLabel("até", null, '14px', null),$data_emissao_fim],[new TLabel("Data de vencimento", null, '14px', null, '100%'),$dt_vencimento_ini,new TLabel("até", null, '14px', null),$data_vencimento_fim]);
         $row4->layout = ['col-sm-4','col-sm-4'];
+
+        $row5 = $this->form->addFields([new TLabel("Requisição nº:", null, '14px', null),$requisicao_pagamento_id],[new TLabel("Cliente da requisição:", null, '14px', null),$cliente_requisicao_id],[new TLabel("Entidade devedora:", null, '14px', null),$entidade_devedora_id],[new TLabel("Processo da requisição:", null, '14px', null),$processo_requisicao]);
+        $row5->layout = ['col-sm-3','col-sm-3','col-sm-3','col-sm-3'];
 
         // keep the form filled during navigation with session data
         $this->form->setData( TSession::getValue(__CLASS__.'_filter_data') );
@@ -163,9 +196,25 @@ class ContaPagarList extends TPage
         $column_pessoa_nome_transformed = new TDataGridColumn('pessoa->nome', "Pessoa", 'left' , '40%');
         $column_tipo_documento_financeiro_nome = new TDataGridColumn('tipo_documento_financeiro->nome', "Tipo de documento", 'left');
         $column_numero_documentoatendimento_idcontrato_idprocesso_id = new TDataGridColumn('{numero_documento}{atendimento_id}{contrato_id}{processo_id}', "Número do documento", 'left');
+        // Origem: requisicao e/ou contrato que gerou a conta (com link) ou "Manual" (ContaListaColunas)
+        $column_requisicao_pagamento_id = new TDataGridColumn('requisicao_pagamento_id', "Origem", 'left');
+        $column_requisicao_pagamento_id->setTransformer(function($value, $object)
+        {
+            return ContaListaColunas::origem($object);
+        });
         $column_descricao = new TDataGridColumn('descricao', "Descrição", 'left' , '20%');
         $column_total_conta_transformed = new TDataGridColumn('total_conta', "Total", 'center' , '100px');
         $column_quitada_transformed = new TDataGridColumn('quitada', "Quitada", 'center' , '100px');
+        $column_data_emissao_transformed = new TDataGridColumn('data_emissao', "Emissão", 'center' , '100px');
+        $column_data_emissao_transformed->setTransformer(function($value, $object)
+        {
+            return !empty(trim((string) $value)) ? date('d/m/Y', strtotime($value)) : '';
+        });
+        $column_vencimento = new TDataGridColumn('proximo_vencimento_lancamento', "Vencimento", 'center' , '100px');
+        $column_vencimento->setTransformer(function($value, $object)
+        {
+            return ContaListaColunas::vencimentoFormatado($object);
+        });
 
         $column_pessoa_nome_transformed->setTransformer(function($value, $object, $row, $cell = null, $last_row = null)
         {   
@@ -291,7 +340,9 @@ class ContaPagarList extends TPage
             */
             $clientesNomes = [];
 
-            if (!empty($object->contrato_id))
+            // conta gerada pelo financeiro do levantamento (tem requisicao): a pessoa e a da propria conta
+            // repasse a colaborador copia o contrato da conta a receber: a pessoa e o colaborador
+            if (!empty($object->contrato_id) && empty($object->requisicao_pagamento_id) && !RepasseColaboradorService::ehRepasse((int) $object->id))
             {
                 $clientesContrato = ContratoPessoa::where(
                     'contrato_id',
@@ -401,12 +452,22 @@ class ContaPagarList extends TPage
         $order_quitada_transformed = new TAction(array($this, 'onReload'));
         $order_quitada_transformed->setParameter('order', 'quitada');
         $column_quitada_transformed->setAction($order_quitada_transformed);
+        $order_data_emissao_transformed = new TAction(array($this, 'onReload'));
+        $order_data_emissao_transformed->setParameter('order', 'data_emissao');
+        $column_data_emissao_transformed->setAction($order_data_emissao_transformed);
+        $order_vencimento = new TAction(array($this, 'onReload'));
+        $order_vencimento->setParameter('order', 'proximo_vencimento_lancamento');
+        $column_vencimento->setAction($order_vencimento);
 
+        $this->loteColunaSelecao();
         $this->datagrid->addColumn($column_pessoa_nome_transformed);
         $this->datagrid->addColumn($column_tipo_documento_financeiro_nome);
         $this->datagrid->addColumn($column_numero_documentoatendimento_idcontrato_idprocesso_id);
+        $this->datagrid->addColumn($column_requisicao_pagamento_id);
         $this->datagrid->addColumn($column_descricao);
         $this->datagrid->addColumn($column_total_conta_transformed);
+        $this->datagrid->addColumn($column_data_emissao_transformed);
+        $this->datagrid->addColumn($column_vencimento);
         $this->datagrid->addColumn($column_quitada_transformed);
 
         $action_onShow = new TDataGridAction(array('ContaFormView', 'onShow'));
@@ -429,16 +490,18 @@ class ContaPagarList extends TPage
         {
             $tr->add(TElement::tag('td', ''));
         }
+        $tr->add(TElement::tag('td', '')); // coluna de selecao (acoes em lote)
         $td_pessoa_nome = TElement::tag('td', $pessoa_nome);
         $tr->add($td_pessoa_nome);
         $td_tipo_documento_financeiro_nome = TElement::tag('td', $tipo_documento_financeiro_nome);
         $tr->add($td_tipo_documento_financeiro_nome);
-        $td_empty = TElement::tag('td', "");
-        $tr->add($td_empty);
+        $tr->add(ContaListaColunas::celula($camposCabecalho['numero']));
+        $tr->add(ContaListaColunas::celula($camposCabecalho['origem']));
         $td_descricao_col = TElement::tag('td', $descricao_col);
         $tr->add($td_descricao_col);
-        $td_empty = TElement::tag('td', "");
-        $tr->add($td_empty);
+        $tr->add(ContaListaColunas::celula($camposCabecalho['total']));
+        $tr->add(TElement::tag('td', $data_emissao));
+        $tr->add(ContaListaColunas::celula($camposCabecalho['vencimento']));
         $td_quitada1 = TElement::tag('td', $quitada1);
         $tr->add($td_quitada1);
 
@@ -446,6 +509,14 @@ class ContaPagarList extends TPage
         $this->datagrid_form->addField($tipo_documento_financeiro_nome);
         $this->datagrid_form->addField($descricao_col);
         $this->datagrid_form->addField($quitada1);
+        $this->datagrid_form->addField($data_emissao);
+        foreach ($camposCabecalho as $camposColuna)
+        {
+            foreach ($camposColuna as $campoColuna)
+            {
+                $this->datagrid_form->addField($campoColuna);
+            }
+        }
 
         $this->datagrid_form->setData( TSession::getValue(__CLASS__.'_filter_data') );
 
@@ -541,6 +612,7 @@ class ContaPagarList extends TPage
         $head_left_actions->add($mostrar_vencidas);
         $head_left_actions->add($vencer);
         $head_left_actions->add($em_aberto);
+        $this->loteBotoes($head_left_actions);
 
         $head_right_actions->add($dropdown_button_exportar);
 
@@ -762,7 +834,13 @@ class ContaPagarList extends TPage
             $object->data_emissao_fim = null;
             $object->dt_vencimento_ini = null;
             $object->data_vencimento_fim = null;
+            $object->requisicao_pagamento_id = null;
+            $object->cliente_requisicao_id = null;
+            $object->entidade_devedora_id = null;
+            $object->processo_requisicao = null;
 
+            // a cortina mostra os filtros aplicados agora (eles se somam aos das colunas e dos botoes rapidos)
+            $object = (object) array_merge((array) $object, (array) (TSession::getValue(__CLASS__.'_filter_data') ?: []));
             TForm::sendData(self::$formName, $object);
 
                         $filter = new self([]);
@@ -802,71 +880,61 @@ class ContaPagarList extends TPage
         TSession::setValue(__CLASS__.'_filter_data', NULL);
         TSession::setValue(__CLASS__.'_filters', NULL);
 
+        // os formularios tambem (senao o cabecalho continuava mostrando os filtros antigos)
+        if (!empty($this->form)) { $this->form->clear(); }
+        if (!empty($this->datagrid_form)) { $this->datagrid_form->clear(); }
+        self::loteLimparSelecao(); // e desmarca as contas selecionadas para quitar/compensar
+
         $this->onReload(['offset' => 0, 'first_page' => 1]);
     }
     public function onRefresh($param = null) 
     {
         $this->onReload([]);
     }
+    // botoes rapidos: um de cada vez (Vencidas, A vencer ou Em aberto), somando aos demais filtros; clicar no ativo tira
     public function onVencidas($param = null) 
     {
-        try 
-        {
-            $filters = [new TFilter('id', 'in', "(SELECT conta_id FROM lancamento WHERE dt_vencimento < '". date('Y-m-d 00:00') ."' and quitada = 'N')")];
-
-            $data = new stdClass;
-            $data->filtro_rapido = '1';
-
-            TSession::setValue(__CLASS__.'_filter_data', $data);
-            TSession::setValue(__CLASS__.'_filters', $filters);
-
-            $this->onReload([]);
-            //</autoCode>
-        }
-        catch (Exception $e) 
-        {
-            new TMessage('error', $e->getMessage());    
-        }
+        $this->onSearch(['__sem_formulario' => 1, '__filtros_extra' => self::filtroRapido('vencidas')]);
     }
     public function onVencer($param = null) 
     {
-        try 
-        {
-            $filters = [new TFilter('id', 'in', "(SELECT conta_id FROM lancamento WHERE dt_vencimento >= '". date('Y-m-d 00:00') ."' and quitada = 'N')")];
-
-            $data = new stdClass;
-            $data->filtro_rapido = '2';
-
-            TSession::setValue(__CLASS__.'_filter_data', $data);
-            TSession::setValue(__CLASS__.'_filters', $filters);
-
-            $this->onReload([]);
-            //</autoCode>
-        }
-        catch (Exception $e) 
-        {
-            new TMessage('error', $e->getMessage());    
-        }
+        $this->onSearch(['__sem_formulario' => 1, '__filtros_extra' => self::filtroRapido('vencer')]);
     }
     public function onEmAberto($param = null) 
     {
-        try 
-        {
-            $filters = [new TFilter('quitada', '=', 'N')];
+        $this->onSearch(['__sem_formulario' => 1, '__filtros_extra' => self::filtroRapido('aberto')]);
+    }
 
-            $data = new stdClass;
-            $data->quitada = 'N';
+    /** Qual botao rapido esta ativo agora ('vencidas', 'vencer', 'aberto' ou ''). */
+    private static function filtroRapidoAtivo(): string
+    {
+        if (FiltroLista::aplicado(__CLASS__, 'filtro_rapido', '1')) { return 'vencidas'; }
+        if (FiltroLista::aplicado(__CLASS__, 'filtro_rapido', '2')) { return 'vencer'; }
+        if (FiltroLista::aplicado(__CLASS__, 'quitada', 'N')) { return 'aberto'; }
+        return '';
+    }
 
-            TSession::setValue(__CLASS__.'_filter_data', $data);
-            TSession::setValue(__CLASS__.'_filters', $filters);
+    /** Valores do botao rapido: liga ele e desliga os outros; se ja era o ativo, desliga. */
+    private static function filtroRapido(string $botao): array
+    {
+        $valores = [
+            'vencidas' => ['filtro_rapido' => '1', 'quitada' => ''],
+            'vencer'   => ['filtro_rapido' => '2', 'quitada' => ''],
+            'aberto'   => ['filtro_rapido' => '', 'quitada' => 'N'],
+        ];
+        return (self::filtroRapidoAtivo() === $botao) ? ['filtro_rapido' => '', 'quitada' => ''] : $valores[$botao];
+    }
 
-            $this->onReload([]);
-            //</autoCode>
-        }
-        catch (Exception $e) 
-        {
-            new TMessage('error', $e->getMessage());    
-        }
+    /** Destaca o botao rapido que esta filtrando agora. */
+    private static function marcarBotoesRapidos(): void
+    {
+        $ativos = [
+            'button_mostrar_vencidas' => self::filtroRapidoAtivo() === 'vencidas',
+            'button_vencer' => self::filtroRapidoAtivo() === 'vencer',
+            'button_em_aberto' => self::filtroRapidoAtivo() === 'aberto',
+        ];
+        TScript::create('setTimeout(function () { var ativos = ' . json_encode($ativos) . '; Object.keys(ativos).forEach(function (n) {'
+            . ' $(\'[name="\' + n + \'"]\').css(ativos[n] ? {"background-color": "#dbeafe", "border-color": "#2563eb", "font-weight": "600"} : {"background-color": "", "border-color": "", "font-weight": ""}); }); }, 300);');
     }
 
     /**
@@ -874,14 +942,20 @@ class ContaPagarList extends TPage
      */
     public function onSearch($param = null)
     {
-        if ((isset($param['static']) && ($param['static'] == '1')) || !empty($param['globalSearch']))
+        if (!empty($param['__sem_formulario']))
         {
-            $data = $this->datagrid_form->getData();
+            $formulario = [];
+        }
+        elseif ((isset($param['static']) && ($param['static'] == '1')) || !empty($param['globalSearch']))
+        {
+            $formulario = $this->datagrid_form->getData();
         }
         else
         {
-            $data = $this->form->getData();
+            $formulario = $this->form->getData();
         }
+        // filtros que se somam: cabecalho das colunas, cortina e botoes rapidos (FiltroLista)
+        $data = FiltroLista::acumular(__CLASS__, $formulario, $param);
         $filters = [];
 
         TSession::setValue(__CLASS__.'_filter_data', NULL);
@@ -896,7 +970,7 @@ class ContaPagarList extends TPage
         if (isset($data->descricao) AND ( (is_scalar($data->descricao) AND $data->descricao !== '') OR (is_array($data->descricao) AND (!empty($data->descricao)) )) )
         {
 
-            $filters[] = new TFilter('descricao', 'like', "%{$data->descricao}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(descricao AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->descricao) . '%');// create the filter 
         }
 
         if (isset($data->categoria_conta_id) AND ( (is_scalar($data->categoria_conta_id) AND $data->categoria_conta_id !== '') OR (is_array($data->categoria_conta_id) AND (!empty($data->categoria_conta_id)) )) )
@@ -908,13 +982,13 @@ class ContaPagarList extends TPage
         if (isset($data->escritorio_id) AND ( (is_scalar($data->escritorio_id) AND $data->escritorio_id !== '') OR (is_array($data->escritorio_id) AND (!empty($data->escritorio_id)) )) )
         {
 
-            $filters[] = new TFilter('escritorio_id', 'in', "(SELECT id FROM conta WHERE escritorio_id = '{$data->escritorio_id}')");// create the filter 
+            $filters[] = new TFilter('escritorio_id', 'in', "(SELECT id FROM conta WHERE escritorio_id = '" . SqlSeguro::id($data->escritorio_id) . "')");// create the filter 
         }
 
         if (isset($data->quitada) AND ( (is_scalar($data->quitada) AND $data->quitada !== '') OR (is_array($data->quitada) AND (!empty($data->quitada)) )) )
         {
 
-            $filters[] = new TFilter('quitada', 'like', "%{$data->quitada}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(quitada AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->quitada) . '%');// create the filter 
         }
 
         if (isset($data->tipo_documento_financeiro_id) AND ( (is_scalar($data->tipo_documento_financeiro_id) AND $data->tipo_documento_financeiro_id !== '') OR (is_array($data->tipo_documento_financeiro_id) AND (!empty($data->tipo_documento_financeiro_id)) )) )
@@ -926,7 +1000,7 @@ class ContaPagarList extends TPage
         if (isset($data->numero_documento) AND ( (is_scalar($data->numero_documento) AND $data->numero_documento !== '') OR (is_array($data->numero_documento) AND (!empty($data->numero_documento)) )) )
         {
 
-            $filters[] = new TFilter('numero_documento', 'like', "%{$data->numero_documento}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(numero_documento AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->numero_documento) . '%');// create the filter 
         }
 
         if (isset($data->data_emissao_ini) AND ( (is_scalar($data->data_emissao_ini) AND $data->data_emissao_ini !== '') OR (is_array($data->data_emissao_ini) AND (!empty($data->data_emissao_ini)) )) )
@@ -944,13 +1018,13 @@ class ContaPagarList extends TPage
         if (isset($data->dt_vencimento_ini) AND ( (is_scalar($data->dt_vencimento_ini) AND $data->dt_vencimento_ini !== '') OR (is_array($data->dt_vencimento_ini) AND (!empty($data->dt_vencimento_ini)) )) )
         {
 
-            $filters[] = new TFilter('id', 'in', "(SELECT conta_id FROM lancamento WHERE dt_vencimento >= '{$data->dt_vencimento_ini}')");// create the filter 
+            $filters[] = new TFilter('id', 'in', "(SELECT conta_id FROM lancamento WHERE dt_vencimento >= '" . (SqlSeguro::data($data->dt_vencimento_ini) ?? '0001-01-01') . "')");// create the filter 
         }
 
         if (isset($data->data_vencimento_fim) AND ( (is_scalar($data->data_vencimento_fim) AND $data->data_vencimento_fim !== '') OR (is_array($data->data_vencimento_fim) AND (!empty($data->data_vencimento_fim)) )) )
         {
 
-            $filters[] = new TFilter('id', 'in', "(SELECT conta_id FROM lancamento WHERE dt_vencimento <= '{$data->data_vencimento_fim}')");// create the filter 
+            $filters[] = new TFilter('id', 'in', "(SELECT conta_id FROM lancamento WHERE dt_vencimento <= '" . (SqlSeguro::data($data->data_vencimento_fim) ?? '9999-12-31') . "')");// create the filter 
         }
 
         if (isset($data->pessoa_nome) AND ( (is_scalar($data->pessoa_nome) AND $data->pessoa_nome !== '') OR (is_array($data->pessoa_nome) AND (!empty($data->pessoa_nome)) )) )
@@ -968,7 +1042,7 @@ class ContaPagarList extends TPage
         if (isset($data->descricao_col) AND ( (is_scalar($data->descricao_col) AND $data->descricao_col !== '') OR (is_array($data->descricao_col) AND (!empty($data->descricao_col)) )) )
         {
 
-            $filters[] = new TFilter('unaccent(descricao)', 'ilike', "%{$data->descricao_col}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(descricao AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->descricao_col) . '%');// create the filter 
         }
 
         if (isset($data->quitada1) AND ( (is_scalar($data->quitada1) AND $data->quitada1 !== '') OR (is_array($data->quitada1) AND (!empty($data->quitada1)) )) )
@@ -987,15 +1061,24 @@ class ContaPagarList extends TPage
             $filters[] = new TFilter('id', 'in', "(SELECT conta_id FROM lancamento WHERE dt_vencimento >= '". date('Y-m-d 00:00') ."' and quitada = 'N')");
         }
 
-        // fill the form with data again
-        if ((isset($param['static']) && ($param['static'] == '1')) || !empty($param['globalSearch']))
+        if (isset($data->data_emissao) AND is_scalar($data->data_emissao) AND $data->data_emissao !== '')
         {
-            $this->datagrid_form->setData($data);
+            $filters[] = new TFilter('data_emissao', '=', $data->data_emissao);
         }
-        else
-        {
-            $this->form->setData($data);
+
+        // filtros do cabecalho: numero do documento, origem, total e vencimento (ContaListaColunas)
+        foreach (ContaListaColunas::filtros($data) as $filtroColuna) {
+            $filters[] = $filtroColuna;
         }
+
+        // filtros por requisicao de pagamento (requisicao, cliente, entidade devedora, processo)
+        foreach (ContaRequisicaoFiltro::filtros($data) as $filtroRequisicao) {
+            $filters[] = $filtroRequisicao;
+        }
+
+        // fill the form with data again (os dois formularios mostram os filtros somados)
+        $this->datagrid_form->setData($data);
+        $this->form->setData($data);
 
         // keep the search data in the session
         TSession::setValue(__CLASS__.'_filter_data', $data);
@@ -1019,6 +1102,7 @@ class ContaPagarList extends TPage
      */
     public function onReload($param = NULL)
     {
+        self::marcarBotoesRapidos();
         try
         {
             // open a transaction with database 'escritorio'
@@ -1031,7 +1115,9 @@ class ContaPagarList extends TPage
 
             if (empty($param['order']))
             {
-                $param['order'] = 'proximo_vencimento_lancamento';    
+                // ordem padrao: emissao, da mais recente para a mais antiga
+                $param['order'] = 'data_emissao desc, id';
+                $param['direction'] = 'desc';    
             }
 
             if (empty($param['direction']))
@@ -1061,6 +1147,7 @@ class ContaPagarList extends TPage
 
             // load the objects according to criteria
             $objects = $repository->load($criteria, FALSE);
+            $this->loteMarcar($objects ?: []);
 
             $this->datagrid->clear();
             if ($objects)
@@ -1087,6 +1174,8 @@ class ContaPagarList extends TPage
 
             // close the transaction
             TTransaction::close();
+            // faixa "Filtros aplicados": cortina, botoes rapidos e funil do cabecalho (FiltroLista)
+            FiltroLista::faixa(__CLASS__, $this->form ?? null, $this->datagrid_form ?? null, $this->datagrid, ['filtro_rapido' => ['Situação', ['1' => 'Vencidas', '2' => 'A vencer']]]);
             $this->loaded = true;
 
             return $objects;
@@ -1103,9 +1192,10 @@ class ContaPagarList extends TPage
     public function onShow($param = null)
     {
 
-        $param['order'] = ('proximo_vencimento_lancamento, pessoa_id');
+        $param['order'] = 'data_emissao desc, id';
+        $param['direction'] = 'desc';
+        // abre sem filtro nenhum (antes ja vinha com "Em aberto" ligado)
         $this->onClearFilters($param);
-        $this->onEmAberto($param);
     }
 
     /**

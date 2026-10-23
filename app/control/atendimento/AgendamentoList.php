@@ -546,6 +546,8 @@ class AgendamentoList extends TPage
             $object->de = null;
             $object->ate = null;
 
+            // a cortina mostra os filtros aplicados agora (eles se somam aos das colunas e dos botoes rapidos)
+            $object = (object) array_merge((array) $object, (array) (TSession::getValue(__CLASS__.'_filter_data') ?: []));
             TForm::sendData(self::$formName, $object);
 
                         $filter = new self([]);
@@ -584,6 +586,10 @@ class AgendamentoList extends TPage
     {
         TSession::setValue(__CLASS__.'_filter_data', NULL);
         TSession::setValue(__CLASS__.'_filters', NULL);
+
+        // os formularios tambem (senao o cabecalho continuava mostrando os filtros antigos)
+        if (!empty($this->form)) { $this->form->clear(); }
+        if (!empty($this->datagrid_form)) { $this->datagrid_form->clear(); }
 
         $this->onReload(['offset' => 0, 'first_page' => 1]);
     }
@@ -710,6 +716,8 @@ class AgendamentoList extends TPage
 
             // close the transaction
             TTransaction::close();
+            // faixa "Filtros aplicados": cortina, botoes rapidos e funil do cabecalho (FiltroLista)
+            FiltroLista::faixa(__CLASS__, $this->form ?? null, $this->datagrid_form ?? null, $this->datagrid);
             $this->loaded = true;
 
             return $objects;

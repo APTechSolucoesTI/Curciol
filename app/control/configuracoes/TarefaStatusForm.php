@@ -149,9 +149,8 @@ class TarefaStatusForm extends TPage
             TTransaction::close(); // close the transaction
 
             TToast::show('success', "Registro salvo", 'topRight', 'far:check-circle');
-            TApplication::loadPage('TarefaStatusList', 'onShow', $loadPageParam); 
+            Navegacao::voltarParaLista('TarefaStatusList', __CLASS__);
 
-                        TScript::create("Template.closeRightPanel();"); 
 
         }
         catch (Exception $e) // in case of exception

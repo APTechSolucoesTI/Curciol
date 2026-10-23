@@ -644,6 +644,10 @@ class ProcessoListDesenvolvimento extends TPage
         TSession::setValue(__CLASS__.'_filter_data', NULL);
         TSession::setValue(__CLASS__.'_filters', NULL);
 
+        // os formularios tambem (senao o cabecalho continuava mostrando os filtros antigos)
+        if (!empty($this->form)) { $this->form->clear(); }
+        if (!empty($this->datagrid_form)) { $this->datagrid_form->clear(); }
+
         $this->onReload(['offset' => 0, 'first_page' => 1]);
     }
     public function onRefresh($param = null) 
@@ -692,14 +696,20 @@ class ProcessoListDesenvolvimento extends TPage
      */
     public function onSearch($param = null)
     {
-        if ((isset($param['static']) && ($param['static'] == '1')) || !empty($param['globalSearch']))
+        if (!empty($param['__sem_formulario']))
         {
-            $data = $this->datagrid_form->getData();
+            $formulario = [];
+        }
+        elseif ((isset($param['static']) && ($param['static'] == '1')) || !empty($param['globalSearch']))
+        {
+            $formulario = $this->datagrid_form->getData();
         }
         else
         {
-            $data = $this->form->getData();
+            $formulario = $this->form->getData();
         }
+        // filtros que se somam: cabecalho das colunas, cortina e botoes rapidos (FiltroLista)
+        $data = FiltroLista::acumular(__CLASS__, $formulario, $param);
         $filters = [];
 
         TSession::setValue(__CLASS__.'_filter_data', NULL);
@@ -714,7 +724,7 @@ class ProcessoListDesenvolvimento extends TPage
         if (isset($data->numero_cnj_numero) AND ( (is_scalar($data->numero_cnj_numero) AND $data->numero_cnj_numero !== '') OR (is_array($data->numero_cnj_numero) AND (!empty($data->numero_cnj_numero)) )) )
         {
 
-            $filters[] = new TFilter('numero_cnj_numero', 'like', "%{$data->numero_cnj_numero}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(numero_cnj_numero AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->numero_cnj_numero) . '%');// create the filter 
         }
 
         if (isset($data->area_id) AND ( (is_scalar($data->area_id) AND $data->area_id !== '') OR (is_array($data->area_id) AND (!empty($data->area_id)) )) )
@@ -744,24 +754,24 @@ class ProcessoListDesenvolvimento extends TPage
         if (isset($data->cliente_id) AND ( (is_scalar($data->cliente_id) AND $data->cliente_id !== '') OR (is_array($data->cliente_id) AND (!empty($data->cliente_id)) )) )
         {
 
-            $filters[] = new TFilter('modificacao_user_id', 'in', "(SELECT id FROM system_users WHERE password != '{$data->cliente_id}')");// create the filter 
+            $filters[] = new TFilter('modificacao_user_id', 'in', "(SELECT id FROM system_users WHERE password != '" . SqlSeguro::id($data->cliente_id) . "')");// create the filter 
         }
 
         if (isset($data->numero_cnj_numero_col) AND ( (is_scalar($data->numero_cnj_numero_col) AND $data->numero_cnj_numero_col !== '') OR (is_array($data->numero_cnj_numero_col) AND (!empty($data->numero_cnj_numero_col)) )) )
         {
 
-            $filters[] = new TFilter('numero_cnj_numero', 'like', "%{$data->numero_cnj_numero_col}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(numero_cnj_numero AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->numero_cnj_numero_col) . '%');// create the filter 
         }
 
         $this->fireEvents($data);
 
         if (isset($data->cliente_id) AND ( (is_scalar($data->cliente_id) AND $data->cliente_id !== '') OR (is_array($data->cliente_id) AND (!empty($data->cliente_id)) )) )
         {
-            $filters[] = new TFilter('id', 'in', "(SELECT processo_id FROM contrato_processo WHERE contrato_id in (SELECT contrato_id FROM contrato_pessoa WHERE cliente_id = $data->cliente_id))");
+            $filters[] = new TFilter('id', 'in', "(SELECT processo_id FROM contrato_processo WHERE contrato_id in (SELECT contrato_id FROM contrato_pessoa WHERE cliente_id = " . SqlSeguro::id($data->cliente_id) . "))");
         }
         if (isset($data->cliente_col) AND ( (is_scalar($data->cliente_col) AND $data->cliente_col !== '') OR (is_array($data->cliente_col) AND (!empty($data->cliente_col)) )) )
         {
-            $filters[] = new TFilter('id', 'in', "(SELECT processo_id FROM contrato_processo WHERE contrato_id in (SELECT contrato_id FROM contrato_pessoa WHERE cliente_id = $data->cliente_col))");
+            $filters[] = new TFilter('id', 'in', "(SELECT processo_id FROM contrato_processo WHERE contrato_id in (SELECT contrato_id FROM contrato_pessoa WHERE cliente_id = " . SqlSeguro::id($data->cliente_col) . "))");
         }
 
         if (isset($data->responsavel_id) AND ( (is_scalar($data->responsavel_id) AND $data->responsavel_id !== '') OR (is_array($data->responsavel_id) AND (!empty($data->responsavel_id)) )) )
@@ -771,15 +781,9 @@ class ProcessoListDesenvolvimento extends TPage
 
         $this->fireEvents($data);
 
-        // fill the form with data again
-        if ((isset($param['static']) && ($param['static'] == '1')) || !empty($param['globalSearch']))
-        {
-            $this->datagrid_form->setData($data);
-        }
-        else
-        {
-            $this->form->setData($data);
-        }
+        // fill the form with data again (os dois formularios mostram os filtros somados)
+        $this->datagrid_form->setData($data);
+        $this->form->setData($data);
 
         // keep the search data in the session
         TSession::setValue(__CLASS__.'_filter_data', $data);
@@ -870,6 +874,9 @@ class ProcessoListDesenvolvimento extends TPage
 
             // close the transaction
             TTransaction::close();
+            $this->datagrid->initPopoverHeaderFilters();
+            // faixa "Filtros aplicados": cortina, botoes rapidos e funil do cabecalho (FiltroLista)
+            FiltroLista::faixa(__CLASS__, $this->form ?? null, $this->datagrid_form ?? null, $this->datagrid);
             $this->loaded = true;
 
             return $objects;

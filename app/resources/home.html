@@ -609,11 +609,11 @@
                 <h2 class="curciol-login-title">Login</h2>
 
                 <div class="curciol-login-subtitle">
-                    Informe seu usuário e senha para acessar seus processos.
+                    Informe seu CPF e senha para acessar seus processos.
                 </div>
 
                 <div class="curciol-field">
-                    <label>Usuário</label>
+                    <label>Login (CPF)</label>
 
                     <div class="curciol-input-wrap">
                         <i class="fa fa-user"></i>
@@ -623,6 +623,9 @@
                             type="text" 
                             name="usuario" 
                             autocomplete="username"
+                            maxlength="18"
+                            placeholder="000.000.000-00"
+                            oninput="curciolFormatarDocumento(this)"
                         >
                     </div>
                 </div>
@@ -664,6 +667,17 @@
 </div>
 
 <script>
+    /* Login pelo CPF/CNPJ: so visual. Ao completar 11 digitos vira 000.000.000-00 e com 14 vira 00.000.000/0000-00;
+       o que o usuario digitar com pontuacao fica como esta. O servidor usa so os numeros. */
+    function curciolFormatarDocumento(campo) {
+        var digitos = campo.value.replace(/\D/g, '');
+        if (digitos.length === 11) {
+            campo.value = digitos.replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, '$1.$2.$3-$4');
+        } else if (digitos.length === 14) {
+            campo.value = digitos.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5');
+        }
+    }
+
     function curciolEnviarLogin(event) {
         if (event) {
             event.preventDefault();
@@ -676,7 +690,7 @@
         var senha   = form.querySelector('[name="senha"]').value.trim();
 
         if (!usuario || !senha) {
-            alert('Informe seu usuário e senha para acessar seus processos.');
+            alert('Informe seu CPF e senha para acessar seus processos.');
             return false;
         }
 

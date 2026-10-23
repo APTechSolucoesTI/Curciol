@@ -190,9 +190,8 @@ class ProcedimentoForm extends TPage
             TTransaction::close(); // close the transaction
 
             TToast::show('success', "Registro salvo", 'topRight', 'far:check-circle');
-            TApplication::loadPage('ProcedimentosList', 'onShow', $loadPageParam); 
+            Navegacao::voltarParaLista('ProcedimentosList', __CLASS__);
 
-                        TScript::create("Template.closeRightPanel();");
             TForm::sendData(self::$formName, (object)['id' => $object->id]);
 
         }

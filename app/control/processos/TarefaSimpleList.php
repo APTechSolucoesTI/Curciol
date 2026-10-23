@@ -164,7 +164,7 @@ class TarefaSimpleList extends TPage
 
             $criteria1 = new TCriteria();
             $criteria1->add(new TFilter('processo_id', '=', $param['processo_id']), TExpression::OR_OPERATOR);
-            $criteria1->add(new TFilter('publicacao_id', 'in', "(SELECT id FROM publicacao WHERE processo_id = '{$param['processo_id']}')"), TExpression::OR_OPERATOR);
+            $criteria1->add(new TFilter('publicacao_id', 'in', "(SELECT id FROM publicacao WHERE processo_id = '" . SqlSeguro::id($param['processo_id']) . "')"), TExpression::OR_OPERATOR);
             $criteria->add($criteria1);
 
             // load the objects according to criteria

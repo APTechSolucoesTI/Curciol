@@ -486,6 +486,10 @@ class CepCacheHeaderList extends TPage
         TSession::setValue(__CLASS__.'_filter_data', NULL);
         TSession::setValue(__CLASS__.'_filters', NULL);
 
+        // os formularios tambem (senao o cabecalho continuava mostrando os filtros antigos)
+        if (!empty($this->form)) { $this->form->clear(); }
+        if (!empty($this->datagrid_form)) { $this->datagrid_form->clear(); }
+
         $this->onReload(['offset' => 0, 'first_page' => 1]);
     }
 
@@ -504,31 +508,31 @@ class CepCacheHeaderList extends TPage
         if (isset($data->cep) AND ( (is_scalar($data->cep) AND $data->cep !== '') OR (is_array($data->cep) AND (!empty($data->cep)) )) )
         {
 
-            $filters[] = new TFilter('cep', 'like', "%{$data->cep}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(cep AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->cep) . '%');// create the filter 
         }
 
         if (isset($data->rua) AND ( (is_scalar($data->rua) AND $data->rua !== '') OR (is_array($data->rua) AND (!empty($data->rua)) )) )
         {
 
-            $filters[] = new TFilter('rua', 'like', "%{$data->rua}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(rua AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->rua) . '%');// create the filter 
         }
 
         if (isset($data->cidade) AND ( (is_scalar($data->cidade) AND $data->cidade !== '') OR (is_array($data->cidade) AND (!empty($data->cidade)) )) )
         {
 
-            $filters[] = new TFilter('cidade', 'like', "%{$data->cidade}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(cidade AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->cidade) . '%');// create the filter 
         }
 
         if (isset($data->uf) AND ( (is_scalar($data->uf) AND $data->uf !== '') OR (is_array($data->uf) AND (!empty($data->uf)) )) )
         {
 
-            $filters[] = new TFilter('uf', 'like', "%{$data->uf}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(uf AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->uf) . '%');// create the filter 
         }
 
         if (isset($data->bairro) AND ( (is_scalar($data->bairro) AND $data->bairro !== '') OR (is_array($data->bairro) AND (!empty($data->bairro)) )) )
         {
 
-            $filters[] = new TFilter('bairro', 'like', "%{$data->bairro}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(bairro AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->bairro) . '%');// create the filter 
         }
 
         // fill the form with data again
@@ -629,6 +633,9 @@ class CepCacheHeaderList extends TPage
 
             // close the transaction
             TTransaction::close();
+            $this->datagrid->initPopoverHeaderFilters();
+            // faixa "Filtros aplicados": cortina, botoes rapidos e funil do cabecalho (FiltroLista)
+            FiltroLista::faixa(__CLASS__, $this->form ?? null, $this->datagrid_form ?? null, $this->datagrid);
             $this->loaded = true;
 
             return $objects;

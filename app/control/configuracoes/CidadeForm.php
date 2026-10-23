@@ -136,9 +136,8 @@ class CidadeForm extends TPage
             TTransaction::close(); // close the transaction
 
             TToast::show('success', "Registro salvo", 'topRight', 'far:check-circle');
-            TApplication::loadPage('CidadeHeaderList', 'onShow', $loadPageParam); 
+            Navegacao::voltarParaLista('CidadeHeaderList', __CLASS__);
 
-                        TScript::create("Template.closeRightPanel();"); 
 
         }
         catch (Exception $e) // in case of exception

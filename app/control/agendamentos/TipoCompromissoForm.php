@@ -126,9 +126,8 @@ class TipoCompromissoForm extends TPage
             TTransaction::close(); // close the transaction
 
             TToast::show('success', "Registro salvo", 'topRight', 'far:check-circle');
-            TApplication::loadPage('TipoCompromissoList', 'onShow', $loadPageParam); 
+            Navegacao::voltarParaLista('TipoCompromissoList', __CLASS__);
 
-                        TScript::create("Template.closeRightPanel();"); 
 
         }
         catch (Exception $e) // in case of exception

@@ -19,7 +19,7 @@ class BuilderPermissionUpdate extends TPage
     {
         parent::__construct();
         
-        BuilderPermissionService::checkPermission();
+        BuilderPermissionService::recursoDesativado();
     }
     
     /**
@@ -29,7 +29,7 @@ class BuilderPermissionUpdate extends TPage
     {
         try
         {
-            BuilderPermissionService::checkPermission();
+            BuilderPermissionService::recursoDesativado();
             
             if (!file_exists('menu-dist.xml'))
             {
@@ -52,7 +52,7 @@ class BuilderPermissionUpdate extends TPage
     {
         try
         {
-            BuilderPermissionService::checkPermission();
+            BuilderPermissionService::recursoDesativado();
             
             $permissions = BuilderPageService::getPermissions();
             

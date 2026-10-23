@@ -37,6 +37,7 @@ class RequisicaoPagamentoCliente extends TRecord
         parent::addAttribute('data_modificacao');
         parent::addAttribute('modificacao_user_id');
         parent::addAttribute('data_requerimento');
+        parent::addAttribute('status_antes_quitado_id');
             
     }
 

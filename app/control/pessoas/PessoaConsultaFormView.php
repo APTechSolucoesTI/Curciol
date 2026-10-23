@@ -150,22 +150,22 @@ class PessoaConsultaFormView extends TPage
 
         switch ($novoGrupo) {
             case Grupo::CLIENTE:
-                TApplication::loadPage('ClienteList', 'onReload');
+                Navegacao::voltarParaLista('ClienteList', __CLASS__);
                 break;
             case Grupo::PROFISSIONAL:
-                TApplication::loadPage('ProfissionalList', 'onReload');
+                Navegacao::voltarParaLista('ProfissionalList', __CLASS__);
                 break;
 
             case Grupo::FORNECEDOR:
-                TApplication::loadPage('FornecedorList', 'onReload');
+                Navegacao::voltarParaLista('FornecedorList', __CLASS__);
                 break;
 
             case Grupo::REPRESENTANTE_LEGAL:
-                TApplication::loadPage('RepresentantesLegaisList', 'onReload');
+                Navegacao::voltarParaLista('RepresentantesLegaisList', __CLASS__);
                 break;
 
             case Grupo::CONTRAPARTE:
-                TApplication::loadPage('ContraparteList', 'onReload');
+                Navegacao::voltarParaLista('ContraparteList', __CLASS__);
                 break;
 
             default:

@@ -77,7 +77,7 @@ class LoginClienteForm extends TPage
 
                 $pageParam = []; // ex.: = ['key' => 10]
 
-                TApplication::loadPage('ClienteAtendimentoList', 'onShow', $pageParam);
+                Navegacao::voltarParaLista('ClienteAtendimentoList', __CLASS__);
             }
             else
             {

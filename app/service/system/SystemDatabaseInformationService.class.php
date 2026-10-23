@@ -82,4 +82,20 @@ class SystemDatabaseInformationService
         natcasesort($list);
         return $list;
     }
+
+    /**
+     * Curciol (seguranca 22/10/2026): banco e tabela vem da requisicao e vao direto para o FROM. So aceita uma
+     * conexao configurada em app/config e uma tabela que essa conexao lista; senao lanca excecao.
+     */
+    public static function validarTabela($database, $table)
+    {
+        if (!is_string($database) OR !in_array($database, self::getConnections(true), TRUE))
+        {
+            throw new Exception('Banco de dados inválido');
+        }
+        if (!is_string($table) OR !in_array($table, (array) self::getDatabaseTables($database), TRUE))
+        {
+            throw new Exception('Tabela inválida');
+        }
+    }
 }

@@ -519,6 +519,8 @@ class EscritoriosList extends TPage
             $object->cnpj = null;
             $object->email = null;
 
+            // a cortina mostra os filtros aplicados agora (eles se somam aos das colunas e dos botoes rapidos)
+            $object = (object) array_merge((array) $object, (array) (TSession::getValue(__CLASS__.'_filter_data') ?: []));
             TForm::sendData(self::$formName, $object);
 
                         $filter = new self([]);
@@ -558,6 +560,10 @@ class EscritoriosList extends TPage
         TSession::setValue(__CLASS__.'_filter_data', NULL);
         TSession::setValue(__CLASS__.'_filters', NULL);
 
+        // os formularios tambem (senao o cabecalho continuava mostrando os filtros antigos)
+        if (!empty($this->form)) { $this->form->clear(); }
+        if (!empty($this->datagrid_form)) { $this->datagrid_form->clear(); }
+
         $this->onReload(['offset' => 0, 'first_page' => 1]);
     }
 
@@ -566,14 +572,20 @@ class EscritoriosList extends TPage
      */
     public function onSearch($param = null)
     {
-        if ((isset($param['static']) && ($param['static'] == '1')) || !empty($param['globalSearch']))
+        if (!empty($param['__sem_formulario']))
         {
-            $data = $this->datagrid_form->getData();
+            $formulario = [];
+        }
+        elseif ((isset($param['static']) && ($param['static'] == '1')) || !empty($param['globalSearch']))
+        {
+            $formulario = $this->datagrid_form->getData();
         }
         else
         {
-            $data = $this->form->getData();
+            $formulario = $this->form->getData();
         }
+        // filtros que se somam: cabecalho das colunas, cortina e botoes rapidos (FiltroLista)
+        $data = FiltroLista::acumular(__CLASS__, $formulario, $param);
         $filters = [];
 
         TSession::setValue(__CLASS__.'_filter_data', NULL);
@@ -582,25 +594,25 @@ class EscritoriosList extends TPage
         if (isset($data->nome) AND ( (is_scalar($data->nome) AND $data->nome !== '') OR (is_array($data->nome) AND (!empty($data->nome)) )) )
         {
 
-            $filters[] = new TFilter('unaccent(nome)', 'ilike', "%{$data->nome}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(nome AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->nome) . '%');// create the filter 
         }
 
         if (isset($data->cnpj) AND ( (is_scalar($data->cnpj) AND $data->cnpj !== '') OR (is_array($data->cnpj) AND (!empty($data->cnpj)) )) )
         {
 
-            $filters[] = new TFilter('cnpj', 'like', "%{$data->cnpj}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(cnpj AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->cnpj) . '%');// create the filter 
         }
 
         if (isset($data->email) AND ( (is_scalar($data->email) AND $data->email !== '') OR (is_array($data->email) AND (!empty($data->email)) )) )
         {
 
-            $filters[] = new TFilter('email', 'like', "%{$data->email}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(email AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->email) . '%');// create the filter 
         }
 
         if (isset($data->nome_col) AND ( (is_scalar($data->nome_col) AND $data->nome_col !== '') OR (is_array($data->nome_col) AND (!empty($data->nome_col)) )) )
         {
 
-            $filters[] = new TFilter('unaccent(nome)', 'ilike', "%{$data->nome_col}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(nome AS TEXT))', 'ilike', '%' . str_replace(' ', '%', TratamentosService::removerAcentos((string) $data->nome_col)) . '%');// create the filter 
         }
 
         if (isset($data->cidade_nome_col) AND ( (is_scalar($data->cidade_nome_col) AND $data->cidade_nome_col !== '') OR (is_array($data->cidade_nome_col) AND (!empty($data->cidade_nome_col)) )) )
@@ -612,19 +624,19 @@ class EscritoriosList extends TPage
         if (isset($data->cnpj_col) AND ( (is_scalar($data->cnpj_col) AND $data->cnpj_col !== '') OR (is_array($data->cnpj_col) AND (!empty($data->cnpj_col)) )) )
         {
 
-            $filters[] = new TFilter('cnpj', 'like', "%{$data->cnpj_col}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(cnpj AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->cnpj_col) . '%');// create the filter 
         }
 
         if (isset($data->telefone_col) AND ( (is_scalar($data->telefone_col) AND $data->telefone_col !== '') OR (is_array($data->telefone_col) AND (!empty($data->telefone_col)) )) )
         {
 
-            $filters[] = new TFilter('telefone', 'like', "%{$data->telefone_col}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(telefone AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->telefone_col) . '%');// create the filter 
         }
 
         if (isset($data->email_col) AND ( (is_scalar($data->email_col) AND $data->email_col !== '') OR (is_array($data->email_col) AND (!empty($data->email_col)) )) )
         {
 
-            $filters[] = new TFilter('email', 'like', "%{$data->email_col}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(email AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->email_col) . '%');// create the filter 
         }
 
         $this->button_filtros->style = 'position: relative';
@@ -636,18 +648,11 @@ class EscritoriosList extends TPage
         }
          if (isset($data->nome_col) AND ( (is_scalar($data->nome_col) AND $data->nome_col !== '') OR (is_array($data->nome_col) AND (!empty($data->nome_col)) )) ){
             $nome_col = $data->nome_col;
-            $data->nome_col = str_replace(' ','%',TratamentosService::removerAcentos($data->nome_col));
         }
 
-        // fill the form with data again
-        if ((isset($param['static']) && ($param['static'] == '1')) || !empty($param['globalSearch']))
-        {
-            $this->datagrid_form->setData($data);
-        }
-        else
-        {
-            $this->form->setData($data);
-        }
+        // fill the form with data again (os dois formularios mostram os filtros somados)
+        $this->datagrid_form->setData($data);
+        $this->form->setData($data);
 
         // keep the search data in the session
         TSession::setValue(__CLASS__.'_filter_data', $data);
@@ -728,6 +733,9 @@ class EscritoriosList extends TPage
 
             // close the transaction
             TTransaction::close();
+            $this->datagrid->initPopoverHeaderFilters();
+            // faixa "Filtros aplicados": cortina, botoes rapidos e funil do cabecalho (FiltroLista)
+            FiltroLista::faixa(__CLASS__, $this->form ?? null, $this->datagrid_form ?? null, $this->datagrid);
             $this->loaded = true;
 
             return $objects;

@@ -19,7 +19,7 @@ class BuilderConfigForm extends TPage
     {
         parent::__construct();
         
-        BuilderPermissionService::checkPermission();
+        BuilderPermissionService::recursoDesativado();
         
         parent::setTargetContainer('adianti_right_panel');
         
@@ -93,7 +93,7 @@ class BuilderConfigForm extends TPage
     {
         try
         {
-            BuilderPermissionService::checkPermission();
+            BuilderPermissionService::recursoDesativado();
             
             $file_name = $param['file_name'];
             $file_name = str_replace('../', '', $file_name);

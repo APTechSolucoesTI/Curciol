@@ -140,17 +140,21 @@ class ExtratoSaidaForm extends TPage
             $data = $this->form->getData(); // get form data as array
             $object->fromArray( (array) $data); // load the object with data
 
+            // Curciol (seguranca 22/10/2026): mesma regra do botao Editar do extrato (ExtratoList::canEdit)
+            if (!empty($object->id))
+            {
+                $existente = Extrato::find($object->id);
+                if (!$existente OR !ExtratoList::canEdit($existente))
+                {
+                    throw new Exception('Este lançamento do extrato não pode ser alterado.');
+                }
+            }
+
             if(!$object->compensado){
 
                 $object->compensado = 'N';
                 $object->data_compensacao = '';
 
-                //saldo_nao_compensado
-                $contaCaixa = ContaCaixa::find($object->conta_caixa_id);
-
-                $contaCaixa->saldo_nao_compensado = (float) $contaCaixa->saldo_nao_compensado + (float) $object->entrada_valor - (float) $object->saida_valor;
-                $contaCaixa->modificacao_user_id = TSession::getValue('userid');
-                $contaCaixa->store();
 
             }else if($object->compensado=='S'){
 
@@ -160,12 +164,6 @@ class ExtratoSaidaForm extends TPage
                     throw new Exception("Informe uma data de compensação superior a data inicial da conta caixa.");
                 }
 
-                //saldo_instantaneo
-                $contaCaixa = ContaCaixa::find($object->conta_caixa_id);
-
-                $contaCaixa->saldo_instantaneo = (float) $contaCaixa->saldo_instantaneo + (float) $object->entrada_valor - (float) $object->saida_valor;
-                $contaCaixa->modificacao_user_id = TSession::getValue('userid');
-                $contaCaixa->store();
             }
 
             if(!$object->id){
@@ -192,7 +190,7 @@ class ExtratoSaidaForm extends TPage
                 $object->modificacao_user_id = TSession::getValue('userid');
             }
             $object->store(); // save the object 
-
+            ContaCaixaSaldoService::recalcular($object->conta_caixa_id);
             $loadPageParam = [];
 
             if(!empty($param['target_container']))
@@ -207,9 +205,8 @@ class ExtratoSaidaForm extends TPage
             TTransaction::close(); // close the transaction
 
             TToast::show('success', "Registro salvo", 'topRight', 'far:check-circle');
-            TApplication::loadPage('ExtratoList', 'onShow', $loadPageParam); 
+            Navegacao::voltarParaLista('ExtratoList', __CLASS__);
 
-                        TScript::create("Template.closeRightPanel();"); 
 
         }
         catch (Exception $e) // in case of exception

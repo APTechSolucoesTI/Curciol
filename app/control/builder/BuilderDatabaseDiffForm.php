@@ -16,7 +16,7 @@ class BuilderDatabaseDiffForm extends TPage
 		{
 			parent::__construct();
 
-			BuilderPermissionService::checkPermission();
+			BuilderPermissionService::recursoDesativado();
 
 			$this->form = new BootstrapFormBuilder(self::$formName);
 	        $this->form->setFormTitle('Database merge');

@@ -1,6 +1,7 @@
 <?php
 namespace Adianti\Service;
 
+use Adianti\Core\AdiantiApplicationConfig;
 use Adianti\Database\TTransaction;
 use Adianti\Database\TRepository;
 use Adianti\Database\TCriteria;
@@ -47,8 +48,11 @@ class AdiantiAutocompleteService
      */
 	public static function onSearch($param = null)
 	{
-        $seed = APPLICATION_NAME.'s8dkld83kf73kf094';
-        $hash = md5("{$seed}{$param['database']}{$param['column']}{$param['model']}");
+        // Curciol (seguranca 22/10/2026): seed do sistema e o criterio entram no hash (o criterio volta do navegador e e desserializado)
+        $ini  = AdiantiApplicationConfig::get();
+        $seed = APPLICATION_NAME . ( !empty($ini['general']['seed']) ? $ini['general']['seed'] : 's8dkld83kf73kf094' );
+        $criteria_param = (string) ($param['criteria'] ?? '');
+        $hash = md5("{$seed}{$param['database']}{$param['column']}{$param['model']}{$criteria_param}");
         $mask = $param['mask'];
         
         if ($hash == $param['hash'])
@@ -64,7 +68,7 @@ class AdiantiAutocompleteService
                 $criteria = new TCriteria;
                 if ($param['criteria'])
                 {
-                    $criteria = unserialize(base64_decode($param['criteria']));
+                    $criteria = unserialize(base64_decode(str_replace(array('-', '_'), array('+', '/'), $param['criteria'])));
                 }
     
                 $column = $param['column'];

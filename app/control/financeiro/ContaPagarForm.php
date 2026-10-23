@@ -877,6 +877,7 @@ class ContaPagarForm extends TPage
         $id = (int) ($param['id'] ?? 0);
 
         if (!empty($id)) {
+            LevantamentoFinanceiroService::exigirContaNaoGerada($id);
             if (self::existeLancamentoCancelado($id)) {
                 TToast::show("error", "Lançamento cancelado, não é possível editar.", "topRight", "fas:info-circle");
                 TTransaction::close();
@@ -1088,6 +1089,10 @@ class ContaPagarForm extends TPage
 
             if(!$data->pessoa_id && $data->cliente_id){
                 $data->pessoa_id = $data->cliente_id;
+            }
+
+            if (!empty($data->id)) {
+                LevantamentoFinanceiroService::exigirContaNaoGerada((int) $data->id);
             }
 
             if (!empty($data->id) && self::contaEstaQuitada($data->id)) {
@@ -1305,9 +1310,8 @@ class ContaPagarForm extends TPage
             TTransaction::close(); // close the transaction
 
             TToast::show('success', "Registro salvo", 'topRight', 'far:check-circle');
-            TApplication::loadPage('ContaPagarList', 'onShow', $loadPageParam); 
-
-                        TScript::create("Template.closeRightPanel();");
+            // abre o detalhe da conta salva na cortina; a tela de baixo nao muda (a lista se atualiza ao fechar)
+            Navegacao::abrirConta((int) $object->id, 'ContaPagarForm');
             TForm::sendData(self::$formName, (object)['id' => $object->id]);
 
         }
@@ -1332,6 +1336,7 @@ class ContaPagarForm extends TPage
 
                 $key = $param['key'];  // get the parameter $key
                 TTransaction::open(self::$database); // open a transaction
+                LevantamentoFinanceiroService::exigirContaNaoGerada((int) $key);
 
                 $object = new Conta($key); // instantiates the Active Record 
                 if($object->tipo_documento_financeiro_id != TipoDocumentoFinanceiro::NOTA){
@@ -1367,7 +1372,7 @@ class ContaPagarForm extends TPage
                     }else{
                         TScript::create("$('label:contains(\"Motivo do cancelamento das parcelas:\")').show();");
                         TScript::create("$('label:contains(\"MOTIVO CANCELAMENTO\")').show();");
-                        TScript::create("$('label:contains(\"MOTIVO CANCELAMENTO\")').html('".$object->motivo_cancelamento."')");
+                        TScript::create("$('label:contains(\"MOTIVO CANCELAMENTO\")').text(" . json_encode((string) $object->motivo_cancelamento, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) . ")");
                     }
                 }
 
@@ -1766,6 +1771,7 @@ class ContaPagarForm extends TPage
             $id = (int) ($param['id'] ?? 0);
 
             if (!empty($id)) {
+                LevantamentoFinanceiroService::exigirContaNaoGerada($id);
                 if (self::existeLancamentoCancelado($id)) {
                     TToast::show("error", "Lançamento cancelado, não é possível editar.", "topRight", "fas:info-circle");
                     TTransaction::close();

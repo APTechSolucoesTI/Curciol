@@ -1,6 +1,11 @@
 // import { FirebaseService } from 'firebase.js';
 
 class ChatApp {
+    // Curciol (seguranca 22/10/2026): nomes e mensagens entram no HTML como texto
+    static esc(v) {
+        return String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
     
     constructor() {
         this.currentUser = null;
@@ -160,14 +165,14 @@ class ChatApp {
         {
             roomElement.innerHTML = `
                 <div class="contact-info">
-                <span class="contact-name">${otherParticipant}</span>
+                <span class="contact-name">${ChatApp.esc(otherParticipant)}</span>
                 <span class="status-indicator" title="Online" id="chat-stauts-indicator-${otherParticipantId}">
                     <span class="status-dot online"></span>
                 </span>
                 </div>
                 <div class="last-message">
                     <p class="message-preview" id="last-message-preview-${roomId}">
-                        ${roomData?.lastMessage?.text ?? ''}
+                        ${ChatApp.esc(roomData?.lastMessage?.text)}
                     </p>
                     <span class="message-time" id="message-time-${roomId}">
                         ${lastMessageTime}
@@ -189,7 +194,7 @@ class ChatApp {
 
             roomElement.innerHTML = `
                 <div class="contact-info">
-                    <span class="contact-name">${roomData.groupName}</span>
+                    <span class="contact-name">${ChatApp.esc(roomData.groupName)}</span>
                     <div class="group-actions">
                         ${participantsButton}
                         ${deleteButton}
@@ -197,7 +202,7 @@ class ChatApp {
                 </div>
                 <div class="last-message">
                     <p class="message-preview" id="last-message-preview-${roomId}">
-                        ${roomData?.lastMessage?.text ?? ''}
+                        ${ChatApp.esc(roomData?.lastMessage?.text)}
                     </p>
                     <span class="message-time" id="message-time-${roomId}">
                         ${lastMessageTime}
@@ -291,7 +296,7 @@ class ChatApp {
         chatWindow.id = `chat-window-${roomId}`; // Adicionando o ID correto
         chatWindow.innerHTML = `
             <div class="chat-header">
-                <span>${participantName}</span>
+                <span>${ChatApp.esc(participantName)}</span>
                 <button class="close-btn">&times;</button>
             </div>
             <div class="chat-messages"></div>
@@ -583,7 +588,7 @@ class ChatApp {
                 messageElement.className = 'message system-message';
                 messageElement.innerHTML = `
                     <div class="message-content">
-                        <p>${message.text}</p>
+                        <p>${ChatApp.esc(message.text)}</p>
                         <span class="message-time">${this.formatTimestamp(message.timestamp, 'H:i')}</span>
                     </div>
                 `;
@@ -591,8 +596,8 @@ class ChatApp {
             else{
                 messageElement.innerHTML = `
                     <div class="message-content">
-                        <span class="message-sender" style="color:${chat.participantsColor[message.sender]}">${senderName}:</span>    
-                        <span class="message-text">${message.text}</span>
+                        <span class="message-sender" style="color:${chat.participantsColor[message.sender]}">${ChatApp.esc(senderName)}:</span>    
+                        <span class="message-text">${ChatApp.esc(message.text)}</span>
                         <span class="message-time">${this.formatTimestamp(message.timestamp, 'H:i')}</span>
                     </div>
                 `;
@@ -602,7 +607,7 @@ class ChatApp {
             messageElement.className = 'message system-message';
             messageElement.innerHTML = `
                 <div class="message-content">
-                    <p>${message.text}</p>
+                    <p>${ChatApp.esc(message.text)}</p>
                     <span class="message-time">${this.formatTimestamp(message.timestamp, 'H:i')}</span>
                 </div>
             `;
@@ -610,7 +615,7 @@ class ChatApp {
         else {
             messageElement.innerHTML = `
                 <div class="message-content">
-                    <span class="message-text">${message.text}</span>
+                    <span class="message-text">${ChatApp.esc(message.text)}</span>
                     <span class="message-time">${this.formatTimestamp(message.timestamp, 'H:i')}</span>
                 </div>
             `;

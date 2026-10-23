@@ -566,6 +566,8 @@ class CompromissoList extends TPage
             $object->dt_inicio = null;
             $object->dt_final = null;
 
+            // a cortina mostra os filtros aplicados agora (eles se somam aos das colunas e dos botoes rapidos)
+            $object = (object) array_merge((array) $object, (array) (TSession::getValue(__CLASS__.'_filter_data') ?: []));
             TForm::sendData(self::$formName, $object);
 
                         $filter = new self([]);
@@ -601,6 +603,10 @@ class CompromissoList extends TPage
         TSession::setValue(__CLASS__.'_filter_data', NULL);
         TSession::setValue(__CLASS__.'_filters', NULL);
 
+        // os formularios tambem (senao o cabecalho continuava mostrando os filtros antigos)
+        if (!empty($this->form)) { $this->form->clear(); }
+        if (!empty($this->datagrid_form)) { $this->datagrid_form->clear(); }
+
         $this->onReload(['offset' => 0, 'first_page' => 1]);
     }
     public function onRefresh($param = null) 
@@ -613,14 +619,20 @@ class CompromissoList extends TPage
      */
     public function onSearch($param = null)
     {
-        if ((isset($param['static']) && ($param['static'] == '1')) || !empty($param['globalSearch']))
+        if (!empty($param['__sem_formulario']))
         {
-            $data = $this->datagrid_form->getData();
+            $formulario = [];
+        }
+        elseif ((isset($param['static']) && ($param['static'] == '1')) || !empty($param['globalSearch']))
+        {
+            $formulario = $this->datagrid_form->getData();
         }
         else
         {
-            $data = $this->form->getData();
+            $formulario = $this->form->getData();
         }
+        // filtros que se somam: cabecalho das colunas, cortina e botoes rapidos (FiltroLista)
+        $data = FiltroLista::acumular(__CLASS__, $formulario, $param);
         $filters = [];
 
         TSession::setValue(__CLASS__.'_filter_data', NULL);
@@ -629,7 +641,7 @@ class CompromissoList extends TPage
         if (isset($data->id) AND ( (is_scalar($data->id) AND $data->id !== '') OR (is_array($data->id) AND (!empty($data->id)) )) )
         {
 
-            $filters[] = new TFilter('id', '=', $data->id);// create the filter 
+            $filters[] = new TFilter('id', '=', SqlSeguro::id($data->id));// create the filter 
         }
 
         if (isset($data->agenda_id) AND ( (is_scalar($data->agenda_id) AND $data->agenda_id !== '') OR (is_array($data->agenda_id) AND (!empty($data->agenda_id)) )) )
@@ -659,7 +671,7 @@ class CompromissoList extends TPage
         if (isset($data->agenda_nome) AND ( (is_scalar($data->agenda_nome) AND $data->agenda_nome !== '') OR (is_array($data->agenda_nome) AND (!empty($data->agenda_nome)) )) )
         {
 
-            $filters[] = new TFilter('agenda_id', 'in', "(SELECT id FROM agenda WHERE nome like '%{$data->agenda_nome}%')");// create the filter 
+            $filters[] = new TFilter('agenda_id', 'in', "(SELECT id FROM agenda WHERE nome like '%" . SqlSeguro::texto($data->agenda_nome) . "%')");// create the filter 
         }
 
         if (isset($data->tipo_compromisso_nome) AND ( (is_scalar($data->tipo_compromisso_nome) AND $data->tipo_compromisso_nome !== '') OR (is_array($data->tipo_compromisso_nome) AND (!empty($data->tipo_compromisso_nome)) )) )
@@ -668,15 +680,9 @@ class CompromissoList extends TPage
             $filters[] = new TFilter('tipo_compromisso_id', '=', $data->tipo_compromisso_nome);// create the filter 
         }
 
-        // fill the form with data again
-        if ((isset($param['static']) && ($param['static'] == '1')) || !empty($param['globalSearch']))
-        {
-            $this->datagrid_form->setData($data);
-        }
-        else
-        {
-            $this->form->setData($data);
-        }
+        // fill the form with data again (os dois formularios mostram os filtros somados)
+        $this->datagrid_form->setData($data);
+        $this->form->setData($data);
 
         // keep the search data in the session
         TSession::setValue(__CLASS__.'_filter_data', $data);
@@ -767,6 +773,9 @@ class CompromissoList extends TPage
 
             // close the transaction
             TTransaction::close();
+            $this->datagrid->initPopoverHeaderFilters();
+            // faixa "Filtros aplicados": cortina, botoes rapidos e funil do cabecalho (FiltroLista)
+            FiltroLista::faixa(__CLASS__, $this->form ?? null, $this->datagrid_form ?? null, $this->datagrid);
             $this->loaded = true;
 
             return $objects;

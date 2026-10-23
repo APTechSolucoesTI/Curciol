@@ -19,7 +19,7 @@ class BuilderViewsDiffForm extends TPage
 		{
 			parent::__construct();
 
-			BuilderPermissionService::checkPermission();
+			BuilderPermissionService::recursoDesativado();
 
 			$databaseMergeSession = TSession::getValue('databaseMergeSession');
 
@@ -106,7 +106,7 @@ class BuilderViewsDiffForm extends TPage
 	{
 		try
 		{
-			BuilderPermissionService::checkPermission();
+			BuilderPermissionService::recursoDesativado();
 
 			$databaseMergeSession = TSession::getValue('databaseMergeSession');
 			$databaseMergeSession->views = BuilderDatabaseService::getCommandsViews(

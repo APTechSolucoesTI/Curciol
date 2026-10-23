@@ -52,20 +52,22 @@ class ContratoList extends TPage
         $assunto_id = new TCombo('assunto_id');
         $objeto = new TText('objeto');
         $numero_col = new TEntry('numero_col');
-        $cliente_col = new TEntry('cliente_col');
+        // autocomplete: a lista sugere as pessoas pelo nome (o filtro continua sendo pelo nome)
+        $cliente_col = new TDBUniqueSearch('cliente_col', 'escritorio', 'Pessoa', 'nome', 'nome', 'nome asc', FiltroLista::criterioPessoasDe('contrato_pessoa', 'cliente_id'));
+        $cliente_col->setMinLength(2);
         $assunto_nome = new BDBSelectCheck('assunto_nome', 'escritorio', 'Assunto', 'id', '{nome}','nome asc' , $criteria_assunto_nome );
-        $parceiro_col = new TEntry('parceiro_col');
+        // autocomplete: a lista sugere as pessoas pelo nome (o filtro continua sendo pelo nome)
+        $parceiro_col = new TDBUniqueSearch('parceiro_col', 'escritorio', 'Pessoa', 'nome', 'nome', 'nome asc', FiltroLista::criterioGrupo(Grupo::PARCEIRO));
+        $parceiro_col->setMinLength(2);
         $contrato_status_nome = new TDBCombo('contrato_status_nome', 'escritorio', 'ContratoStatus', 'id', '{nome}','nome asc' , $criteria_contrato_status_nome );
 
         $area_id->setChangeAction(new TAction([$this,'onChangearea_id']));
 
         $numero_col->exitOnEnter();
-        $cliente_col->exitOnEnter();
-        $parceiro_col->exitOnEnter();
 
         $numero_col->setExitAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
-        $cliente_col->setExitAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
-        $parceiro_col->setExitAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
+        $cliente_col->setChangeAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
+        $parceiro_col->setChangeAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
 
         $assunto_nome->setChangeAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
         $contrato_status_nome->setChangeAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
@@ -73,9 +75,6 @@ class ContratoList extends TPage
         $numero->setMaxLength(30);
         $contrato_pessoa_pessoa_id->setMinLength(3);
         $contrato_pessoa_pessoa_id->setMask('{nome}');
-        $parceiro_col->enableToggleVisibility(false);
-        $cliente_col->forceUpperCase();
-        $parceiro_col->forceUpperCase();
 
         $area_id->enableSearch();
         $assunto_id->enableSearch();
@@ -333,6 +332,8 @@ class ContratoList extends TPage
             $object->contrato_pessoa_pessoa_id = null;
             $object->contrato_profissional_profissional_id = null;
 
+            // a cortina mostra os filtros aplicados agora (eles se somam aos das colunas e dos botoes rapidos)
+            $object = (object) array_merge((array) $object, (array) (TSession::getValue(__CLASS__.'_filter_data') ?: []));
             TForm::sendData(self::$formName, $object);
 
                         $filter = new self([]);
@@ -367,6 +368,10 @@ class ContratoList extends TPage
     {
         TSession::setValue(__CLASS__.'_filter_data', NULL);
         TSession::setValue(__CLASS__.'_filters', NULL);
+
+        // os formularios tambem (senao o cabecalho continuava mostrando os filtros antigos)
+        if (!empty($this->form)) { $this->form->clear(); }
+        if (!empty($this->datagrid_form)) { $this->datagrid_form->clear(); }
 
         $this->onReload(['offset' => 0, 'first_page' => 1]);
     }
@@ -669,15 +674,27 @@ class ContratoList extends TPage
      */
     public function onSearch($param = null)
     {
-        if ((isset($param['static']) && ($param['static'] == '1')) || !empty($param['globalSearch']))
+        if (!empty($param['__sem_formulario']))
         {
-            $data = $this->datagrid_form->getData();
+            $formulario = [];
+        }
+        elseif ((isset($param['static']) && ($param['static'] == '1')) || !empty($param['globalSearch']))
+        {
+            $formulario = $this->datagrid_form->getData();
         }
         else
         {
-            $data = $this->form->getData();
+            $formulario = $this->form->getData();
         }
+        // filtros que se somam: cabecalho das colunas, cortina e botoes rapidos (FiltroLista)
+        $data = FiltroLista::acumular(__CLASS__, $formulario, $param);
         $filters = [];
+
+        // status no funil da coluna (antes o campo existia na tela mas nao filtrava)
+        if (isset($data->contrato_status_nome) AND is_scalar($data->contrato_status_nome) AND $data->contrato_status_nome !== '')
+        {
+            $filters[] = new TFilter('contrato_status_id', '=', (int) $data->contrato_status_nome);
+        }
 
         //REMOVER ACENTUAÇÃO 
 
@@ -721,19 +738,19 @@ class ContratoList extends TPage
         if (isset($data->numero) AND ( (is_scalar($data->numero) AND $data->numero !== '') OR (is_array($data->numero) AND (!empty($data->numero)) )) )
         {
 
-            $filters[] = new TFilter('numero', 'like', "%{$data->numero}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(numero AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->numero) . '%');// create the filter 
         }
 
         if (isset($data->contrato_pessoa_pessoa_id) AND ( (is_scalar($data->contrato_pessoa_pessoa_id) AND $data->contrato_pessoa_pessoa_id !== '') OR (is_array($data->contrato_pessoa_pessoa_id) AND (!empty($data->contrato_pessoa_pessoa_id)) )) )
         {
 
-            $filters[] = new TFilter('id', 'in', "(SELECT contrato_id FROM contrato_pessoa WHERE cliente_id in  (SELECT id FROM pessoa WHERE nome like '%{$data->contrato_pessoa_pessoa_id}%') )");// create the filter 
+            $filters[] = new TFilter('id', 'in', "(SELECT contrato_id FROM contrato_pessoa WHERE cliente_id in  (SELECT id FROM pessoa WHERE nome like '%" . SqlSeguro::texto($data->contrato_pessoa_pessoa_id) . "%') )");// create the filter 
         }
 
         if (isset($data->contrato_profissional_profissional_id) AND ( (is_scalar($data->contrato_profissional_profissional_id) AND $data->contrato_profissional_profissional_id !== '') OR (is_array($data->contrato_profissional_profissional_id) AND (!empty($data->contrato_profissional_profissional_id)) )) )
         {
 
-            $filters[] = new TFilter('id', 'in', "(SELECT contrato_id FROM contrato_repasse WHERE pessoa_id in  (SELECT id FROM pessoa WHERE nome like '%{$data->contrato_profissional_profissional_id}%') )");// create the filter 
+            $filters[] = new TFilter('id', 'in', "(SELECT contrato_id FROM contrato_repasse WHERE pessoa_id in  (SELECT id FROM pessoa WHERE nome like '%" . SqlSeguro::texto($data->contrato_profissional_profissional_id) . "%') )");// create the filter 
         }
 
         if (isset($data->area_id) AND ( (is_scalar($data->area_id) AND $data->area_id !== '') OR (is_array($data->area_id) AND (!empty($data->area_id)) )) )
@@ -751,13 +768,13 @@ class ContratoList extends TPage
         if (isset($data->objeto) AND ( (is_scalar($data->objeto) AND $data->objeto !== '') OR (is_array($data->objeto) AND (!empty($data->objeto)) )) )
         {
 
-            $filters[] = new TFilter('objeto', 'like', "%{$data->objeto}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(objeto AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->objeto) . '%');// create the filter 
         }
 
         if (isset($data->numero_col) AND ( (is_scalar($data->numero_col) AND $data->numero_col !== '') OR (is_array($data->numero_col) AND (!empty($data->numero_col)) )) )
         {
 
-            $filters[] = new TFilter('numero', 'like', "%{$data->numero_col}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(numero AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->numero_col) . '%');// create the filter 
         }
 
         if (isset($data->assunto_nome) AND ( (is_scalar($data->assunto_nome) AND $data->assunto_nome !== '') OR (is_array($data->assunto_nome) AND (!empty($data->assunto_nome)) )) )
@@ -786,15 +803,9 @@ class ContratoList extends TPage
               //  $data->cliente_col = $cliente_col;
             }
 
-        // fill the form with data again
-        if ((isset($param['static']) && ($param['static'] == '1')) || !empty($param['globalSearch']))
-        {
-            $this->datagrid_form->setData($data);
-        }
-        else
-        {
-            $this->form->setData($data);
-        }
+        // fill the form with data again (os dois formularios mostram os filtros somados)
+        $this->datagrid_form->setData($data);
+        $this->form->setData($data);
 
         // keep the search data in the session
         TSession::setValue(__CLASS__.'_filter_data', $data);
@@ -887,6 +898,8 @@ class ContratoList extends TPage
 
             // close the transaction
             TTransaction::close();
+            // faixa "Filtros aplicados": cortina, botoes rapidos e funil do cabecalho (FiltroLista)
+            FiltroLista::faixa(__CLASS__, $this->form ?? null, $this->datagrid_form ?? null, $this->datagrid);
             $this->loaded = true;
 
             return $objects;

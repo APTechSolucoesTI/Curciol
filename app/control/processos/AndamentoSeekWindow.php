@@ -214,7 +214,7 @@ class AndamentoSeekWindow extends TWindow
         if (isset($data->titulo) AND ( (is_scalar($data->titulo) AND $data->titulo !== '') OR (is_array($data->titulo) AND (!empty($data->titulo)) )) )
         {
 
-            $filters[] = new TFilter('titulo', 'like', "%{$data->titulo}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(titulo AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->titulo) . '%');// create the filter 
         }
 
         // fill the form with data again

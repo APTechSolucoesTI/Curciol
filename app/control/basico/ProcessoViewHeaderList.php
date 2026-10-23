@@ -222,19 +222,19 @@ class ProcessoViewHeaderList extends TPage
         if (isset($data->tipo_processo) AND ( (is_scalar($data->tipo_processo) AND $data->tipo_processo !== '') OR (is_array($data->tipo_processo) AND (!empty($data->tipo_processo)) )) )
         {
 
-            $filters[] = new TFilter('tipo_processo', 'like', "%{$data->tipo_processo}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(tipo_processo AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->tipo_processo) . '%');// create the filter 
         }
 
         if (isset($data->assunto) AND ( (is_scalar($data->assunto) AND $data->assunto !== '') OR (is_array($data->assunto) AND (!empty($data->assunto)) )) )
         {
 
-            $filters[] = new TFilter('assunto', 'like', "%{$data->assunto}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(assunto AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->assunto) . '%');// create the filter 
         }
 
         if (isset($data->numero) AND ( (is_scalar($data->numero) AND $data->numero !== '') OR (is_array($data->numero) AND (!empty($data->numero)) )) )
         {
 
-            $filters[] = new TFilter('numero', 'like', "%{$data->numero}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(numero AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->numero) . '%');// create the filter 
         }
 
         // fill the form with data again
@@ -340,6 +340,8 @@ class ProcessoViewHeaderList extends TPage
 
             // close the transaction
             TTransaction::close();
+            // faixa "Filtros aplicados": cortina, botoes rapidos e funil do cabecalho (FiltroLista)
+            FiltroLista::faixa(__CLASS__, $this->form ?? null, $this->datagrid_form ?? null, $this->datagrid);
             $this->loaded = true;
 
             return $objects;

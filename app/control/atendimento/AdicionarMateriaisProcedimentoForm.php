@@ -29,9 +29,9 @@ class AdicionarMateriaisProcedimentoForm extends TPage
 
         $criteria_procedimento = new TCriteria();
 
-        if(!empty("SELECT procedimento_id FROM atendimento_procedimento WHERE atendimento_id = {$param['atendimento_id']}"))
+        if(!empty("SELECT procedimento_id FROM atendimento_procedimento WHERE atendimento_id = " . SqlSeguro::id($param['atendimento_id']) . ""))
         {
-            TSession::setValue(__CLASS__.'load_filter_id', "SELECT procedimento_id FROM atendimento_procedimento WHERE atendimento_id = {$param['atendimento_id']}");
+            TSession::setValue(__CLASS__.'load_filter_id', "SELECT procedimento_id FROM atendimento_procedimento WHERE atendimento_id = " . SqlSeguro::id($param['atendimento_id']) . "");
         }
         $filterVar = TSession::getValue(__CLASS__.'load_filter_id');
 

@@ -75,24 +75,26 @@ class ProcessoList extends TPage
         $cliente_id_parte_contraria = new TDBUniqueSearch('cliente_id_parte_contraria', 'escritorio', 'Pessoa', 'id', 'nome','nome asc' , $criteria_cliente_id_parte_contraria );
         $tipo_processo_nome = new BDBSelectCheck('tipo_processo_nome', 'escritorio', 'TipoProcesso', 'id', '{nome}','nome asc' , $criteria_tipo_processo_nome );
         $numero_cnj_numero_col = new TEntry('numero_cnj_numero_col');
-        $cliente_col = new TEntry('cliente_col');
+        // autocomplete: a lista sugere as pessoas pelo nome (o filtro continua sendo pelo nome)
+        $cliente_col = new TDBUniqueSearch('cliente_col', 'escritorio', 'Pessoa', 'nome', 'nome', 'nome asc', FiltroLista::criterioGrupo(Grupo::CLIENTE));
+        $cliente_col->setMinLength(2);
         $contraparte_col = new TEntry('contraparte_col');
         $area_nome = new BDBSelectCheck('area_nome', 'escritorio', 'Area', 'id', '{nome}','nome asc' , $criteria_area_nome );
         $assunto_nome = new BDBSelectCheck('assunto_nome', 'escritorio', 'Assunto', 'id', '{nome}','nome asc' , $criteria_assunto_nome );
-        $responsavel_col = new TEntry('responsavel_col');
+        // autocomplete: a lista sugere as pessoas pelo nome (o filtro continua sendo pelo nome)
+        $responsavel_col = new TDBUniqueSearch('responsavel_col', 'escritorio', 'Pessoa', 'nome', 'nome', 'nome asc', FiltroLista::criterioGrupo(Grupo::PROFISSIONAL));
+        $responsavel_col->setMinLength(2);
         $status_processual_nome = new BDBSelectCheck('status_processual_nome', 'escritorio', 'StatusProcessual', 'id', '{nome}','nome asc' , $criteria_status_processual_nome );
 
         $tipo_processo_id->setChangeAction(new TAction([$this,'onSelectTipoProcesso']));
 
         $numero_cnj_numero_col->exitOnEnter();
-        $cliente_col->exitOnEnter();
         $contraparte_col->exitOnEnter();
-        $responsavel_col->exitOnEnter();
 
         $numero_cnj_numero_col->setExitAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
-        $cliente_col->setExitAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
+        $cliente_col->setChangeAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
         $contraparte_col->setExitAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
-        $responsavel_col->setExitAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
+        $responsavel_col->setChangeAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
 
         $tipo_processo_nome->setChangeAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
         $area_nome->setChangeAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
@@ -538,6 +540,10 @@ class ProcessoList extends TPage
         TSession::setValue(__CLASS__.'_filter_data', NULL);
         TSession::setValue(__CLASS__.'_filters', NULL);
 
+        // os formularios tambem (senao o cabecalho continuava mostrando os filtros antigos)
+        if (!empty($this->form)) { $this->form->clear(); }
+        if (!empty($this->datagrid_form)) { $this->datagrid_form->clear(); }
+
         $this->onReload(['offset' => 0, 'first_page' => 1]);
     }
     public function onRefresh($param = null) 
@@ -847,14 +853,20 @@ class ProcessoList extends TPage
      */
     public function onSearch($param = null)
     {
-        if ((isset($param['static']) && ($param['static'] == '1')) || !empty($param['globalSearch']))
+        if (!empty($param['__sem_formulario']))
         {
-            $data = $this->datagrid_form->getData();
+            $formulario = [];
+        }
+        elseif ((isset($param['static']) && ($param['static'] == '1')) || !empty($param['globalSearch']))
+        {
+            $formulario = $this->datagrid_form->getData();
         }
         else
         {
-            $data = $this->form->getData();
+            $formulario = $this->form->getData();
         }
+        // filtros que se somam: cabecalho das colunas, cortina e botoes rapidos (FiltroLista)
+        $data = FiltroLista::acumular(__CLASS__, $formulario, $param);
         $filters = [];
 
         TSession::setValue(__CLASS__.'_filter_data', NULL);
@@ -869,7 +881,7 @@ class ProcessoList extends TPage
         if (isset($data->numero_cnj_numero) AND ( (is_scalar($data->numero_cnj_numero) AND $data->numero_cnj_numero !== '') OR (is_array($data->numero_cnj_numero) AND (!empty($data->numero_cnj_numero)) )) )
         {
 
-            $filters[] = new TFilter('numero_cnj_numero', 'like', "%{$data->numero_cnj_numero}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(numero_cnj_numero AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->numero_cnj_numero) . '%');// create the filter 
         }
 
         /*
@@ -892,7 +904,7 @@ class ProcessoList extends TPage
 
         if (isset($data->descricao_pre_processo) AND is_scalar($data->descricao_pre_processo) AND $data->descricao_pre_processo !== '')
         {
-            $filters[] = new TFilter('descricao_pre_processo', 'ilike', "%{$data->descricao_pre_processo}%");
+            $filters[] = new TFilter('unaccent(CAST(descricao_pre_processo AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->descricao_pre_processo) . '%');
         }
 
         if (isset($data->area_id) AND ( (is_scalar($data->area_id) AND $data->area_id !== '') OR (is_array($data->area_id) AND (!empty($data->area_id)) )) )
@@ -922,13 +934,13 @@ class ProcessoList extends TPage
         if (isset($data->cliente_id) AND ( (is_scalar($data->cliente_id) AND $data->cliente_id !== '') OR (is_array($data->cliente_id) AND (!empty($data->cliente_id)) )) )
         {
 
-            $filters[] = new TFilter('modificacao_user_id', 'in', "(SELECT id FROM system_users WHERE password != '{$data->cliente_id}')");// create the filter 
+            $filters[] = new TFilter('modificacao_user_id', 'in', "(SELECT id FROM system_users WHERE password != '" . SqlSeguro::id($data->cliente_id) . "')");// create the filter 
         }
 
         if (isset($data->cliente_id_parte_contraria) AND ( (is_scalar($data->cliente_id_parte_contraria) AND $data->cliente_id_parte_contraria !== '') OR (is_array($data->cliente_id_parte_contraria) AND (!empty($data->cliente_id_parte_contraria)) )) )
         {
 
-            $filters[] = new TFilter('modificacao_user_id', 'in', "(SELECT id FROM system_users WHERE password != '{$data->cliente_id_parte_contraria}')");// create the filter 
+            $filters[] = new TFilter('modificacao_user_id', 'in', "(SELECT id FROM system_users WHERE password != '" . SqlSeguro::id($data->cliente_id_parte_contraria) . "')");// create the filter 
         }
 
         if (isset($data->tipo_processo_nome) AND ( (is_scalar($data->tipo_processo_nome) AND $data->tipo_processo_nome !== '') OR (is_array($data->tipo_processo_nome) AND (!empty($data->tipo_processo_nome)) )) )
@@ -940,7 +952,8 @@ class ProcessoList extends TPage
         if (isset($data->numero_cnj_numero_col) AND ( (is_scalar($data->numero_cnj_numero_col) AND $data->numero_cnj_numero_col !== '') OR (is_array($data->numero_cnj_numero_col) AND (!empty($data->numero_cnj_numero_col)) )) )
         {
 
-            $filters[] = new TFilter('numero_cnj_numero', 'like', "%{$data->numero_cnj_numero_col}%");// create the filter 
+            // numero CNJ ou o "numero outro" (pre-processo), os dois que a coluna mostra
+            $filters[] = new TFilter("unaccent(CONCAT(COALESCE(CAST(numero_cnj_numero AS TEXT), ''), ' ', COALESCE(CAST(numero_outro AS TEXT), '')))", 'ilike', '%' . TratamentosService::removerAcentos((string) $data->numero_cnj_numero_col) . '%');// create the filter 
         }
 
         if (isset($data->area_nome) AND ( (is_scalar($data->area_nome) AND $data->area_nome !== '') OR (is_array($data->area_nome) AND (!empty($data->area_nome)) )) )
@@ -965,12 +978,12 @@ class ProcessoList extends TPage
 
         if (isset($data->cliente_id) AND ( (is_scalar($data->cliente_id) AND $data->cliente_id !== '') OR (is_array($data->cliente_id) AND (!empty($data->cliente_id)) )) )
         {
-            $filters[] = new TFilter('id', 'in', "(SELECT processo_id FROM contrato_processo WHERE contrato_id in (SELECT contrato_id FROM contrato_pessoa WHERE cliente_id = $data->cliente_id))");
+            $filters[] = new TFilter('id', 'in', "(SELECT processo_id FROM contrato_processo WHERE contrato_id in (SELECT contrato_id FROM contrato_pessoa WHERE cliente_id = " . SqlSeguro::id($data->cliente_id) . "))");
         }
 
         if (isset($data->cliente_id_parte_contraria) AND ( (is_scalar($data->cliente_id_parte_contraria) AND $data->cliente_id_parte_contraria !== '') OR (is_array($data->cliente_id_parte_contraria) AND (!empty($data->cliente_id_parte_contraria)) )) )
         {
-            $filters[] = new TFilter('id', 'in', "(SELECT processo_id FROM contraparte WHERE pessoa_id in (SELECT id from pessoa where id = $data->cliente_id_parte_contraria))");
+            $filters[] = new TFilter('id', 'in', "(SELECT processo_id FROM contraparte WHERE pessoa_id in (SELECT id from pessoa where id = " . SqlSeguro::id($data->cliente_id_parte_contraria) . "))");
         }
 
         if (isset($data->responsavel_col) && !empty($data->responsavel_col)) {
@@ -1008,15 +1021,9 @@ class ProcessoList extends TPage
 
          $this->fireEvents($data);
 
-        // fill the form with data again
-        if ((isset($param['static']) && ($param['static'] == '1')) || !empty($param['globalSearch']))
-        {
-            $this->datagrid_form->setData($data);
-        }
-        else
-        {
-            $this->form->setData($data);
-        }
+        // fill the form with data again (os dois formularios mostram os filtros somados)
+        $this->datagrid_form->setData($data);
+        $this->form->setData($data);
 
         // keep the search data in the session
         TSession::setValue(__CLASS__.'_filter_data', $data);
@@ -1089,6 +1096,11 @@ class ProcessoList extends TPage
                 $param['order'] = '(SELECT assunto.nome FROM assunto WHERE assunto.id = processo.assunto_id)';    
             }
 
+            // ordenacoes fixas desta tela que nao sao nome de coluna (TCriteria::setProperties so aceita as registradas)
+            TCriteria::permitirOrdem(self::ORDEM_PADRAO);
+            TCriteria::permitirOrdem('(SELECT tipo_processo.nome FROM tipo_processo WHERE tipo_processo.id = processo.tipo_processo_id)');
+            TCriteria::permitirOrdem('(SELECT assunto.nome FROM assunto WHERE assunto.id = processo.assunto_id)');
+
             $criteria->setProperties($param); // order, offset
             $criteria->setProperty('limit', $this->limit);
 
@@ -1148,6 +1160,8 @@ class ProcessoList extends TPage
 
             // close the transaction
             TTransaction::close();
+            // faixa "Filtros aplicados": cortina, botoes rapidos e funil do cabecalho (FiltroLista)
+            FiltroLista::faixa(__CLASS__, $this->form ?? null, $this->datagrid_form ?? null, $this->datagrid);
             $this->loaded = true;
 
             return $objects;

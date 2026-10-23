@@ -777,7 +777,7 @@ class PublicacaoFormView extends TWindow
             APIPublicacaoController::adicionarMovimentacao($publicacao->id, "Prazo removido.", null, null);
 
             TTransaction::close();
-            TApplication::loadPage('PublicacaoHeaderList', 'onShow');
+            Navegacao::voltarParaLista('PublicacaoHeaderList', __CLASS__);
             TApplication::loadPage('PublicacaoFormView', 'onShow', ['key' => $param['key'], 'id' => $param['key']]);
 
         }
@@ -799,7 +799,7 @@ class PublicacaoFormView extends TWindow
             APIPublicacaoController::adicionarMovimentacao($publicacao->id, "Prazo confirmado.", null, null);
 
             TTransaction::close();
-            TApplication::loadPage('PublicacaoHeaderList', 'onShow');
+            Navegacao::voltarParaLista('PublicacaoHeaderList', __CLASS__);
             TApplication::loadPage('PublicacaoFormView', 'onShow', ['key' => $param['key']]);
 
         }

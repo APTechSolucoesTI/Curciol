@@ -112,6 +112,8 @@ class AgendamentoClienteCalendarForm extends TPage
             $object = new Agendamento(); // create an empty object 
 
             $data = $this->form->getData(); // get form data as array
+            // Curciol (seguranca 22/10/2026): o portal so cria agendamento; id postado so vale se for do proprio cliente
+            self::exigirDoCliente($data->id ?? null);
             $object->fromArray( (array) $data); // load the object with data
 
             $object->dt_final = date('Y-m-d H:i:s', strtotime($object->dt_inicial . " + {$object->agenda->duracao} minutes"));
@@ -178,6 +180,7 @@ class AgendamentoClienteCalendarForm extends TPage
                 $key = $param['key'];  // get the parameter $key
                 TTransaction::open(self::$database); // open a transaction
 
+                self::exigirDoCliente($key);
                 $object = new Agendamento($key); // instantiates the Active Record 
 
                                 $object->view = !empty($param['view']) ? $param['view'] : 'agendaWeek'; 
@@ -257,6 +260,11 @@ class AgendamentoClienteCalendarForm extends TPage
         {
             if (isset($param['id']))
             {
+                // Curciol (seguranca 22/10/2026): remarcar arrastando e so para a equipe (o portal nao arrasta)
+                if (!TSession::getValue('logged'))
+                {
+                    throw new Exception(_t('Permission denied'));
+                }
                 TTransaction::open(self::$database);
 
                 $class = self::$activeRecord;
@@ -275,6 +283,19 @@ class AgendamentoClienteCalendarForm extends TPage
         {
             new TMessage('error', '<b>Error</b> ' . $e->getMessage());
             TTransaction::rollback();
+        }
+    }
+
+    /** Agendamento existente so e aberto ou salvo pelo cliente dono (transacao aberta). */
+    private static function exigirDoCliente($id)
+    {
+        if (!empty($id))
+        {
+            $agendamento = Agendamento::find(SqlSeguro::id($id));
+            if (!$agendamento OR empty(TSession::getValue('portal_cliente_id')) OR $agendamento->cliente_id != TSession::getValue('portal_cliente_id'))
+            {
+                throw new Exception('Agendamento não encontrado');
+            }
         }
     }
 

@@ -241,7 +241,7 @@ class PublicacaoEtapaForm extends TWindow
                 );
             }
 
-            TApplication::loadPage('PublicacaoEtapaHeaderList', 'onShow', $loadPageParam); 
+            Navegacao::voltarParaLista('PublicacaoEtapaHeaderList', __CLASS__);
 
                 TWindow::closeWindow(parent::getId());
             TForm::sendData(self::$formName, (object)['id' => $object->id]);

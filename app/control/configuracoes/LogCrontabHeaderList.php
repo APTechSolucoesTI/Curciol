@@ -507,6 +507,10 @@ class LogCrontabHeaderList extends TPage
         TSession::setValue(__CLASS__.'_filter_data', NULL);
         TSession::setValue(__CLASS__.'_filters', NULL);
 
+        // os formularios tambem (senao o cabecalho continuava mostrando os filtros antigos)
+        if (!empty($this->form)) { $this->form->clear(); }
+        if (!empty($this->datagrid_form)) { $this->datagrid_form->clear(); }
+
         $this->onReload(['offset' => 0, 'first_page' => 1]);
     }
     public function onRefresh($param = null) 
@@ -551,7 +555,7 @@ class LogCrontabHeaderList extends TPage
         if (isset($data->data_hora) AND ( (is_scalar($data->data_hora) AND $data->data_hora !== '') OR (is_array($data->data_hora) AND (!empty($data->data_hora)) )) )
         {
 
-            $filters[] = new TFilter('data_hora', '=', $data->data_hora);// create the filter 
+            $filters[] = new TFilter("to_char(data_hora, 'DD/MM/YYYY HH24:MI:SS')", 'ilike', '%' . TratamentosService::removerAcentos((string) $data->data_hora) . '%');// create the filter 
         }
 
         if (isset($data->system_unit_id) AND ( (is_scalar($data->system_unit_id) AND $data->system_unit_id !== '') OR (is_array($data->system_unit_id) AND (!empty($data->system_unit_id)) )) )
@@ -563,7 +567,7 @@ class LogCrontabHeaderList extends TPage
         if (isset($data->classe) AND ( (is_scalar($data->classe) AND $data->classe !== '') OR (is_array($data->classe) AND (!empty($data->classe)) )) )
         {
 
-            $filters[] = new TFilter('classe', 'ilike', "%{$data->classe}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(classe AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->classe) . '%');// create the filter 
         }
 
         if (isset($data->status) AND ( (is_scalar($data->status) AND $data->status !== '') OR (is_array($data->status) AND (!empty($data->status)) )) )
@@ -653,6 +657,9 @@ class LogCrontabHeaderList extends TPage
 
             // close the transaction
             TTransaction::close();
+            $this->datagrid->initPopoverHeaderFilters();
+            // faixa "Filtros aplicados": cortina, botoes rapidos e funil do cabecalho (FiltroLista)
+            FiltroLista::faixa(__CLASS__, $this->form ?? null, $this->datagrid_form ?? null, $this->datagrid);
             $this->loaded = true;
 
             return $objects;

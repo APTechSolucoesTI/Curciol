@@ -298,15 +298,28 @@ class AgendamentoClienteCalendarFormView extends TPage
             }
             else
             {
+                // Curciol (seguranca 22/10/2026): limite de senhas erradas e sessao nova ao entrar (PortalLoginLimite)
+                try
+                {
+                    PortalLoginLimite::exigirLiberado($param['usuario'] ?? '');
+                }
+                catch (Exception $e)
+                {
+                    new TMessage('error', $e->getMessage());
+                    return false;
+                }
                 TTransaction::open('escritorio');
                 $pessoa = Pessoa::where('usuario', '=', $param['usuario'])->where('senha', '=', $param['senha'])->first();
                 TTransaction::close();
                 if (empty($pessoa))
                 {
+                    PortalLoginLimite::registrarFalha($param['usuario'] ?? '');
                     new TMessage('error','Você ainda não é um cliente registrado. Verifique os dados informado!');
                     return false;
                 }
 
+                PortalLoginLimite::limpar($param['usuario'] ?? '');
+                if (session_status() == PHP_SESSION_ACTIVE) { TSession::regenerate(); }
                 TSession::setValue('portal_cliente_id', $pessoa->id);
 
                 $param['register_state']  = 'false';

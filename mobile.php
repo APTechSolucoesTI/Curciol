@@ -1,4 +1,10 @@
 <?php
+// Curciol (seguranca 22/10/2026): app mobile do Mad Builder desativado. O sistema nao usa mais o Mad Builder nem a API REST/mobile
+// (nenhum acesso em producao desde dez/2025). Para reativar, remova este bloco.
+http_response_code(404);
+exit;
+?>
+<?php
 
 use Adianti\Core\AdiantiApplicationConfig;
 use Adianti\Core\AdiantiCoreApplication;

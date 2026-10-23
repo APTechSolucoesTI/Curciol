@@ -88,6 +88,7 @@ class SystemRequestPasswordResetForm extends TPage
                     
                     $token = array(
                         "user" => $user->login,
+                        "purpose" => "reset",
                         "expires" => strtotime("+ 3 hours")
                     );
                     

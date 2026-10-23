@@ -322,25 +322,25 @@ class SystemUserList extends TPage
         if (isset($data->id) AND ( (is_scalar($data->id) AND $data->id !== '') OR (is_array($data->id) AND (!empty($data->id)) )) )
         {
 
-            $filters[] = new TFilter('id', '=', $data->id);// create the filter 
+            $filters[] = new TFilter('id', '=', SqlSeguro::id($data->id));// create the filter 
         }
 
         if (isset($data->name) AND ( (is_scalar($data->name) AND $data->name !== '') OR (is_array($data->name) AND (!empty($data->name)) )) )
         {
 
-            $filters[] = new TFilter('name', 'like', "%{$data->name}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(name AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->name) . '%');// create the filter 
         }
 
         if (isset($data->login) AND ( (is_scalar($data->login) AND $data->login !== '') OR (is_array($data->login) AND (!empty($data->login)) )) )
         {
 
-            $filters[] = new TFilter('login', 'like', "%{$data->login}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(login AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->login) . '%');// create the filter 
         }
 
         if (isset($data->email) AND ( (is_scalar($data->email) AND $data->email !== '') OR (is_array($data->email) AND (!empty($data->email)) )) )
         {
 
-            $filters[] = new TFilter('email', 'like', "%{$data->email}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(email AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->email) . '%');// create the filter 
         }
 
         if (isset($data->active) AND ( (is_scalar($data->active) AND $data->active !== '') OR (is_array($data->active) AND (!empty($data->active)) )) )
@@ -377,6 +377,7 @@ class SystemUserList extends TPage
             {
                 // get the paramseter $key
                 $key = $param['key'];
+                ContaAdmin::exigirPermissao($key);
                 // open a transaction with database
                 TTransaction::open($this->database);
 
@@ -494,6 +495,7 @@ class SystemUserList extends TPage
     {
         try
         {
+            ContaAdmin::exigirPermissao($param['id']);
             TTransaction::open('permission');
             $user = SystemUsers::find($param['id']);
             if ($user instanceof SystemUsers)
@@ -520,6 +522,7 @@ class SystemUserList extends TPage
     {
         try
         {
+            ContaAdmin::exigirPermissao($param['id']);
             TTransaction::open('permission');
             $user = new SystemUsers($param['id']);
             $user->cloneUser();
@@ -542,6 +545,7 @@ class SystemUserList extends TPage
         try
         {
             $login_impersonated = TSession::getValue('login');
+            ContaAdmin::exigirPermissaoLogin($param['login']);
 
             TTransaction::open('permission');
             TSession::regenerate();

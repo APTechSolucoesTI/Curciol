@@ -57,6 +57,16 @@
         exit('Arquivo não encontrado.');
     }
 
+    // Curciol (seguranca 22/10/2026): pastas do sistema nunca sao servidas; o cliente do portal (sem login da
+    // equipe) so baixa o que foi gerado para ele em tmp/ (Meus documentos).
+    $relativo = ltrim(str_replace('\\', '/', substr(realpath($file), strlen($basePath))), '/');
+    if (preg_match('#^(\.git|\.claude|app/config|app/database|app/control|app/model|app/service|lib|vendor|tests|docs)(/|$)#i', $relativo)) {
+        exit('Acesso não permitido.');
+    }
+    if (!TSession::getValue('logged') && strpos($relativo, 'tmp/') !== 0) {
+        exit('Acesso não permitido.');
+    }
+
     $info = pathinfo($file);
     $extension = strtolower($info['extension'] ?? '');
 
@@ -103,7 +113,13 @@
     header("Cache-Control: must-revalidate, post-check=0, pre-check=0");
     header("Content-type: " . $content_type_list[$extension]);
     header("Content-Length: {$filesize}");
-    header("Content-Disposition: inline; filename=\"{$basename}\"");
+    // html, svg e xml baixam como anexo (abertos no navegador rodariam script na origem do sistema)
+    $disposicao = in_array($extension, ['html', 'svg', 'xml']) ? 'attachment' : 'inline';
+    header("X-Content-Type-Options: nosniff");
+    if ($disposicao == 'attachment') {
+        header("Content-Security-Policy: sandbox");
+    }
+    header("Content-Disposition: {$disposicao}; filename=\"{$basename}\"");
     header("Content-Transfer-Encoding: binary");
 
     readfile($file);

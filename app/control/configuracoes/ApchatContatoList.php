@@ -3,7 +3,7 @@
 /**
  * Integracao Contatos APChat (Configuracoes > Geral).
  *
- * Clientes que autorizaram WhatsApp (apchat_contato_view) com o resultado da
+ * Todas as pessoas (apchat_contato_view) com o resultado da
  * ultima sincronizacao, e o "Sincronizar todos", que aplica a cada um a
  * mesma regra do salvamento do cliente (APChatContactService). O
  * "Sincronizar todos" roda em lotes - uma requisicao por lote - para nao
@@ -356,7 +356,7 @@ class ApchatContatoList extends TPage
     }
 
     /**
-     * Situacoes possiveis da ultima sincronizacao. NUNCA = cliente autorizado
+     * Situacoes possiveis da ultima sincronizacao. NUNCA = pessoa com telefone valido
      * que ainda nao passou pela sincronizacao (sem linha no log).
      */
     private static function situacoes(): array
@@ -366,7 +366,7 @@ class ApchatContatoList extends TPage
             'SUCESSO'  => 'Sincronizado',
             'PENDENTE' => 'Pendente (telefone alterado)',
             'ERRO'     => 'Erro',
-            'IGNORADO' => 'Não enviado (telefone inválido)',
+            'IGNORADO' => 'Não sincronizado',   // telefone invalido ou vazio
         ];
     }
 
@@ -376,7 +376,7 @@ class ApchatContatoList extends TPage
             'SUCESSO'  => '#2e7d32',
             'PENDENTE' => '#ef6c00',
             'ERRO'     => '#c62828',
-            'IGNORADO' => '#616161',
+            'IGNORADO' => '#c62828',
         ];
 
         $chave = empty($situacao) ? 'NUNCA' : (string) $situacao;
@@ -399,14 +399,14 @@ class ApchatContatoList extends TPage
 
             if ($total === 0)
             {
-                new TMessage('info', 'Nenhum cliente autorizou mensagens por WhatsApp.');
+                new TMessage('info', 'Nenhuma pessoa com telefone válido para sincronizar.');
                 return;
             }
 
             new TQuestion(
-                "Sincronizar com o APChat os {$total} clientes que autorizaram WhatsApp?<br><br>"
+                "Sincronizar com o APChat as {$total} pessoas com telefone válido (clientes, colaboradores, partes contrárias e demais)?<br><br>"
                 . "Cada um é consultado no APChat e atualizado (se já existir) ou criado (se não existir), "
-                . "com a mesma regra do cadastro de clientes. O processo roda em lotes de " . self::TAMANHO_LOTE . "; não feche esta tela até terminar.",
+                . "com a mesma regra do cadastro de clientes. Telefone vazio ou inválido fica como \"Não sincronizado\". O processo roda em lotes de " . self::TAMANHO_LOTE . "; não feche esta tela até terminar.",
                 new TAction([__CLASS__, 'onSincronizarLote'], ['offset' => 0, 'static' => 1])
             );
         }
@@ -456,7 +456,7 @@ class ApchatContatoList extends TPage
                 'SUCESSO|CREATE'  => 'contatos criados',
                 'SUCESSO|UPDATE'  => 'contatos atualizados',
                 'PENDENTE|UPDATE' => 'pendentes (telefone alterado, contato antigo mantido)',
-                'IGNORADO|NENHUMA'=> 'não enviados (telefone inválido ou sem autorização)',
+                'IGNORADO|NENHUMA'=> 'não sincronizados (telefone inválido ou vazio)',
             ];
 
             $linhas = [];
@@ -467,7 +467,7 @@ class ApchatContatoList extends TPage
                 $linhas[] = "<b>{$quantidade}</b> {$nome}";
             }
 
-            new TMessage('info', "Sincronização concluída: {$total} clientes.<br><br>" . implode('<br>', $linhas) . "<br><br>O detalhe de cada um fica na coluna \"Detalhe\".");
+            new TMessage('info', "Sincronização concluída: {$total} pessoas.<br><br>" . implode('<br>', $linhas) . "<br><br>O detalhe de cada um fica na coluna \"Detalhe\".");
 
             AdiantiCoreApplication::loadPage(__CLASS__, 'onReload');
         }
@@ -498,6 +498,8 @@ class ApchatContatoList extends TPage
             $object->telefone = null;
             $object->situacao = null;
 
+            // a cortina mostra os filtros aplicados agora (eles se somam aos das colunas e dos botoes rapidos)
+            $object = (object) array_merge((array) $object, (array) (TSession::getValue(__CLASS__.'_filter_data') ?: []));
             TForm::sendData(self::$formName, $object);
 
             $filter = new self([]);
@@ -536,6 +538,10 @@ class ApchatContatoList extends TPage
     {
         TSession::setValue(__CLASS__.'_filter_data', NULL);
         TSession::setValue(__CLASS__.'_filters', NULL);
+
+        // os formularios tambem (senao o cabecalho continuava mostrando os filtros antigos)
+        if (!empty($this->form)) { $this->form->clear(); }
+        if (!empty($this->datagrid_form)) { $this->datagrid_form->clear(); }
 
         $this->onReload(['offset' => 0, 'first_page' => 1]);
     }
@@ -726,14 +732,20 @@ class ApchatContatoList extends TPage
      */
     public function onSearch($param = null)
     {
-        if ((isset($param['static']) && ($param['static'] == '1')) || !empty($param['globalSearch']))
+        if (!empty($param['__sem_formulario']))
         {
-            $data = $this->datagrid_form->getData();
+            $formulario = [];
+        }
+        elseif ((isset($param['static']) && ($param['static'] == '1')) || !empty($param['globalSearch']))
+        {
+            $formulario = $this->datagrid_form->getData();
         }
         else
         {
-            $data = $this->form->getData();
+            $formulario = $this->form->getData();
         }
+        // filtros que se somam: cabecalho das colunas, cortina e botoes rapidos (FiltroLista)
+        $data = FiltroLista::acumular(__CLASS__, $formulario, $param);
         $filters = [];
 
         foreach (['cpf_cnpj', 'cpf_cnpj_col', 'telefone', 'telefone_col'] as $campo)
@@ -756,7 +768,7 @@ class ApchatContatoList extends TPage
             if ($texto($data->$campo ?? null))
             {
                 $busca = str_replace(' ', '%', TratamentosService::removerAcentos($data->$campo));
-                $filters[] = new TFilter('unaccent(nome)', 'ilike', "%{$busca}%");
+                $filters[] = new TFilter('unaccent(CAST(nome AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $busca) . '%');
             }
         }
 
@@ -782,9 +794,9 @@ class ApchatContatoList extends TPage
         {
             $globalCriteria = new TCriteria();
 
-            $globalCriteria->add(new TFilter('unaccent(nome)', 'ilike', "%{$data->global_filter}%"), ' OR ');
-            $globalCriteria->add(new TFilter('telefone', 'ilike', "%{$data->global_filter}%"), ' OR ');
-            $globalCriteria->add(new TFilter('cpf_cnpj', 'ilike', "%{$data->global_filter}%"), ' OR ');
+            $globalCriteria->add(new TFilter('unaccent(CAST(nome AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->global_filter) . '%'), ' OR ');
+            $globalCriteria->add(new TFilter('unaccent(CAST(telefone AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->global_filter) . '%'), ' OR ');
+            $globalCriteria->add(new TFilter("regexp_replace(COALESCE(cpf_cnpj, ''), '\\D', '', 'g')", 'ilike', '%' . (preg_replace('/\\D/', '', (string) $data->global_filter) ?: TratamentosService::removerAcentos((string) $data->global_filter)) . '%'), ' OR ');
 
             $filters[] = $globalCriteria;
         }
@@ -797,15 +809,9 @@ class ApchatContatoList extends TPage
             $this->button_filtros->setLabel('Filtros'. "<span class='badge badge-success' style='position: absolute'>{$countFiltros}<span>");
         }
 
-        // fill the form with data again
-        if ((isset($param['static']) && ($param['static'] == '1')) || !empty($param['globalSearch']))
-        {
-            $this->datagrid_form->setData($data);
-        }
-        else
-        {
-            $this->form->setData($data);
-        }
+        // fill the form with data again (os dois formularios mostram os filtros somados)
+        $this->datagrid_form->setData($data);
+        $this->form->setData($data);
 
         // keep the search data in the session
         TSession::setValue(__CLASS__.'_filter_data', $data);
@@ -892,6 +898,8 @@ class ApchatContatoList extends TPage
 
             // close the transaction
             TTransaction::close();
+            // faixa "Filtros aplicados": cortina, botoes rapidos e funil do cabecalho (FiltroLista)
+            FiltroLista::faixa(__CLASS__, $this->form ?? null, $this->datagrid_form ?? null, $this->datagrid);
             $this->loaded = true;
 
             return $objects;

@@ -159,6 +159,7 @@ class ModalEditarParcelasAberto extends TWindow
             TTransaction::open('escritorio');
 
             $id = TSession::getValue('conta_id');
+            LevantamentoFinanceiroService::exigirContaNaoGerada((int) $id);
 
             if(str_replace(',', '.', str_replace('.', '', $param['diferenca'])) != 0){
                 throw new Exception('A Soma dos valores informados é diferente do valor em aberto.');
@@ -197,6 +198,16 @@ class ModalEditarParcelasAberto extends TWindow
             $idsAtuais = array_values(array_filter($idsAtuais, function($valor){
                 return $valor !== '' && $valor !== null && is_numeric($valor);
             }));
+
+            // Curciol (seguranca 22/10/2026): so edita parcela desta conta e ainda nao paga (as que a tela mostra)
+            foreach ($idsAtuais as $idAtual)
+            {
+                $parcela = Lancamento::find((int) $idAtual);
+                if (!$parcela OR $parcela->conta_id != $id OR !empty($parcela->dt_pagamento))
+                {
+                    throw new Exception('Parcela inválida para esta conta.');
+                }
+            }
 
             if(!empty($idsAtuais)){
                 $search = Lancamento::where('id','not in',$idsAtuais)

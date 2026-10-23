@@ -263,7 +263,7 @@ class PrintTarefaList extends TWindow
 
             // opções do Dompdf
             $options = new Options();
-            $options->set('isRemoteEnabled', true);     // se tiver CSS/imagens externas
+            $options->set('isRemoteEnabled', false);    // Curciol (seguranca 22/10/2026): sem recursos remotos
             $options->set('isHtml5ParserEnabled', true);
             $options->set('defaultFont', 'DejaVu Sans');
             $options->set('isFontSubsetting', true);
@@ -362,7 +362,7 @@ class PrintTarefaList extends TWindow
         if (isset($data->titulo) AND ( (is_scalar($data->titulo) AND $data->titulo !== '') OR (is_array($data->titulo) AND (!empty($data->titulo)) )) )
         {
 
-            $filters[] = new TFilter('titulo', 'like', "%{$data->titulo}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(titulo AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->titulo) . '%');// create the filter 
         }
 
         if (isset($data->tarefa_status_id) AND ( (is_scalar($data->tarefa_status_id) AND $data->tarefa_status_id !== '') OR (is_array($data->tarefa_status_id) AND (!empty($data->tarefa_status_id)) )) )
@@ -488,10 +488,10 @@ class PrintTarefaList extends TWindow
             if (isset($data->numero_processo) AND ( (is_scalar($data->numero_processo) AND $data->numero_processo !== '') OR (is_array($data->numero_processo) AND (!empty($data->numero_processo)) )) )
             {
                 $criteria1 = new TCriteria;
-                $criteria1->add(new TFilter('andamento_id',  'in', "(SELECT id FROM andamento  WHERE processo_id in (SELECT id FROM processo WHERE numero_cnj_numero like '%{$data->numero_processo}%' ))"), TExpression::OR_OPERATOR);
-                $criteria1->add(new TFilter('publicacao_id', 'in', "(SELECT id FROM publicacao WHERE processo_id in (SELECT id FROM processo WHERE numero_cnj_numero like '%{$data->numero_processo}%'))"), TExpression::OR_OPERATOR);
-                $criteria1->add(new TFilter('publicacao_id', 'in', "(SELECT id FROM publicacao WHERE numero_unico_processo like '%{$data->numero_processo}%')"), TExpression::OR_OPERATOR);
-                $criteria1->add(new TFilter('publicacao_id', 'in', "(SELECT id FROM publicacao WHERE numero_processo_principal like '%{$data->numero_processo}%')"), TExpression::OR_OPERATOR);
+                $criteria1->add(new TFilter('andamento_id',  'in', "(SELECT id FROM andamento  WHERE processo_id in (SELECT id FROM processo WHERE numero_cnj_numero like '%" . SqlSeguro::texto($data->numero_processo) . "%' ))"), TExpression::OR_OPERATOR);
+                $criteria1->add(new TFilter('publicacao_id', 'in', "(SELECT id FROM publicacao WHERE processo_id in (SELECT id FROM processo WHERE numero_cnj_numero like '%" . SqlSeguro::texto($data->numero_processo) . "%'))"), TExpression::OR_OPERATOR);
+                $criteria1->add(new TFilter('publicacao_id', 'in', "(SELECT id FROM publicacao WHERE numero_unico_processo like '%" . SqlSeguro::texto($data->numero_processo) . "%')"), TExpression::OR_OPERATOR);
+                $criteria1->add(new TFilter('publicacao_id', 'in', "(SELECT id FROM publicacao WHERE numero_processo_principal like '%" . SqlSeguro::texto($data->numero_processo) . "%')"), TExpression::OR_OPERATOR);
                 $criteria->add($criteria1); 
             }
 
@@ -530,6 +530,8 @@ class PrintTarefaList extends TWindow
 
             // close the transaction
             TTransaction::close();
+            // faixa "Filtros aplicados": cortina, botoes rapidos e funil do cabecalho (FiltroLista)
+            FiltroLista::faixa(__CLASS__, $this->form ?? null, $this->datagrid_form ?? null, $this->datagrid);
             $this->loaded = true;
 
             return $objects;

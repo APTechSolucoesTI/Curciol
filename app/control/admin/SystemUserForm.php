@@ -178,6 +178,9 @@ class SystemUserForm extends TPage
             
             $this->form->validate();
 
+            ContaAdmin::exigirPermissao($data->id);
+            ContaAdmin::exigirPermissaoGrupos($data->groups ?? []);
+
             $object = new SystemUsers;
             $object->fromArray( (array) $data );
             
@@ -280,6 +283,7 @@ class SystemUserForm extends TPage
             {
                 // get the parameter $key
                 $key=$param['key'];
+                ContaAdmin::exigirPermissao($key);
                 
                 // open a transaction with database 'permission'
                 TTransaction::open('permission');

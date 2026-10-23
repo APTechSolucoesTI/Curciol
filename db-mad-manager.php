@@ -1,4 +1,10 @@
 <?php
+// Curciol (seguranca 22/10/2026): gerenciador de banco do Mad Builder desativado. O sistema nao usa mais o Mad Builder
+// (nenhum acesso em producao desde dez/2025). Para reativar, remova este bloco.
+http_response_code(404);
+exit;
+?>
+<?php
 
 require_once 'init.php';
 
@@ -191,6 +197,11 @@ $token = $ini['general']['token'];
 
         // Handle messages from the iframe
         window.addEventListener('message', async (event) => {
+            // Curciol (seguranca 22/10/2026): so aceita mensagens do iframe do gerenciador
+            const dbManager = document.getElementById('dbManager');
+            if (event.origin !== 'https://manager.madbuilder.com.br' || !dbManager || event.source !== dbManager.contentWindow) {
+                return;
+            }
             // Process messages from the iframe
             try {
                 const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
@@ -300,7 +311,7 @@ $token = $ini['general']['token'];
                     logMessage('SENDING TO IFRAME', response);
                     iframe.contentWindow.postMessage(
                         JSON.stringify(response),
-                        '*'
+                        'https://manager.madbuilder.com.br'
                     );
                 }
                 

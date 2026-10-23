@@ -51,7 +51,11 @@ class ClienteForm extends TPage
         $telefone = new TEntry('telefone');
         $email = new TEntry('email');
         $usuario = new TEntry('usuario');
+        $usuario->setEditable(false);
+        $usuario->setTip('Igual ao CPF/CNPJ (só números). Fica vazio se o CPF/CNPJ estiver vazio ou inválido.');
         $senha = new TEntry('senha');
+        $senha->setEditable(false);
+        $senha->setTip('Gerada pelo sistema quando o cadastro tem login (CPF/CNPJ válido). Não se altera à mão.');
         $foto = new TImageCapture('foto');
         $dt_nascimento_abertura = new TDate('dt_nascimento_abertura');
         $cpf_cnpj = new TEntry('cpf_cnpj');
@@ -312,7 +316,7 @@ class ClienteForm extends TPage
         $this->form->addFields([new THidden('current_tab')]);
         $this->form->setTabFunction("$('[name=current_tab]').val($(this).attr('data-current_page'));");
 
-        $row1 = $this->form->addFields([new TLabel("Código:", null, '12px', null, '100%'),$id],[new TLabel("Autoriza receber mensagens pelo WhatsApp?", null, '12px', null, '100%'),$aceita_receber_mensagen_whatsapp,new TLabel(new TImage('fas:info-circle #03A9F4')."Inclui lembretes e confirmações de agendamento e o cadastro do contato no APChat, o atendimento do escritório pelo WhatsApp. Sem autorização, nada é enviado.", '#607D8B', '9px', 'I')]);
+        $row1 = $this->form->addFields([new TLabel("Código:", null, '12px', null, '100%'),$id],[new TLabel("Autoriza receber mensagens pelo WhatsApp?", null, '12px', null, '100%'),$aceita_receber_mensagen_whatsapp,new TLabel(new TImage('fas:info-circle #03A9F4')."Lembretes e confirmações de agendamento e o atendimento do escritório pelo WhatsApp. O contato vai para o APChat sempre que o telefone é válido.", '#607D8B', '9px', 'I')]);
         $row1->layout = ['col-sm-6',' col-sm-6'];
 
         $bcontainer_654b89b1308c8 = new BootstrapFormBuilder('bcontainer_654b89b1308c8');
@@ -1204,14 +1208,20 @@ class ClienteForm extends TPage
 
             $data->telefone = preg_replace('/[^0-9]/', '', $data->telefone);
             $data->cpf_cnpj = preg_replace('/[^0-9]/', '', $data->cpf_cnpj);
+            // Curciol (23/10/2026): sem tipo de pessoa a checagem de CPF/CNPJ repetido (abaixo) nao rodava; deduz pelo documento
+            if (empty($data->tipo_pessoa_id) && in_array(strlen((string) $data->cpf_cnpj), [11, 14], true))
+            {
+                $data->tipo_pessoa_id = (strlen($data->cpf_cnpj) == 11) ? TipoPessoa::FISICA : TipoPessoa::JURIDICA;
+            }
+            PessoaLoginService::exigirDocumentoValido($data->cpf_cnpj); // CPF/CNPJ preenchido precisa ser valido (vira o login do portal)
 
             $idAux = $data->id ?? -1;
             //CPF/CNPJ
             if($data->cpf_cnpj){
-                $countCPF_CNPJ = Pessoa::where('cpf_cnpj', '=', $data->cpf_cnpj)
+                $countCPF_CNPJ = Pessoa::where("regexp_replace(COALESCE(cpf_cnpj, ''), '\\D', '', 'g')", '=', $data->cpf_cnpj)
                                         ->where('id','!=',(int) $idAux)
                                         ->count();
-                $searchCPF_CNPJ = Pessoa::where('cpf_cnpj', '=', $data->cpf_cnpj)
+                $searchCPF_CNPJ = Pessoa::where("regexp_replace(COALESCE(cpf_cnpj, ''), '\\D', '', 'g')", '=', $data->cpf_cnpj)
                                         ->where('id','!=',(int) $idAux)
                                         ->first();
 
@@ -1295,32 +1305,10 @@ class ClienteForm extends TPage
 
             $foto_dir = 'fotos';  
 
-            if(!$object->usuario){
-
-                $username = str_replace(' ', '_', $object->nome);
-                $username = TextService::slug($username);
-                $username = str_replace('_', '.', $username);
-
-                $object->usuario = $username;
-
-                $consulta = Pessoa::where('usuario', '=', $username)->first();
-                $count = 1;
-
-                // gerando um nome de usuario unico
-                while($consulta)
-                {
-                    $object->usuario = $username.$count;
-                    $consulta = Pessoa::where('usuario', '=', $object->usuario)->first();
-
-                    $count++;
-                }
-
-                $bytes = openssl_random_pseudo_bytes(3);
-                $pwd = bin2hex($bytes);
-
-                $object->senha = $pwd;
-                TForm::sendData(self::$formName, $object);
-            }
+            // portal do cliente (23/10/2026): login = CPF/CNPJ valido para o tipo de pessoa; login e senha nao se editam
+            // a mao: fica a senha do banco, gerada so quando ha login e a pessoa ainda nao tem senha
+            PessoaLoginService::aplicarLogin($object, PessoaLoginService::senhaGravada($data->id ?? null));
+            TForm::sendData(self::$formName, (object) ['usuario' => $object->usuario, 'senha' => $object->senha]);
 
             if(!$data->id){
                 $object->criacao_user_id = TSession::getValue('userid');
@@ -1443,7 +1431,7 @@ class ClienteForm extends TPage
 
             /*
                 APCHAT: sincronizacao do contato, so depois do commit. O
-                servico confere o consentimento (sem 'T' nao chama a API),
+                servico manda toda pessoa com telefone valido (sem olhar o consentimento),
                 nunca lanca excecao e grava o resultado em apchat_contato_log.
                 Falha la nao desfaz nem impede este cadastro - so avisa.
             */
@@ -1471,10 +1459,9 @@ class ClienteForm extends TPage
                 TSession::setValue(__CLASS__.'_filters', NULL);
 
             TToast::show('success', "Registro salvo", 'topRight', 'far:check-circle');
-            TApplication::loadPage('ClienteList', 'onShow', $loadPageParam); 
+            Navegacao::voltarParaLista('ClienteList', __CLASS__);
 
             }
-                        TScript::create("Template.closeRightPanel();"); 
 
         }
         catch (Exception $e) // in case of exception
@@ -1532,7 +1519,7 @@ class ClienteForm extends TPage
                     $loadPageParam['key'] = $agendamento;
                     TApplication::loadPage('AgendamentoFormView', 'onShow', $loadPageParam);
                 }else{
-                    TApplication::loadPage('ClienteList', 'onShow');
+                    Navegacao::voltarParaLista('ClienteList', __CLASS__);
                 }
                 TSession::setValue(__CLASS__.'_filter_data', NULL);
                 TSession::setValue(__CLASS__.'_filters', NULL);
@@ -1759,7 +1746,7 @@ class ClienteForm extends TPage
             TTransaction::close();
 
             TToast::show('success', "Registro salvo", 'topRight', 'far:check-circle');
-            TApplication::loadPage('ClienteList', 'onShow');
+            Navegacao::voltarParaLista('ClienteList', __CLASS__);
         }
         catch (Exception $e) 
         {

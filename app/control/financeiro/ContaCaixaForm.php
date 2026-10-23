@@ -229,7 +229,7 @@ class ContaCaixaForm extends TPage
                 $object->modificacao_user_id = TSession::getValue('userid');
             }
             $object->store(); // save the object 
-
+            ContaCaixaSaldoService::recalcular($object->id);
             $loadPageParam = [];
 
             if(!empty($param['target_container']))
@@ -244,9 +244,8 @@ class ContaCaixaForm extends TPage
             TTransaction::close(); // close the transaction
 
             TToast::show('success', "Registro salvo", 'topRight', 'far:check-circle');
-            TApplication::loadPage('ContaCaixaList', 'onShow', $loadPageParam); 
+            Navegacao::voltarParaLista('ContaCaixaList', __CLASS__);
 
-                        TScript::create("Template.closeRightPanel();"); 
 
         }
         catch (Exception $e) // in case of exception

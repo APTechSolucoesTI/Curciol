@@ -454,7 +454,8 @@ class ProcessosFormViewInterno extends TPage
         }
 
         /*
-            JORNADA DO PROCESSO: a faixa de etapas.
+            JORNADA DO PROCESSO: a faixa de etapas, sem titulo nem resumo
+            (so os circulos e os nomes das etapas).
 
             Um componente so para desktop e celular - no desktop as etapas
             ficam lado a lado, no celular uma embaixo da outra; quem decide e
@@ -547,15 +548,7 @@ class ProcessosFormViewInterno extends TPage
                 ";
             }
 
-            $resumo_html = ($posicao_atual > 0)
-                ? "Etapa {$posicao_atual} de {$total_passos} · " . htmlspecialchars((string) $etapa_atual_nome, ENT_QUOTES, 'UTF-8')
-                : "{$total_passos} etapas";
-
             $jornada_html = "
-                <div class='curciol-jornada-cabecalho'>
-                    <span class='curciol-jornada-rotulo'>Jornada do processo</span>
-                    <span class='curciol-jornada-resumo'>{$resumo_html}</span>
-                </div>
                 <ol class='curciol-jornada-passos' aria-label='Etapas do processo'>
                     {$passos_html}
                 </ol>

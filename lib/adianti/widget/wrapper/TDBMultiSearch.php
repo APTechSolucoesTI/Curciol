@@ -370,7 +370,8 @@ class TDBMultiSearch extends TMultiSearch
             $criteria = str_replace(array('+', '/'), array('-', '_'), base64_encode(serialize($this->criteria)));
         }
         
-        $hash = md5("{$this->seed}{$this->database}{$this->key}{$this->column}{$this->model}");
+        // Curciol (seguranca 22/10/2026): seed do sistema e o criterio entram no hash (o criterio volta do navegador e e desserializado)
+        $hash = md5("{$this->seed}{$this->database}{$this->key}{$this->column}{$this->model}{$criteria}");
         $length = $this->minLength;
         
         $class = $this->service;

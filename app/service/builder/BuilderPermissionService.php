@@ -2,6 +2,12 @@
 
 class BuilderPermissionService{
     
+    /** Curciol (seguranca 22/10/2026): telas do Mad Builder desativadas, o sistema nao usa mais o Mad Builder. */
+    public static function recursoDesativado()
+    {
+        throw new Exception('Recurso do Mad Builder desativado: o sistema não usa mais o Mad Builder.');
+    }
+
     public static function checkPermission()
     {
         if (TSession::getValue('login') !== 'admin')

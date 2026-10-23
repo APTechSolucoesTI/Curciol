@@ -248,25 +248,25 @@ class PublicacaoSeekWindow extends TWindow
         if (isset($data->numero_arquivo) AND ( (is_scalar($data->numero_arquivo) AND $data->numero_arquivo !== '') OR (is_array($data->numero_arquivo) AND (!empty($data->numero_arquivo)) )) )
         {
 
-            $filters[] = new TFilter('numero_arquivo', 'like', "%{$data->numero_arquivo}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(numero_arquivo AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->numero_arquivo) . '%');// create the filter 
         }
 
         if (isset($data->numero_publicacao) AND ( (is_scalar($data->numero_publicacao) AND $data->numero_publicacao !== '') OR (is_array($data->numero_publicacao) AND (!empty($data->numero_publicacao)) )) )
         {
 
-            $filters[] = new TFilter('numero_publicacao', 'like', "%{$data->numero_publicacao}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(numero_publicacao AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->numero_publicacao) . '%');// create the filter 
         }
 
         if (isset($data->titulo) AND ( (is_scalar($data->titulo) AND $data->titulo !== '') OR (is_array($data->titulo) AND (!empty($data->titulo)) )) )
         {
 
-            $filters[] = new TFilter('titulo', 'like', "%{$data->titulo}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(titulo AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->titulo) . '%');// create the filter 
         }
 
         if (isset($data->numero_unico_processo) AND ( (is_scalar($data->numero_unico_processo) AND $data->numero_unico_processo !== '') OR (is_array($data->numero_unico_processo) AND (!empty($data->numero_unico_processo)) )) )
         {
 
-            $filters[] = new TFilter('numero_unico_processo', 'like', "%{$data->numero_unico_processo}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(numero_unico_processo AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->numero_unico_processo) . '%');// create the filter 
         }
 
         // fill the form with data again

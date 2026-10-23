@@ -109,8 +109,7 @@ class MovimentacaoForm extends TPage
 
             TToast::show('success', "Registro salvo", 'topRight', 'far:check-circle'); 
 
-            AdiantiCoreApplication::loadPage('MaterialList', 'onShow');
-                        TScript::create("Template.closeRightPanel();"); 
+            Navegacao::voltarParaLista('MaterialList', __CLASS__);
 
         }
         catch (Exception $e) // in case of exception

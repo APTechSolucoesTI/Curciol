@@ -228,9 +228,8 @@ class TarefaConfiguracaoForm extends TPage
             TTransaction::close(); // close the transaction
 
             TToast::show('success', "Registro salvo", 'topRight', 'far:check-circle');
-            TApplication::loadPage('TarefaList', 'onShow', $loadPageParam); 
+            Navegacao::voltarParaLista('TarefaList', __CLASS__);
 
-                        TScript::create("Template.closeRightPanel();");
             TForm::sendData(self::$formName, (object)['id' => $object->id]);
 
         }

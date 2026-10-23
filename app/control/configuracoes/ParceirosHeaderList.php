@@ -448,6 +448,10 @@ class ParceirosHeaderList extends TPage
         TSession::setValue(__CLASS__.'_filter_data', NULL);
         TSession::setValue(__CLASS__.'_filters', NULL);
 
+        // os formularios tambem (senao o cabecalho continuava mostrando os filtros antigos)
+        if (!empty($this->form)) { $this->form->clear(); }
+        if (!empty($this->datagrid_form)) { $this->datagrid_form->clear(); }
+
         $this->onReload(['offset' => 0, 'first_page' => 1]);
     }
 
@@ -466,19 +470,19 @@ class ParceirosHeaderList extends TPage
         if (isset($data->nome) AND ( (is_scalar($data->nome) AND $data->nome !== '') OR (is_array($data->nome) AND (!empty($data->nome)) )) )
         {
 
-            $filters[] = new TFilter('nome', 'like', "%{$data->nome}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(nome AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->nome) . '%');// create the filter 
         }
 
         if (isset($data->pessoa_nome) AND ( (is_scalar($data->pessoa_nome) AND $data->pessoa_nome !== '') OR (is_array($data->pessoa_nome) AND (!empty($data->pessoa_nome)) )) )
         {
 
-            $filters[] = new TFilter('pessoa_id', 'in', "(SELECT id FROM pessoa WHERE id = '{$data->pessoa_nome}')");// create the filter 
+            $filters[] = new TFilter('pessoa_id', 'in', "(SELECT id FROM pessoa WHERE id = '" . SqlSeguro::id($data->pessoa_nome) . "')");// create the filter 
         }
 
         if (isset($data->percentual) AND ( (is_scalar($data->percentual) AND $data->percentual !== '') OR (is_array($data->percentual) AND (!empty($data->percentual)) )) )
         {
 
-            $filters[] = new TFilter('percentual', 'like', "%{$data->percentual}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(percentual AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->percentual) . '%');// create the filter 
         }
 
         // fill the form with data again
@@ -562,6 +566,9 @@ class ParceirosHeaderList extends TPage
 
             // close the transaction
             TTransaction::close();
+            $this->datagrid->initPopoverHeaderFilters();
+            // faixa "Filtros aplicados": cortina, botoes rapidos e funil do cabecalho (FiltroLista)
+            FiltroLista::faixa(__CLASS__, $this->form ?? null, $this->datagrid_form ?? null, $this->datagrid);
             $this->loaded = true;
 
             return $objects;

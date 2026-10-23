@@ -26,34 +26,15 @@ class ContaFormView extends TPage
         $this->form = new BootstrapFormBuilder(self::$formName);
         $this->form->setTagName('div');
 
+        // link de uma tela aberta antes da conta ser excluida (ou do financeiro ser desfeito)
+        if (empty($param['key']) || !Conta::find((int) $param['key'])) {
+            TTransaction::close();
+            throw new Exception('Esta conta não existe mais: ela foi excluída ou o financeiro que a gerou foi desfeito. Atualize a tela para ver a situação atual.');
+        }
+
         $conta = new Conta($param['key']);
         // define the form title
         $this->form->setFormTitle("Detalhe da conta #{$param['key']}");
-
-        $transformed_conta_contrato_id = call_user_func(function($value, $object, $row)
-        {
-           if (empty($value)) {
-                return '';
-            }
-
-            // value é o contrato_id vinculado na conta
-            $contratoId = (int) $value;
-
-            if (empty($contratoId)) {
-                return '';
-            }
-
-            $action = new TAction(['ContratoFormView', 'onShow']);
-            $action->setParameter('key', $contratoId);
-            $action->setParameter('id', $contratoId);
-            $action->setParameter('target_container', 'adianti_right_panel');
-
-            $button = new TActionLink('Ver contrato', $action, '#ffffff', 10, null, 'fas:eye');
-            $button->class = 'btn btn-sm btn-primary';
-            $button->style = 'padding: 3px 8px; font-size: 12px;';
-
-            return $button;
-        }, $conta->contrato_id, $conta, null);    
 
         $transformed_conta_pessoa_nome = call_user_func(function($value, $object, $row)
         {
@@ -78,7 +59,9 @@ class ContaFormView extends TPage
                  * Se a conta pertence a contrato,
                  * busca todos os clientes do contrato.
                  */
-                if (!empty($conta->contrato_id))
+                // conta gerada pelo financeiro do levantamento (tem requisicao): a pessoa e a da propria conta
+                // repasse a colaborador copia o contrato da conta a receber: a pessoa e o colaborador
+                if (!empty($conta->contrato_id) && empty($conta->requisicao_pagamento_id) && !RepasseColaboradorService::ehRepasse((int) $conta->id))
                 {
                     $clientesContrato = ContratoPessoa::where(
                         'contrato_id',
@@ -161,7 +144,7 @@ class ContaFormView extends TPage
 
         $conta->quitada = $label;
 
-        $text13 = new TTextDisplay($transformed_conta_contrato_id, '', '12px', '');
+        $text13 = new TTextDisplay(self::vinculosHtml($conta), '', '12px', '');
         $label2 = new TLabel("Pessoa:", '', '14px', 'B', '100%');
         $text2 = new TTextDisplay($transformed_conta_pessoa_nome, '', '14px', '');
         $label6 = new TLabel("Tipo:", '', '14px', 'B', '100%');
@@ -223,6 +206,18 @@ class ContaFormView extends TPage
         $action_onDesquitar->setDisplayCondition('ContaFormView::canDesquitar');
         $action_onDesquitar->setParameter('key', '{conta_id}');
         $this->lancamento_conta_id_list->addAction($action_onDesquitar);
+
+        // vencimento: qualquer conta (a pagar, a receber, repasse, cliente) enquanto a parcela nao estiver paga
+        $action_onVencimento = new TDataGridAction(array('ContaFormView', 'onAlterarVencimento'));
+        $action_onVencimento->setUseButton(true);
+        $action_onVencimento->setButtonClass('btn btn-default btn-sm');
+        $action_onVencimento->setLabel("Vencimento");
+        $action_onVencimento->setImage('far:calendar-alt #1f3a5f');
+        $action_onVencimento->setField('id');
+        $action_onVencimento->setDisplayCondition('ContaFormView::canPagar');
+        $action_onVencimento->setParameter('lancamento_id', '{id}');
+        $action_onVencimento->setParameter('static', '1');
+        $this->lancamento_conta_id_list->addAction($action_onVencimento);
 
         $column_dt_vencimento_transformed = $this->lancamento_conta_id_list->addQuickColumn("Vencimento", 'dt_vencimento', 'center');
         $column_tipo_pagamento_nome = $this->lancamento_conta_id_list->addQuickColumn("Tipo", 'tipo_pagamento->nome', 'center');
@@ -391,6 +386,37 @@ class ContaFormView extends TPage
 
         $this->form->addContent([$panel]);
 
+        // conta a receber do levantamento: a conta a pagar ao cliente gerada junto (a volta e o botao de origem no topo dela)
+        $contaCliente = ((string) $conta->tipo_conta_id === (string) TipoConta::RECEBER) ? self::contaPagarClienteHtml((int) $conta->id) : '';
+        if ($contaCliente !== '') {
+            $panelCliente = new TPanelGroup(new TTextDisplay(new TImage('fas:user #1f3a5f') . ' Conta a pagar ao cliente', '#555555', '16px'), '#FFFFFF');
+            $panelCliente->class = 'panel panel-default formView-detail';
+            $divCliente = new TElement('div');
+            $divCliente->class = 'table-responsive';
+            $divCliente->add($contaCliente);
+            $panelCliente->add($divCliente);
+            $this->form->addContent([$panelCliente]);
+        }
+
+        // repasses aos colaboradores: so na conta a receber (as contas a pagar geradas), na ordem da planilha do escritorio;
+        // a conta de repasse mostra a origem nos vinculos do topo
+        $repassesDaConta = ((string) $conta->tipo_conta_id === (string) TipoConta::RECEBER)
+            ? RepasseColaboradorService::ordenarPorColaborador(
+                RepasseColaboradorService::listar(['conta_receber_id' => (int) $conta->id]),
+                function ($r) { return $r->pessoa_id; },
+                function ($r) { return $r->colaborador; })
+            : [];
+        if ($repassesDaConta) {
+            $tituloRepasses = new TTextDisplay(new TImage('fas:hand-holding-usd #1f3a5f') . ' Repasses aos colaboradores', '#555555', '16px');
+            $panelRepasses = new TPanelGroup($tituloRepasses, '#FFFFFF');
+            $panelRepasses->class = 'panel panel-default formView-detail';
+            $divRepasses = new TElement('div');
+            $divRepasses->class = 'table-responsive';
+            $divRepasses->add(RepasseColaboradorList::secaoHtml($repassesDaConta));
+            $panelRepasses->add($divRepasses);
+            $this->form->addContent([$panelRepasses]);
+        }
+
         TScript::create("$('label:contains(\"Motivo do cancelamento:\")').hide();");
         TScript::create("$('label:contains(\"MOTIVO CANCELAMENTO\")').hide();");
 
@@ -408,6 +434,18 @@ class ContaFormView extends TPage
         $btn_oneditLabel->setFontSize('12px'); 
         $btn_oneditLabel->setFontColor('#333'); 
 
+        // conta a receber gerada pelo financeiro do levantamento: prestacao de contas ao cliente
+        $etapa3Prestacao = LevantamentoPrestacaoContasService::etapa3DaContaReceber((int) $conta->id);
+        if ($etapa3Prestacao) {
+            $lblWord = new TLabel("Prestação de contas (Word)");
+            $lblWord->setFontSize('12px');
+            $lblWord->setFontColor('#333');
+            $this->form->addHeaderAction($lblWord, new TAction(['LevantamentoFinanceiroView', 'onPrestacaoWord'], ['static' => '1', 'etapa3_id' => $etapa3Prestacao]), 'far:file-word #2B579A');
+            $lblPdf = new TLabel("Prestação de contas (PDF)");
+            $lblPdf->setFontSize('12px');
+            $lblPdf->setFontColor('#333');
+            $this->form->addHeaderAction($lblPdf, new TAction(['LevantamentoFinanceiroView', 'onPrestacaoPdf'], ['static' => '1', 'etapa3_id' => $etapa3Prestacao]), 'far:file-pdf #D32F2F');
+        }
         parent::setTargetContainer('adianti_right_panel');
 
         $btnClose = new TButton('closeCurtain');
@@ -426,6 +464,218 @@ class ContaFormView extends TPage
         $style->width = '50% !important';   
         $style->show(true);
 
+    }
+
+    /**
+     * Botoes com os vinculos da conta, conforme o caso: contrato e processo (com o numero), requisicao de pagamento,
+     * financeiro do levantamento, conta a receber que originou (repasse ou conta a pagar ao cliente) e conta a pagar
+     * ao cliente (na conta a receber do levantamento). Ids nao aparecem: so o titulo da conta mostra o numero dela.
+     * Usa a transacao aberta.
+     */
+    private static function vinculosHtml(Conta $conta): string
+    {
+        $c = TTransaction::get();
+        $um = function (string $sql, array $par) use ($c) { $st = $c->prepare($sql); $st->execute($par); return $st->fetch(PDO::FETCH_OBJ) ?: null; };
+        $botao = function (string $url, string $rotulo, string $icone) {
+            return '<a href="javascript:void(0)" class="btn btn-sm btn-default conta-vinculo" onclick="'
+                . htmlspecialchars('Adianti.waitMessage = false; __adianti_load_page(' . json_encode($url) . '); return false;') . '">'
+                . '<i class="' . $icone . '"></i> ' . htmlspecialchars($rotulo) . '</a>';
+        };
+        $botoes = [];
+        $id = (int) $conta->id;
+
+        $repasse = $um('SELECT conta_receber_id, levantamento_financeiro_id FROM repasse_colaborador WHERE conta_pagar_id = ?', [$id]);
+        // conta a pagar ao cliente do levantamento (uma por recebimento)
+        $doCliente = $um('SELECT conta_receber_id, levantamento_financeiro_id FROM levantamento_conta_cliente WHERE conta_pagar_id = ?', [$id]);
+        $ficha = $um('SELECT id, requisicao_pagamento_etapa3_id, conta_receber_id, conta_pagar_id FROM levantamento_financeiro
+                       WHERE conta_receber_id = ? OR conta_pagar_id = ? OR id = ? ORDER BY id DESC LIMIT 1', [$id, $id, $doCliente ? (int) $doCliente->levantamento_financeiro_id : 0]);
+        if (!$ficha && $repasse) {
+            // repasse: o levantamento vem do proprio repasse ou da conta a receber que o originou
+            $ficha = $um('SELECT id, requisicao_pagamento_etapa3_id, conta_receber_id, conta_pagar_id FROM levantamento_financeiro WHERE id = ? OR conta_receber_id = ? ORDER BY id DESC LIMIT 1',
+                [(int) $repasse->levantamento_financeiro_id, (int) $repasse->conta_receber_id]);
+        }
+
+        if (!empty($conta->contrato_id)) {
+            $numero = $um('SELECT numero FROM contrato WHERE id = ?', [(int) $conta->contrato_id]);
+            $cid = (int) $conta->contrato_id;
+            $botoes[] = $botao("index.php?class=ContratoFormView&method=onShow&key={$cid}&id={$cid}&target_container=adianti_right_panel",
+                'Contrato' . (!empty($numero->numero) ? ' ' . $numero->numero : ''), 'fas fa-file-signature');
+        }
+        if (!empty($conta->processo_id)) {
+            $proc = $um('SELECT COALESCE(numero_cnj_numero, numero_outro) AS numero FROM processo WHERE id = ?', [(int) $conta->processo_id]);
+            $pid = (int) $conta->processo_id;
+            $botoes[] = $botao("engine.php?class=ProcessoFormView&method=onShow&key={$pid}&register_state=false&target_container=adianti_right_panel",
+                'Processo' . (!empty($proc->numero) ? ' ' . $proc->numero : ''), 'fas fa-folder-open');
+        }
+        if (!empty($conta->requisicao_pagamento_id)) {
+            $req = $um('SELECT t.nome FROM requisicao_pagamento r LEFT JOIN tipos_requisicao_pagamento t ON t.id = r.tipos_requisicao_pagamento_id WHERE r.id = ?', [(int) $conta->requisicao_pagamento_id]);
+            $rid = (int) $conta->requisicao_pagamento_id;
+            // abre na aba do cliente a que a conta se refere (a requisicao pode ter varios clientes)
+            $rpc = LevantamentoFinanceiroService::clienteDaRequisicao($id);
+            $aba = $rpc ? "&requisicao_pagamento_cliente_id={$rpc}" : '';
+            $botoes[] = $botao("engine.php?class=RequisicaoPagamentoVisualizacao&method=onShow&key={$rid}{$aba}&register_state=false",
+                'Requisição de pagamento' . (!empty($req->nome) ? ' (' . $req->nome . ')' : ''), 'fas fa-hand-holding-usd');
+        }
+        if ($ficha) {
+            $botoes[] = $botao('engine.php?class=LevantamentoFinanceiroView&method=onShow&etapa3_id=' . (int) $ficha->requisicao_pagamento_etapa3_id . '&register_state=false',
+                'Financeiro do levantamento', 'fas fa-calculator');
+        }
+        // conta a receber que deu origem: do repasse ou da conta a pagar ao cliente do levantamento
+        $origem = $repasse ? (int) $repasse->conta_receber_id
+            : ($doCliente ? (int) $doCliente->conta_receber_id : (($ficha && (int) $ficha->conta_pagar_id === $id) ? (int) $ficha->conta_receber_id : 0));
+        if ($origem > 0) {
+            $botoes[] = $botao("index.php?class=ContaFormView&method=onShow&key={$origem}&id={$origem}&target_container=adianti_right_panel", 'Conta a receber de origem', 'fas fa-arrow-down');
+        }
+        // conta a receber do levantamento: a conta a pagar ao cliente gerada junto
+        if ($ficha && (int) $ficha->conta_receber_id === $id && (int) $ficha->conta_pagar_id > 0) {
+            $pagar = (int) $ficha->conta_pagar_id;
+            $botoes[] = $botao("index.php?class=ContaFormView&method=onShow&key={$pagar}&id={$pagar}&target_container=adianti_right_panel", 'Conta a pagar ao cliente', 'fas fa-arrow-up');
+        }
+
+        if (!$botoes) {
+            return '';
+        }
+        return '<div class="conta-vinculos">' . implode('', $botoes) . '</div>'
+            . '<style>.conta-vinculos { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:4px; } .conta-vinculos .conta-vinculo { font-size:12px; padding:3px 9px; } .conta-vinculos .conta-vinculo i { color:#0d4069; margin-right:3px; }</style>';
+    }
+
+    /**
+     * Quadro das contas a pagar ao cliente do levantamento (uma por recebimento da conta a receber, como os repasses).
+     * Usa a transacao aberta.
+     */
+    private static function contaPagarClienteHtml(int $contaReceberId): string
+    {
+        $st = TTransaction::get()->prepare("
+            SELECT c.id, pe.nome AS cliente, c.total_conta, l.dt_vencimento, l.dt_pagamento, x.compensado, lc.data_recebimento
+              FROM levantamento_conta_cliente lc
+              JOIN conta c ON c.id = lc.conta_pagar_id
+              LEFT JOIN pessoa pe ON pe.id = c.pessoa_id
+              LEFT JOIN LATERAL (SELECT * FROM lancamento WHERE conta_id = c.id ORDER BY parcela, id LIMIT 1) l ON true
+              LEFT JOIN extrato x ON x.id = l.extrato_id
+             WHERE lc.conta_receber_id = ?
+             ORDER BY lc.id");
+        $st->execute([$contaReceberId]);
+        $contas = $st->fetchAll(PDO::FETCH_OBJ);
+        if (!$contas) {
+            return '';
+        }
+        $td = 'padding:4px 8px;border-bottom:1px solid #eef2f7;font-size:12px;text-align:left';
+        $th = $td . ';background:#f8fafc';
+        $linhas = '';
+        foreach ($contas as $r) {
+            $id = (int) $r->id;
+            $url = "index.php?class=ContaFormView&method=onShow&key={$id}&id={$id}&target_container=adianti_right_panel";
+            $abrir = '<a href="javascript:void(0)" title="Abrir a conta a pagar ao cliente" onclick="' . htmlspecialchars('Adianti.waitMessage = false; __adianti_load_page(' . json_encode($url) . '); return false;') . '"><i class="fas fa-external-link-alt"></i> Abrir conta</a>';
+            $sit = $r->dt_pagamento
+                ? "<span style='color:#065f46'>Pago em " . date('d/m/Y', strtotime($r->dt_pagamento)) . ($r->compensado === 'S' ? ' · compensado' : '') . '</span>'
+                : "<span style='color:#9a3412;font-weight:600'>A pagar</span>";
+            $linhas .= "<tr><td style='{$td}'>" . htmlspecialchars((string) $r->cliente) . "</td><td style='{$td}'>" . ($r->data_recebimento ? date('d/m/Y', strtotime($r->data_recebimento)) : '')
+                . "</td><td style='{$td}'>" . ($r->dt_vencimento ? date('d/m/Y', strtotime($r->dt_vencimento)) : '')
+                . "</td><td style='{$td};text-align:right;white-space:nowrap'>R$ " . number_format((float) $r->total_conta, 2, ',', '.')
+                . "</td><td style='{$td}'>{$sit}</td><td style='{$td}'>{$abrir}</td></tr>";
+        }
+        return "<table style='width:100%;border-collapse:collapse'><thead><tr>"
+            . "<th style='{$th}'>Cliente</th><th style='{$th}'>Recebido em</th><th style='{$th}'>Vencimento</th><th style='{$th};text-align:right'>Valor</th><th style='{$th}'>Situação</th><th style='{$th}'></th></tr></thead><tbody>"
+            . $linhas . "</tbody></table>";
+    }
+
+    /** Pergunta o novo vencimento da parcela (so parcela nao paga e nao cancelada). */
+    public static function onAlterarVencimento($param = null)
+    {
+        try {
+            TTransaction::open(self::$database);
+            $lancamento = Lancamento::find((int) ($param['lancamento_id'] ?? $param['id'] ?? 0));
+            if (!$lancamento) {
+                throw new Exception('Parcela não encontrada.');
+            }
+            if (!self::canPagar($lancamento)) {
+                throw new Exception('Só é possível alterar o vencimento de parcela que ainda não foi quitada.');
+            }
+            $minimo = self::vencimentoMinimo((int) $lancamento->conta_id);
+            TTransaction::close();
+
+            $form = new BootstrapFormBuilder('form_ContaAlterarVencimento');
+            $id = new THidden('lancamento_id');
+            $id->setValue($lancamento->id);
+            $data = new TDate('novo_vencimento');
+            $data->setMask('dd/mm/yyyy');
+            $data->setDatabaseMask('yyyy-mm-dd');
+            $data->setSize('100%');
+            $data->setValue($lancamento->dt_vencimento ? date('d/m/Y', strtotime($lancamento->dt_vencimento)) : '');
+            $form->addFields([new TLabel('Novo vencimento', '#ff0000')], [$data]);
+            if ($minimo) {
+                // conta gerada automaticamente pelo recebimento: nao vence antes da baixa da conta a receber
+                $data->setOption('startDate', date('d/m/Y', strtotime($minimo)));
+                $form->addContent(["<div style='font-size:12px;color:#64748b'>Não pode ser anterior a " . date('d/m/Y', strtotime($minimo))
+                    . ', data da baixa da conta a receber que gerou esta conta.</div>']);
+            }
+            $form->addFields([$id]);
+            $form->addAction('Salvar', new TAction([__CLASS__, 'onSalvarVencimento'], ['static' => '1']), 'fas:save #ffffff')->class = 'btn btn-sm btn-primary';
+            new TInputDialog('Alterar vencimento da parcela ' . (int) $lancamento->parcela, $form);
+        } catch (Exception $e) {
+            TTransaction::rollback();
+            new TMessage('error', $e->getMessage());
+        }
+    }
+
+    /**
+     * Conta a pagar gerada automaticamente por um recebimento (repasse a colaborador ou conta do cliente do levantamento):
+     * data da baixa desse recebimento, antes da qual ela nao pode vencer. Null nas demais contas. Usa a transacao aberta.
+     */
+    private static function vencimentoMinimo(int $contaId): ?string
+    {
+        $st = TTransaction::get()->prepare('SELECT COALESCE(
+                (SELECT MAX(data_recebimento) FROM repasse_colaborador WHERE conta_pagar_id = :c),
+                (SELECT MAX(data_recebimento) FROM levantamento_conta_cliente WHERE conta_pagar_id = :c))');
+        $st->execute(['c' => $contaId]);
+        $data = $st->fetchColumn();
+        return $data ? substr((string) $data, 0, 10) : null;
+    }
+
+    /** Grava o novo vencimento da parcela e o proximo vencimento da conta. */
+    public static function onSalvarVencimento($param = null)
+    {
+        try {
+            $texto = trim((string) ($param['novo_vencimento'] ?? ''));
+            $d = DateTime::createFromFormat('d/m/Y', $texto) ?: DateTime::createFromFormat('Y-m-d', $texto);
+            if (!$d || ($d->format('d/m/Y') !== $texto && $d->format('Y-m-d') !== $texto)) {
+                throw new Exception('Informe uma data de vencimento válida.');
+            }
+
+            TTransaction::open(self::$database);
+            $lancamento = Lancamento::find((int) ($param['lancamento_id'] ?? 0));
+            if (!$lancamento) {
+                throw new Exception('Parcela não encontrada.');
+            }
+            if (!self::canPagar($lancamento)) {
+                throw new Exception('Só é possível alterar o vencimento de parcela que ainda não foi quitada.');
+            }
+            $minimo = self::vencimentoMinimo((int) $lancamento->conta_id);
+            if ($minimo && $d->format('Y-m-d') < $minimo) {
+                throw new Exception('O vencimento não pode ser anterior a ' . date('d/m/Y', strtotime($minimo)) . ', data da baixa da conta a receber que gerou esta conta.');
+            }
+            $lancamento->dt_vencimento = $d->format('Y-m-d');
+            $lancamento->store();
+
+            // proximo vencimento da conta: a parcela em aberto que vence primeiro
+            $conta = Conta::find((int) $lancamento->conta_id);
+            $proximo = null;
+            foreach (Lancamento::where('conta_id', '=', $conta->id)->load() as $l) {
+                if (self::canPagar($l) && ($proximo === null || $l->dt_vencimento < $proximo)) {
+                    $proximo = $l->dt_vencimento;
+                }
+            }
+            $conta->proximo_vencimento_lancamento = $proximo ?? $lancamento->dt_vencimento;
+            $conta->store();
+            $contaId = (int) $conta->id;
+            TTransaction::close();
+
+            TToast::show('success', 'Vencimento alterado', 'topRight', 'far:check-circle');
+            Navegacao::abrirConta($contaId);
+        } catch (Exception $e) {
+            TTransaction::rollback();
+            new TMessage('error', $e->getMessage());
+        }
     }
 
     public static function onPagar($param = null) 
@@ -498,72 +748,139 @@ class ContaFormView extends TPage
             new TMessage('error', $e->getMessage());    
         }
     }
+    /**
+     * Desquitar: desfaz a quitacao da parcela.
+     * - apaga o registro da quitacao no extrato (sem criar lancamento inverso);
+     * - volta a parcela ao que era antes de quitar: sem acrescimo/desconto, sem os
+     *   ajustes dos profissionais daquela quitacao e, se houve pagamentos parciais
+     *   (que continuam no extrato), com o saldo que faltava pagar;
+     * - recalcula o total e o proximo vencimento da conta e o saldo da conta-caixa.
+     */
     public function onDesquitar($param = null) 
     {
         try 
         {
             TTransaction::open(self::$database);
 
-            $lancamento = Lancamento::find($param['id']);
+            $lancamento = Lancamento::find($param['id'] ?? 0);
+            if (!$lancamento) {
+                throw new Exception('Parcela não encontrada.');
+            }
+            // conta a receber do levantamento: so se a conta a pagar ao cliente nao tiver pagamento
+            LevantamentoFinanceiroService::exigirDesquitavel((int) $lancamento->conta_id);
+            $doLevantamento = LevantamentoFinanceiroService::contaDoLevantamento((int) $lancamento->conta_id);
 
-            $lancamento->extrato->lancamento_id = null;
-            $lancamento->extrato->store();
+            if (empty($lancamento->dt_pagamento)) {
+                throw new Exception('Esta parcela não está quitada.');
+            }
 
-            $extrato_id = $lancamento->extrato_id;
+            $extratoQuitacao = !empty($lancamento->extrato_id) ? Extrato::find($lancamento->extrato_id) : null;
+
+            if (empty($param['confirmado'])) {
+                $valor = $extratoQuitacao ? (float) $extratoQuitacao->entrada_valor + (float) $extratoQuitacao->saida_valor : (float) $lancamento->valor_total;
+                $mensagem = 'Desquitar a parcela ' . (int) $lancamento->parcela . '?<br><br>O registro do pagamento de R$ ' . number_format($valor, 2, ',', '.');
+                if ($extratoQuitacao && $extratoQuitacao->conta_caixa) {
+                    $mensagem .= ' será apagado do extrato da conta-caixa <b>' . htmlspecialchars((string) $extratoQuitacao->conta_caixa->nome, ENT_QUOTES, 'UTF-8') . '</b>'
+                        . ($extratoQuitacao->compensado == 'S' ? ' (já compensado)' : '')
+                        . ' e o saldo dela será recalculado.';
+                } else {
+                    $mensagem .= ' será desfeito.';
+                }
+                if ($doLevantamento && $doLevantamento['papel'] === 'RECEBER') {
+                    $mensagem .= '<br><br>As contas a pagar dos colaboradores geradas por este recebimento e a conta a pagar ao cliente gerada por ele serão apagadas; voltam a ser geradas ao quitar de novo (a do cliente com o vencimento original).';
+                }
+                TTransaction::close();
+
+                $acao = new TAction([$this, 'onDesquitar']);
+                $acao->setParameter('id', $lancamento->id);
+                $acao->setParameter('key', $param['key'] ?? $lancamento->conta_id);
+                $acao->setParameter('confirmado', 1);
+                new TQuestion($mensagem, $acao);
+                return;
+            }
+
+            $conta = $lancamento->conta;
+
+            // repasses: desquitar a receber apaga os repasses gerados por esta quitacao (recusa se algum ja foi pago)
+            if ((string) $conta->tipo_conta_id === (string) TipoConta::RECEBER && $extratoQuitacao) {
+                RepasseColaboradorService::estornarPorRecebimento((int) $extratoQuitacao->id);
+            }
+
+            // pagamentos parciais anteriores continuam no extrato: a parcela volta a dever so o que faltava
+            $parciais = 0.0;
+            foreach (Extrato::where('lancamento_id', '=', $lancamento->id)->load() as $x) {
+                if ($extratoQuitacao && (int) $x->id === (int) $extratoQuitacao->id) {
+                    continue;
+                }
+                $parciais += (float) $x->entrada_valor + (float) $x->saida_valor;
+            }
+
+            // valor da parcela antes da quitacao (a quitacao gravou valor_total = base + acrescimo - desconto)
+            $valorTotal = ($lancamento->valor_total !== null && $lancamento->valor_total !== '') ? (float) $lancamento->valor_total : (float) $lancamento->valor;
+            $base = round($valorTotal - (float) $lancamento->acrescimo + (float) $lancamento->desconto, 2);
+
+            // ajustes de acrescimo/desconto dos profissionais sao criados so na quitacao
+            foreach (LancamentoProfissional::where('lancamento_id', '=', $lancamento->id)->load() as $lp) {
+                LancamentoProfissionalAjuste::where('lancamento_profissional_id', '=', $lp->id)->delete();
+            }
+
+            $contaCaixaId = $extratoQuitacao ? (int) $extratoQuitacao->conta_caixa_id : null;
+
             $lancamento->dt_pagamento = null;
             $lancamento->ano_pagamento = null;
             $lancamento->mes_pagamento = null;
             $lancamento->ano_mes_pagamento = null;
             $lancamento->extrato_id = null;
+            $lancamento->acrescimo = 0;
+            $lancamento->desconto = 0;
+            $lancamento->valor_total = $base;
+            $lancamento->saldo = ($parciais > 0) ? round($base - $parciais, 2) : null;
             $lancamento->store();
 
-            $lancamento->conta->quitada = 'N';
-            $lancamento->conta->proximo_vencimento_lancamento = $lancamento->dt_vencimento;
-            $lancamento->conta->store();
-
-            $search = Extrato::find($extrato_id);
-            $search->delete();
-
-            TToast::show('success', 'Lançamento desquitado com sucesso', 'bottom right');
-            TScript::create("Template.closeRightPanel();");
-
-            if($lancamento->conta->tipo_conta_id==TipoConta::RECEBER){
-                TApplication::loadPage('ContaReceberList', 'onShow');
-            }elseif($lancamento->conta->tipo_conta_id==TipoConta::pagar){
-                TApplication::loadPage('ContaPagarList', 'onShow');
+            if ($extratoQuitacao) {
+                LevantamentoFinanceiroService::desvincularExtrato((int) $extratoQuitacao->id);
+                $extratoQuitacao->delete();
+                ContaCaixaSaldoService::recalcular($contaCaixaId);
             }
 
-            $pageParam = ['key' => $lancamento->conta_id];
+            // conta: total pelas parcelas nao canceladas, em aberto, proximo vencimento em aberto
+            $totalConta = 0.0;
+            $proximo = null;
+            foreach (Lancamento::where('conta_id', '=', $conta->id)->load() as $l) {
+                if ($l->cancelado == 'S') {
+                    continue;
+                }
+                $totalConta += ($l->valor_total !== null && $l->valor_total !== '') ? (float) $l->valor_total : (float) $l->valor;
+                if (empty($l->dt_pagamento) && ($proximo === null || $l->dt_vencimento < $proximo)) {
+                    $proximo = $l->dt_vencimento;
+                }
+            }
+            $conta->total_conta = round($totalConta, 2);
+            $conta->quitada = 'N';
+            $conta->proximo_vencimento_lancamento = $proximo ?? $lancamento->dt_vencimento;
+            $conta->store();
 
-            TApplication::loadPage('ContaFormView', 'onShow', $pageParam);
+            $tipoConta = $conta->tipo_conta_id;
+            $contaId = $conta->id;
+
             TTransaction::close();
 
-            //</autoCode>
+            TToast::show('success', 'Lançamento desquitado com sucesso', 'bottom right');
+
+            // continua na conta (a tela de baixo nao muda; a lista se atualiza ao fechar a cortina)
+            Navegacao::abrirConta((int) $contaId);
         }
         catch (Exception $e) 
         {
+            TTransaction::rollback();
             new TMessage('error', $e->getMessage());    
         }
     }
     public static function canDesquitar($object)
     {
-        try 
-        {
-            if($object->dt_pagamento){
-                $extratos = Extrato::where('lancamento_id','=',$object->id)->load();
-                foreach($extratos as $extrato){
-                    if($extrato->compensado != 'S'){
-                        return true;
-                    }
-                }
-            }
-
-            return false;
-        }
-        catch (Exception $e) 
-        {
-            new TMessage('error', $e->getMessage());    
-        }
+        // qualquer parcela quitada pode ser desquitada (inclusive com extrato ja compensado:
+        // o registro sai do extrato e o saldo da conta-caixa e recalculado)
+        return !empty($object->dt_pagamento);
     }
     public function onDelete($param = null) 
     {
@@ -577,6 +894,15 @@ class ContaFormView extends TPage
                 TTransaction::open(self::$database);
 
                 $object = new Conta($key, FALSE); 
+
+                LevantamentoFinanceiroService::exigirContaNaoGerada((int) $object->id);
+
+                // parcela com pagamento registrado no extrato: desquitar antes (o extrato e o saldo da conta-caixa dependem dele)
+                $stPagas = TTransaction::get()->prepare('SELECT COUNT(*) FROM extrato WHERE lancamento_id IN (SELECT id FROM lancamento WHERE conta_id = ?)');
+                $stPagas->execute([(int) $object->id]);
+                if ((int) $stPagas->fetchColumn() > 0) {
+                    throw new Exception('Esta conta tem parcela paga (total ou parcialmente). Desquite as parcelas pagas antes de excluir a conta.');
+                }
 
                 if($object->tipo_conta_id == 2){
                     $tela = 'ContaPagarList';
@@ -647,9 +973,9 @@ class ContaFormView extends TPage
                 // close the transaction
                 TTransaction::close();
 
-                TApplication::loadPage($tela, 'onShow');
                 TToast::show('success', "Registro excluído", 'topRight', 'far:check-circle');
-                TScript::create("Template.closeRightPanel();");
+                // fecha o detalhe e atualiza a lista de baixo (mantendo os filtros), sem trocar de tela
+                Navegacao::fecharCortinaEAtualizar();
             }
             catch (Exception $e) // in case of exception
             {
@@ -691,6 +1017,7 @@ class ContaFormView extends TPage
             $tela = ($object->tipo_conta_id == 2) ? 'ContaPagarForm' : 'ContaForm';
 
             $conta_id = $object->id;
+            LevantamentoFinanceiroService::exigirContaNaoGerada((int) $conta_id);
 
             TTransaction::close();
 
@@ -734,7 +1061,7 @@ class ContaFormView extends TPage
             if($cancelado){
                 TScript::create("$('label:contains(\"Motivo do cancelamento:\")').show();");
                 TScript::create("$('label:contains(\"MOTIVO CANCELAMENTO\")').show();");
-                TScript::create("$('label:contains(\"MOTIVO CANCELAMENTO\")').html('".$motivo_cancelamento."')");
+                TScript::create("$('label:contains(\"MOTIVO CANCELAMENTO\")').text(" . json_encode((string) $motivo_cancelamento, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) . ")");
             }
             TTransaction::close();
     }

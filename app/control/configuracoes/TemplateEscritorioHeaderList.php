@@ -282,6 +282,10 @@ class TemplateEscritorioHeaderList extends TPage
         TSession::setValue(__CLASS__.'_filter_data', NULL);
         TSession::setValue(__CLASS__.'_filters', NULL);
 
+        // os formularios tambem (senao o cabecalho continuava mostrando os filtros antigos)
+        if (!empty($this->form)) { $this->form->clear(); }
+        if (!empty($this->datagrid_form)) { $this->datagrid_form->clear(); }
+
         $this->onReload(['offset' => 0, 'first_page' => 1]);
     }
 
@@ -306,7 +310,7 @@ class TemplateEscritorioHeaderList extends TPage
         if (isset($data->descricao) AND ( (is_scalar($data->descricao) AND $data->descricao !== '') OR (is_array($data->descricao) AND (!empty($data->descricao)) )) )
         {
 
-            $filters[] = new TFilter('descricao', 'like', "%{$data->descricao}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(descricao AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->descricao) . '%');// create the filter 
         }
 
         if (isset($data->habilitado) AND ( (is_scalar($data->habilitado) AND $data->habilitado !== '') OR (is_array($data->habilitado) AND (!empty($data->habilitado)) )) )
@@ -396,6 +400,9 @@ class TemplateEscritorioHeaderList extends TPage
 
             // close the transaction
             TTransaction::close();
+            $this->datagrid->initPopoverHeaderFilters();
+            // faixa "Filtros aplicados": cortina, botoes rapidos e funil do cabecalho (FiltroLista)
+            FiltroLista::faixa(__CLASS__, $this->form ?? null, $this->datagrid_form ?? null, $this->datagrid);
             $this->loaded = true;
 
             return $objects;

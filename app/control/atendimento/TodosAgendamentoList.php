@@ -51,14 +51,15 @@ class TodosAgendamentoList extends TPage
         $cliente_id = new TDBUniqueSearch('cliente_id', 'escritorio', 'Pessoa', 'id', 'nome','nome asc' , $criteria_cliente_id );
         $dt_inicial = new TDate('dt_inicial');
         $ate = new TDate('ate');
-        $cliente_col = new TEntry('cliente_col');
+        // autocomplete: a lista sugere as pessoas pelo nome (o filtro continua sendo pelo nome)
+        $cliente_col = new TDBUniqueSearch('cliente_col', 'escritorio', 'Pessoa', 'nome', 'nome', 'nome asc', FiltroLista::criterioPessoasDe('agendamento', 'cliente_id'));
+        $cliente_col->setMinLength(2);
         $especialidade_descricao = new TDBCombo('especialidade_descricao', 'escritorio', 'Especialidade', 'id', '{descricao}','descricao asc' , $criteria_especialidade_descricao );
         $agenda_nome = new TDBCombo('agenda_nome', 'escritorio', 'Agenda', 'id', '{nome}','nome asc' , $criteria_agenda_nome );
         $estado_agenda_nome = new TDBCombo('estado_agenda_nome', 'escritorio', 'EstadoAgenda', 'id', '{nome}','nome asc' , $criteria_estado_agenda_nome );
 
-        $cliente_col->exitOnEnter();
 
-        $cliente_col->setExitAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
+        $cliente_col->setChangeAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
 
         $especialidade_descricao->setChangeAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
         $agenda_nome->setChangeAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
@@ -545,6 +546,8 @@ class TodosAgendamentoList extends TPage
             $object->dt_inicial = null;
             $object->ate = null;
 
+            // a cortina mostra os filtros aplicados agora (eles se somam aos das colunas e dos botoes rapidos)
+            $object = (object) array_merge((array) $object, (array) (TSession::getValue(__CLASS__.'_filter_data') ?: []));
             TForm::sendData(self::$formName, $object);
 
                         $filter = new self([]);
@@ -584,6 +587,10 @@ class TodosAgendamentoList extends TPage
         TSession::setValue(__CLASS__.'_filter_data', NULL);
         TSession::setValue(__CLASS__.'_filters', NULL);
 
+        // os formularios tambem (senao o cabecalho continuava mostrando os filtros antigos)
+        if (!empty($this->form)) { $this->form->clear(); }
+        if (!empty($this->datagrid_form)) { $this->datagrid_form->clear(); }
+
         $this->onReload(['offset' => 0, 'first_page' => 1]);
     }
     public function onRefresh($param = null) 
@@ -596,14 +603,20 @@ class TodosAgendamentoList extends TPage
      */
     public function onSearch($param = null)
     {
-        if ((isset($param['static']) && ($param['static'] == '1')) || !empty($param['globalSearch']))
+        if (!empty($param['__sem_formulario']))
         {
-            $data = $this->datagrid_form->getData();
+            $formulario = [];
+        }
+        elseif ((isset($param['static']) && ($param['static'] == '1')) || !empty($param['globalSearch']))
+        {
+            $formulario = $this->datagrid_form->getData();
         }
         else
         {
-            $data = $this->form->getData();
+            $formulario = $this->form->getData();
         }
+        // filtros que se somam: cabecalho das colunas, cortina e botoes rapidos (FiltroLista)
+        $data = FiltroLista::acumular(__CLASS__, $formulario, $param);
         $filters = [];
 
         TSession::setValue(__CLASS__.'_filter_data', NULL);
@@ -663,15 +676,9 @@ class TodosAgendamentoList extends TPage
                 );
             }
 
-        // fill the form with data again
-        if ((isset($param['static']) && ($param['static'] == '1')) || !empty($param['globalSearch']))
-        {
-            $this->datagrid_form->setData($data);
-        }
-        else
-        {
-            $this->form->setData($data);
-        }
+        // fill the form with data again (os dois formularios mostram os filtros somados)
+        $this->datagrid_form->setData($data);
+        $this->form->setData($data);
 
         // keep the search data in the session
         TSession::setValue(__CLASS__.'_filter_data', $data);
@@ -763,6 +770,8 @@ class TodosAgendamentoList extends TPage
 
             // close the transaction
             TTransaction::close();
+            // faixa "Filtros aplicados": cortina, botoes rapidos e funil do cabecalho (FiltroLista)
+            FiltroLista::faixa(__CLASS__, $this->form ?? null, $this->datagrid_form ?? null, $this->datagrid);
             $this->loaded = true;
 
             return $objects;

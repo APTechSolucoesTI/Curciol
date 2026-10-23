@@ -449,6 +449,19 @@ class RequisicaoPagamentoVisualizacaoAba extends TPage
     }
 
     private function montarVisualizacao($requisicao_id, $pessoaSelecionadaId = null, $modoEmbutido = false, $processoOrigemId = null, $exibirVoltarListagem = false){
+        // tela para recarregar depois de gerar/desfazer financeiro (ver LevantamentoFinanceiroForm::recarregarOrigem)
+        $urlRecarga = 'engine.php?' . http_build_query(array_filter([
+            'class' => 'RequisicaoPagamentoVisualizacaoAba',
+            'method' => 'onShow',
+            'key' => $requisicao_id,
+            'pessoa_id' => $pessoaSelecionadaId,
+            'processo_origem_id' => $processoOrigemId,
+            'exibir_voltar' => $exibirVoltarListagem ? '1' : null,
+            'target_container' => $this->adianti_target_container,
+            'register_state' => 'false',
+            'show_loading' => 'false',
+        ]));
+
         try {
             TTransaction::open(self::$database);
 
@@ -620,7 +633,7 @@ class RequisicaoPagamentoVisualizacaoAba extends TPage
                     [new TLabel('Nome'), $nome],
                     [new TLabel('CPF'), $cpf],
                     [new TLabel('Data de nascimento'), $dtNascimento],
-                    [new TLabel('Status'), $status]
+                    [new TLabel('Status'), $status, RequisicaoPagamentoCampos::travaQuitado(self::$formName, $rpcId, $cliente->status_requisicao_pagamento_id)]
                 );
                 $row->layout = ['col-sm-5', 'col-sm-2', 'col-sm-2', 'col-sm-3'];
 
@@ -629,10 +642,16 @@ class RequisicaoPagamentoVisualizacaoAba extends TPage
                     [new TLabel('Data de Pedido do MLE'), $dtRequerimento],
                     [new TLabel('Data do depósito'), $dtBase],
                     [new TLabel('Valor bruto depositado'), $etapa3ValorBruto],
-                    [new TLabel('Valor do MLE'), $valor],
-                    [new TLabel('Entidade devedora/devedor'), $entidade]
-                );
-                $row->layout = ['col-sm-2', 'col-sm-2', 'col-sm-2', 'col-sm-2', 'col-sm-4'];
+                    [new TLabel('Valor do MLE (bruto − descontos)'), $valor],
+                        [new TLabel('Entidade devedora/devedor'), $entidade]
+                    );
+                    $row->layout = ['col-sm-2', 'col-sm-2', 'col-sm-2', 'col-sm-2', 'col-sm-4'];
+
+                    // descontos do deposito: o MLE e o bruto menos eles
+                    $camposDescontos = RequisicaoPagamentoCampos::camposDescontos($rpcId);
+                    $row = $this->form->addFields(...$camposDescontos);
+                    $row->layout = ['col-sm-2 col-sm-offset-4', 'col-sm-2', 'col-sm-2'];
+                    RequisicaoPagamentoCampos::scriptMle(self::$formName, $rpcId, 'etapa3_valor_bruto_depositado_' . $rpcId, 'valor_' . $rpcId);
             } else {
                     $row = $this->form->addFields(
                         [new TLabel('Data do requerimento'), $dtRequerimento],
@@ -715,7 +734,7 @@ class RequisicaoPagamentoVisualizacaoAba extends TPage
                 $etapa3Id = new THidden('etapa3_id_' . $rpcId);
                 $etapa3NumeroCicloHidden = new THidden('etapa3_numero_ciclo_' . $rpcId);
 
-                $this->form->addFields([$etapa3Id], [$etapa3NumeroCicloHidden]);
+                $this->form->addFields([$etapa3Id], [$etapa3NumeroCicloHidden], [new THidden('etapa3_novo_' . $rpcId)]);
 
                 $etapa3Processo = new TCombo('etapa3_processo_filho_id_' . $rpcId);
                 $etapa3DataDeposito = new TDate('etapa3_data_deposito_' . $rpcId);
@@ -767,16 +786,25 @@ class RequisicaoPagamentoVisualizacaoAba extends TPage
                     $numeroCicloEtapa3++;
 
                     $this->form->addContent([self::criarAvisoSaldoAberto($cliente)]);
+                    $this->form->addContent([RequisicaoPagamentoCampos::botaoNovoPagamento(self::$formName, $rpcId)]);
                 }
 
                 if (!$ehMle) {
                    $row = $this->form->addFields(
                         [new TLabel('Processo vinculado'), $etapa3Processo],
                         [new TLabel('Data do depósito'), $etapa3DataDeposito],
-                        [new TLabel('Valor bruto depositado'), $etapa3ValorBruto],
-                        [new TLabel('Valor do MLE'), $etapa3ValorMle]
+                        [new TLabel('Valor bruto depositado'), $etapa3ValorBruto]
                     );
+                    $row->layout = ['col-sm-4', 'col-sm-4', 'col-sm-4'];
+                    RequisicaoPagamentoCampos::ocultarAteNovoPagamento($row, $rpcId, $abrirNovoPagamento);
+
+                    // descontos do deposito: o MLE e o bruto menos eles
+                    $camposDescontos = RequisicaoPagamentoCampos::camposDescontos($rpcId);
+                    $camposDescontos[] = [new TLabel('Valor do MLE (bruto − descontos)'), $etapa3ValorMle];
+                    $row = $this->form->addFields(...$camposDescontos);
                     $row->layout = ['col-sm-3', 'col-sm-3', 'col-sm-3', 'col-sm-3'];
+                    RequisicaoPagamentoCampos::scriptMle(self::$formName, $rpcId, 'etapa3_valor_bruto_depositado_' . $rpcId, 'etapa3_valor_mle_' . $rpcId);
+                    RequisicaoPagamentoCampos::ocultarAteNovoPagamento($row, $rpcId, $abrirNovoPagamento);
                 } 
 
                 if ($ehMle) {
@@ -785,6 +813,7 @@ class RequisicaoPagamentoVisualizacaoAba extends TPage
                         [new TLabel('Sobrou saldo após este pagamento?'), $etapa3PossuiSaldo]
                     );
                     $row->layout = ['col-sm-2', 'col-sm-3'];
+                    RequisicaoPagamentoCampos::ocultarAteNovoPagamento($row, $rpcId, $abrirNovoPagamento);
                 } else {
                     $row = $this->form->addFields(
                         [new TLabel('Data do pedido de MLE'), $etapa3DataPedidoMle],
@@ -792,19 +821,22 @@ class RequisicaoPagamentoVisualizacaoAba extends TPage
                         [new TLabel('Sobrou saldo após este pagamento?'), $etapa3PossuiSaldo]
                     );
                     $row->layout = ['col-sm-2', 'col-sm-2', 'col-sm-3'];
+                    RequisicaoPagamentoCampos::ocultarAteNovoPagamento($row, $rpcId, $abrirNovoPagamento);
                 }
 
-                $this->form->addContent([self::criarAjudaPagamentoParcial($rpcId)]);
+                $row = $this->form->addContent([self::criarAjudaPagamentoParcial($rpcId)]);
+                RequisicaoPagamentoCampos::ocultarAteNovoPagamento($row, $rpcId, $abrirNovoPagamento);
 
                 $row = $this->form->addFields(
                     [new TLabel('Saldo bruto remanescente'), $etapa3SaldoBruto],
-                    [new TLabel('Data base do saldo remanescente'), $etapa3DataBaseSaldo]
+                    [new TLabel('Data base do saldo remanescente (opcional)'), $etapa3DataBaseSaldo]
                 );
                 $row->layout = ['col-sm-2', 'col-sm-2'];
+                RequisicaoPagamentoCampos::ocultarAteNovoPagamento($row, $rpcId, $abrirNovoPagamento);
                 $historico = $pagamentosPorCliente[$rpcId] ?? [];
 
                 if (!empty($historico)) {
-                    $this->form->addContent([self::criarHistoricoPagamentos($historico)]);
+                    $this->form->addContent([self::criarHistoricoPagamentos($historico, $urlRecarga)]);
                 }
 
                 $data->{'etapa3_id_' . $rpcId} = $abrirNovoPagamento ? null : $cliente->etapa3_id;
@@ -817,6 +849,7 @@ class RequisicaoPagamentoVisualizacaoAba extends TPage
                     $data->{'etapa3_data_deposito_' . $rpcId} = null;
                     $data->{'etapa3_valor_bruto_depositado_' . $rpcId} = null;
                     $data->{'etapa3_valor_mle_' . $rpcId} = null;
+                    RequisicaoPagamentoCampos::preencherDescontos($data, $rpcId, null);
                     $data->{'etapa3_data_pedido_mle_' . $rpcId} = null;
                     $data->{'etapa3_data_deferimento_mle_' . $rpcId} = null;
                     $data->{'etapa3_possui_saldo_' . $rpcId} = 'N';
@@ -829,6 +862,7 @@ class RequisicaoPagamentoVisualizacaoAba extends TPage
                     $data->{'etapa3_data_deposito_' . $rpcId} = self::formatarDataBR($cliente->etapa3_data_deposito);
                     $data->{'etapa3_valor_bruto_depositado_' . $rpcId} = $cliente->etapa3_valor_bruto_depositado;
                     $data->{'etapa3_valor_mle_' . $rpcId} = $cliente->etapa3_valor_mle;
+                    RequisicaoPagamentoCampos::preencherDescontos($data, $rpcId, $cliente);
                     $data->{'etapa3_data_pedido_mle_' . $rpcId} = self::formatarDataBR($cliente->etapa3_data_pedido_mle);
                     $data->{'etapa3_data_deferimento_mle_' . $rpcId} = self::formatarDataBR($cliente->etapa3_data_deferimento_mle);
                     $data->{'etapa3_possui_saldo_' . $rpcId} = $cliente->etapa3_possui_saldo ?: 'N';
@@ -1100,12 +1134,12 @@ class RequisicaoPagamentoVisualizacaoAba extends TPage
                     $this->salvarEtapa2($conn, $param, $rpcId);
                 }
 
-                $this->salvarEtapa3(
-                     $conn,
-                    $param,
+                $this->salvarEtapa3($conn, $param, $rpcId, $ehMle, $requisicao->processo_id);
+
+                RequisicaoQuitacaoService::aplicarEscolha(
                     $rpcId,
-                    $ehMle,
-                    $requisicao->processo_id
+                    self::inteiroOuNull($cliente->status_requisicao_pagamento_id),
+                    $statusId
                 );
             }
 
@@ -1343,7 +1377,27 @@ class RequisicaoPagamentoVisualizacaoAba extends TPage
                 );
             }
 
-            $dataDeferimentoMle = self::dataParaBanco(
+            // pagamento novo depois de um ja depositado: so quando o usuario clicou em "Lancar outro pagamento"
+        if (empty($etapa3Id) && self::valorParam($param, 'etapa3_novo_' . $rpcId) !== '1'
+            && RequisicaoPagamentoCampos::temPagamentoDepositado($conn, (int) $rpcId)) {
+            return;
+        }
+
+        // descontos do deposito: o MLE e o bruto menos eles (pagamento antigo sem descontos mantem o MLE gravado)
+        $descontos = RequisicaoPagamentoCampos::calcularMle(
+            $valorBruto,
+            RequisicaoPagamentoCampos::descontosDoPost($param, (int) $rpcId),
+            $valorMle,
+            RequisicaoPagamentoCampos::pagamentoGravado($conn, $etapa3Id)
+        );
+        $valorMle = $descontos['valor_mle'];
+
+        if ($ehMle && $valorBruto !== null && $valorMle !== null) {
+            // no MLE o valor do MLE tambem fica no cliente da requisicao
+            $conn->prepare('UPDATE requisicao_pagamento_cliente SET valor = ? WHERE id = ?')->execute([$valorMle, (int) $rpcId]);
+        }
+
+        $dataDeferimentoMle = self::dataParaBanco(
                 self::valorParam(
                     $param,
                     'etapa3_data_deferimento_mle_' . $rpcId
@@ -1431,11 +1485,7 @@ class RequisicaoPagamentoVisualizacaoAba extends TPage
                         );
                     }
 
-                    if (empty($dataBaseSaldo)) {
-                        throw new Exception(
-                            'Quando sobrar saldo, informe a Data base do saldo remanescente.'
-                        );
-                    }
+                    // a data base do saldo e opcional
                 }
             }
 
@@ -1467,6 +1517,16 @@ class RequisicaoPagamentoVisualizacaoAba extends TPage
             * atualiza a mesma linha.
             */
             if (!empty($etapa3Id)) {
+                LevantamentoFinanceiroService::garantirPagamentoEditavel((int) $etapa3Id, [
+                    'data_deposito' => $dataDeposito,
+                    'valor_bruto_depositado' => $valorBruto,
+                    'valor_mle' => $valorMle,
+                'desconto_previdenciario' => $descontos['desconto_previdenciario'],
+                'desconto_assistencial' => $descontos['desconto_assistencial'],
+                'desconto_irrf' => $descontos['desconto_irrf'],
+                'processo_filho_id' => $processoFilhoId
+                ]);
+
                 $sql = "
                     UPDATE requisicao_pagamento_etapa3
                     SET
@@ -1475,7 +1535,10 @@ class RequisicaoPagamentoVisualizacaoAba extends TPage
                         data_deposito = ?,
                         valor_bruto_depositado = ?,
                         valor_mle = ?,
-                        conta_indicada_mle = ?,
+                    desconto_previdenciario = ?,
+                    desconto_assistencial = ?,
+                    desconto_irrf = ?,
+                    conta_indicada_mle = ?,
                         data_pedido_mle = ?,
                         data_deferimento_mle = ?,
                         saldo_bruto = ?,
@@ -1493,7 +1556,10 @@ class RequisicaoPagamentoVisualizacaoAba extends TPage
                     $dataDeposito,
                     $valorBruto,
                     $valorMle,
-                    $contaMle,
+            $descontos['desconto_previdenciario'],
+            $descontos['desconto_assistencial'],
+            $descontos['desconto_irrf'],
+            $contaMle,
                     $dataPedidoMle,
                     $dataDeferimentoMle,
                     $saldoBruto,
@@ -1522,14 +1588,17 @@ class RequisicaoPagamentoVisualizacaoAba extends TPage
                     data_deposito,
                     valor_bruto_depositado,
                     valor_mle,
-                    conta_indicada_mle,
-                    data_pedido_mle,
+                desconto_previdenciario,
+                desconto_assistencial,
+                desconto_irrf,
+                conta_indicada_mle,
+                data_pedido_mle,
                     data_deferimento_mle,
                     saldo_bruto,
                     data_base_saldo,
                     possui_saldo
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ";
 
             $sth = $conn->prepare($sql);
@@ -1541,7 +1610,10 @@ class RequisicaoPagamentoVisualizacaoAba extends TPage
                 $dataDeposito,
                 $valorBruto,
                 $valorMle,
-                $contaMle,
+            $descontos['desconto_previdenciario'],
+            $descontos['desconto_assistencial'],
+            $descontos['desconto_irrf'],
+            $contaMle,
                 $dataPedidoMle,
                 $dataDeferimentoMle,
                 $saldoBruto,
@@ -1645,7 +1717,10 @@ class RequisicaoPagamentoVisualizacaoAba extends TPage
                 e3.numero_ciclo AS etapa3_numero_ciclo,
                 e3.saldo_bruto AS etapa3_saldo_bruto,
                 e3.data_base_saldo AS etapa3_data_base_saldo,
-                e3.possui_saldo AS etapa3_possui_saldo
+                e3.possui_saldo AS etapa3_possui_saldo,
+                e3.desconto_previdenciario AS etapa3_desconto_previdenciario,
+                e3.desconto_assistencial AS etapa3_desconto_assistencial,
+                e3.desconto_irrf AS etapa3_desconto_irrf
 
             FROM requisicao_pagamento_cliente rpc
 
@@ -2068,7 +2143,7 @@ class RequisicaoPagamentoVisualizacaoAba extends TPage
             <div class='req-open-balance-title'>Existe saldo remanescente em aberto</div>
             <div class='req-open-balance-text'>
                 Saldo bruto: <strong>{$saldo}</strong>
-                <span>Data base do saldo: <strong>{$dataBase}</strong></span>
+                " . ($dataBase !== '' ? "<span>Data base do saldo: <strong>{$dataBase}</strong></span>" : '') . "
             </div>
             <div class='req-open-balance-help'>
                 Preencha abaixo o próximo pagamento recebido. Se ainda sobrar saldo depois deste novo pagamento, marque novamente como sim.
@@ -2078,8 +2153,11 @@ class RequisicaoPagamentoVisualizacaoAba extends TPage
         return $div;
     }
 
-    private static function criarHistoricoPagamentos($pagamentos)
+    private static function criarHistoricoPagamentos($pagamentos, $urlRecarga = '')
     {
+        $comFinanceiro = LevantamentoFinanceiroForm::idsComFinanceiro(array_map(function ($p) { return (int) $p->id; }, (array) $pagamentos));
+        $bloqueiosExclusao = PagamentoExclusaoService::motivos(array_map(function ($p) { return (int) $p->id; }, (array) $pagamentos));
+
         $html = "
             <details class='req-payment-history'>
                 <summary>Ver pagamentos lançados</summary>
@@ -2106,7 +2184,7 @@ class RequisicaoPagamentoVisualizacaoAba extends TPage
         foreach ($pagamentos as $pagamento) {
             $possuiSaldo = strtoupper(trim($pagamento->possui_saldo ?? 'N')) === 'S';
           
-                $url = "engine.php?class=RequisicaoPagamentoEtapa3Visualizacao&method=onShow&key=" . (int) $pagamento->id . "&register_state=false";
+                $url = "engine.php?class=RequisicaoPagamentoEtapa3Visualizacao&method=onShow&key=" . (int) $pagamento->id . "&origem_pai=aba&url_pai=" . urlencode($urlRecarga) . "&register_state=false";
 
                 $url = addslashes($url);
 
@@ -2122,6 +2200,8 @@ class RequisicaoPagamentoVisualizacaoAba extends TPage
                         <i class='fa fa-search'></i>
                     </a>
                 ";
+            $botaoFinanceiro = LevantamentoFinanceiroForm::botaoFinanceiro($pagamento, $comFinanceiro, 'aba', $urlRecarga);
+
             $html .= "
                 <tr>
                     <td>" . self::h($contador . 'º lançamento') . "</td>
@@ -2134,7 +2214,7 @@ class RequisicaoPagamentoVisualizacaoAba extends TPage
                     <td>" . ($possuiSaldo
                         ? "<span class='req-badge req-badge-open'>Saldo em aberto</span>"
                         : "<span class='req-badge req-badge-ok'>Sem saldo</span>") . "</td>
-                    <td class='req-actions-cell'>{$botaoVisualizar}</td>
+                    <td class='req-actions-cell'>{$botaoVisualizar} {$botaoFinanceiro} " . RequisicaoPagamentoEtapa3Visualizacao::botaoExcluir((int) $pagamento->id, $bloqueiosExclusao[(int) $pagamento->id] ?? null, 'aba', $urlRecarga) . "</td>
                 </tr>
             ";
 

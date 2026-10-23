@@ -54,6 +54,13 @@ class ModalContratoGerarFinanceiro extends TWindow
         $valor = new TNumeric('valor', '2', ',', '.' );
         $dt_vencimento = new TDate('dt_vencimento');
         $tipo_pagamento_id = new TDBCombo('tipo_pagamento_id', 'escritorio', 'TipoPagamento', 'id', '{nome}','nome asc' , $criteria_tipo_pagamento_id );
+        // conta-caixa prevista: opcional aqui, sugerida (e obrigatoria) na quitacao
+        $criteria_conta_caixa_id = new TCriteria();
+        $criteria_conta_caixa_id->add(new TFilter('ativo', '<>', 'N'));
+        $conta_caixa_id = new TDBCombo('conta_caixa_id', 'escritorio', 'ContaCaixa', 'id', '{nome}','nome asc' , $criteria_conta_caixa_id );
+        $conta_caixa_id->enableSearch();
+        $conta_caixa_id->setSize('100%');
+        $conta_caixa_id->setTip('Opcional. Vem preenchida na hora de quitar, onde passa a ser obrigatória.');
         $numero_parcelas = new TSpinner('numero_parcelas');
         $pagamento_solidario = new TCheckButton('pagamento_solidario');
         $coluna = new TDBCombo('coluna[]', 'escritorio', 'Pessoa', 'id', '{nome}','nome asc' , $criteria_coluna );
@@ -260,8 +267,8 @@ class ModalContratoGerarFinanceiro extends TWindow
         $row4 = $this->form->addFields([new TLabel("Valor:", '#FF0000', '14px', null, '100%'),$valor],[new TLabel("Data de vencimento:", '#FF0000', '14px', null, '100%'),$dt_vencimento],[new TLabel("Forma de pagamento", '#FF0000', '14px', null, '100%'),$tipo_pagamento_id],[new TLabel("Parcelas:", '#FF0000', '14px', null, '100%'),$numero_parcelas]);
         $row4->layout = [' col-sm-3',' col-sm-3',' col-sm-3',' col-sm-3'];
 
-        $row5 = $this->form->addFields([new TLabel("Pagamento Solidário?", '#FF0000', '14px', null, '100%'),$pagamento_solidario]);
-        $row5->layout = [' col-sm-3'];
+        $row5 = $this->form->addFields([new TLabel("Pagamento Solidário?", '#FF0000', '14px', null, '100%'),$pagamento_solidario],[new TLabel("Conta-caixa prevista:", null, '14px', null, '100%'),$conta_caixa_id]);
+        $row5->layout = [' col-sm-3',' col-sm-5'];
 
         $row6 = $this->form->addContent([new TFormSeparator("Profissional", '#333333', '18', '#eee')]);
         $row7 = $this->form->addFields([$this->fieldList_6a39175d40e6e]);
@@ -462,6 +469,9 @@ class ModalContratoGerarFinanceiro extends TWindow
             $this->form->validate(); // validate form data
             $data = $this->form->getData(); // get form data as array
 
+            // contrato com parcela a receber anterior a publicacao em aberto continua pelo modo antigo
+            ContratoFinanceiroService::exigirSemParcelaAnteriorAberta((int) ($data->contrato_id ?? 0));
+
             $profissionais = $data->coluna ?? [];
             $valoresProfissionais = $data->valor_profissional ?? [];
             $repassesProfissionais = $data->valor_repasse ?? [];
@@ -518,6 +528,16 @@ class ModalContratoGerarFinanceiro extends TWindow
             if ($qtdProfissionaisSelecionados <= 0) {
                 throw new Exception('Informe pelo menos um profissional.');
             }
+
+            // divisao dos colaboradores gravada em cada parcela gerada (base das contas a pagar no recebimento)
+            $divisaoParcela = [];
+            foreach ($profissionais as $index => $profissionalId) {
+                if (!empty($profissionalId)) {
+                    $divisaoParcela[] = [(int) $profissionalId, self::valorBrParaFloat($repassesProfissionais[$index] ?? 0)];
+                }
+            }
+
+            $data->conta_caixa_id = ((int) ($data->conta_caixa_id ?? 0)) ?: null;
 
             $totalFinanceiro = self::valorBrParaFloat($data->valor);
 
@@ -624,7 +644,7 @@ if ($parcelas <= 0) {
  */
 if ($pagamentoSolidario === 'S')
 {
-    $buscaContaContrato = Conta::where('contrato_id', '=', $data->contrato_id)->first();
+    $buscaContaContrato = Conta::where('contrato_id', '=', $data->contrato_id)->where('requisicao_pagamento_id', 'IS', NULL)->where('tipo_conta_id', '=', TipoConta::RECEBER)->first(); // so a conta a receber (os repasses aos colaboradores tambem levam o contrato)
 
     if (!$buscaContaContrato) {
         $conta = new Conta();
@@ -707,6 +727,7 @@ if ($pagamentoSolidario === 'S')
         }
 
         $lancamento->store();
+        RepasseColaboradorService::dividirParcela((int) $lancamento->id, $divisaoParcela); $contasGeradas[(int) $lancamento->conta_id] = true;
     }
 }
 
@@ -865,6 +886,8 @@ else
             '=',
             $clienteId
         )
+        ->where('requisicao_pagamento_id', 'IS', NULL)
+        ->where('tipo_conta_id', '=', TipoConta::RECEBER)
         ->first();
 
         if (!$buscaContaCliente) {
@@ -1081,15 +1104,28 @@ else
                 }
 
                 $lancamento->store();
+                RepasseColaboradorService::dividirParcela((int) $lancamento->id, $divisaoParcela); $contasGeradas[(int) $lancamento->conta_id] = true;
             }
         }
     }
+            // total de parcelas da conta (antes ficava 1 e o historico saia "parcela 2/1") e quem gerou
+            foreach (array_keys($contasGeradas ?? []) as $contaGeradaId) {
+                $st = TTransaction::get()->prepare("UPDATE conta SET total_parcelas = (SELECT COUNT(*) FROM lancamento l WHERE l.conta_id = conta.id AND COALESCE(l.cancelado, 'N') <> 'S'),
+                                                                 criacao_user_id = COALESCE(criacao_user_id, ?) WHERE id = ?");
+                $st->execute([TSession::getValue('userid'), (int) $contaGeradaId]);
+            }
+
             if ($contratoPagamentoParcela) {
                 $contratoPagamentoParcela->store();
             }
 
             TScript::create("$(\"[page_name='ModalContratoGerarFinanceiro']\").remove()");
+            // contrato atualizado no lugar e a conta gerada aberta por cima dele (fechando a conta, volta ao contrato)
             TApplication::loadPage('ContratoFormView', 'onShow', ['key' => $data->contrato_id, 'id' => $data->contrato_id, 'current_tab_abas' => 3]);
+            $contaGerada = (int) (array_keys($contasGeradas ?? [])[0] ?? 0);
+            if ($contaGerada > 0) {
+                Navegacao::abrirConta($contaGerada, null, 900);
+            }
 
             TTransaction::close();
         }
@@ -1174,7 +1210,7 @@ else
      public function onShow($param = null){
         TTransaction::open('escritorio');
 
-        $buscaContaContrato = Conta::where('contrato_id','=',$param['contrato_id'])->first();
+        $buscaContaContrato = Conta::where('contrato_id','=',$param['contrato_id'])->where('requisicao_pagamento_id', 'IS', NULL)->where('tipo_conta_id', '=', TipoConta::RECEBER)->first();
         if($buscaContaContrato){
             $conta = Conta::find($buscaContaContrato->id);
 
@@ -1183,6 +1219,7 @@ else
             if($conta){
                 $data->descricao = $conta->descricao;
                 $data->categoria_conta_id = $conta->categoria_conta_id;
+                $data->conta_caixa_id = $conta->conta_caixa_id;
             }
             TForm::sendData(self::$formName, $data);
         }

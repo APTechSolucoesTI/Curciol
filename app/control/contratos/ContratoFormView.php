@@ -202,7 +202,7 @@ class ContratoFormView extends TPage
         $column_percentual = $this->contrato_pessoa_contrato_id_list->addQuickColumn("Percentual", 'percentual', 'left');
 
         $column_percentual->setTotalFunction( function($values) { 
-            return array_sum((array) $values); 
+            return array_sum(array_map('floatval', (array) $values)); 
         }); 
 
         $this->contrato_pessoa_contrato_id_list->createModel();
@@ -237,6 +237,18 @@ class ContratoFormView extends TPage
         $action_onAddFinanceiro->setDisplayCondition('ContratoFormView::canGerar');
         $action_onAddFinanceiro->setParameter('contrato_parcela_id', '{id}');
         $this->contrato_pagamento_parcela_contrato_id_list->addAction($action_onAddFinanceiro);
+
+        // desfaz as contas geradas pelo pagamento sem apagar o pagamento (como na requisicao de pagamento)
+        $action_onDesfazerFinanceiro = new TDataGridAction(array('ContratoFormView', 'onDesfazerFinanceiro'));
+        $action_onDesfazerFinanceiro->setUseButton(false);
+        $action_onDesfazerFinanceiro->setButtonClass('btn btn-default btn-sm');
+        $action_onDesfazerFinanceiro->setLabel("Desfazer financeiro");
+        $action_onDesfazerFinanceiro->setImage('fas:undo #dd5a43');
+        $action_onDesfazerFinanceiro->setField('id');
+        $action_onDesfazerFinanceiro->setDisplayCondition('ContratoFormView::canDesfazer');
+        $action_onDesfazerFinanceiro->setParameter('contrato_parcela_id', '{id}');
+        $action_onDesfazerFinanceiro->setParameter('contrato_id', '{contrato_id}');
+        $this->contrato_pagamento_parcela_contrato_id_list->addAction($action_onDesfazerFinanceiro);
 
         $action_onEdit = new TDataGridAction(array('ContratoPagamentoParcelaDescritivoForm', 'onEdit'));
         $action_onEdit->setUseButton(false);
@@ -395,7 +407,7 @@ class ContratoFormView extends TPage
                     $sql = "
                         SELECT id
                         FROM conta
-                        WHERE contrato_id = :contrato_id
+                        WHERE contrato_id = :contrato_id AND tipo_conta_id = '1' -- conta a receber (os repasses aos colaboradores tambem levam o contrato)
                         ORDER BY id DESC
                         LIMIT 1
                     ";
@@ -465,6 +477,98 @@ class ContratoFormView extends TPage
         $panel->add(new BootstrapDatagridWrapper($this->contrato_pagamento_parcela_contrato_id_list));
 
         $tab_64e5fbabf05b7->addContent([$panel]);
+
+        // processos vinculados ao contrato (contrato_processo); o numero abre o processo na cortina
+        $tab_64e5fbabf05b7->appendPage("Processos");
+
+        // vincular: busca de processo (os ja vinculados nao aparecem) + botao
+        $criteria_vincular_processo = new TCriteria();
+        $criteria_vincular_processo->add(new TFilter('id', 'not in', '(SELECT processo_id FROM contrato_processo WHERE contrato_id = ' . (int) $contrato->id . ')'));
+        $vincular_processo_id = new TDBUniqueSearch('vincular_processo_id', 'escritorio', 'Processo', 'id', 'numero_cnj_numero', 'numero_cnj_numero asc', $criteria_vincular_processo);
+        $vincular_processo_id->setMinLength(3);
+        $vincular_processo_id->setMask('{numero_cnj_numero} {numero_outro}');
+        $vincular_processo_id->setFilterColumns(['numero_cnj_numero', 'numero_outro']);
+        $vincular_processo_id->disableIdSearch();
+        $vincular_processo_id->setSize('100%');
+        $vincular_processo_id->placeholder = 'Digite o número do processo';
+
+        // a aba nao e um <form> de verdade (o formulario da tela e um div): o botao le o processo escolhido no campo
+        // desta tela e chama o servidor com ele (um TButton postaria um formulario vazio)
+        $btn_vincular_processo = new TElement('button');
+        $btn_vincular_processo->type = 'button';
+        $btn_vincular_processo->name = 'btn_vincular_processo';
+        $btn_vincular_processo->class = 'btn btn-default';
+        $btn_vincular_processo->onclick = "var campo = $(this).closest('[page_name=ContratoFormView]').find('select[name=vincular_processo_id]');"
+            . " __adianti_ajax_exec('class=ContratoFormView&method=onVincularProcesso&static=1&contrato_id=" . (int) $contrato->id
+            . "&vincular_processo_id=' + encodeURIComponent(campo.val() || '')); return false;";
+        $btn_vincular_processo->add('<i class="fas fa-link" style="color:#2ecc71"></i> Vincular');
+
+        $row_vincular = $tab_64e5fbabf05b7->addFields([new TLabel('Vincular processo:', null, '14px', null, '100%'), $vincular_processo_id], [new TLabel(' ', null, '14px', null, '100%'), $btn_vincular_processo]);
+        $row_vincular->layout = [' col-sm-8', ' col-sm-4'];
+
+        $this->contrato_processo_list = new TQuickGrid;
+        $this->contrato_processo_list->style = 'width:100%';
+        $this->contrato_processo_list->disableDefaultClick();
+
+        $action_onDesvincularProcesso = new TDataGridAction(array('ContratoFormView', 'onDesvincularProcesso'));
+        $action_onDesvincularProcesso->setUseButton(false);
+        $action_onDesvincularProcesso->setButtonClass('btn btn-default btn-sm');
+        $action_onDesvincularProcesso->setLabel("Desvincular");
+        $action_onDesvincularProcesso->setImage('fas:unlink #dd5a43');
+        $action_onDesvincularProcesso->setField('id');
+        $action_onDesvincularProcesso->setParameter('processo_id', '{id}');
+        $action_onDesvincularProcesso->setParameter('contrato_id', $contrato->id);
+        $this->contrato_processo_list->addAction($action_onDesvincularProcesso);
+
+        $column_processo_numero = $this->contrato_processo_list->addQuickColumn("Processo", 'numero', 'left');
+        $this->contrato_processo_list->addQuickColumn("Tipo", 'tipo', 'left');
+        $this->contrato_processo_list->addQuickColumn("Área", 'area', 'left');
+        $this->contrato_processo_list->addQuickColumn("Status processual", 'status', 'left');
+        $this->contrato_processo_list->addQuickColumn("Responsável", 'responsavel', 'left');
+        $column_processo_distribuicao = $this->contrato_processo_list->addQuickColumn("Distribuição", 'data_distribuicao_protocolo', 'left');
+
+        $column_processo_numero->setTransformer(function($value, $object, $row, $cell = null, $last_row = null)
+        {
+            $texto = trim((string) $value) !== '' ? $value : 'Processo sem número';
+            if (!empty($object->pre_processo) && $object->pre_processo !== 'N') {
+                $texto .= ' (pré-processo)';
+            }
+            $url = "engine.php?class=ProcessoFormView&method=onShow&key=" . (int) $object->id . "&register_state=false&target_container=adianti_right_panel";
+            return '<a href="javascript:void(0)" title="Abrir processo" onclick="'
+                . htmlspecialchars('Adianti.waitMessage = false; __adianti_load_page(' . json_encode($url) . '); return false;') . '">'
+                . '<i class="fas fa-folder-open"></i> ' . htmlspecialchars($texto) . '</a>';
+        });
+
+        $column_processo_distribuicao->setTransformer(function($value, $object, $row, $cell = null, $last_row = null)
+        {
+            return !empty($value) ? date('d/m/Y', strtotime($value)) : '';
+        });
+
+        $this->contrato_processo_list->createModel();
+
+        $st = TTransaction::get()->prepare("SELECT p.id, COALESCE(NULLIF(TRIM(p.numero_cnj_numero), ''), p.numero_outro) AS numero, p.pre_processo,
+                                                   t.nome AS tipo, a.nome AS area, s.nome AS status, r.nome AS responsavel, p.data_distribuicao_protocolo
+                                              FROM contrato_processo cp
+                                              JOIN processo p ON p.id = cp.processo_id
+                                              LEFT JOIN tipo_processo t ON t.id = p.tipo_processo_id
+                                              LEFT JOIN area a ON a.id = p.area_id
+                                              LEFT JOIN status_processual s ON s.id = p.status_processual_id
+                                              LEFT JOIN pessoa r ON r.id = p.responsavel_id
+                                             WHERE cp.contrato_id = ?
+                                             ORDER BY p.id DESC");
+        $st->execute([(int) $contrato->id]);
+        $processos = $st->fetchAll(PDO::FETCH_OBJ);
+        $this->contrato_processo_list->addItems($processos);
+
+        $panel = new TElement('div');
+        $panel->class = 'formView-detail';
+        if ($processos) {
+            $panel->add(new BootstrapDatagridWrapper($this->contrato_processo_list));
+        } else {
+            $panel->add('<div style="padding:12px;color:#777">Nenhum processo vinculado a este contrato.</div>');
+        }
+
+        $tab_64e5fbabf05b7->addContent([$panel]);
         $row5 = $this->form->addFields([$tab_64e5fbabf05b7]);
         $row5->layout = [' col-sm-12'];
 
@@ -485,7 +589,7 @@ class ContratoFormView extends TPage
         $column_percentual1 = $this->contrato_repasse_contrato_id_list->addQuickColumn("Percentual", 'percentual', 'left');
 
         $column_percentual1->setTotalFunction( function($values) { 
-            return array_sum((array) $values); 
+            return array_sum(array_map('floatval', (array) $values)); 
         }); 
 
         $this->contrato_repasse_contrato_id_list->createModel();
@@ -779,20 +883,24 @@ class ContratoFormView extends TPage
 
             if ($qtdProfissionais > 0)
             {
-                $valorBase = floor(($valorDisponivel / $qtdProfissionais) * 100) / 100;
-                $valorAcumulado = 0;
+                // valor de cada colaborador = valor disponivel x % do contrato (aba Profissionais);
+                // se os % somam 100, a Curciol fica com os centavos (ou o ultimo, se ela nao participa)
+                $disponivelCentavos = (int) round($valorDisponivel * 100);
+                $fechaCem = abs(array_sum(array_map($toFloat, $percentuaisRepasse)) - 100) < 0.01;
+                $receptor = $fechaCem ? RepasseColaboradorService::indiceDaDiferenca($profissionaisRepasse, $qtdProfissionais - 1) : null;
+                $centavosPorProfissional = [];
 
                 for ($i = 0; $i < $qtdProfissionais; $i++)
                 {
-                    if ($i == $qtdProfissionais - 1)
-                    {
-                        $valoresProfissionais[] = $valorDisponivel - $valorAcumulado;
-                    }
-                    else
-                    {
-                        $valoresProfissionais[] = $valorBase;
-                        $valorAcumulado += $valorBase;
-                    }
+                    $centavosPorProfissional[$i] = (int) round($disponivelCentavos * $toFloat($percentuaisRepasse[$i]) / 100);
+                }
+                if ($receptor !== null)
+                {
+                    $centavosPorProfissional[$receptor] = $disponivelCentavos - (array_sum($centavosPorProfissional) - $centavosPorProfissional[$receptor]);
+                }
+                foreach ($centavosPorProfissional as $centavos)
+                {
+                    $valoresProfissionais[] = $centavos / 100;
                 }
             }
 
@@ -910,6 +1018,160 @@ class ContratoFormView extends TPage
         }
         catch (Exception $e) 
         {
+            new TMessage('error', $e->getMessage());
+        }
+    }
+
+    /** Aba Processos: vincula o processo escolhido na busca ao contrato. */
+    public static function onVincularProcesso($param = null)
+    {
+        try
+        {
+            $contratoId = (int) ($param['contrato_id'] ?? 0);
+            $processoId = (int) ($param['vincular_processo_id'] ?? 0);
+            if ($contratoId <= 0) {
+                throw new Exception('Contrato não informado.');
+            }
+            if ($processoId <= 0) {
+                throw new Exception('Escolha o processo a vincular (digite parte do número e selecione na lista).');
+            }
+
+            TTransaction::open(self::$database);
+            if (!Processo::find($processoId)) {
+                throw new Exception('Processo não encontrado.');
+            }
+            if (ContratoProcesso::where('contrato_id', '=', $contratoId)->where('processo_id', '=', $processoId)->count() > 0) {
+                throw new Exception('Este processo já está vinculado ao contrato.');
+            }
+            $vinculo = new ContratoProcesso();
+            $vinculo->contrato_id = $contratoId;
+            $vinculo->processo_id = $processoId;
+            $vinculo->data_criacao = date('Y-m-d H:i:s');
+            $vinculo->criacao_user_id = TSession::getValue('userid');
+            $vinculo->store();
+            TTransaction::close();
+
+            TToast::show('success', 'Processo vinculado ao contrato.', 'topRight', 'far:check-circle');
+            TApplication::loadPage('ContratoFormView', 'onShow', ['key' => $contratoId, 'id' => $contratoId, 'current_tab_tab_64e5fbabf05b7' => 3]);
+        }
+        catch (Exception $e)
+        {
+            if (TTransaction::get()) {
+                TTransaction::rollback();
+            }
+            new TMessage('error', $e->getMessage());
+        }
+    }
+
+    /** Aba Processos: tira o vinculo do processo com o contrato (com confirmacao). O processo e as contas nao mudam. */
+    public static function onDesvincularProcesso($param = null)
+    {
+        try
+        {
+            $contratoId = (int) ($param['contrato_id'] ?? 0);
+            $processoId = (int) ($param['processo_id'] ?? $param['id'] ?? 0);
+            if ($contratoId <= 0 || $processoId <= 0) {
+                throw new Exception('Vínculo não informado.');
+            }
+
+            if (empty($param['confirmado'])) {
+                TTransaction::open(self::$database);
+                $p = Processo::find($processoId);
+                TTransaction::close();
+                $numero = $p ? trim((string) ($p->numero_cnj_numero ?: $p->numero_outro)) : '';
+                $acao = new TAction([__CLASS__, 'onDesvincularProcesso']);
+                $acao->setParameters(['contrato_id' => $contratoId, 'processo_id' => $processoId, 'confirmado' => 1]);
+                new TQuestion('Desvincular o processo ' . htmlspecialchars($numero) . ' deste contrato?<br><br>'
+                    . 'O processo e as contas já geradas não são alterados; só deixa de existir a ligação entre eles.', $acao);
+                return;
+            }
+
+            TTransaction::open(self::$database);
+            ContratoProcesso::where('contrato_id', '=', $contratoId)->where('processo_id', '=', $processoId)->delete();
+            TTransaction::close();
+
+            TToast::show('success', 'Processo desvinculado do contrato.', 'topRight', 'far:check-circle');
+            TApplication::loadPage('ContratoFormView', 'onShow', ['key' => $contratoId, 'id' => $contratoId, 'current_tab_tab_64e5fbabf05b7' => 3]);
+        }
+        catch (Exception $e)
+        {
+            if (TTransaction::get()) {
+                TTransaction::rollback();
+            }
+            new TMessage('error', $e->getMessage());
+        }
+    }
+
+    /** "Desfazer financeiro" aparece para quem pode gerar (profissional) quando o pagamento ja tem financeiro gerado. */
+    public static function canDesfazer($object)
+    {
+        if (!in_array((int) ($object->status_contrato_pagamento_id ?? 1), [2, 3], true)) {
+            return false;
+        }
+        try
+        {
+            TTransaction::open(self::$database);
+            $pessoa = Pessoa::where('system_users_id', '=', TSession::getValue('userid'))->first();
+            $pode = $pessoa && PessoaGrupo::where('pessoa_id', '=', $pessoa->id)->where('grupo_id', '=', Grupo::PROFISSIONAL)->count() > 0;
+            TTransaction::close();
+            return $pode;
+        }
+        catch (Exception $e)
+        {
+            TTransaction::rollback();
+            return false;
+        }
+    }
+
+    /**
+     * Desfaz o financeiro gerado por um pagamento do contrato: apaga as parcelas da conta a receber geradas por ele
+     * (e a conta, se ficar vazia) e o pagamento volta a "Em aberto", sem ser apagado. Bloqueado se alguma parcela ja
+     * foi recebida (o motivo aparece para o usuario).
+     */
+    public static function onDesfazerFinanceiro($param = null)
+    {
+        try
+        {
+            $pagamentoId = (int) ($param['contrato_parcela_id'] ?? $param['id'] ?? 0);
+            if ($pagamentoId <= 0) {
+                throw new Exception('Pagamento do contrato não informado.');
+            }
+
+            if (empty($param['confirmado'])) {
+                TTransaction::open(self::$database);
+                $motivo = ContratoFinanceiroService::motivoBloqueioDesfazer($pagamentoId);
+                $lancs = $motivo ? [] : ContratoFinanceiroService::lancamentosDoPagamento($pagamentoId);
+                TTransaction::close();
+                if ($motivo) {
+                    throw new Exception('Não é possível desfazer o financeiro deste pagamento. ' . $motivo);
+                }
+                $total = array_sum(array_map(function ($l) { return (float) $l->valor; }, $lancs));
+                $acao = new TAction([__CLASS__, 'onDesfazerFinanceiro']);
+                $acao->setParameters(['contrato_parcela_id' => $pagamentoId, 'contrato_id' => $param['contrato_id'] ?? '', 'confirmado' => 1]);
+                new TQuestion('Desfazer o financeiro deste pagamento?<br><br>'
+                    . count($lancs) . ' parcela(s) da conta a receber (total R$ ' . number_format($total, 2, ',', '.') . ') e a divisão entre os profissionais serão apagadas. '
+                    . 'Se a conta ficar sem parcelas, ela também é apagada.<br><br>O pagamento continua lançado no contrato e volta para "Em aberto", podendo ser editado, excluído ou ter o financeiro gerado de novo.', $acao);
+                return;
+            }
+
+            ContratoFinanceiroService::desfazer($pagamentoId);
+
+            $contratoId = (int) ($param['contrato_id'] ?? 0);
+            if ($contratoId <= 0) {
+                TTransaction::open(self::$database);
+                $contratoId = (int) (ContratoPagamentoParcela::find($pagamentoId)->contrato_id ?? 0);
+                TTransaction::close();
+            }
+
+            Navegacao::atualizarListaAoFechar();
+            TToast::show('success', 'Financeiro do pagamento desfeito. O pagamento voltou para "Em aberto".', 'topRight', 'far:check-circle');
+            TApplication::loadPage('ContratoFormView', 'onShow', ['key' => $contratoId, 'id' => $contratoId, 'current_tab_tab_64e5fbabf05b7' => 2]);
+        }
+        catch (Exception $e)
+        {
+            if (TTransaction::get()) {
+                TTransaction::rollback();
+            }
             new TMessage('error', $e->getMessage());    
         }
     }
@@ -928,6 +1190,9 @@ class ContratoFormView extends TPage
                 // instantiates object
                 $object = new Contrato($key, FALSE);
 
+                // financeiro gerado: desfazer antes (mesmo sem nada recebido)
+                ContratoFinanceiroService::exigirContratoExcluivel((int) $object->id);
+
                 if($object->loadComposite('ContratoProcesso', 'contrato_id', $object->id)){
                     throw new Exception("Esse contrato está vinculado a um processo e não pode ser removido!");
                 }
@@ -940,9 +1205,8 @@ class ContratoFormView extends TPage
                 // close the transaction
                 TTransaction::close();
 
-                TApplication::loadPage('ContratoList', 'onShow');
+                Navegacao::voltarParaLista('ContratoList', __CLASS__);
                 TToast::show('success', "Registro excluído", 'topRight', 'far:check-circle');
-                TScript::create("Template.closeRightPanel();");
             }
             catch (Exception $e) // in case of exception
             {

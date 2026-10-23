@@ -102,6 +102,12 @@ class SystemPasswordResetForm extends TPage
             
             $token = (array) JWT::decode($param['jwt'], new Key($seed, 'HS256'));
             
+            // Curciol (seguranca 22/10/2026): token de API (REST) nao serve para redefinir senha
+            if (($token['purpose'] ?? 'reset') !== 'reset' OR isset($token['userid']))
+            {
+                throw new Exception('Token inválido');
+            }
+
             $login = $token['user'];
             $expires = $token['expires'];
             

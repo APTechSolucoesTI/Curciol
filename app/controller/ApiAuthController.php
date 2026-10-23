@@ -74,6 +74,7 @@ class ApiAuthController
                 "userid" => $user->id,
                 "username" => $user->name,
                 "usermail" => $user->email,
+                "purpose" => "rest",
                 "expires" => strtotime("+ 3 hours")
             );
             

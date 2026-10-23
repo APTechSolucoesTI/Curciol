@@ -917,14 +917,20 @@ class ContraparteForm extends TPage
 
             $data->telefone = preg_replace('/[^0-9]/', '', $data->telefone);
             $data->cpf_cnpj = preg_replace('/[^0-9]/', '', $data->cpf_cnpj);
+            // Curciol (23/10/2026): sem tipo de pessoa a checagem de CPF/CNPJ repetido (abaixo) nao rodava; deduz pelo documento
+            if (empty($data->tipo_pessoa_id) && in_array(strlen((string) $data->cpf_cnpj), [11, 14], true))
+            {
+                $data->tipo_pessoa_id = (strlen($data->cpf_cnpj) == 11) ? TipoPessoa::FISICA : TipoPessoa::JURIDICA;
+            }
+            PessoaLoginService::exigirDocumentoValido($data->cpf_cnpj); // CPF/CNPJ preenchido precisa ser valido (vira o login do portal)
 
             $idAux = $data->id ?? -1;
             //CPF/CNPJ
             if($data->cpf_cnpj){
-                $countCPF_CNPJ = Pessoa::where('cpf_cnpj', '=', $data->cpf_cnpj)
+                $countCPF_CNPJ = Pessoa::where("regexp_replace(COALESCE(cpf_cnpj, ''), '\\D', '', 'g')", '=', $data->cpf_cnpj)
                                         ->where('id','!=',(int) $idAux)
                                         ->count();
-                $searchCPF_CNPJ = Pessoa::where('cpf_cnpj', '=', $data->cpf_cnpj)
+                $searchCPF_CNPJ = Pessoa::where("regexp_replace(COALESCE(cpf_cnpj, ''), '\\D', '', 'g')", '=', $data->cpf_cnpj)
                                         ->where('id','!=',(int) $idAux)
                                         ->first();
                 if($countCPF_CNPJ>0 && $data->tipo_pessoa_id==TipoPessoa::FISICA){
@@ -1000,32 +1006,10 @@ class ContraparteForm extends TPage
 
             $foto_dir = 'fotos';  
 
-            if(!$object->usuario){
-
-                $username = str_replace(' ', '_', $object->nome);
-                $username = TextService::slug($username);
-                $username = str_replace('_', '.', $username);
-
-                $object->usuario = $username;
-
-                $consulta = Pessoa::where('usuario', '=', $username)->first();
-                $count = 1;
-
-                // gerando um nome de usuario unico
-                while($consulta)
-                {
-                    $object->usuario = $username.$count;
-                    $consulta = Pessoa::where('usuario', '=', $object->usuario)->first();
-
-                    $count++;
-                }
-
-                $bytes = openssl_random_pseudo_bytes(3);
-                $pwd = bin2hex($bytes);
-
-                $object->senha = $pwd;
-                TForm::sendData(self::$formName, $object);
-            }
+            // portal do cliente (23/10/2026): login = CPF/CNPJ valido para o tipo de pessoa; login e senha nao se editam
+            // a mao: fica a senha do banco, gerada so quando ha login e a pessoa ainda nao tem senha
+            PessoaLoginService::aplicarLogin($object, PessoaLoginService::senhaGravada($data->id ?? null));
+            TForm::sendData(self::$formName, (object) ['usuario' => $object->usuario, 'senha' => $object->senha]);
 
             if(!$data->id){
                 $object->criacao_user_id = TSession::getValue('userid');
@@ -1033,6 +1017,8 @@ class ContraparteForm extends TPage
                 $object->modificacao_user_id = TSession::getValue('userid');
             }
 
+            // APChat: telefone antes desta edicao (o contato antigo e localizado por ele)
+            $telefone_anterior_apchat = APChatContactService::telefoneGravado($object->id ?? null);
             $object->store(); // save the object 
 
             $repository = ClassificacoesContraparte::where('pessoa_id', '=', $object->id);
@@ -1106,11 +1092,16 @@ class ContraparteForm extends TPage
 
             $this->form->setData($data); // fill form data
             TTransaction::close(); // close the transaction
+            // APChat: toda pessoa com telefone valido vai para os contatos (so depois do commit; nunca impede o cadastro)
+            $sincronizacao_apchat = APChatContactService::sincronizarPessoa($object->id, [$telefone_anterior_apchat]);
+            if (in_array($sincronizacao_apchat->situacao, [ApchatContatoLog::SITUACAO_ERRO, ApchatContatoLog::SITUACAO_PENDENTE]))
+            {
+                TToast::show('warning', 'Registro salvo. APChat: ' . $sincronizacao_apchat->mensagem, 'topRight', 'fas:exclamation-triangle');
+            }
 
             TToast::show('success', "Registro salvo", 'topRight', 'far:check-circle');
-            TApplication::loadPage('ContraparteList', 'onShow', $loadPageParam); 
+            Navegacao::voltarParaLista('ContraparteList', __CLASS__);
 
-                        TScript::create("Template.closeRightPanel();"); 
 
         }
         catch (Exception $e) // in case of exception
@@ -1158,8 +1149,7 @@ class ContraparteForm extends TPage
                 $param['delete']=NULL;
 
                 TToast::show('success', "Registro excluído", 'topRight', 'far:check-circle');
-                TApplication::loadPage('ContraparteList', 'onShow', $loadPageParam);
-                TScript::create("Template.closeRightPanel();");
+                Navegacao::voltarParaLista('ContraparteList', __CLASS__);
 
             }
             catch (Exception $e) // in case of exception
@@ -1306,7 +1296,7 @@ class ContraparteForm extends TPage
             $objeto->pessoa_id = $param['pessoa_id'];
             $objeto->grupo_id = Grupo::CONTRAPARTE;
             $objeto->store();
-            TApplication::loadPage('ContraparteList', 'onShow');
+            Navegacao::voltarParaLista('ContraparteList', __CLASS__);
             TTransaction::close();
         }
         catch (Exception $e) 

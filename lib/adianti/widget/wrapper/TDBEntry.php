@@ -1,6 +1,7 @@
 <?php
 namespace Adianti\Widget\Wrapper;
 
+use Adianti\Core\AdiantiApplicationConfig;
 use Adianti\Core\AdiantiCoreTranslator;
 use Adianti\Widget\Base\TElement;
 use Adianti\Widget\Base\TScript;
@@ -157,11 +158,13 @@ class TDBEntry extends TEntry
         $criteria = '';
         if ($this->criteria)
         {
-            $criteria = base64_encode(serialize($this->criteria));
+            $criteria = str_replace(array('+', '/'), array('-', '_'), base64_encode(serialize($this->criteria)));
         }
         
-        $seed = APPLICATION_NAME.'s8dkld83kf73kf094';
-        $hash = md5("{$seed}{$this->database}{$this->column}{$this->model}");
+        // Curciol (seguranca 22/10/2026): seed do sistema e o criterio entram no hash (o criterio volta do navegador e e desserializado)
+        $ini  = AdiantiApplicationConfig::get();
+        $seed = APPLICATION_NAME . ( !empty($ini['general']['seed']) ? $ini['general']['seed'] : 's8dkld83kf73kf094' );
+        $hash = md5("{$seed}{$this->database}{$this->column}{$this->model}{$criteria}");
         $length = $this->minLength;
         
         $class = $this->service;

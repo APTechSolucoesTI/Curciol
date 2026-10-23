@@ -25,6 +25,8 @@ use Exception;
  */
 class TDBSeekButton extends TSeekButton
 {
+    private $seekHashBase;
+
     /**
      * Constructor method
      *
@@ -67,7 +69,9 @@ class TDBSeekButton extends TSeekButton
         
         // define the action parameters
         $action = new TAction(array($obj, 'onSetup'));
-        $action->setParameter('hash',          md5("{$seed}{$database}{$model}{$display_field}"));
+        // Curciol (seguranca 22/10/2026): seed do sistema e o criterio entram no hash (o criterio volta do navegador e e desserializado)
+        $this->seekHashBase = "{$seed}{$database}{$model}{$display_field}";
+        $action->setParameter('hash',          md5($this->seekHashBase . base64_encode(serialize($criteria))));
         $action->setParameter('database',      $database);
         $action->setParameter('parent',        $form);
         $action->setParameter('model',         $model);
@@ -89,6 +93,10 @@ class TDBSeekButton extends TSeekButton
     public function setCriteria(TCriteria $criteria)
     {
         $this->getAction()->setParameter('criteria', base64_encode(serialize($criteria)));
+        if (isset($this->seekHashBase))
+        {
+            $this->getAction()->setParameter('hash', md5($this->seekHashBase . base64_encode(serialize($criteria))));
+        }
     }
     
     /**

@@ -265,7 +265,7 @@ class ContratoSeekWindow extends TWindow
         if (isset($data->cliente_id) AND ( (is_scalar($data->cliente_id) AND $data->cliente_id !== '') OR (is_array($data->cliente_id) AND (!empty($data->cliente_id)) )) )
         {
 
-            $filters[] = new TFilter('id', 'in', "(SELECT contrato_id FROM contrato_pessoa WHERE cliente_id = '{$data->cliente_id}')");// create the filter 
+            $filters[] = new TFilter('id', 'in', "(SELECT contrato_id FROM contrato_pessoa WHERE cliente_id = '" . SqlSeguro::id($data->cliente_id) . "')");// create the filter 
         }
 
         if (isset($data->assunto_id) AND ( (is_scalar($data->assunto_id) AND $data->assunto_id !== '') OR (is_array($data->assunto_id) AND (!empty($data->assunto_id)) )) )
@@ -277,13 +277,13 @@ class ContratoSeekWindow extends TWindow
         if (isset($data->numero) AND ( (is_scalar($data->numero) AND $data->numero !== '') OR (is_array($data->numero) AND (!empty($data->numero)) )) )
         {
 
-            $filters[] = new TFilter('numero', 'like', "%{$data->numero}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(numero AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->numero) . '%');// create the filter 
         }
 
         if (isset($data->objeto) AND ( (is_scalar($data->objeto) AND $data->objeto !== '') OR (is_array($data->objeto) AND (!empty($data->objeto)) )) )
         {
 
-            $filters[] = new TFilter('objeto', 'like', "%{$data->objeto}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(objeto AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->objeto) . '%');// create the filter 
         }
 
         // fill the form with data again

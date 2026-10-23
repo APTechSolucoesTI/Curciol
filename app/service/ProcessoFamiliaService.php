@@ -74,6 +74,17 @@ class ProcessoFamiliaService
      *
      * @return int[]
      */
+    /** Ancestrais agrupados por distancia: [1 => [pais], 2 => [avos], ...]. */
+    public static function ancestraisPorNivel($processo_id): array
+    {
+        $r = [];
+        foreach (self::ancestraisComNivel($processo_id) as $l) {
+            $r[(int) $l['nivel']][] = (int) $l['id'];
+        }
+        ksort($r);
+        return $r;
+    }
+
     public static function ancestrais($processo_id): array
     {
         $linhas = self::ancestraisComNivel($processo_id);

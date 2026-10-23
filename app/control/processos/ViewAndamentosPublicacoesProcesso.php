@@ -167,32 +167,27 @@ class ViewAndamentosPublicacoesProcesso extends TPage
         $column_id_transformed->disableHtmlConversion();
 
         $this->datagrid->addColumn($column_origem);
-        $this->datagrid->addColumn($column_titulo_transformed);
         $this->datagrid->addColumn($column_dt_transformed);
+        $this->datagrid->addColumn($column_titulo_transformed);
         $this->datagrid->addColumn($column_jornal_tipo);
         $this->datagrid->addColumn($column_id_transformed);
 
-        $action_onShow = new TDataGridAction(array('PublicacaoFormView', 'onShow'));
-        $action_onShow->setUseButton(false);
-        $action_onShow->setButtonClass('btn btn-default btn-sm');
-        $action_onShow->setLabel("Consultar publicação");
-        $action_onShow->setImage('fas:search-plus #000000');
-        $action_onShow->setField(self::$primaryKey);
-        $action_onShow->setDisplayCondition('ViewAndamentosPublicacoesProcesso::canViewPublicacao');
-        $action_onShow->setParameter('key', '{id}');
+        /*
+            Uma lupa so para publicacao e andamento: com duas acoes separadas a
+            lupa do andamento caia na segunda coluna e ficava desalinhada da
+            lupa da publicacao. onConsultar abre a consulta certa pela origem.
+        */
+        $action_onConsultar = new TDataGridAction(array('ViewAndamentosPublicacoesProcesso', 'onConsultar'));
+        $action_onConsultar->setUseButton(false);
+        $action_onConsultar->setButtonClass('btn btn-default btn-sm');
+        $action_onConsultar->setLabel("Consultar");
+        $action_onConsultar->setImage('fas:search-plus #000000');
+        $action_onConsultar->setField(self::$primaryKey);
+        $action_onConsultar->setParameter('key', '{id}');
+        $action_onConsultar->setParameter('origem', '{origem}');
+        $action_onConsultar->setParameter('static', '1');
 
-        $this->datagrid->addAction($action_onShow);
-
-        $action_AndamentoFormView_onShow = new TDataGridAction(array('AndamentoFormView', 'onShow'));
-        $action_AndamentoFormView_onShow->setUseButton(false);
-        $action_AndamentoFormView_onShow->setButtonClass('btn btn-default btn-sm');
-        $action_AndamentoFormView_onShow->setLabel("Consultar andamento");
-        $action_AndamentoFormView_onShow->setImage('fas:search-plus #000000');
-        $action_AndamentoFormView_onShow->setField(self::$primaryKey);
-        $action_AndamentoFormView_onShow->setDisplayCondition('ViewAndamentosPublicacoesProcesso::canViewAndamento');
-        $action_AndamentoFormView_onShow->setParameter('key', '{id}');
-
-        $this->datagrid->addAction($action_AndamentoFormView_onShow);
+        $this->datagrid->addAction($action_onConsultar);
 
         $action_onEdit = new TDataGridAction(array('AndamentoForm', 'onEdit'));
         $action_onEdit->setUseButton(false);
@@ -306,6 +301,17 @@ class ViewAndamentosPublicacoesProcesso extends TPage
         }
 
         return $html === '' ? '' : "<div class='curciol-etapa-pop'>{$html}</div>";
+    }
+
+    /** Lupa da lista: abre a consulta de andamento ou de publicacao conforme a origem da linha. */
+    public static function onConsultar($param = null)
+    {
+        try {
+            $classe = self::equalsPT($param['origem'] ?? '', 'Andamento') ? 'AndamentoFormView' : 'PublicacaoFormView';
+            AdiantiCoreApplication::loadPage($classe, 'onShow', ['key' => (int) ($param['key'] ?? 0)]);
+        } catch (Exception $e) {
+            new TMessage('error', $e->getMessage());
+        }
     }
 
     public static function canViewPublicacao($object)

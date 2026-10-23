@@ -562,7 +562,7 @@ class EscritorioForm extends TPage
             TTransaction::close(); // close the transaction
 
             TToast::show('success', "Registro salvo", 'topRight', 'far:check-circle');
-            TApplication::loadPage('EscritoriosList', 'onShow', $loadPageParam); 
+            Navegacao::voltarParaLista('EscritoriosList', __CLASS__);
 
             TForm::sendData(self::$formName, (object)['id' => $object->id]);
 

@@ -385,6 +385,8 @@ class PessoasHeaderList extends TPage
             $object->cpf_cnpj_col = null;
             $object->telefone_col = null;
 
+            // a cortina mostra os filtros aplicados agora (eles se somam aos das colunas e dos botoes rapidos)
+            $object = (object) array_merge((array) $object, (array) (TSession::getValue(__CLASS__.'_filter_data') ?: []));
             TForm::sendData(self::$formName, $object);
 
                         $filter = new self([]);
@@ -424,6 +426,10 @@ class PessoasHeaderList extends TPage
 
         TSession::setValue(__CLASS__.'_filter_data', NULL);
         TSession::setValue(__CLASS__.'_filters', NULL);
+
+        // os formularios tambem (senao o cabecalho continuava mostrando os filtros antigos)
+        if (!empty($this->form)) { $this->form->clear(); }
+        if (!empty($this->datagrid_form)) { $this->datagrid_form->clear(); }
 
         $this->onReload(['offset' => 0, 'first_page' => 1]);
     }
@@ -616,14 +622,20 @@ class PessoasHeaderList extends TPage
      */
     public function onSearch($param = null)
     {
-        if ((isset($param['static']) && ($param['static'] == '1')) || !empty($param['globalSearch']))
+        if (!empty($param['__sem_formulario']))
         {
-            $data = $this->datagrid_form->getData();
+            $formulario = [];
+        }
+        elseif ((isset($param['static']) && ($param['static'] == '1')) || !empty($param['globalSearch']))
+        {
+            $formulario = $this->datagrid_form->getData();
         }
         else
         {
-            $data = $this->form->getData();
+            $formulario = $this->form->getData();
         }
+        // filtros que se somam: cabecalho das colunas, cortina e botoes rapidos (FiltroLista)
+        $data = FiltroLista::acumular(__CLASS__, $formulario, $param);
         $filters = [];
 
         if (isset($data->cpf_cnpj) AND ( (is_scalar($data->cpf_cnpj) AND $data->cpf_cnpj !== '') OR (is_array($data->cpf_cnpj) AND (!empty($data->cpf_cnpj)) )) ){
@@ -644,7 +656,6 @@ class PessoasHeaderList extends TPage
 
         if (isset($data->nome_col) AND ( (is_scalar($data->nome_col) AND $data->nome_col !== '') OR (is_array($data->nome_col) AND (!empty($data->nome_col)) )) ){
             $nome_col = $data->nome_col;
-            $data->nome_col = str_replace(' ','%',TratamentosService::removerAcentos($data->nome_col));
         } 
 
         TSession::setValue(__CLASS__.'_filter_data', NULL);
@@ -653,7 +664,7 @@ class PessoasHeaderList extends TPage
         if (isset($data->nome) AND ( (is_scalar($data->nome) AND $data->nome !== '') OR (is_array($data->nome) AND (!empty($data->nome)) )) )
         {
 
-            $filters[] = new TFilter('unaccent(nome)', 'ilike', "%{$data->nome}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(nome AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->nome) . '%');// create the filter 
         }
 
         if (isset($data->tipo_pessoa_id) AND ( (is_scalar($data->tipo_pessoa_id) AND $data->tipo_pessoa_id !== '') OR (is_array($data->tipo_pessoa_id) AND (!empty($data->tipo_pessoa_id)) )) )
@@ -665,43 +676,43 @@ class PessoasHeaderList extends TPage
         if (isset($data->cpf_cnpj) AND ( (is_scalar($data->cpf_cnpj) AND $data->cpf_cnpj !== '') OR (is_array($data->cpf_cnpj) AND (!empty($data->cpf_cnpj)) )) )
         {
 
-            $filters[] = new TFilter('cpf_cnpj', 'like', "%{$data->cpf_cnpj}%");// create the filter 
+            $filters[] = new TFilter("regexp_replace(COALESCE(cpf_cnpj, ''), '\\D', '', 'g')", 'ilike', '%' . (preg_replace('/\\D/', '', (string) $data->cpf_cnpj) ?: TratamentosService::removerAcentos((string) $data->cpf_cnpj)) . '%');// create the filter 
         }
 
         if (isset($data->email) AND ( (is_scalar($data->email) AND $data->email !== '') OR (is_array($data->email) AND (!empty($data->email)) )) )
         {
 
-            $filters[] = new TFilter('email', 'like', "%{$data->email}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(email AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->email) . '%');// create the filter 
         }
 
         if (isset($data->telefone) AND ( (is_scalar($data->telefone) AND $data->telefone !== '') OR (is_array($data->telefone) AND (!empty($data->telefone)) )) )
         {
 
-            $filters[] = new TFilter('telefone', 'like', "%{$data->telefone}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(telefone AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->telefone) . '%');// create the filter 
         }
 
         if (isset($data->nome_col) AND ( (is_scalar($data->nome_col) AND $data->nome_col !== '') OR (is_array($data->nome_col) AND (!empty($data->nome_col)) )) )
         {
 
-            $filters[] = new TFilter('unaccent(nome)', 'ilike', "%{$data->nome_col}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(nome AS TEXT))', 'ilike', '%' . str_replace(' ', '%', TratamentosService::removerAcentos((string) $data->nome_col)) . '%');// create the filter 
         }
 
         if (isset($data->cpf_cnpj_col) AND ( (is_scalar($data->cpf_cnpj_col) AND $data->cpf_cnpj_col !== '') OR (is_array($data->cpf_cnpj_col) AND (!empty($data->cpf_cnpj_col)) )) )
         {
 
-            $filters[] = new TFilter('cpf_cnpj', 'like', "%{$data->cpf_cnpj_col}%");// create the filter 
+            $filters[] = new TFilter("regexp_replace(COALESCE(cpf_cnpj, ''), '\\D', '', 'g')", 'ilike', '%' . (preg_replace('/\\D/', '', (string) $data->cpf_cnpj_col) ?: TratamentosService::removerAcentos((string) $data->cpf_cnpj_col)) . '%');// create the filter 
         }
 
         if (isset($data->telefone_col) AND ( (is_scalar($data->telefone_col) AND $data->telefone_col !== '') OR (is_array($data->telefone_col) AND (!empty($data->telefone_col)) )) )
         {
 
-            $filters[] = new TFilter('telefone', 'like', "%{$data->telefone_col}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(telefone AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->telefone_col) . '%');// create the filter 
         }
 
         if (isset($data->email_col) AND ( (is_scalar($data->email_col) AND $data->email_col !== '') OR (is_array($data->email_col) AND (!empty($data->email_col)) )) )
         {
 
-            $filters[] = new TFilter('email', 'like', "%{$data->email_col}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(email AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->email_col) . '%');// create the filter 
         }
 
         if (isset($data->tipo_pessoa_nome) AND ( (is_scalar($data->tipo_pessoa_nome) AND $data->tipo_pessoa_nome !== '') OR (is_array($data->tipo_pessoa_nome) AND (!empty($data->tipo_pessoa_nome)) )) )
@@ -714,11 +725,11 @@ class PessoasHeaderList extends TPage
         {
             $globalCriteria = new TCriteria();
 
-            $globalCriteria->add(new TFilter('unaccent(nome)', 'ilike', "%{$data->global_filter}%"), ' OR ');
+            $globalCriteria->add(new TFilter('unaccent(CAST(nome AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->global_filter) . '%'), ' OR ');
 
-            $globalCriteria->add(new TFilter('telefone', 'ilike', "%{$data->global_filter}%"), ' OR ');
+            $globalCriteria->add(new TFilter('unaccent(CAST(telefone AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->global_filter) . '%'), ' OR ');
 
-            $globalCriteria->add(new TFilter('cpf_cnpj', 'ilike', "%{$data->global_filter}%"), ' OR ');
+            $globalCriteria->add(new TFilter("regexp_replace(COALESCE(cpf_cnpj, ''), '\\D', '', 'g')", 'ilike', '%' . (preg_replace('/\\D/', '', (string) $data->global_filter) ?: TratamentosService::removerAcentos((string) $data->global_filter)) . '%'), ' OR ');
 
             $filters[] = $globalCriteria;
         }
@@ -735,15 +746,9 @@ class PessoasHeaderList extends TPage
             $this->button_filtros->setLabel('Filtros'. "<span class='badge badge-success' style='position: absolute'>{$countFiltros}<span>");
         }
 
-        // fill the form with data again
-        if ((isset($param['static']) && ($param['static'] == '1')) || !empty($param['globalSearch']))
-        {
-            $this->datagrid_form->setData($data);
-        }
-        else
-        {
-            $this->form->setData($data);
-        }
+        // fill the form with data again (os dois formularios mostram os filtros somados)
+        $this->datagrid_form->setData($data);
+        $this->form->setData($data);
 
         // keep the search data in the session
         TSession::setValue(__CLASS__.'_filter_data', $data);
@@ -833,6 +838,8 @@ class PessoasHeaderList extends TPage
 
             // close the transaction
             TTransaction::close();
+            // faixa "Filtros aplicados": cortina, botoes rapidos e funil do cabecalho (FiltroLista)
+            FiltroLista::faixa(__CLASS__, $this->form ?? null, $this->datagrid_form ?? null, $this->datagrid);
             $this->loaded = true;
 
             return $objects;

@@ -137,9 +137,8 @@ class ConfigBuscaAPartirForm extends TPage
             TTransaction::close(); // close the transaction
 
             TToast::show('success', "Registro salvo", 'topRight', 'far:check-circle');
-            TApplication::loadPage('ConfigBuscaAPartirHeaderList', 'onShow', $loadPageParam); 
+            Navegacao::voltarParaLista('ConfigBuscaAPartirHeaderList', __CLASS__);
 
-                        TScript::create("Template.closeRightPanel();"); 
         }
         catch (Exception $e) // in case of exception
         {

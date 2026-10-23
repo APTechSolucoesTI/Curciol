@@ -52,6 +52,8 @@ class Conta extends TRecord
         parent::addAttribute('data_modificacao');
         parent::addAttribute('modificacao_user_id');
         parent::addAttribute('tipo_lancamento');
+        parent::addAttribute('requisicao_pagamento_id');
+        parent::addAttribute('conta_caixa_id');
     
     }
 
@@ -549,6 +551,14 @@ class Conta extends TRecord
             $object->ano = date('Y', strtotime($object->data_emissao));
             $object->mes = date('m', strtotime($object->data_emissao));
             $object->ano_mes = date('Ym', strtotime($object->data_emissao));
+        }
+    }
+            
+    public function onAfterStore($object)
+    {
+        // conta a receber do financeiro de uma requisicao: quitar/desquitar muda o status da requisicao (Quitado automatico)
+        if ((string) ($object->tipo_conta_id ?? '') === (string) TipoConta::RECEBER && !empty($object->requisicao_pagamento_id) && !empty($object->id)) {
+            RequisicaoQuitacaoService::atualizarPorConta((int) $object->id);
         }
     }
             

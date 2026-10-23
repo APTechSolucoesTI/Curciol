@@ -233,6 +233,8 @@ class ModalQuitarParcela extends TWindow
 
             TTransaction::open('escritorio');
 
+            // Curciol (seguranca 22/10/2026): trava a parcela ate o fim da transacao (duas baixas simultaneas)
+            TTransaction::get()->query('SELECT id FROM lancamento WHERE id = ' . SqlSeguro::id($param['id'] ?? 0) . ' FOR UPDATE');
             $lancamento = Lancamento::find($param['id']);
 
             if(!$lancamento){
@@ -241,6 +243,10 @@ class ModalQuitarParcela extends TWindow
 
             if($lancamento->dt_pagamento){
                 throw new Exception('Esse lançamento já foi quitado em '.TDate::date2br($lancamento->dt_pagamento));
+            }
+
+            if($lancamento->cancelado == 'S'){
+                throw new Exception('Essa parcela está cancelada.');
             }
 
             if($dadosConfirmacao){
@@ -270,6 +276,9 @@ class ModalQuitarParcela extends TWindow
 
             // vai para o extrato agora
             $valorMovimentado = round($valorQuitacao + $acrescimo - $desconto, 2);
+            if($valorMovimentado < 0){
+                throw new Exception('O desconto não pode ser maior que o valor a quitar.');
+            }
 
             // fica salvo como valor final completo do lancamento
             $novoValorTotal = round($valorBaseLancamento + $acrescimo - $desconto, 2);
@@ -392,21 +401,17 @@ class ModalQuitarParcela extends TWindow
                 $extrato->mes = date('m', strtotime($lancamento->dt_pagamento));
                 $extrato->ano_mes = date('Ym', strtotime($lancamento->dt_pagamento));
 
-                $contaCaixa = ContaCaixa::find($extrato->conta_caixa_id);
-                $contaCaixa->saldo_instantaneo = (float) $contaCaixa->saldo_instantaneo + (float) $extrato->entrada_valor - (float) $extrato->saida_valor;
-                $contaCaixa->modificacao_user_id = TSession::getValue('userid');
-                $contaCaixa->store();
-            }else{
-                $contaCaixa = ContaCaixa::find($extrato->conta_caixa_id);
-                $contaCaixa->saldo_nao_compensado = (float) $contaCaixa->saldo_nao_compensado + (float) $extrato->entrada_valor - (float) $extrato->saida_valor;
-                $contaCaixa->modificacao_user_id = TSession::getValue('userid');
-                $contaCaixa->store();
             }
 
             $extrato->historico = $object->historico;
             $extrato->criacao_user_id = TSession::getValue('userid');
             $extrato->store();
+            ContaCaixaSaldoService::recalcular($extrato->conta_caixa_id);
 
+            // conta a receber com repasse: nasce a conta a pagar de cada colaborador (o restante da parcela)
+            if ((string) $lancamento->conta->tipo_conta_id === (string) TipoConta::RECEBER) {
+                RepasseColaboradorService::gerarPorRecebimento((int) $lancamento->id, (int) $extrato->id, (float) $valorMovimentado, (string) $lancamento->dt_pagamento, true);
+            }
             $lancamento->extrato_id = $extrato->id;
             $lancamento->store();
 
@@ -425,7 +430,7 @@ class ModalQuitarParcela extends TWindow
 
             TToast::show('success', 'Lançamento quitado com sucesso', 'bottom right');
 
-            AdiantiCoreApplication::loadPage('ContaFormView', 'onShow', ['key' => $lancamento->conta_id]);
+            Navegacao::abrirConta((int) $lancamento->conta_id);
             TScript::create("$(\"[page_name='ModalQuitarParcela']\").remove()");
 
             TTransaction::close();
@@ -524,6 +529,8 @@ class ModalQuitarParcela extends TWindow
             $object->dt_vencimento = $data->format('d/m/Y');
             $object->tipo_pagamento_id = $lancamento->tipo_pagamento_id;
             $object->dt_pagamento = date('d/m/Y');
+            // conta-caixa prevista na conta (ex.: gerar financeiro do contrato) vem sugerida
+            $object->conta_caixa_id = $lancamento->conta->conta_caixa_id ?: null;
 
             $catConta = $lancamento->conta->categoria_conta->nome;
             $pessoa = strtoupper($lancamento->conta->pessoa->nome);

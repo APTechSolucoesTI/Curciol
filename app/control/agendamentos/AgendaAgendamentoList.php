@@ -58,21 +58,21 @@ class AgendaAgendamentoList extends TPage
         $estado_agenda_id = new TDBCombo('estado_agenda_id', 'escritorio', 'EstadoAgenda', 'id', '{nome}','nome asc' , $criteria_estado_agenda_id );
         $dt_inicial = new TDate('dt_inicial');
         $dt_final = new TDate('dt_final');
-        $cliente_col = new TEntry('cliente_col');
+        // autocomplete: a lista sugere as pessoas pelo nome (o filtro continua sendo pelo nome)
+        $cliente_col = new TDBUniqueSearch('cliente_col', 'escritorio', 'Pessoa', 'nome', 'nome', 'nome asc', FiltroLista::criterioPessoasDe('agendamento', 'cliente_id'));
+        $cliente_col->setMinLength(2);
         $especialidade_descricao = new TDBCombo('especialidade_descricao', 'escritorio', 'Especialidade', 'id', '{descricao}','descricao asc' , $criteria_especialidade_descricao );
         $is_online = new TCombo('is_online');
         $estado_agenda_nome = new TDBCombo('estado_agenda_nome', 'escritorio', 'EstadoAgenda', 'id', '{nome}','nome asc' , $criteria_estado_agenda_nome );
 
-        $cliente_col->exitOnEnter();
 
-        $cliente_col->setExitAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
+        $cliente_col->setChangeAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
 
         $especialidade_descricao->setChangeAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
         $is_online->setChangeAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
         $estado_agenda_nome->setChangeAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
 
         $cliente_id->setMinLength(3);
-        $cliente_col->forceUpperCase();
         $is_online->addItems(["T"=>"Sim","F"=>"Não"]);
         $dt_final->setDatabaseMask('yyyy-mm-dd');
         $dt_inicial->setDatabaseMask('yyyy-mm-dd');
@@ -563,6 +563,8 @@ class AgendaAgendamentoList extends TPage
             $object->agenda_id = null;
             $object->estado_agenda_id = null;
 
+            // a cortina mostra os filtros aplicados agora (eles se somam aos das colunas e dos botoes rapidos)
+            $object = (object) array_merge((array) $object, (array) (TSession::getValue(__CLASS__.'_filter_data') ?: []));
             TForm::sendData(self::$formName, $object);
 
                         $filter = new self([]);
@@ -631,14 +633,20 @@ class AgendaAgendamentoList extends TPage
      */
     public function onSearch($param = null)
     {
-        if ((isset($param['static']) && ($param['static'] == '1')) || !empty($param['globalSearch']))
+        if (!empty($param['__sem_formulario']))
         {
-            $data = $this->datagrid_form->getData();
+            $formulario = [];
+        }
+        elseif ((isset($param['static']) && ($param['static'] == '1')) || !empty($param['globalSearch']))
+        {
+            $formulario = $this->datagrid_form->getData();
         }
         else
         {
-            $data = $this->form->getData();
+            $formulario = $this->form->getData();
         }
+        // filtros que se somam: cabecalho das colunas, cortina e botoes rapidos (FiltroLista)
+        $data = FiltroLista::acumular(__CLASS__, $formulario, $param);
         $filters = [];
 
         TSession::setValue(__CLASS__.'_filter_data', NULL);
@@ -653,7 +661,7 @@ class AgendaAgendamentoList extends TPage
         if (isset($data->profissional_id) AND ( (is_scalar($data->profissional_id) AND $data->profissional_id !== '') OR (is_array($data->profissional_id) AND (!empty($data->profissional_id)) )) )
         {
 
-            $filters[] = new TFilter('agenda_id', 'in', "(SELECT id FROM agenda WHERE profissional_id = '{$data->profissional_id}')");// create the filter 
+            $filters[] = new TFilter('agenda_id', 'in', "(SELECT id FROM agenda WHERE profissional_id = '" . SqlSeguro::id($data->profissional_id) . "')");// create the filter 
         }
 
         if (isset($data->especialidade_id) AND ( (is_scalar($data->especialidade_id) AND $data->especialidade_id !== '') OR (is_array($data->especialidade_id) AND (!empty($data->especialidade_id)) )) )
@@ -724,15 +732,9 @@ class AgendaAgendamentoList extends TPage
             );
         }
 
-        // fill the form with data again
-        if ((isset($param['static']) && ($param['static'] == '1')) || !empty($param['globalSearch']))
-        {
-            $this->datagrid_form->setData($data);
-        }
-        else
-        {
-            $this->form->setData($data);
-        }
+        // fill the form with data again (os dois formularios mostram os filtros somados)
+        $this->datagrid_form->setData($data);
+        $this->form->setData($data);
 
         // keep the search data in the session
         TSession::setValue(__CLASS__.'_filter_data', $data);
@@ -815,6 +817,8 @@ class AgendaAgendamentoList extends TPage
 
             // close the transaction
             TTransaction::close();
+            // faixa "Filtros aplicados": cortina, botoes rapidos e funil do cabecalho (FiltroLista)
+            FiltroLista::faixa(__CLASS__, $this->form ?? null, $this->datagrid_form ?? null, $this->datagrid);
             $this->loaded = true;
 
             return $objects;

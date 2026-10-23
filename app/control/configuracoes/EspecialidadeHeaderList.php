@@ -217,7 +217,7 @@ class EspecialidadeHeaderList extends TPage
         if (isset($data->descricao) AND ( (is_scalar($data->descricao) AND $data->descricao !== '') OR (is_array($data->descricao) AND (!empty($data->descricao)) )) )
         {
 
-            $filters[] = new TFilter('descricao', 'like', "%{$data->descricao}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(descricao AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->descricao) . '%');// create the filter 
         }
 
         // fill the form with data again
@@ -301,6 +301,9 @@ class EspecialidadeHeaderList extends TPage
 
             // close the transaction
             TTransaction::close();
+            $this->datagrid->initPopoverHeaderFilters();
+            // faixa "Filtros aplicados": cortina, botoes rapidos e funil do cabecalho (FiltroLista)
+            FiltroLista::faixa(__CLASS__, $this->form ?? null, $this->datagrid_form ?? null, $this->datagrid);
             $this->loaded = true;
 
             return $objects;

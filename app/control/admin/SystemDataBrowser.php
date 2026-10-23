@@ -62,6 +62,7 @@ class SystemDataBrowser extends TPage
             $limit    = 10;
             $database = isset($param['database']) ? $param['database'] : TSession::getValue(__CLASS__ . '_database');
             $table    = isset($param['table'])    ? $param['table']    : TSession::getValue(__CLASS__ . '_table');
+            SystemDatabaseInformationService::validarTabela($database, $table);
             
             // store database and table into session
             TSession::setValue(__CLASS__ . '_database', $database);
@@ -69,13 +70,13 @@ class SystemDataBrowser extends TPage
             
             // creates the select criteria
             $criteria = new TCriteria;
-            if (isset($param['order']))
+            if (isset($param['order']) AND TCriteria::ordemValida($param['order']))
             {
                 $criteria->setProperty('order',     $param['order']);
             }
             if (isset($param['direction']))
             {
-                $criteria->setProperty('direction', $param['direction']);
+                $criteria->setProperty('direction', strtolower((string) $param['direction']) == 'desc' ? 'desc' : 'asc');
             }
             if (isset($param['offset']))
             {
@@ -85,6 +86,11 @@ class SystemDataBrowser extends TPage
             
             if (!empty($param['filter_value']))
             {
+                // o filtro e montado pela propria tela: coluna da tabela e '=' ou 'like'
+                if (!preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', (string) ($param['filter_name'] ?? '')) OR !in_array($param['filter_type'] ?? '', ['=', 'like'], TRUE))
+                {
+                    throw new Exception('Filtro inválido');
+                }
                 $this->pageAction->setParameter('filter_name',  $param['filter_name']);
                 $this->pageAction->setParameter('filter_value', $param['filter_value']);
                 $this->pageAction->setParameter('filter_type',  $param['filter_type']);

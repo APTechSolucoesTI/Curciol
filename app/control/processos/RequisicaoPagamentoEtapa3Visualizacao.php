@@ -39,6 +39,28 @@ class RequisicaoPagamentoEtapa3Visualizacao extends TWindow
 
             $uidJanela = 'e3_view_' . $id . '_' . uniqid();
 
+            // botao Gerar / Ver financeiro (o detalhe se recarrega sozinho depois)
+            // a tela que abriu este detalhe (historico da janela ou da aba) tambem e recarregada
+            $pai = [];
+            $urlPai = '';
+            if (!empty($param['origem_pai']) && !empty($param['url_pai'])) {
+                $pai = ['origem' => $param['origem_pai'], 'url' => $param['url_pai']];
+                $urlPai = '&origem_pai=' . urlencode($param['origem_pai']) . '&url_pai=' . urlencode($param['url_pai']);
+            }
+            $botaoFinanceiro = LevantamentoFinanceiroForm::botaoFinanceiro(
+                $lancamento,
+                LevantamentoFinanceiroForm::idsComFinanceiro([$id]),
+                'detalhe',
+                'engine.php?class=RequisicaoPagamentoEtapa3Visualizacao&method=onShow&key=' . $id . $urlPai . '&register_state=false',
+                true,
+                $pai
+            );
+            // excluir o pagamento (fecha o detalhe e recarrega a tela que o abriu)
+            $botaoExcluir = self::botaoExcluir($id, PagamentoExclusaoService::motivoBloqueio($id), (string) ($param['origem_pai'] ?? ''), (string) ($param['url_pai'] ?? ''), true);
+            if ($botaoFinanceiro !== '' || $botaoExcluir !== '') {
+                $botaoFinanceiro = "<div class='e3-section' style='padding: 10px 14px; text-align: right;'>{$botaoExcluir} {$botaoFinanceiro}</div>";
+            }
+
             $html = "
                     <div id='{$uidJanela}' class='e3-wrap'>
 
@@ -74,6 +96,11 @@ class RequisicaoPagamentoEtapa3Visualizacao extends TWindow
                         <div class='e3-grid'>
                             " . $this->blocoInfo('Data do depósito', self::formatarDataBR($lancamento->data_deposito)) . "
                             " . $this->blocoInfo('Valor bruto depositado', self::formatarValorBR($lancamento->valor_bruto_depositado)) . "
+                            " . ($lancamento->desconto_previdenciario !== null
+                                ? $this->blocoInfo('Desconto previdenciário', self::formatarValorBR($lancamento->desconto_previdenciario))
+                                    . $this->blocoInfo('Desconto assistencial', self::formatarValorBR($lancamento->desconto_assistencial))
+                                    . $this->blocoInfo('Desconto IRRF', self::formatarValorBR($lancamento->desconto_irrf))
+                                : '') . "
                             " . $this->blocoInfo('Valor do MLE', self::formatarValorBR($lancamento->valor_mle)) . "
                         </div>
                     </div>
@@ -96,7 +123,7 @@ class RequisicaoPagamentoEtapa3Visualizacao extends TWindow
                         </div>
                     </div>
 
-                   
+                    " . $botaoFinanceiro . "
 
                 </div>
             ";
@@ -119,6 +146,80 @@ class RequisicaoPagamentoEtapa3Visualizacao extends TWindow
     {
     }
 
+    /**
+     * Botao de excluir o pagamento. Bloqueado (ex.: financeiro gerado): fica apagado, e o clique mostra o motivo.
+     * $origem/$urlRecarga: tela a recarregar depois (janela ou aba da requisicao). $texto: botao com rotulo (detalhe).
+     */
+    public static function botaoExcluir(int $etapa3Id, ?string $motivo, string $origem, string $urlRecarga, bool $texto = false): string
+    {
+        $url = 'engine.php?' . http_build_query([
+            'class' => __CLASS__, 'method' => 'onExcluir', 'static' => '1', 'key' => $etapa3Id,
+            'origem' => $origem, 'url_recarga' => $urlRecarga, 'fechar_detalhe' => $texto ? '1' : '0',
+        ]);
+        $onclick = htmlspecialchars('Adianti.waitMessage = false; __adianti_ajax_exec(' . json_encode(substr($url, strlen('engine.php?'))) . '); return false;', ENT_QUOTES, 'UTF-8');
+        if ($motivo !== null) {
+            $titulo = htmlspecialchars('Não pode excluir: ' . $motivo, ENT_QUOTES, 'UTF-8');
+            return $texto
+                ? "<a href='javascript:void(0)' class='btn btn-sm btn-default' title='{$titulo}' style='opacity:.55' onclick=\"{$onclick}\"><i class='fas fa-trash-alt'></i> Excluir pagamento</a>"
+                : "<a href='javascript:void(0)' class='req-action-btn' title='{$titulo}' style='opacity:.35' onclick=\"{$onclick}\"><i class='fas fa-trash-alt'></i></a>";
+        }
+        return $texto
+            ? "<a href='javascript:void(0)' class='btn btn-sm btn-default' style='color:#b91c1c' onclick=\"{$onclick}\"><i class='fas fa-trash-alt'></i> Excluir pagamento</a>"
+            : "<a href='javascript:void(0)' class='req-action-btn' title='Excluir pagamento' style='color:#b91c1c' onclick=\"{$onclick}\"><i class='fas fa-trash-alt'></i></a>";
+    }
+
+    /** Confirmacao da exclusao. */
+    public static function onExcluir($param)
+    {
+        try {
+            $id = (int) ($param['key'] ?? 0);
+            // bloqueado (financeiro gerado, ...): so o aviso com o motivo
+            if ($motivo = PagamentoExclusaoService::motivoBloqueio($id)) {
+                new TMessage('warning', 'Não é possível excluir este pagamento.<br><br>' . htmlspecialchars($motivo));
+                self::caixaNaFrente();
+                return;
+            }
+            $acao = new TAction([__CLASS__, 'onExcluirConfirmado'], [
+                'static' => '1', 'key' => $id, 'origem' => $param['origem'] ?? '',
+                'url_recarga' => $param['url_recarga'] ?? '', 'fechar_detalhe' => $param['fechar_detalhe'] ?? '0',
+            ]);
+            new TQuestion('Excluir este pagamento?', $acao);
+            self::caixaNaFrente();
+        } catch (Exception $e) {
+            new TMessage('error', $e->getMessage());
+            self::caixaNaFrente();
+        }
+    }
+
+    public static function onExcluirConfirmado($param)
+    {
+        try {
+            PagamentoExclusaoService::excluir((int) ($param['key'] ?? 0));
+            if (($param['fechar_detalhe'] ?? '0') === '1') {
+                TScript::create("$('.e3-wrap').closest('.ui-dialog, .modal').remove();");
+            }
+            TToast::show('success', 'Pagamento excluído', 'topRight', 'far:check-circle');
+            LevantamentoFinanceiroForm::recarregarOrigem(['origem' => $param['origem'] ?? '', 'url_recarga' => $param['url_recarga'] ?? '']);
+        } catch (Exception $e) {
+            new TMessage('error', $e->getMessage());
+            self::caixaNaFrente();
+        }
+    }
+
+    /** A pergunta/mensagem (modal do bootstrap) abre por tras das janelas abertas: coloca acima da mais alta. */
+    private static function caixaNaFrente(): void
+    {
+        TScript::create("(function () {
+            function frente() {
+                var z = 0;
+                $('.ui-dialog, .ui-widget-overlay').each(function () { z = Math.max(z, parseInt($(this).css('z-index'), 10) || 0); });
+                $('.modal-backdrop').last().css('z-index', z + 1);
+                $('.modal').filter(':visible').last().css('z-index', z + 2);
+            }
+            setTimeout(frente, 60); setTimeout(frente, 350);
+        })();");
+    }
+
     private function buscarLancamento($conn, $id)
     {
         $sql = "
@@ -130,6 +231,9 @@ class RequisicaoPagamentoEtapa3Visualizacao extends TWindow
                 e3.data_deposito,
                 e3.valor_bruto_depositado,
                 e3.valor_mle,
+                e3.desconto_previdenciario,
+                e3.desconto_assistencial,
+                e3.desconto_irrf,
                 e3.conta_indicada_mle,
                 e3.data_pedido_mle,
                 e3.data_deferimento_mle,

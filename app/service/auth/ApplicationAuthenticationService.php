@@ -148,16 +148,31 @@ class ApplicationAuthenticationService
         
         $token = (array) JWT::decode($token, new Key($seed, 'HS256'));
         
-        $login   = $token['user'];
-        $userid  = $token['userid'];
-        $name    = $token['username'];
-        $email   = $token['usermail'];
         $expires = $token['expires'];
         
         if ($expires < strtotime('now'))
         {
             throw new Exception('Token expired. This operation is not allowed');
         }
+
+        // Curciol (seguranca 22/10/2026): so token emitido para a API (nao o link de redefinir senha) e de usuario
+        // que ainda existe e esta ativo; nome e e-mail vem do banco, nao do token
+        if (($token['purpose'] ?? '') !== 'rest' OR empty($token['userid']))
+        {
+            throw new Exception('Invalid token');
+        }
+        TTransaction::open('permission');
+        $user = SystemUsers::find((int) $token['userid']);
+        TTransaction::close();
+        if (!$user instanceof SystemUsers OR $user->active != 'Y' OR $user->login !== $token['user'])
+        {
+            throw new Exception('Invalid token');
+        }
+
+        $login   = $user->login;
+        $userid  = $user->id;
+        $name    = $user->name;
+        $email   = $user->email;
         
         TSession::setValue('logged',   TRUE);
         TSession::setValue('login',    $login);

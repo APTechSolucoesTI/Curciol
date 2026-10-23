@@ -70,7 +70,9 @@ class AdiantiMultiSearchService
         $key  = $param['key'];
         $ini  = AdiantiApplicationConfig::get();
         $seed = APPLICATION_NAME . ( !empty($ini['general']['seed']) ? $ini['general']['seed'] : 's8dkld83kf73kf094' );
-        $hash = md5("{$seed}{$param['database']}{$param['key']}{$param['column']}{$param['model']}");
+        // Curciol (seguranca 22/10/2026): seed do sistema e o criterio entram no hash (o criterio volta do navegador e e desserializado)
+        $criteria_param = (string) ($param['criteria'] ?? '');
+        $hash = md5("{$seed}{$param['database']}{$param['key']}{$param['column']}{$param['model']}{$criteria_param}");
         $mask = $param['mask'];
         $json = ! empty($param['jsonvalue']) && $param['jsonvalue'] == 1;
         

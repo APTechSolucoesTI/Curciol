@@ -593,6 +593,8 @@ class TipoDocumentoFinanceiroList extends TPage
             $object->gera_codigo = null;
             $object->padrao_id = null;
 
+            // a cortina mostra os filtros aplicados agora (eles se somam aos das colunas e dos botoes rapidos)
+            $object = (object) array_merge((array) $object, (array) (TSession::getValue(__CLASS__.'_filter_data') ?: []));
             TForm::sendData(self::$formName, $object);
 
                         $filter = new self([]);
@@ -628,6 +630,10 @@ class TipoDocumentoFinanceiroList extends TPage
         TSession::setValue(__CLASS__.'_filter_data', NULL);
         TSession::setValue(__CLASS__.'_filters', NULL);
 
+        // os formularios tambem (senao o cabecalho continuava mostrando os filtros antigos)
+        if (!empty($this->form)) { $this->form->clear(); }
+        if (!empty($this->datagrid_form)) { $this->datagrid_form->clear(); }
+
         $this->onReload(['offset' => 0, 'first_page' => 1]);
     }
     public function onRefresh($param = null) 
@@ -640,14 +646,20 @@ class TipoDocumentoFinanceiroList extends TPage
      */
     public function onSearch($param = null)
     {
-        if ((isset($param['static']) && ($param['static'] == '1')) || !empty($param['globalSearch']))
+        if (!empty($param['__sem_formulario']))
         {
-            $data = $this->datagrid_form->getData();
+            $formulario = [];
+        }
+        elseif ((isset($param['static']) && ($param['static'] == '1')) || !empty($param['globalSearch']))
+        {
+            $formulario = $this->datagrid_form->getData();
         }
         else
         {
-            $data = $this->form->getData();
+            $formulario = $this->form->getData();
         }
+        // filtros que se somam: cabecalho das colunas, cortina e botoes rapidos (FiltroLista)
+        $data = FiltroLista::acumular(__CLASS__, $formulario, $param);
         $filters = [];
 
         TSession::setValue(__CLASS__.'_filter_data', NULL);
@@ -656,13 +668,13 @@ class TipoDocumentoFinanceiroList extends TPage
         if (isset($data->codigo) AND ( (is_scalar($data->codigo) AND $data->codigo !== '') OR (is_array($data->codigo) AND (!empty($data->codigo)) )) )
         {
 
-            $filters[] = new TFilter('codigo', 'like', "%{$data->codigo}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(codigo AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->codigo) . '%');// create the filter 
         }
 
         if (isset($data->nome) AND ( (is_scalar($data->nome) AND $data->nome !== '') OR (is_array($data->nome) AND (!empty($data->nome)) )) )
         {
 
-            $filters[] = new TFilter('nome', 'like', "%{$data->nome}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(nome AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->nome) . '%');// create the filter 
         }
 
         if (isset($data->tipo_conta_id) AND ( (is_scalar($data->tipo_conta_id) AND $data->tipo_conta_id !== '') OR (is_array($data->tipo_conta_id) AND (!empty($data->tipo_conta_id)) )) )
@@ -686,13 +698,13 @@ class TipoDocumentoFinanceiroList extends TPage
         if (isset($data->codigo_col) AND ( (is_scalar($data->codigo_col) AND $data->codigo_col !== '') OR (is_array($data->codigo_col) AND (!empty($data->codigo_col)) )) )
         {
 
-            $filters[] = new TFilter('codigo', 'like', "%{$data->codigo_col}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(codigo AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->codigo_col) . '%');// create the filter 
         }
 
         if (isset($data->nome_col) AND ( (is_scalar($data->nome_col) AND $data->nome_col !== '') OR (is_array($data->nome_col) AND (!empty($data->nome_col)) )) )
         {
 
-            $filters[] = new TFilter('nome', 'like', "%{$data->nome_col}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(nome AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->nome_col) . '%');// create the filter 
         }
 
         if (isset($data->tipo_conta_id_col) AND ( (is_scalar($data->tipo_conta_id_col) AND $data->tipo_conta_id_col !== '') OR (is_array($data->tipo_conta_id_col) AND (!empty($data->tipo_conta_id_col)) )) )
@@ -713,15 +725,9 @@ class TipoDocumentoFinanceiroList extends TPage
             $filters[] = new TFilter('padrao_id', '=', $data->padrao_nome);// create the filter 
         }
 
-        // fill the form with data again
-        if ((isset($param['static']) && ($param['static'] == '1')) || !empty($param['globalSearch']))
-        {
-            $this->datagrid_form->setData($data);
-        }
-        else
-        {
-            $this->form->setData($data);
-        }
+        // fill the form with data again (os dois formularios mostram os filtros somados)
+        $this->datagrid_form->setData($data);
+        $this->form->setData($data);
 
         // keep the search data in the session
         TSession::setValue(__CLASS__.'_filter_data', $data);
@@ -812,6 +818,9 @@ class TipoDocumentoFinanceiroList extends TPage
 
             // close the transaction
             TTransaction::close();
+            $this->datagrid->initPopoverHeaderFilters();
+            // faixa "Filtros aplicados": cortina, botoes rapidos e funil do cabecalho (FiltroLista)
+            FiltroLista::faixa(__CLASS__, $this->form ?? null, $this->datagrid_form ?? null, $this->datagrid);
             $this->loaded = true;
 
             return $objects;

@@ -2,6 +2,8 @@
 
 class ExtratoList extends TPage
 {
+    use ExtratoSelecaoTrait;
+
     private $form; // form
     private $datagrid; // listing
     private $pageNavigation;
@@ -21,6 +23,14 @@ class ExtratoList extends TPage
     public function __construct($param = null)
     {
         parent::__construct();
+
+        // quem acessa o Extrato acessa a cortina do lote (mesma regra da migration 2026-10-23-lote-extrato-view.sql);
+        // completa a sessao de quem entrou antes da atualizacao, sem precisar sair e entrar de novo
+        $programas = TSession::getValue('programs');
+        if (is_array($programas) && isset($programas['ExtratoList']) && !isset($programas['LoteExtratoView'])) {
+            $programas['LoteExtratoView'] = true;
+            TSession::setValue('programs', $programas);
+        }
 
         if(!empty($param['target_container']))
         {
@@ -58,6 +68,14 @@ class ExtratoList extends TPage
         $lancamento_tipo_pagamento_nome = new BDBSelectCheck('lancamento_tipo_pagamento_nome', 'escritorio', 'TipoPagamento', 'id', '{nome}','nome asc' , $criteria_lancamento_tipo_pagamento_nome );
         $tipo_extrato_nome = new BDBSelectCheck('tipo_extrato_nome', 'escritorio', 'TipoExtrato', 'id', '{nome}','nome asc' , $criteria_tipo_extrato_nome );
         $historico_col = new TEntry('historico_col');
+        $entrada_col = new TNumeric('entrada_col', '2', ',', '.');
+        $saida_col = new TNumeric('saida_col', '2', ',', '.');
+        $entrada_col->setSize('100%');
+        $saida_col->setSize('100%');
+        $entrada_col->exitOnEnter();
+        $saida_col->exitOnEnter();
+        $entrada_col->setExitAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
+        $saida_col->setExitAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
 
         $compensado->setChangeAction(new TAction([$this,'onTrocaCompensado']));
 
@@ -163,11 +181,11 @@ class ExtratoList extends TPage
         $column_saida_valor_transformed = new TDataGridColumn('saida_valor', "Saída", 'center');
 
         $column_entrada_valor_transformed->setTotalFunction( function($values) { 
-            return array_sum((array) $values); 
+            return array_sum(array_map('floatval', (array) $values)); // linha sem valor vem vazia
         }); 
 
         $column_saida_valor_transformed->setTotalFunction( function($values) { 
-            return array_sum((array) $values); 
+            return array_sum(array_map('floatval', (array) $values)); // linha sem valor vem vazia
         }); 
 
         $column_compensado_transformed->setTransformer(function($value, $object, $row, $cell = null, $last_row = null)
@@ -180,6 +198,12 @@ class ExtratoList extends TPage
                 $label->{'class'} .= 'success';
                 $label->add('Sim');    
 
+                return $label;
+            }
+
+            if ($value == 'P') { // lote com parte das contas compensada
+                $label->{'class'} .= 'warning';
+                $label->add('Parcial');
                 return $label;
             }
 
@@ -246,20 +270,13 @@ class ExtratoList extends TPage
         $order_data_compensacao_transformed->setParameter('order', 'data_compensacao');
         $column_data_compensacao_transformed->setAction($order_data_compensacao_transformed);
 
-        $this->builder_datagrid_check_all = new TCheckButton('builder_datagrid_check_all');
-        $this->builder_datagrid_check_all->setIndexValue('on');
-        $this->builder_datagrid_check_all->onclick = "Builder.checkAll(this)";
-        $this->builder_datagrid_check_all->style = 'cursor:pointer';
-        $this->builder_datagrid_check_all->setProperty('class', 'filled-in');
-        $this->builder_datagrid_check_all->id = 'builder_datagrid_check_all';
-
-        $label = new TLabel('');
-        $label->style = 'margin:0';
-        $label->class = 'checklist-label';
-        $this->builder_datagrid_check_all->after($label);
-        $label->for = 'builder_datagrid_check_all';
-
-        $this->builder_datagrid_check = $this->datagrid->addColumn( new TDataGridColumn('builder_datagrid_check', $this->builder_datagrid_check_all, 'center',  '1%') );
+        // selecao para compensar/descompensar: o "todas" do cabecalho vale para todas as paginas (ExtratoSelecaoTrait);
+        // linha de lote nao e marcada aqui, so na cortina do lote
+        $column_sel = new TDataGridColumn('id', self::selCabecalho(), 'center', '1%');
+        $column_sel->setTransformer(function ($value, $object) {
+            return ExtratoLoteService::ehLote($object) ? '' : self::selCheckbox($object);
+        });
+        $this->builder_datagrid_check = $this->datagrid->addColumn($column_sel);
 
         $this->datagrid->addColumn($column_compensado_transformed);
         $this->datagrid->addColumn($column_data_compensacao_transformed);
@@ -290,7 +307,8 @@ class ExtratoList extends TPage
 
         $this->datagrid->addAction($action_onDelete);
 
-        $action_onShow = new TDataGridAction(array('ExtratoFormView', 'onShow'));
+        // linha comum abre o extrato; linha de lote abre a cortina do lote (ExtratoVerAction), na mesma coluna
+        $action_onShow = new ExtratoVerAction(array('ExtratoFormView', 'onShow'));
         $action_onShow->setUseButton(false);
         $action_onShow->setButtonClass('btn btn-default btn-sm');
         $action_onShow->setLabel("Visualizar");
@@ -333,10 +351,8 @@ class ExtratoList extends TPage
         $tr->add($td_tipo_extrato_nome);
         $td_historico_col = TElement::tag('td', $historico_col);
         $tr->add($td_historico_col);
-        $td_empty = TElement::tag('td', "");
-        $tr->add($td_empty);
-        $td_empty = TElement::tag('td', "");
-        $tr->add($td_empty);
+        $tr->add(TElement::tag('td', $entrada_col));
+        $tr->add(TElement::tag('td', $saida_col));
 
         $this->datagrid_form->addField($compensado_col);
         $this->datagrid_form->addField($data_compensacao);
@@ -344,6 +360,8 @@ class ExtratoList extends TPage
         $this->datagrid_form->addField($lancamento_tipo_pagamento_nome);
         $this->datagrid_form->addField($tipo_extrato_nome);
         $this->datagrid_form->addField($historico_col);
+        $this->datagrid_form->addField($entrada_col);
+        $this->datagrid_form->addField($saida_col);
 
         $this->datagrid_form->setData( TSession::getValue(__CLASS__.'_filter_data') );
 
@@ -377,6 +395,7 @@ class ExtratoList extends TPage
         $headerActions->add($head_right_actions);
 
         $this->datagrid_form->add($headerActions);
+        $this->datagrid_form->add(self::selBarra());
 
         $button_trocar_parametros = new TButton('button_button_trocar_parametros');
         $button_trocar_parametros->setAction(new TAction(['ModalFiltroExtrato', 'onShow']), "Trocar parâmetros");
@@ -435,14 +454,14 @@ class ExtratoList extends TPage
         $this->datagrid_form->addField($button_transferir);
 
         $button_compensar = new TButton('button_button_compensar');
-        $button_compensar->setAction(new TAction(['ExtratoList', 'onCompensar']), "Compensar");
+        $button_compensar->setAction(new TAction(['ExtratoList', 'onCompensarSelecionadas'], ['static' => '1']), "Compensar");
         $button_compensar->addStyleClass('btn-default');
         $button_compensar->setImage('fas:dollar-sign #4CAF50');
 
         $this->datagrid_form->addField($button_compensar);
 
         $button_descompensar = new TButton('button_button_descompensar');
-        $button_descompensar->setAction(new TAction(['ExtratoList', 'onDescompensar']), "Descompensar");
+        $button_descompensar->setAction(new TAction(['ExtratoList', 'onDescompensarSelecionadas'], ['static' => '1']), "Descompensar");
         $button_descompensar->addStyleClass('btn-default');
         $button_descompensar->setImage('fas:ban #F44336');
 
@@ -454,15 +473,20 @@ class ExtratoList extends TPage
         $head_left_actions->add($button_compensar);
         $head_left_actions->add($button_descompensar);
 
-        $head_right_actions->add($button_trocar_parametros);
-        $head_right_actions->add($button_atualizar);
-        $head_right_actions->add($btnShowCurtainFilters);
+        // parametros, filtros e relatorio numa janela so (ExtratoParametrosForm)
+        $button_parametros = new TButton('button_button_parametros');
+        $button_parametros->setAction(new TAction(['ExtratoParametrosForm', 'onShow']), "Parâmetros e filtros");
+        $button_parametros->addStyleClass('btn-default');
+        $button_parametros->setImage('fas:sliders-h #000000');
+        $this->datagrid_form->addField($button_parametros);
+
+        $head_right_actions->add($button_parametros);
         $head_right_actions->add($button_limpar_filtros);
-        $head_right_actions->add($button_gerar_relatorio_de_conta_caixa);
+        $head_right_actions->add($button_atualizar);
 
         $this->datagrid_form->add($this->datagrid);
 
-        $this->btnShowCurtainFilters = $btnShowCurtainFilters;
+        $this->btnShowCurtainFilters = $button_parametros;
 
         // vertical box container
         $container = new TVBox;
@@ -514,6 +538,11 @@ class ExtratoList extends TPage
             TTransaction::open(self::$database);
 
             $extrato = Extrato::find($param['id']);
+            // Curciol (seguranca 22/10/2026): a condicao do botao vale tambem no servidor
+            if (!$extrato OR !self::canEdit($extrato))
+            {
+                throw new Exception('Este lançamento do extrato não pode ser alterado.');
+            }
 
             $pageParam['key'] = $extrato->id;
 
@@ -569,14 +598,25 @@ class ExtratoList extends TPage
 
                 // instantiates object
                 $object = new Extrato($key, FALSE); 
+                // Curciol (seguranca 22/10/2026): a condicao do botao vale tambem no servidor
+                if (!self::canDelete($object))
+                {
+                    throw new Exception('Este lançamento do extrato não pode ser excluído.');
+                }
+                $contasAfetadas = [$object->conta_caixa_id];
+                if ($object->lancamento_id) {
+                    $lancGerado = Lancamento::find($object->lancamento_id);
+                    if ($lancGerado) { LevantamentoFinanceiroService::exigirContaNaoGerada((int) $lancGerado->conta_id, false); }
+                }
 
                 if($object->extrato_vinculado){
                     $objectVinculado = new Extrato($object->extrato_vinculado, FALSE);
+                    $contasAfetadas[] = $objectVinculado->conta_caixa_id;
                     $objectVinculado->delete();
                 }
                 // deletes the object from the database
                 $object->delete();
-
+                ContaCaixaSaldoService::recalcular($contasAfetadas);
                 // close the transaction
                 TTransaction::close();
 
@@ -641,6 +681,8 @@ class ExtratoList extends TPage
             $object->entrada_valor = null;
             $object->saida_valor = null;
 
+            // a cortina mostra os filtros aplicados agora (eles se somam aos das colunas e dos botoes rapidos)
+            $object = (object) array_merge((array) $object, (array) (TSession::getValue(__CLASS__.'_filter_data') ?: []));
             TForm::sendData(self::$formName, $object);
 
                         $filter = new self([]);
@@ -688,78 +730,27 @@ class ExtratoList extends TPage
         TSession::setValue(__CLASS__.'_filter_data', NULL);
         TSession::setValue(__CLASS__.'_filters', NULL);
 
+        // os formularios tambem (senao o cabecalho continuava mostrando os filtros antigos)
+        if (!empty($this->form)) { $this->form->clear(); }
+        if (!empty($this->datagrid_form)) { $this->datagrid_form->clear(); }
+        TSession::setValue(ExtratoParametrosService::SESSAO, NULL);
+        self::selLimpar();
+
         $this->onReload(['offset' => 0, 'first_page' => 1]);
     }
-    public function onCompensar($param = null) 
+    /** Linhas que podem ser marcadas: as do filtro atual (colunas, cortina e parametros), sem as de lote. */
+    protected static function selCriterio(): TCriteria
     {
-        try 
-        {
-            if(!isset($param['builder_datagrid_check'])){
-                throw new Exception("Selecione uma transação para compensar.");
-            }
-            $ids = [];
-
-            TSession::setValue('paramSelecionados',$param['builder_datagrid_check']);
-
-            TApplication::loadPage('ModalCompensarExtrato', 'onShow');
-
-            //</autoCode>
-        }
-        catch (Exception $e) 
-        {
-            new TMessage('error', $e->getMessage());    
-        }
+        $c = new TCriteria;
+        foreach ((array) (TSession::getValue(__CLASS__.'_filters') ?: []) as $f) { $c->add($f); }
+        foreach (ExtratoParametrosService::filtros(ExtratoParametrosService::atuais()) as $f) { $c->add($f); }
+        $c->add(new TFilter('lote_pagamento_id', 'IS', NULL)); // lote: compensa pela cortina do lote
+        return $c;
     }
-    public function onDescompensar($param = null) 
+
+    protected static function selRecarregar(): void
     {
-        try 
-        {
-            if(!isset($param['builder_datagrid_check'])){
-                throw new Exception("Selecione uma transação para descompensar.");
-            }
-            $ids = [];
-            foreach($param['builder_datagrid_check'] as $info){
-                $ids[] = $info;
-            }
-
-            TTransaction::open(self::$database);
-            foreach($ids as $id){
-                $aux = Extrato::find($id);
-                if($aux->compensado=='N'){
-                    throw new Exception("Selecione uma transação que esteja compensada.");
-                }
-                $aux->modificacao_user_id = TSession::getValue('userid');
-                $aux->compensado = 'N';
-                $aux->data_compensacao = null;
-                $aux->ano = null;
-                $aux->mes = null;
-                $aux->ano_mes = null;
-                $aux->store();
-
-                //saldo_instantaneo
-                $contaCaixa = ContaCaixa::find($aux->conta_caixa_id);
-
-                $contaCaixa->saldo_instantaneo = (float) $contaCaixa->saldo_instantaneo - (float) $aux->entrada_valor + (float) $aux->saida_valor;
-                $contaCaixa->modificacao_user_id = TSession::getValue('userid');
-                $contaCaixa->store();
-
-                //saldo_nao_compensado
-                $contaCaixa = ContaCaixa::find($aux->conta_caixa_id);
-
-                $contaCaixa->saldo_nao_compensado = (float) $contaCaixa->saldo_nao_compensado + (float) $aux->entrada_valor - (float) $aux->saida_valor;
-                $contaCaixa->modificacao_user_id = TSession::getValue('userid');
-                $contaCaixa->store();
-            }
-            TTransaction::close();
-
-            TApplication::loadPage('ExtratoList', 'onReload');
-
-            //</autoCode>
-        }
-        catch (Exception $e) 
-        {
-            new TMessage('error', $e->getMessage());    
-        }
+        AdiantiCoreApplication::loadPage(__CLASS__, 'onReload');
     }
 
     /**
@@ -767,14 +758,28 @@ class ExtratoList extends TPage
      */
     public function onSearch($param = null)
     {
-        if ((isset($param['static']) && ($param['static'] == '1')) || !empty($param['globalSearch']))
+        // "x" de um parametro da janela "Parametros e filtros" na faixa: tira so ele (os filtros das colunas continuam)
+        foreach (array_keys((array) ($param['__filtros_extra'] ?? [])) as $campo) {
+            if (strpos((string) $campo, '__param_') === 0) {
+                ExtratoParametrosService::remover(substr($campo, 8));
+                unset($param['__filtros_extra'][$campo]);
+            }
+        }
+
+        if (!empty($param['__sem_formulario']))
         {
-            $data = $this->datagrid_form->getData();
+            $formulario = [];
+        }
+        elseif ((isset($param['static']) && ($param['static'] == '1')) || !empty($param['globalSearch']))
+        {
+            $formulario = $this->datagrid_form->getData();
         }
         else
         {
-            $data = $this->form->getData();
+            $formulario = $this->form->getData();
         }
+        // filtros que se somam: cabecalho das colunas, cortina e botoes rapidos (FiltroLista)
+        $data = FiltroLista::acumular(__CLASS__, $formulario, $param);
         $filters = [];
 
             $data->prev_compensacao_inicio = null;
@@ -816,19 +821,19 @@ class ExtratoList extends TPage
         if (isset($data->prev_compensacao_inicio) AND ( (is_scalar($data->prev_compensacao_inicio) AND $data->prev_compensacao_inicio !== '') OR (is_array($data->prev_compensacao_inicio) AND (!empty($data->prev_compensacao_inicio)) )) )
         {
 
-            $filters[] = new TFilter('lancamento_id', 'in', "(SELECT id FROM lancamento WHERE dt_vencimento >= '{$data->prev_compensacao_inicio}')");// create the filter 
+            $filters[] = new TFilter('lancamento_id', 'in', "(SELECT id FROM lancamento WHERE dt_vencimento >= '" . (SqlSeguro::data($data->prev_compensacao_inicio) ?? '0001-01-01') . "')");// create the filter 
         }
 
         if (isset($data->prev_compensacao_fim) AND ( (is_scalar($data->prev_compensacao_fim) AND $data->prev_compensacao_fim !== '') OR (is_array($data->prev_compensacao_fim) AND (!empty($data->prev_compensacao_fim)) )) )
         {
 
-            $filters[] = new TFilter('lancamento_id', 'in', "(SELECT id FROM lancamento WHERE dt_vencimento <= '{$data->prev_compensacao_fim}')");// create the filter 
+            $filters[] = new TFilter('lancamento_id', 'in', "(SELECT id FROM lancamento WHERE dt_vencimento <= '" . (SqlSeguro::data($data->prev_compensacao_fim) ?? '9999-12-31') . "')");// create the filter 
         }
 
         if (isset($data->historico) AND ( (is_scalar($data->historico) AND $data->historico !== '') OR (is_array($data->historico) AND (!empty($data->historico)) )) )
         {
 
-            $filters[] = new TFilter('historico', 'like', "%{$data->historico}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(historico AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->historico) . '%');// create the filter 
         }
 
         if (isset($data->entrada_valor) AND ( (is_scalar($data->entrada_valor) AND $data->entrada_valor !== '') OR (is_array($data->entrada_valor) AND (!empty($data->entrada_valor)) )) )
@@ -864,7 +869,8 @@ class ExtratoList extends TPage
         if (isset($data->lancamento_tipo_pagamento_nome) AND ( (is_scalar($data->lancamento_tipo_pagamento_nome) AND $data->lancamento_tipo_pagamento_nome !== '') OR (is_array($data->lancamento_tipo_pagamento_nome) AND (!empty($data->lancamento_tipo_pagamento_nome)) )) )
         {
 
-            $filters[] = new TFilter('lancamento_id', 'in', $data->lancamento_tipo_pagamento_nome);// create the filter 
+            // lancamentos cujo tipo de pagamento esta entre os escolhidos (antes comparava o id do lancamento com o id do tipo)
+            $filters[] = new TFilter('lancamento_id', 'in', "(SELECT id FROM lancamento WHERE tipo_pagamento_id IN (" . SqlSeguro::ids($data->lancamento_tipo_pagamento_nome) . "))");
         }
 
         if (isset($data->tipo_extrato_nome) AND ( (is_scalar($data->tipo_extrato_nome) AND $data->tipo_extrato_nome !== '') OR (is_array($data->tipo_extrato_nome) AND (!empty($data->tipo_extrato_nome)) )) )
@@ -876,18 +882,19 @@ class ExtratoList extends TPage
         if (isset($data->historico_col) AND ( (is_scalar($data->historico_col) AND $data->historico_col !== '') OR (is_array($data->historico_col) AND (!empty($data->historico_col)) )) )
         {
 
-            $filters[] = new TFilter('historico', 'like', "%{$data->historico_col}%");// create the filter 
+            $filters[] = new TFilter('unaccent(CAST(historico AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->historico_col) . '%');// create the filter
         }
 
-        // fill the form with data again
-        if ((isset($param['static']) && ($param['static'] == '1')) || !empty($param['globalSearch']))
-        {
-            $this->datagrid_form->setData($data);
+        // valor exato de Entrada / Saida (cabecalho); na linha de lote vale o valor de cada conta do lote
+        foreach (['entrada_col' => 'entrada_valor', 'saida_col' => 'saida_valor'] as $campo => $coluna) {
+            if (isset($data->$campo) && is_scalar($data->$campo) && trim((string) $data->$campo) !== '' && is_numeric($data->$campo)) {
+                $filters[] = new TFilter($coluna, '=', round((float) $data->$campo, 2));
+            }
         }
-        else
-        {
-            $this->form->setData($data);
-        }
+
+        // fill the form with data again (os dois formularios mostram os filtros somados)
+        $this->datagrid_form->setData($data);
+        $this->form->setData($data);
 
         // keep the search data in the session
         TSession::setValue(__CLASS__.'_filter_data', $data);
@@ -942,12 +949,22 @@ class ExtratoList extends TPage
                 }
             }
 
+            // parametros da janela "Parametros e filtros"
+            $parametros = ExtratoParametrosService::atuais();
+            foreach (ExtratoParametrosService::filtros($parametros) as $filter)
+            {
+                $criteria->add($filter);
+            }
+
+            // lote de quitacao aparece numa linha so (soma das contas do lote que passam pelos filtros)
+            $lotes = ExtratoLoteService::agrupar($criteria);
+
             //</blockLine><btnShowCurtainFiltersAutoCode>
             if(!empty($this->btnShowCurtainFilters) && empty($this->btnShowCurtainFiltersAdjusted))
             {
                 $this->btnShowCurtainFiltersAdjusted = true;
                 $this->btnShowCurtainFilters->style = 'position: relative';
-                $countFilters = count($filters ?? []);
+                $countFilters = count($filters ?? []) + ExtratoParametrosService::quantos($parametros);
                 $this->btnShowCurtainFilters->setLabel($this->btnShowCurtainFilters->getLabel(). "<span class='badge badge-success' style='position: absolute'>{$countFilters}<span>");
             }
             //</blockLine></btnShowCurtainFiltersAutoCode>
@@ -956,16 +973,25 @@ class ExtratoList extends TPage
             $objects = $repository->load($criteria, FALSE);
 
             $this->datagrid->clear();
+            self::selMarcar($objects ?: []);
             if ($objects)
             {
                 // iterate the collection of active records
                 foreach ($objects as $object)
                 {
-                    $check = new TCheckButton('builder_datagrid_check[]');
-                    $check->setIndexValue($object->id);
-                    $check->onclick = 'event.stopPropagation();';
-                    $object->builder_datagrid_check = $check;
-
+                    if (isset($lotes[(int) $object->id]))
+                    {
+                        // linha do lote: valores somados e historico do lote; compensar so pela cortina do lote
+                        $r = $lotes[(int) $object->id];
+                        $object->entrada_valor = $r->entrada;
+                        $object->saida_valor = $r->saida;
+                        $object->compensado = $r->compensado;
+                        $object->data_compensacao = $r->data_compensacao;
+                        $object->historico = $r->historico;
+                        $row = $this->datagrid->addItem($object);
+                        $row->id = "row_{$object->id}";
+                        continue;
+                    }
                     $row = $this->datagrid->addItem($object);
                     $row->id = "row_{$object->id}";
 
@@ -984,6 +1010,8 @@ class ExtratoList extends TPage
 
             // close the transaction
             TTransaction::close();
+            // faixa "Filtros aplicados": cortina, botoes rapidos e funil do cabecalho (FiltroLista)
+            FiltroLista::faixa(__CLASS__, $this->form ?? null, $this->datagrid_form ?? null, $this->datagrid, [], ExtratoParametrosService::itens($parametros));
             $this->loaded = true;
 
             return $objects;
@@ -1091,11 +1119,7 @@ class ExtratoList extends TPage
         }
 
         $object = new Extrato($id);
-
-        $check = new TCheckButton('builder_datagrid_check[]');
-        $check->setIndexValue($object->id);
-        $check->onclick = 'event.stopPropagation();';
-        $object->builder_datagrid_check = $check;
+        self::selMarcar([$object]);
 
         $row = $list->datagrid->addItem($object);
         $row->id = "row_{$object->id}";

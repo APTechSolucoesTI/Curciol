@@ -652,14 +652,19 @@ class ProfissionalForm extends TPage
 
             $data->telefone = preg_replace('/[^0-9]/', '', $data->telefone);
             $data->cpf_cnpj = preg_replace('/[^0-9]/', '', $data->cpf_cnpj);
+            // Curciol (23/10/2026): sem tipo de pessoa a checagem de CPF/CNPJ repetido (abaixo) nao rodava; deduz pelo documento
+            if (empty($data->tipo_pessoa_id) && in_array(strlen((string) $data->cpf_cnpj), [11, 14], true))
+            {
+                $data->tipo_pessoa_id = (strlen($data->cpf_cnpj) == 11) ? TipoPessoa::FISICA : TipoPessoa::JURIDICA;
+            }
 
             $idAux = $data->id ?? -1;
             //CPF/CNPJ
             if($data->cpf_cnpj){
-                $countCPF_CNPJ = Pessoa::where('cpf_cnpj', '=', $data->cpf_cnpj)
+                $countCPF_CNPJ = Pessoa::where("regexp_replace(COALESCE(cpf_cnpj, ''), '\\D', '', 'g')", '=', $data->cpf_cnpj)
                                         ->where('id','!=',(int) $idAux)
                                         ->count();
-                $searchCPF_CNPJ = Pessoa::where('cpf_cnpj', '=', $data->cpf_cnpj)
+                $searchCPF_CNPJ = Pessoa::where("regexp_replace(COALESCE(cpf_cnpj, ''), '\\D', '', 'g')", '=', $data->cpf_cnpj)
                                         ->where('id','!=',(int) $idAux)
                                         ->first();
                 if($countCPF_CNPJ>0 && $data->tipo_pessoa_id==TipoPessoa::FISICA){
@@ -759,6 +764,8 @@ class ProfissionalForm extends TPage
                 $object->modificacao_user_id = TSession::getValue('userid');
             }
 
+            // APChat: telefone antes desta edicao (o contato antigo e localizado por ele)
+            $telefone_anterior_apchat = APChatContactService::telefoneGravado($object->id ?? null);
             $object->store(); // save the object 
 
             $this->saveFile($object, $data, 'assinatura', $assinatura_dir);
@@ -824,11 +831,16 @@ class ProfissionalForm extends TPage
 
             $this->form->setData($data); // fill form data
             TTransaction::close(); // close the transaction
+            // APChat: toda pessoa com telefone valido vai para os contatos (so depois do commit; nunca impede o cadastro)
+            $sincronizacao_apchat = APChatContactService::sincronizarPessoa($object->id, [$telefone_anterior_apchat]);
+            if (in_array($sincronizacao_apchat->situacao, [ApchatContatoLog::SITUACAO_ERRO, ApchatContatoLog::SITUACAO_PENDENTE]))
+            {
+                TToast::show('warning', 'Registro salvo. APChat: ' . $sincronizacao_apchat->mensagem, 'topRight', 'fas:exclamation-triangle');
+            }
 
             TToast::show('success', "Registro salvo", 'topRight', 'far:check-circle');
-            TApplication::loadPage('ProfissionalList', 'onShow', $loadPageParam); 
+            Navegacao::voltarParaLista('ProfissionalList', __CLASS__);
 
-                        TScript::create("Template.closeRightPanel();");
             TForm::sendData(self::$formName, (object)['id' => $object->id]);
 
         }
@@ -878,9 +890,8 @@ class ProfissionalForm extends TPage
                 // close the transaction
                 TTransaction::close();
 
-                TApplication::loadPage('ProfissionalList', 'onShow');
+                Navegacao::voltarParaLista('ProfissionalList', __CLASS__);
                 TToast::show('success', "Registro excluído", 'topRight', 'far:check-circle');
-                TScript::create("Template.closeRightPanel();");
 
             }
             catch (Exception $e) // in case of exception
@@ -1021,7 +1032,7 @@ class ProfissionalForm extends TPage
             $objeto->pessoa_id = $param['pessoa_id'];
             $objeto->grupo_id = Grupo::PROFISSIONAL;
             $objeto->store();
-            TApplication::loadPage('ProfissionalList', 'onShow');
+            Navegacao::voltarParaLista('ProfissionalList', __CLASS__);
             TTransaction::close();
         }
         catch (Exception $e) 

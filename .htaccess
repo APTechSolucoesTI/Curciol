@@ -1,4 +1,9 @@
 RewriteEngine On
+
+# Curciol (seguranca 22/10/2026): pastas e arquivos internos nunca sao servidos pela web
+RewriteRule (^|/)\.(git|github|claude|superpowers)(/|$) - [R=404,L]
+RewriteRule ^(tests|docs|vendor)(/|$) - [R=404,L]
+RewriteRule ^(composer\.(json|lock)|log_whatsapp\.txt|[^/]*\.(md|sql|log))$ - [R=404,L]
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
 

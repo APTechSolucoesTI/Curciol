@@ -34,7 +34,6 @@ class ApchatContatoFormView extends TWindow
 
             $pessoa = new Pessoa((int) ($param['key'] ?? 0));
             $enviado = APChatContactService::montarContato($pessoa);
-            $autorizado = strtoupper(trim((string) $pessoa->aceita_receber_mensagen_whatsapp)) === 'T';
 
             $logs = ApchatContatoLog::where('pessoa_id', '=', (int) $pessoa->id)
                                     ->orderBy('id', 'desc')
@@ -48,10 +47,10 @@ class ApchatContatoFormView extends TWindow
 
             $row = $this->form->addFields(
                 [new TLabel("Nome:", null, '12px', 'B', '100%'), new TTextDisplay($pessoa->nome, '', '12px', '')],
-                [new TLabel("CPF ou CNPJ:", null, '12px', 'B', '100%'), new TTextDisplay($this->documento($pessoa->cpf_cnpj), '', '12px', '')],
-                [new TLabel("Autorizou WhatsApp:", null, '12px', 'B', '100%'), new TTextDisplay($autorizado ? 'Sim' : 'Não', '', '12px', '')]
+                [new TLabel("CPF ou CNPJ:", null, '12px', 'B', '100%'), new TTextDisplay($this->documento($pessoa->cpf_cnpj), '', '12px', '')]
             );
-            $row->layout = ['col-sm-6', 'col-sm-3', 'col-sm-3'];
+            // a autorizacao de WhatsApp nao conta para o APChat (toda pessoa com telefone valido e enviada)
+            $row->layout = ['col-sm-6', 'col-sm-6'];
 
             $row = $this->form->addFields(
                 [new TLabel("Telefone:", null, '12px', 'B', '100%'), new TTextDisplay($pessoa->telefone ?: '-', '', '12px', '')],

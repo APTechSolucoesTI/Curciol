@@ -26,6 +26,16 @@ class ProcessosFormView extends TPage
         $this->form = new BootstrapFormBuilder(self::$formName);
         $this->form->setTagName('div');
 
+        // Curciol (seguranca 22/10/2026): no portal (sem login da equipe) a tela so mostra o proprio cliente
+        if (!TSession::getValue('logged'))
+        {
+            $param['key'] = (int) TSession::getValue('portal_cliente_id');
+            if ($param['key'] <= 0)
+            {
+                throw new Exception(_t('Permission denied'));
+            }
+        }
+
         TSession::setValue('keyVoltar', $param['key'] ?? null);
 
         $pessoa = new Pessoa($param['key']);

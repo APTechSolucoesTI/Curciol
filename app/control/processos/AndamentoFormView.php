@@ -125,8 +125,17 @@ class AndamentoFormView extends TWindow
         $label4 = new TLabel("Data do andamento:", '', '12px', 'B', '100%');
         $text4 = new TTextDisplay(TDateTime::convertToMask($andamento->data_andamento, 'yyyy-mm-dd hh:ii', 'dd/mm/yyyy hh:ii'), '', '12px', '');
         $Etapa = new TLabel("Etapa:", '', '12px', 'B', '100%');
-        $etapa_nome = new TTextDisplay($andamento->publicacao_etapa->etapa_nome, '', '12px', '');
-        $labelvazia = new TLabel(" ", '', '12px', '', '100%');
+
+        // Mesmo padrao da consulta de publicacao: a etapa sempre na cor do cadastro
+        $etapa_html = '-';
+        if (!empty($andamento->publicacao_etapa_id) && $andamento->publicacao_etapa)
+        {
+            $etapa_texto = htmlspecialchars((string) $andamento->publicacao_etapa->etapa_nome, ENT_QUOTES, 'UTF-8');
+            $etapa_cor = trim((string) $andamento->publicacao_etapa->cor);
+            $etapa_cor = preg_match('/^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$/', $etapa_cor) ? $etapa_cor : '#6c757d';
+            $etapa_html = "<span class='label' style='width:100%;background-color:{$etapa_cor};'> {$etapa_texto} </span>";
+        }
+        $etapa_nome = new TTextDisplay($etapa_html, '', '12px', '');
         $tbuttonalteretapa = new TButton('tbuttonalteretapa');
         $tbuttonaddcomplemento = new TButton('tbuttonaddcomplemento');
         $labelstatus = new TLabel("Status da etapa:", '', '12px', 'B', '100%');
@@ -164,18 +173,34 @@ class AndamentoFormView extends TWindow
 
             $comp = ProcessoPublicacoes::where('andamento_id', '=', $andamento->id)->first();
             if ($comp) {
-                $tbuttonaddcomplemento->setAction(new TAction(['ProcessoPublicacoesForm', 'onEdit'],['key' => $comp->id]), "Complemento");                
+                $rotuloComplemento = (trim((string) $comp->complemento) === '') ? "Adicionar complemento" : "Editar complemento";
+                $tbuttonaddcomplemento->setAction(new TAction(['ProcessoPublicacoesForm', 'onEdit'],['key' => $comp->id]), $rotuloComplemento);
+                $tbuttonaddcomplemento->setImage((trim((string) $comp->complemento) === '') ? 'fas:plus #000000' : 'fas:pencil-alt #000000');
             }else {            
                 TScript::create("$(\"[name='tbuttonaddcomplemento']\").hide()");
             }
         }         
 
+        // Textos longos justificados, ocupando a largura do campo
+        foreach ([$text5, $text6, $text39] as $textoJustificado) {
+            $textoJustificado->{'style'} .= ';display:block;text-align:justify;';
+        }
+
+
         $btnAddTarefa = new TActionLink("Adicionar tarefa", new TAction(['AndamentoFormView', 'onAddTarefa'], ['andamento_id'=> $andamento->id, 'key' => $andamento->id]), '', '12px', '', 'fas:plus #4CAF50');
         $row1 = $this->form->addFields([$label2,$text2],[$label3,$text3],[$label4,$text4]);
         $row1->layout = [' col-sm-4',' col-sm-4',' col-sm-4'];
 
-        $row2 = $this->form->addFields([$Etapa,$etapa_nome,$labelvazia,$tbuttonalteretapa,$tbuttonaddcomplemento],[$labelstatus,$text26],[$complementoLabel,$text39]);
-        $row2->layout = [' col-sm-4',' col-sm-4',' col-sm-4'];
+        $row2 = $this->form->addFields([$Etapa,$etapa_nome],[$labelstatus,$text26]);
+        $row2->layout = [' col-sm-4',' col-sm-4'];
+
+        // "Alterar Etapa" e "Adicionar/Editar complemento" lado a lado; o complemento logo abaixo, antes da linha das informacoes
+        $tbuttonaddcomplemento->{'style'} = 'margin-left:8px;';
+        $rowBotoes = $this->form->addFields([$tbuttonalteretapa, $tbuttonaddcomplemento]);
+        $rowBotoes->layout = [' col-sm-12'];
+
+        $rowComplemento = $this->form->addFields([$complementoLabel,$text39]);
+        $rowComplemento->layout = [' col-sm-12'];
 
         $row3 = $this->form->addContent([new TFormSeparator("", '#333', '18', '#eee')]);
 
