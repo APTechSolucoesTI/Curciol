@@ -45,6 +45,7 @@ class LoteExtratoView extends TPage
             $caixa = $lote->conta_caixa_id ? ContaCaixa::find($lote->conta_caixa_id) : null;
             $tipoPagamento = $lote->tipo_pagamento_id ? TipoPagamento::find($lote->tipo_pagamento_id) : null;
             $resumo = self::resumo($loteId);
+            $compensacoes = self::lotesDeCompensacao($loteId);
             TTransaction::close();
 
             $usuario = '';
@@ -55,7 +56,7 @@ class LoteExtratoView extends TPage
                 TTransaction::close();
             }
 
-            $this->form->addContent([self::cabecalho($lote, $resumo, $caixa, $tipoPagamento, $usuario)]);
+            $this->form->addContent([self::cabecalho($lote, $resumo, $compensacoes, $caixa, $tipoPagamento, $usuario)]);
             $this->form->addContent([$this->listagem()]);
 
             $ultimo = LoteFinanceiroService::ultimoDesfazivel((int) TSession::getValue('userid'), (string) $lote->tipo_conta_id);
@@ -107,7 +108,7 @@ class LoteExtratoView extends TPage
               WHERE i.extrato_id IN (SELECT id FROM extrato WHERE lote_pagamento_id = {$loteId}) ORDER BY lp.id")->fetchAll(PDO::FETCH_OBJ);
     }
 
-    private static function cabecalho($lote, $resumo, $caixa, $tipoPagamento, string $usuario): TElement
+    private static function cabecalho($lote, $resumo, array $compensacoes, $caixa, $tipoPagamento, string $usuario): TElement
     {
         $h = function ($v) { return htmlspecialchars((string) $v); };
         $n = $resumo->linhas;
@@ -125,7 +126,6 @@ class LoteExtratoView extends TPage
             'Total' => LoteQuitarForm::moeda($lote->total),
             'Compensação' => $situacao,
         ];
-        $compensacoes = self::lotesDeCompensacao((int) $lote->id);
         if ($compensacoes) {
             $linhas['Lotes de compensação'] = implode(', ', array_map(function ($c) {
                 return 'nº ' . (int) $c->id . ' (' . date('d/m/Y H:i', strtotime($c->data_criacao)) . ($c->desfeito_em ? ', desfeito' : '') . ')';
