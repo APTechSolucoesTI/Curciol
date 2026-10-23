@@ -96,7 +96,9 @@ try {
     igual('lista: sem erro', '', erro($lista));
     ok('lista: botao unico, sem os antigos e sem coluna Lote', strpos($lista, 'Parâmetros e filtros') !== false && strpos($lista, 'Trocar parâmetros') === false
         && strpos($lista, 'Gerar relatório de Conta Caixa') === false && strpos($lista, '>Lote<') === false);
-    igual('lista: 4 linhas (nao compensadas do processo)', 4, substr_count($lista, 'Repasse a ') + substr_count($lista, 'PAGAMENTO - '));
+    // os 4 repasses foram pagos num lote so: no extrato aparecem numa linha unica, com o botao Ver lote
+    igual('lista: os 4 repasses numa linha de lote', [1, 0], [substr_count($lista, 'LOTE Nº '), substr_count($lista, 'Repasse a ') + substr_count($lista, 'PAGAMENTO - ')]);
+    ok('lista: botao Ver lote', strpos($lista, 'LoteExtratoView') !== false);
     saida(function () { (new ExtratoList([]))->onClearFilters([]); });
     ok('limpar filtros zera os parametros', ExtratoParametrosService::atuais() === []);
 

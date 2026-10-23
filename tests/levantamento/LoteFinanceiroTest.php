@@ -134,7 +134,7 @@ try {
     $html = saida(function () { (new ContaPagarList([]))->show(); });
     igual('contas a pagar: sem erro', '', erro($html));
     ok('contas a pagar: botoes do lote e desfazer o ultimo', strpos($html, 'Quitar selecionadas') !== false && strpos($html, 'Compensar selecionadas') !== false && strpos($html, 'Desfazer último lote') !== false);
-    ok('contas a pagar: linhas marcaveis com valores', substr_count($html, 'class="lote-sel"') > 0 && strpos($html, 'data-quitar=') !== false);
+    ok('contas a pagar: linhas marcaveis e selecionar todas', substr_count($html, 'class="lote-sel"') > 0 && strpos($html, "id='lote-todas'") !== false && strpos($html, 'loteMarcarUma') !== false);
     $html = saida(function () { (new ContaReceberList([]))->show(); });
     ok('contas a receber: botoes do lote, sem desfazer (ultimo lote ja desfeito)', erro($html) === '' && strpos($html, 'Quitar selecionadas') !== false && strpos($html, 'Desfazer último lote') === false, erro($html));
     $s = saida(function () use ($contaRec) { (new LoteCompensarForm(['ids' => (string) $contaRec, 'tipo' => (string) TipoConta::RECEBER]))->show(); });
