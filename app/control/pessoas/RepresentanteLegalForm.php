@@ -881,6 +881,11 @@ class RepresentanteLegalForm extends TPage
 
             $data->telefone = preg_replace('/[^0-9]/', '', $data->telefone);
             $data->cpf_cnpj = preg_replace('/[^0-9]/', '', $data->cpf_cnpj);
+            // Curciol (23/10/2026): sem tipo de pessoa a checagem de CPF/CNPJ repetido (abaixo) nao rodava; deduz pelo documento
+            if (empty($data->tipo_pessoa_id) && in_array(strlen((string) $data->cpf_cnpj), [11, 14], true))
+            {
+                $data->tipo_pessoa_id = (strlen($data->cpf_cnpj) == 11) ? TipoPessoa::FISICA : TipoPessoa::JURIDICA;
+            }
             PessoaLoginService::exigirDocumentoValido($data->cpf_cnpj); // CPF/CNPJ preenchido precisa ser valido (vira o login do portal)
 
             $idAux = $data->id ?? -1;
