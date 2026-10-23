@@ -1,6 +1,7 @@
 <?php
 // tests/levantamento/LevantamentoContextoTest.php
 require __DIR__ . '/../bootstrap.php';
+TSession::setValue('programs', ['LevantamentoFinanceiroForm' => true, 'ModalContratoGerarFinanceiro' => true]); // usuario do grupo Financeiro (gera e desfaz o financeiro)
 require __DIR__ . '/Fixtures.php';
 
 $f = Fixtures::criar(['distribuicao' => '2020-03-15']);

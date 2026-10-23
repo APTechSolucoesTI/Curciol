@@ -839,10 +839,20 @@ JS;
      * @param string $urlRecarga URL (engine.php?class=...) da tela de origem, para recarregar depois
      * @param array  $pai        no detalhe: ['origem' => janela|aba, 'url' => URL] da tela que abriu o detalhe
      */
+    /** Gerar e desfazer o financeiro do levantamento: so quem tem esta tela (grupo Financeiro, 23/10/2026). */
+    public static function podeGerar(): bool
+    {
+        return SystemPermission::checkPermission('LevantamentoFinanceiroForm');
+    }
+
     public static function botaoFinanceiro(object $pagamento, array $comFinanceiro, string $origem, string $urlRecarga, bool $botaoTexto = false, array $pai = []): string
     {
         $id = (int) $pagamento->id;
         $existe = isset($comFinanceiro[$id]);
+        // sem permissao de gerar: nem mostra o "Gerar financeiro" (o "Ver financeiro" continua para consulta)
+        if (!$existe && !self::podeGerar()) {
+            return '';
+        }
         if (!$existe && (empty($pagamento->data_deposito) || (float) $pagamento->valor_bruto_depositado <= 0 || (float) $pagamento->valor_mle <= 0)) {
             return '';
         }

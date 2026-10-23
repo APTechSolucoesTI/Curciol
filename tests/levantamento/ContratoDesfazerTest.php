@@ -27,6 +27,7 @@ function q(string $sql) { TTransaction::open('escritorio'); $r = TTransaction::g
 function x(string $sql): void { TTransaction::open('escritorio'); TTransaction::get()->exec($sql); TTransaction::close(); }
 
 TSession::setValue('userid', 1);
+TSession::setValue('programs', ['LevantamentoFinanceiroForm' => true, 'ModalContratoGerarFinanceiro' => true]); // usuario do grupo Financeiro (gera e desfaz o financeiro)
 TTransaction::open('escritorio');
 $curciol = RepasseColaboradorService::pessoaDoEscritorio(1);
 TTransaction::close();

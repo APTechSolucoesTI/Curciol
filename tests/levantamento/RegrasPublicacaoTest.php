@@ -93,6 +93,20 @@ try {
     $lf = LevantamentoFinanceiroService::gerar($f['etapa3_id'], $dadosGerar);
     igual('pagamento da requisicao gera financeiro com os repasses', 4, (int) q('SELECT count(*) n FROM repasse_colaborador WHERE conta_receber_id = ' . (int) $lf->conta_receber_id)[0]['n']);
 
+    // ---------- gerar e desfazer financeiro so para o grupo Financeiro ----------
+    $pag = (object) ['id' => 999999999, 'data_deposito' => date('Y-m-d'), 'valor_bruto_depositado' => 100, 'valor_mle' => 100];
+    TSession::setValue('programs', ['RequisicaoPagamentoListagemHeaderList' => true, 'ContratoFormView' => true, 'LevantamentoFinanceiroView' => true]);
+    ok('sem permissao: nao pode gerar (levantamento e contrato)', !LevantamentoFinanceiroForm::podeGerar() && !ContratoFormView::podeGerarFinanceiro());
+    igual('sem permissao: botao Gerar financeiro some', '', LevantamentoFinanceiroForm::botaoFinanceiro($pag, [], 'janela', ''));
+    ok('sem permissao: Ver financeiro continua (consulta)', strpos(LevantamentoFinanceiroForm::botaoFinanceiro($pag, [999999999 => true], 'janela', ''), 'Ver financeiro') !== false);
+    ok('sem permissao: acoes do contrato escondidas', !ContratoFormView::canGerar((object) ['id' => 1, 'status_contrato_pagamento_id' => 1]) && !ContratoFormView::canDesfazer((object) ['id' => 1, 'status_contrato_pagamento_id' => 2]));
+    ob_start(); LevantamentoFinanceiroView::onDesfazer(['etapa3_id' => $f['etapa3_id']]); $saida = ob_get_clean();
+    while (TTransaction::get()) { TTransaction::rollback(); }
+    ok('sem permissao: desfazer pela URL recusado e nada desfeito', strpos($saida, 'Somente o Financeiro') !== false
+        && (int) q('SELECT count(*) n FROM levantamento_financeiro WHERE requisicao_pagamento_etapa3_id = ' . (int) $f['etapa3_id'])[0]['n'] === 1, substr($saida, 0, 200));
+    TSession::setValue('programs', ['LevantamentoFinanceiroForm' => true, 'ModalContratoGerarFinanceiro' => true]);
+    ok('com permissao (Financeiro): botao Gerar financeiro aparece', strpos(LevantamentoFinanceiroForm::botaoFinanceiro($pag, [], 'janela', ''), 'Gerar financeiro') !== false);
+
     // parcela nova (lancada depois da publicacao) gera repasse ao quitar
     [$contaNova, $parcelaNova] = $novaConta('TESTE LEVANTAMENTO parcela nova');
     igual('parcela nova nao e anterior', 'N', q("SELECT CASE WHEN anterior_publicacao THEN 'S' ELSE 'N' END AS a FROM lancamento WHERE id = {$parcelaNova}")[0]['a']);

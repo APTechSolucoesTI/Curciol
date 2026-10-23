@@ -58,7 +58,9 @@ class LevantamentoFinanceiroView extends TWindow
                 $bPdf->class = 'btn btn-sm btn-primary';
             }
 
-            if ($motivo !== null) {
+            if (!LevantamentoFinanceiroForm::podeGerar()) {
+                // so consulta: desfazer e do Financeiro
+            } elseif ($motivo !== null) {
                 $aviso = new TElement('div');
                 $aviso->class = 'lf-linha-bloqueio';
                 $aviso->add('<b>Não é possível desfazer:</b> ' . htmlspecialchars($motivo));
@@ -83,6 +85,7 @@ class LevantamentoFinanceiroView extends TWindow
     public static function onConfirmarDesfazer($param)
     {
         try {
+            if (!LevantamentoFinanceiroForm::podeGerar()) { throw new Exception('Somente o Financeiro pode gerar ou desfazer o financeiro.'); }
             $etapa3Id = (int) ($param['etapa3_id'] ?? 0);
             $d = self::carregarFicha($etapa3Id);
             $f = $d->ficha;
@@ -101,6 +104,7 @@ class LevantamentoFinanceiroView extends TWindow
     public static function onDesfazer($param)
     {
         try {
+            if (!LevantamentoFinanceiroForm::podeGerar()) { throw new Exception('Somente o Financeiro pode gerar ou desfazer o financeiro.'); }
             LevantamentoFinanceiroService::desfazer((int) ($param['etapa3_id'] ?? 0));
 
             LevantamentoFinanceiroForm::fecharJanela();

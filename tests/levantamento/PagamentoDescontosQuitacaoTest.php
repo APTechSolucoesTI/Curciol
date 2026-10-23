@@ -3,6 +3,7 @@
 // Descontos no lancamento do pagamento (MLE = bruto - descontos), descontos do pagamento no gerar financeiro
 // (so leitura, com o valor atual) e status Quitado da requisicao (trava, automatico e volta ao anterior).
 require __DIR__ . '/../bootstrap.php';
+TSession::setValue('programs', ['LevantamentoFinanceiroForm' => true, 'ModalContratoGerarFinanceiro' => true]); // usuario do grupo Financeiro (gera e desfaz o financeiro)
 require __DIR__ . '/Fixtures.php';
 if (!class_exists('TApplication')) { class TApplication extends AdiantiCoreApplication {} }
 

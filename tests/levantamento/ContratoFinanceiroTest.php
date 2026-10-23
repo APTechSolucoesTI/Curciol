@@ -26,6 +26,7 @@ function q(string $sql) { TTransaction::open('escritorio'); $r = TTransaction::g
 function x(string $sql): void { TTransaction::open('escritorio'); TTransaction::get()->exec($sql); TTransaction::close(); }
 
 TSession::setValue('userid', 1);
+TSession::setValue('programs', ['LevantamentoFinanceiroForm' => true, 'ModalContratoGerarFinanceiro' => true]); // usuario do grupo Financeiro (gera e desfaz o financeiro)
 TTransaction::open('escritorio');
 $pid = function (string $nome) { $st = TTransaction::get()->prepare('SELECT id FROM pessoa WHERE normalize(nome, NFC) = normalize(?, NFC) ORDER BY id LIMIT 1'); $st->execute([$nome]); return (int) $st->fetchColumn(); };
 $jac = $pid('JOSÉ ALMIR CURCIOL'); $juan = $pid('JUAN WILLIAN DE OLIVEIRA'); $curciol = RepasseColaboradorService::pessoaDoEscritorio(1);

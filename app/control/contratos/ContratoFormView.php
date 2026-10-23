@@ -779,10 +779,11 @@ class ContratoFormView extends TPage
         }
     }
 
-    public static function onAddFinanceiro($param = null) 
+    public static function onAddFinanceiro($param = null)
     {
-        try 
+        try
         {
+            if (!self::podeGerarFinanceiro()) { throw new Exception('Somente o Financeiro pode gerar ou desfazer o financeiro.'); }
             TTransaction::open(self::$database);
 
             if (empty($param['contrato_parcela_id'])) {
@@ -954,9 +955,16 @@ class ContratoFormView extends TPage
         }
     }
 
+    /** Gerar e desfazer o financeiro do contrato: so quem tem a tela de gerar (grupo Financeiro, 23/10/2026). */
+    public static function podeGerarFinanceiro(): bool
+    {
+        return SystemPermission::checkPermission('ModalContratoGerarFinanceiro');
+    }
+
     public static function canGerar($object)
     {
-        try 
+        if (!self::podeGerarFinanceiro()) { return false; }
+        try
         {
             TTransaction::open(self::$database);
 
@@ -1105,6 +1113,7 @@ class ContratoFormView extends TPage
     /** "Desfazer financeiro" aparece para quem pode gerar (profissional) quando o pagamento ja tem financeiro gerado. */
     public static function canDesfazer($object)
     {
+        if (!self::podeGerarFinanceiro()) { return false; }
         if (!in_array((int) ($object->status_contrato_pagamento_id ?? 1), [2, 3], true)) {
             return false;
         }
@@ -1132,6 +1141,7 @@ class ContratoFormView extends TPage
     {
         try
         {
+            if (!self::podeGerarFinanceiro()) { throw new Exception('Somente o Financeiro pode gerar ou desfazer o financeiro.'); }
             $pagamentoId = (int) ($param['contrato_parcela_id'] ?? $param['id'] ?? 0);
             if ($pagamentoId <= 0) {
                 throw new Exception('Pagamento do contrato não informado.');
