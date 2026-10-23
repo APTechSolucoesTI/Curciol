@@ -57,7 +57,7 @@ try {
     igual('listagem: 4 repasses, sem selecao nem pagamento (so consulta)', [4, 0, 0], [substr_count($html, "class='rc-origem'"), substr_count($html, 'rc-sel'), substr_count($html, 'Pagar selecionadas')]);
     ok('listagem: filtros no cabecalho das colunas', strpos($html, 'datagrid-header-filter-row') !== false && strpos($html, 'origem_col') !== false && strpos($html, 'tdatagrid_init_header_popover_filters') !== false);
     ok('listagem: total a pagar 1.856,80', strpos($html, 'R$ 1.856,80') !== false);
-    ok('listagem: descreve os filtros', strpos($html, 'Processo: ') !== false && strpos($html, '(e filhos)') !== false && strpos($html, 'Recebimento: 01/02/2026 a 28/02/2026') !== false);
+    ok('listagem: faixa de filtros aplicados', strpos($html, 'Processo') !== false && strpos($html, 'Período (Recebimento)') !== false && strpos($html, '01/02/2026 até 28/02/2026') !== false);
     $cortina = saida(function () { RepasseColaboradorList::onShowCurtainFilters([]); });
     ok('cortina: processo e contrato para escolher, sem requisicao', erro($cortina) === '' && strpos($cortina, 'Filtros de repasses') !== false
         && strpos($cortina, 'name="processo_id"') !== false && strpos($cortina, 'name="contrato_id"') !== false && strpos($cortina, 'requisicao_id') === false, erro($cortina));
@@ -75,8 +75,12 @@ try {
 
     // ---------- pagamento pela acao em lote de Contas a pagar: dois colaboradores no mesmo lote ----------
     TSession::setValue('userid', 1);
-    $s = saida(function () use ($contaJac, $contaJuan) { ContaPagarList::onQuitarSelecionadas(['lote_sel' => [(string) $contaJac, (string) $contaJuan]]); });
+    ContaPagarList::loteLimparSelecao();
+    saida(function () use ($contaJac, $contaJuan) { ContaPagarList::onLoteMarcar(['id' => $contaJac, 'marcado' => 1]); ContaPagarList::onLoteMarcar(['id' => $contaJuan, 'marcado' => 1]); });
+    $s = saida(function () { ContaPagarList::onQuitarSelecionadas([]); });
     ok('Quitar selecionadas abre a janela do lote', strpos($s, 'LoteQuitarForm') !== false, substr($s, 0, 300));
+    $sel = array_map('intval', TSession::getValue('lote_ids_' . TipoConta::PAGAR) ?: []); sort($sel);
+    igual('selecao guardada na sessao: as duas contas marcadas', [min($contaJac, $contaJuan), max($contaJac, $contaJuan)], $sel);
     $janela = saida(function () use ($contaJac, $contaJuan) { (new LoteQuitarForm(['ids' => "{$contaJac},{$contaJuan}", 'tipo' => (string) TipoConta::PAGAR]))->show(); });
     ok('janela soma as duas contas', strpos($janela, 'Quitar R$ 928,40') !== false && erro($janela) === '', erro($janela));
     $hoje = date('d/m/Y');
