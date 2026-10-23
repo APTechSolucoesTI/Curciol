@@ -136,7 +136,9 @@ SELECT p.id, pe.id, c.nivel, c.pct, c.antes, c.depois, c.dif, c.ordem
   JOIN parceria_levantamento p ON p.nome = c.parceria
   -- pessoa por nome; para os parceiros novos, so a do grupo Parceiro (evita homonimos de clientes)
   JOIN LATERAL (SELECT pp.id FROM pessoa pp
-                 WHERE normalize(pp.nome, NFC) = normalize(c.pessoa, NFC)  -- cadastros antigos tem acento decomposto (NFD)
+                 WHERE (normalize(pp.nome, NFC) = normalize(c.pessoa, NFC)  -- cadastros antigos tem acento decomposto (NFD)
+                        -- em producao o cadastro do Juan tem o sobrenome completo (mesmo id 9391 e CPF da homologacao)
+                        OR (c.pessoa = 'JUAN WILLIAN DE OLIVEIRA' AND pp.nome = 'JUAN WILLIAN DE OLIVEIRA BARROS'))
                    AND (normalize(c.pessoa, NFC) NOT IN (normalize('KBÇA', NFC),'CAMPOS','ALLIANCE','ESTRUTURA')
                         OR EXISTS (SELECT 1 FROM pessoa_grupo g WHERE g.pessoa_id = pp.id AND g.grupo_id = 6))
                  ORDER BY pp.id LIMIT 1) pe ON TRUE
