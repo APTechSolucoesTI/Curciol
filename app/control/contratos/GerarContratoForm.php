@@ -1082,7 +1082,7 @@ class GerarContratoForm extends TPage
                 "profissao" => $cliente->profissao ?? null,
                 "RG" => $cliente->rg_ie ?? null,
                 "orgao_emissor" => $cliente->orgao_emissor ?? null,
-                "cpf" => $cliente->cpf_cnpj ?? null,
+                "cpf" => $cliente->cpf_cnpj_formatado ?? null, // CPF/CNPJ e gravado so com numeros: no contrato sai com mascara
                 "telefone" => $cliente->telefone ?? null,
                 "unidade_trabalho" => $cliente->unidade ?? null,
                 "email" => $cliente->email ?? null,

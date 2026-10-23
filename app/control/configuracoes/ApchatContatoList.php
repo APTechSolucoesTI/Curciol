@@ -796,7 +796,7 @@ class ApchatContatoList extends TPage
 
             $globalCriteria->add(new TFilter('unaccent(CAST(nome AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->global_filter) . '%'), ' OR ');
             $globalCriteria->add(new TFilter('unaccent(CAST(telefone AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->global_filter) . '%'), ' OR ');
-            $globalCriteria->add(new TFilter('unaccent(CAST(cpf_cnpj AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->global_filter) . '%'), ' OR ');
+            $globalCriteria->add(new TFilter("regexp_replace(COALESCE(cpf_cnpj, ''), '\\D', '', 'g')", 'ilike', '%' . (preg_replace('/\\D/', '', (string) $data->global_filter) ?: TratamentosService::removerAcentos((string) $data->global_filter)) . '%'), ' OR ');
 
             $filters[] = $globalCriteria;
         }

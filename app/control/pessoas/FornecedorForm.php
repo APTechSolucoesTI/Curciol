@@ -599,10 +599,10 @@ class FornecedorForm extends TPage
             $idAux = $data->id ?? -1;
             //CPF/CNPJ
             if($data->cpf_cnpj){
-                $countCPF_CNPJ = Pessoa::where('cpf_cnpj', '=', $data->cpf_cnpj)
+                $countCPF_CNPJ = Pessoa::where("regexp_replace(COALESCE(cpf_cnpj, ''), '\\D', '', 'g')", '=', $data->cpf_cnpj)
                                         ->where('id','!=',(int) $idAux)
                                         ->count();
-                $searchCPF_CNPJ = Pessoa::where('cpf_cnpj', '=', $data->cpf_cnpj)
+                $searchCPF_CNPJ = Pessoa::where("regexp_replace(COALESCE(cpf_cnpj, ''), '\\D', '', 'g')", '=', $data->cpf_cnpj)
                                         ->where('id','!=',(int) $idAux)
                                         ->first();
                 if($countCPF_CNPJ>0 && $data->tipo_pessoa_id==TipoPessoa::FISICA){

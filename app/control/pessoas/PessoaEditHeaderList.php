@@ -1050,7 +1050,7 @@ class PessoaEditHeaderList extends TPage
         if (isset($data->cpf_cnpj) AND ( (is_scalar($data->cpf_cnpj) AND $data->cpf_cnpj !== '') OR (is_array($data->cpf_cnpj) AND (!empty($data->cpf_cnpj)) )) )
         {
 
-            $filters[] = new TFilter('unaccent(CAST(cpf_cnpj AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->cpf_cnpj) . '%');// create the filter 
+            $filters[] = new TFilter("regexp_replace(COALESCE(cpf_cnpj, ''), '\\D', '', 'g')", 'ilike', '%' . (preg_replace('/\\D/', '', (string) $data->cpf_cnpj) ?: TratamentosService::removerAcentos((string) $data->cpf_cnpj)) . '%');// create the filter 
         }
 
         if (isset($data->rg_ie) AND ( (is_scalar($data->rg_ie) AND $data->rg_ie !== '') OR (is_array($data->rg_ie) AND (!empty($data->rg_ie)) )) )

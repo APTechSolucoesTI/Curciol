@@ -606,7 +606,7 @@ class ContraparteList extends TPage
         if (isset($data->cpf_cnpj) AND ( (is_scalar($data->cpf_cnpj) AND $data->cpf_cnpj !== '') OR (is_array($data->cpf_cnpj) AND (!empty($data->cpf_cnpj)) )) )
         {
 
-            $filters[] = new TFilter('unaccent(CAST(cpf_cnpj AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->cpf_cnpj) . '%');// create the filter 
+            $filters[] = new TFilter("regexp_replace(COALESCE(cpf_cnpj, ''), '\\D', '', 'g')", 'ilike', '%' . (preg_replace('/\\D/', '', (string) $data->cpf_cnpj) ?: TratamentosService::removerAcentos((string) $data->cpf_cnpj)) . '%');// create the filter 
         }
 
         if (isset($data->email) AND ( (is_scalar($data->email) AND $data->email !== '') OR (is_array($data->email) AND (!empty($data->email)) )) )
@@ -630,7 +630,7 @@ class ContraparteList extends TPage
         if (isset($data->cpf_cnpj_col) AND ( (is_scalar($data->cpf_cnpj_col) AND $data->cpf_cnpj_col !== '') OR (is_array($data->cpf_cnpj_col) AND (!empty($data->cpf_cnpj_col)) )) )
         {
 
-            $filters[] = new TFilter('unaccent(CAST(cpf_cnpj AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->cpf_cnpj_col) . '%');// create the filter 
+            $filters[] = new TFilter("regexp_replace(COALESCE(cpf_cnpj, ''), '\\D', '', 'g')", 'ilike', '%' . (preg_replace('/\\D/', '', (string) $data->cpf_cnpj_col) ?: TratamentosService::removerAcentos((string) $data->cpf_cnpj_col)) . '%');// create the filter 
         }
 
         if (isset($data->telefone_col) AND ( (is_scalar($data->telefone_col) AND $data->telefone_col !== '') OR (is_array($data->telefone_col) AND (!empty($data->telefone_col)) )) )
@@ -657,7 +657,7 @@ class ContraparteList extends TPage
 
             $globalCriteria->add(new TFilter('unaccent(CAST(nome AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->global_filter) . '%'), ' OR ');
 
-            $globalCriteria->add(new TFilter('unaccent(CAST(cpf_cnpj AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->global_filter) . '%'), ' OR ');
+            $globalCriteria->add(new TFilter("regexp_replace(COALESCE(cpf_cnpj, ''), '\\D', '', 'g')", 'ilike', '%' . (preg_replace('/\\D/', '', (string) $data->global_filter) ?: TratamentosService::removerAcentos((string) $data->global_filter)) . '%'), ' OR ');
 
             $globalCriteria->add(new TFilter('unaccent(CAST(telefone AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->global_filter) . '%'), ' OR ');
 
