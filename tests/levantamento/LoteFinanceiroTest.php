@@ -130,6 +130,19 @@ try {
         array_map(function ($r) { return [(int) $r['pessoa_id'], round((float) $r['valor'], 2)]; }, q('SELECT pessoa_id, valor FROM repasse_colaborador WHERE lancamento_receber_id = ' . $L1 . ' ORDER BY id')));
 
     // ---------- 7) listagens: coluna de selecao, botoes e "Desfazer ultimo lote" ----------
+    // selecao "todas" com filtro ativo: montar o SQL (parametros aleatorios do TFilter) nao pode zerar a selecao
+    TSession::setValue('ContaPagarList_filters', [new TFilter('id', '>', 0)]);
+    ContaPagarList::loteLimparSelecao();
+    saida(function () { ContaPagarList::onLoteTodas(['marcado' => 1]); });
+    saida(function () use ($repasses) { ContaPagarList::onLoteMarcar(['id' => $repasses[0], 'marcado' => 0]); });
+    $sel = TSession::getValue('ContaPagarList_lote_sel');
+    ok('com filtro: todas + desmarcar uma mantem a selecao', !empty($sel['todas']) && array_keys($sel['desmarcadas']) === [(int) $repasses[0]], json_encode($sel));
+    TSession::setValue('ContaPagarList_filters', [new TFilter('id', '>', 1)]);
+    saida(function () use ($repasses) { ContaPagarList::onLoteMarcar(['id' => $repasses[1], 'marcado' => 1]); });
+    $sel = TSession::getValue('ContaPagarList_lote_sel');
+    ok('com filtro: mudar o filtro limpa a selecao', empty($sel['todas']) && array_keys($sel['marcadas']) === [(int) $repasses[1]], json_encode($sel));
+    TSession::setValue('ContaPagarList_filters', null);
+    ContaPagarList::loteLimparSelecao();
     $lote6 = $L::quitar([$repasses[1]], $PAGAR, ['data_pagamento' => $hoje, 'conta_caixa_id' => $cc, 'tipo_pagamento_id' => TipoPagamento::TRANSFERENCIA]);
     $html = saida(function () { (new ContaPagarList([]))->show(); });
     igual('contas a pagar: sem erro', '', erro($html));
