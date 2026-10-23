@@ -16,7 +16,8 @@ class LoteCompensarForm extends TWindow
         parent::setProperty('class', 'window_modal');
 
         $tipo = LoteQuitarForm::tipo($param['tipo'] ?? '');
-        $ids = LoteQuitarForm::ids($param['ids'] ?? '');
+        // selecao das contas: pela sessao (todas as paginas, pode ser grande) ou pela URL
+        $ids = LoteQuitarForm::ids(!empty($param['da_sessao']) ? (TSession::getValue('lote_ids_' . $tipo) ?: []) : ($param['ids'] ?? ''));
         $this->form = new BootstrapFormBuilder(self::$formName);
 
         $linhas = [];
@@ -81,6 +82,7 @@ class LoteCompensarForm extends TWindow
             $tipo = LoteQuitarForm::tipo($d->tipo ?? '');
             $lote = LoteFinanceiroService::compensar(LoteQuitarForm::ids($d->ids ?? ''), $tipo, (string) ($d->data_compensacao ?? ''));
             TWindow::closeWindow();
+            call_user_func([LoteQuitarForm::lista($tipo), 'loteLimparSelecao']); // contas compensadas: a selecao recomeca
             TToast::show('success', 'Lote nº ' . (int) $lote->id . ': ' . (int) $lote->quantidade . ' linha(s) compensada(s), ' . LoteQuitarForm::moeda($lote->total), 'topRight', 'far:check-circle');
             AdiantiCoreApplication::loadPage(LoteQuitarForm::lista($tipo), 'onReload');
         } catch (Throwable $e) {

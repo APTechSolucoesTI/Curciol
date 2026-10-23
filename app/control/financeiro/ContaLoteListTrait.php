@@ -7,10 +7,15 @@
  */
 trait ContaLoteListTrait
 {
-    /** Coluna de selecao: chamar antes das outras colunas. */
+    /**
+     * Coluna de selecao: chamar antes das outras colunas.
+     * A selecao fica no servidor (sessao), valendo para todas as paginas: o "todas" do cabecalho marca todas as contas
+     * do filtro atual na hora (sem percorrer linhas); desmarcar uma depois tira so ela. Mudar o filtro limpa a selecao.
+     */
     protected function loteColunaSelecao(): TDataGridColumn
     {
-        $todos = "<input type='checkbox' title='Marcar todas desta página' onclick=\"document.querySelectorAll('input.lote-sel').forEach(function (c) { c.checked = this.checked; }, this); loteAtualizar();\">";
+        $classe = static::class;
+        $todos = "<input type='checkbox' id='lote-todas' title='Marcar todas as contas do filtro (todas as páginas)' onclick=\"loteMarcarTodas(this.checked)\">";
         $coluna = new TDataGridColumn('id', $todos, 'center', '1%');
         // a grade escapa valores simples: o checkbox sai pelo transformer
         $coluna->setTransformer(function ($value, $object) {
@@ -19,12 +24,117 @@ trait ContaLoteListTrait
             $c->class = 'lote-sel';
             $c->name = 'lote_sel[]';
             $c->value = (int) $object->id;
-            $c->{'data-quitar'} = number_format((float) ($object->lote_quitar ?? 0), 2, '.', '');
-            $c->{'data-compensar'} = number_format((float) ($object->lote_compensar ?? 0), 2, '.', '');
-            $c->onclick = 'event.stopPropagation(); loteAtualizar();';
+            if (!empty($object->lote_marcada)) { $c->checked = 'checked'; }
+            $c->onclick = 'event.stopPropagation(); loteMarcarUma(this);';
             return $c;
         });
+        TScript::create("
+            window.loteMarcarUma = function (c) {
+                __adianti_ajax_exec('class={$classe}&method=onLoteMarcar&id=' + encodeURIComponent(c.value) + '&marcado=' + (c.checked ? 1 : 0));
+            };
+            window.loteMarcarTodas = function (marcar) {
+                document.querySelectorAll('input.lote-sel').forEach(function (c) { c.checked = marcar; });
+                __adianti_ajax_exec('class={$classe}&method=onLoteTodas&marcado=' + (marcar ? 1 : 0));
+            };
+        ");
         return $this->datagrid->addColumn($coluna);
+    }
+
+    // ------------------------------------------------------------------ selecao no servidor (todas as paginas)
+
+    private static function loteChave(): string { return static::class . '_lote_sel'; }
+
+    /** Assinatura do filtro atual: a selecao vale para um filtro; mudou o filtro, ela recomeca. */
+    private static function loteAssinaturaFiltro(): string
+    {
+        return md5(serialize(TSession::getValue(static::class . '_filters') ?: []));
+    }
+
+    /** Selecao atual: todas (com as desmarcadas) ou so as marcadas. */
+    protected static function loteSelecao(): array
+    {
+        $s = TSession::getValue(self::loteChave());
+        if (!is_array($s) || ($s['filtro'] ?? '') !== self::loteAssinaturaFiltro()) {
+            $s = ['todas' => false, 'marcadas' => [], 'desmarcadas' => [], 'filtro' => self::loteAssinaturaFiltro()];
+            TSession::setValue(self::loteChave(), $s);
+        }
+        return $s;
+    }
+
+    public static function loteLimparSelecao(): void
+    {
+        TSession::setValue(self::loteChave(), null);
+    }
+
+    /** Filtros fixos da listagem (unidade do usuario e tipo da conta), os mesmos do construtor. */
+    protected static function loteCriterioBase(): TCriteria
+    {
+        $c = new TCriteria;
+        $c->add(new TFilter('escritorio_id', 'in', "(SELECT id FROM escritorio WHERE system_unit_id = '" . SqlSeguro::id(TSession::getValue('userunitid')) . "')"));
+        $c->add(new TFilter('tipo_conta_id', '=', static::tipoContaLote()));
+        return $c;
+    }
+
+    /** Ids das contas selecionadas (todas do filtro atual menos as desmarcadas, ou so as marcadas). */
+    protected static function loteIdsSelecionados(): array
+    {
+        $s = self::loteSelecao();
+        if (!$s['todas']) { return array_map('intval', array_keys($s['marcadas'])); }
+        $propria = !TTransaction::get();
+        if ($propria) { TTransaction::open('escritorio'); }
+        $criteria = self::loteCriterioBase();
+        foreach ((array) (TSession::getValue(static::class . '_filters') ?: []) as $f) { $criteria->add($f); }
+        $sql = new TSqlSelect;
+        $sql->setEntity('conta');
+        $sql->addColumn('id');
+        $sql->setCriteria($criteria);
+        $st = TTransaction::get()->prepare($sql->getInstruction(TRUE));
+        $st->execute($criteria->getPreparedVars() ?: []);
+        $ids = array_map('intval', $st->fetchAll(PDO::FETCH_COLUMN));
+        if ($propria) { TTransaction::close(); }
+        return array_values(array_diff($ids, array_map('intval', array_keys($s['desmarcadas']))));
+    }
+
+    /** Barra da selecao: quantas, quanto a quitar e quanto a compensar (somado no servidor). */
+    protected static function loteScriptBarra(): void
+    {
+        $ids = self::loteIdsSelecionados();
+        $q = 0.0; $c = 0.0;
+        if ($ids) {
+            foreach (LoteFinanceiroService::proximasParcelas($ids) as $p) { $q += (float) $p->valor; }
+            foreach (LoteFinanceiroService::linhasACompensar($ids) as $l) { $c += (float) $l->valor; }
+        }
+        $s = self::loteSelecao();
+        $texto = $ids ? (count($ids) . ' selecionada(s)' . ($s['todas'] ? ' (todas as páginas)' : '') . ' · a quitar ' . LoteQuitarForm::moeda($q) . ' · a compensar ' . LoteQuitarForm::moeda($c))
+                      : 'Marque contas para quitar ou compensar de uma vez.';
+        TScript::create('(function () { var b = document.getElementById("lote-barra"); if (b) { b.textContent = ' . json_encode($texto) . '; b.className = "lote-barra' . ($ids ? ' ativa' : '') . '"; }'
+            . ' var t = document.getElementById("lote-todas"); if (t) { t.checked = ' . ($s['todas'] && !$s['desmarcadas'] ? 'true' : 'false') . '; } })();');
+    }
+
+    public static function onLoteMarcar($param = null)
+    {
+        $id = (int) ($param['id'] ?? 0);
+        $marcar = !empty($param['marcado']);
+        $s = self::loteSelecao();
+        if ($id > 0) {
+            if ($s['todas']) {
+                if ($marcar) { unset($s['desmarcadas'][$id]); } else { $s['desmarcadas'][$id] = 1; }
+            } else {
+                if ($marcar) { $s['marcadas'][$id] = 1; } else { unset($s['marcadas'][$id]); }
+            }
+            TSession::setValue(self::loteChave(), $s);
+        }
+        self::loteScriptBarra();
+    }
+
+    public static function onLoteTodas($param = null)
+    {
+        $s = self::loteSelecao();
+        $s['todas'] = !empty($param['marcado']);
+        $s['marcadas'] = [];
+        $s['desmarcadas'] = [];
+        TSession::setValue(self::loteChave(), $s);
+        self::loteScriptBarra();
     }
 
     /** Botoes e barra da selecao, na esquerda do cabecalho. */
@@ -71,49 +181,37 @@ trait ContaLoteListTrait
         $estilo->add('.lote-barra { margin:6px 0; padding:6px 10px; border-radius:6px; background:#f1f5f9; font-size:13px; color:#334155; }
                       .lote-barra.ativa { background:#ecfdf5; color:#065f46; font-weight:600; }');
         $this->datagrid_form->add($estilo);
-        TScript::create("
-            window.loteAtualizar = function () {
-                var sel = document.querySelectorAll('input.lote-sel:checked'), q = 0, c = 0;
-                sel.forEach(function (x) { q += parseFloat(x.getAttribute('data-quitar') || 0); c += parseFloat(x.getAttribute('data-compensar') || 0); });
-                var b = document.getElementById('lote-barra');
-                if (!b) { return; }
-                var m = function (v) { return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }); };
-                if (!sel.length) { b.textContent = 'Marque contas para quitar ou compensar de uma vez.'; b.className = 'lote-barra'; return; }
-                b.textContent = sel.length + ' selecionada(s) · a quitar ' + m(q) + ' · a compensar ' + m(c);
-                b.className = 'lote-barra ativa';
-            };
-        ");
     }
 
-    /** Marca cada linha com o valor a quitar (proxima parcela) e a compensar. */
+    /** Marca as linhas da pagina que estao na selecao e atualiza a barra (chamado no onReload). */
     protected function loteMarcar($objects): void
     {
-        $ids = [];
-        foreach ((array) $objects as $o) { $ids[] = (int) $o->id; }
-        $quitar = [];
-        $compensar = [];
-        if ($ids) {
-            foreach (LoteFinanceiroService::proximasParcelas($ids) as $contaId => $p) { $quitar[$contaId] = (float) $p->valor; }
-            foreach (LoteFinanceiroService::linhasACompensar($ids) as $l) { $compensar[(int) $l->conta_id] = ($compensar[(int) $l->conta_id] ?? 0) + (float) $l->valor; }
-        }
+        $s = self::loteSelecao();
         foreach ((array) $objects as $o) {
-            $o->lote_quitar = $quitar[(int) $o->id] ?? 0;
-            $o->lote_compensar = $compensar[(int) $o->id] ?? 0;
+            $id = (int) $o->id;
+            $o->lote_marcada = $s['todas'] ? !isset($s['desmarcadas'][$id]) : isset($s['marcadas'][$id]);
         }
+        self::loteScriptBarra();
+    }
+
+    /** Selecao vai para a janela pela sessao (pode ter centenas de contas, nao cabe na URL). */
+    private static function loteAbrir(string $janela, string $vazio): void
+    {
+        $ids = self::loteIdsSelecionados();
+        if (!$ids) { new TMessage('info', $vazio); return; }
+        $tipo = (string) static::tipoContaLote();
+        TSession::setValue('lote_ids_' . $tipo, $ids);
+        AdiantiCoreApplication::loadPage($janela, 'onShow', ['da_sessao' => '1', 'tipo' => $tipo]);
     }
 
     public static function onQuitarSelecionadas($param = null)
     {
-        $ids = LoteQuitarForm::ids($param['lote_sel'] ?? []);
-        if (!$ids) { new TMessage('info', 'Marque as contas que quer quitar.'); return; }
-        AdiantiCoreApplication::loadPage('LoteQuitarForm', 'onShow', ['ids' => implode(',', $ids), 'tipo' => (string) static::tipoContaLote()]);
+        self::loteAbrir('LoteQuitarForm', 'Marque as contas que quer quitar.');
     }
 
     public static function onCompensarSelecionadas($param = null)
     {
-        $ids = LoteQuitarForm::ids($param['lote_sel'] ?? []);
-        if (!$ids) { new TMessage('info', 'Marque as contas que quer compensar.'); return; }
-        AdiantiCoreApplication::loadPage('LoteCompensarForm', 'onShow', ['ids' => implode(',', $ids), 'tipo' => (string) static::tipoContaLote()]);
+        self::loteAbrir('LoteCompensarForm', 'Marque as contas que quer compensar.');
     }
 
     public static function onConfirmarDesfazerLote($param = null)

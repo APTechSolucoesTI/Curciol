@@ -16,7 +16,8 @@ class LoteQuitarForm extends TWindow
         parent::setProperty('class', 'window_modal');
 
         $tipo = self::tipo($param['tipo'] ?? '');
-        $ids = self::ids($param['ids'] ?? '');
+        // selecao das contas: pela sessao (todas as paginas, pode ser grande) ou pela URL
+        $ids = self::ids(!empty($param['da_sessao']) ? (TSession::getValue('lote_ids_' . $tipo) ?: []) : ($param['ids'] ?? ''));
         $this->form = new BootstrapFormBuilder(self::$formName);
 
         $parcelas = [];
@@ -107,6 +108,7 @@ class LoteQuitarForm extends TWindow
                 'historico' => $d->historico ?? '',
             ]);
             TWindow::closeWindow();
+            call_user_func([self::lista($tipo), 'loteLimparSelecao']); // contas quitadas: a selecao recomeca
             TToast::show('success', 'Lote nº ' . (int) $lote->id . ': ' . (int) $lote->quantidade . ' parcela(s) quitada(s), ' . self::moeda($lote->total), 'topRight', 'far:check-circle');
             AdiantiCoreApplication::loadPage(self::lista($tipo), 'onReload');
         } catch (Throwable $e) {
@@ -145,7 +147,7 @@ class LoteQuitarForm extends TWindow
     {
         return "<style>
             .lote-resumo { background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:10px 12px; margin-bottom:8px; font-size:13px; }
-            .lote-tabela { max-height:260px; overflow:auto; margin-top:8px; }
+            .lote-tabela { max-height:360px; overflow-y:auto; margin-top:8px; } /* todas as selecionadas, com rolagem */
             .lote-resumo table { width:100%; border-collapse:collapse; font-size:12px; }
             .lote-resumo th { position:sticky; top:0; background:#f8fafc; }
             .lote-resumo th, .lote-resumo td { border-bottom:1px solid #eef2f7; padding:3px 6px; text-align:left; }

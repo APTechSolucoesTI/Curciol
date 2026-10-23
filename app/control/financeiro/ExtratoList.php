@@ -183,6 +183,12 @@ class ExtratoList extends TPage
                 return $label;
             }
 
+            if ($value == 'P') { // lote com parte das contas compensada
+                $label->{'class'} .= 'warning';
+                $label->add('Parcial');
+                return $label;
+            }
+
             $label->{'class'} .= 'danger';
             $label->add('Não');
 
@@ -298,8 +304,19 @@ class ExtratoList extends TPage
         $action_onShow->setField(self::$primaryKey);
 
         $action_onShow->setParameter('key', '{id}');
+        $action_onShow->setDisplayCondition('ExtratoList::naoEhLote');
 
         $this->datagrid->addAction($action_onShow);
+
+        // linha de lote (uma por lote, ExtratoLoteService): abre a cortina com as contas do lote
+        $action_lote = new TDataGridAction(['LoteExtratoView', 'onShow'], ['register_state' => 'false']);
+        $action_lote->setUseButton(false);
+        $action_lote->setLabel('Ver lote');
+        $action_lote->setImage('fas:layer-group #0d4069');
+        $action_lote->setField(self::$primaryKey);
+        $action_lote->setParameter('lote_id', '{lote_pagamento_id}');
+        $action_lote->setDisplayCondition('ExtratoLoteService::ehLote');
+        $this->datagrid->addAction($action_lote);
 
         // create the datagrid model
         $this->datagrid->createModel();
@@ -967,6 +984,9 @@ class ExtratoList extends TPage
                 $criteria->add($filter);
             }
 
+            // lote de quitacao aparece numa linha so (soma das contas do lote que passam pelos filtros)
+            $lotes = ExtratoLoteService::agrupar($criteria);
+
             //</blockLine><btnShowCurtainFiltersAutoCode>
             if(!empty($this->btnShowCurtainFilters) && empty($this->btnShowCurtainFiltersAdjusted))
             {
@@ -986,6 +1006,20 @@ class ExtratoList extends TPage
                 // iterate the collection of active records
                 foreach ($objects as $object)
                 {
+                    if (isset($lotes[(int) $object->id]))
+                    {
+                        // linha do lote: valores somados e historico do lote; compensar so pela cortina do lote
+                        $r = $lotes[(int) $object->id];
+                        $object->entrada_valor = $r->entrada;
+                        $object->saida_valor = $r->saida;
+                        $object->compensado = $r->compensado;
+                        $object->data_compensacao = $r->data_compensacao;
+                        $object->historico = $r->historico;
+                        $object->builder_datagrid_check = '';
+                        $row = $this->datagrid->addItem($object);
+                        $row->id = "row_{$object->id}";
+                        continue;
+                    }
                     $check = new TCheckButton('builder_datagrid_check[]');
                     $check->setIndexValue($object->id);
                     $check->onclick = 'event.stopPropagation();';
@@ -1022,6 +1056,11 @@ class ExtratoList extends TPage
             // undo all pending operations
             TTransaction::rollback();
         }
+    }
+
+    public static function naoEhLote($object)
+    {
+        return !ExtratoLoteService::ehLote($object);
     }
 
     public function onShow($param = null)
