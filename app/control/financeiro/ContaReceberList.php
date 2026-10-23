@@ -984,6 +984,7 @@ class ContaReceberList extends TPage
         // os formularios tambem (senao o cabecalho continuava mostrando os filtros antigos)
         if (!empty($this->form)) { $this->form->clear(); }
         if (!empty($this->datagrid_form)) { $this->datagrid_form->clear(); }
+        self::loteLimparSelecao(); // e desmarca as contas selecionadas para quitar/compensar
 
         $this->onReload(['offset' => 0, 'first_page' => 1]);
 
