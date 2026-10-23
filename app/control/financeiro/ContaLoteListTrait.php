@@ -44,10 +44,18 @@ trait ContaLoteListTrait
 
     private static function loteChave(): string { return static::class . '_lote_sel'; }
 
-    /** Assinatura do filtro atual: a selecao vale para um filtro; mudou o filtro, ela recomeca. */
+    /**
+     * Assinatura do filtro atual: a selecao vale para um filtro; mudou o filtro, ela recomeca.
+     * Vai pelo texto do filtro (valores no lugar dos parametros), nao pelo objeto: montar o SQL grava no TFilter
+     * parametros com nome aleatorio, e o serialize mudava a cada clique, zerando a selecao.
+     */
     private static function loteAssinaturaFiltro(): string
     {
-        return md5(serialize(TSession::getValue(static::class . '_filters') ?: []));
+        $partes = [];
+        foreach ((array) (TSession::getValue(static::class . '_filters') ?: []) as $f) {
+            $partes[] = is_object($f) && method_exists($f, 'dump') ? (clone $f)->dump(FALSE) : serialize($f);
+        }
+        return md5(implode("\n", $partes));
     }
 
     /** Selecao atual: todas (com as desmarcadas) ou so as marcadas. */
