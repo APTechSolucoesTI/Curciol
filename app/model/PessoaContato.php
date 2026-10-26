@@ -21,6 +21,7 @@ class PessoaContato extends TRecord
         parent::addAttribute('descricao');
         parent::addAttribute('telefone');
         parent::addAttribute('email');
+        parent::addAttribute('principal');
             
     }
 

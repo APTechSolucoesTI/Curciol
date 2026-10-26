@@ -10,6 +10,7 @@ class ProfissionalForm extends TPage
     private static $formName = 'form_Pessoa';
 
     use BuilderMasterDetailTrait;
+    use PessoaContatoAbaTrait;
     use Adianti\Base\AdiantiFileSaveTrait;
     use BuilderMasterDetailFieldListTrait;
 
@@ -342,6 +343,8 @@ class ProfissionalForm extends TPage
 
         });        $row15 = $this->form->addFields([$this->detailFormPessoaEnderecoPessoa]);
         $row15->layout = [' col-sm-12'];
+
+        $this->criarAbaContatos();
 
         $this->form->appendPage("Especialidades");
         $row16 = $this->form->addFields([$this->fieldList_62d07079690f0]);
@@ -766,6 +769,9 @@ class ProfissionalForm extends TPage
 
             // APChat: telefone antes desta edicao (o contato antigo e localizado por ele)
             $telefone_anterior_apchat = APChatContactService::telefoneGravado($object->id ?? null);
+            // contato principal: telefone dos Dados valido e a situacao de antes (ver PessoaContatoService)
+            PessoaContatoService::exigirTelefoneValido($data->telefone);
+            $contatos_antes = PessoaContatoService::estadoAtual($data->id ?? null);
             $object->store(); // save the object 
 
             $this->saveFile($object, $data, 'assinatura', $assinatura_dir);
@@ -805,12 +811,16 @@ class ProfissionalForm extends TPage
 
             }, $this->pessoa_endereco_pessoa_criteria); 
 
-            $object->deleteComposite('PessoaGrupo', 'pessoa_id', $object->id);
+            $this->salvarContatos($object, $param, $contatos_antes);
 
-            $pessoaGrupo = new PessoaGrupo();
-            $pessoaGrupo->pessoa_id = $object->id;
-            $pessoaGrupo->grupo_id = Grupo::PROFISSIONAL;
-            $pessoaGrupo->store();
+            // Curciol (26/10/2026): so acrescenta o grupo Profissional; os outros grupos da pessoa (Cliente etc.) ficam
+            if (!PessoaGrupo::where('pessoa_id', '=', $object->id)->where('grupo_id', '=', Grupo::PROFISSIONAL)->count())
+            {
+                $pessoaGrupo = new PessoaGrupo();
+                $pessoaGrupo->pessoa_id = $object->id;
+                $pessoaGrupo->grupo_id = Grupo::PROFISSIONAL;
+                $pessoaGrupo->store();
+            }
 
             if ($object->system_users_id)
             {
@@ -941,6 +951,8 @@ class ProfissionalForm extends TPage
                 $pessoa_endereco_pessoa_items = $this->loadMasterDetailItems('PessoaEndereco', 'pessoa_id', 'pessoa_endereco_pessoa', $object, $this->form, $this->pessoa_endereco_pessoa_list, $this->pessoa_endereco_pessoa_criteria, function($masterObject, $detailObject, $objectItems){ 
 
                 }); 
+
+                $this->carregarContatos($object);
 
                 $this->form->setData($object); // fill the form 
 

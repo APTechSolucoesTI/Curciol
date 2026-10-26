@@ -110,6 +110,7 @@ class NovoClienteForm extends TPage
             $data = $this->form->getData(); // get form data as array
 
             $data->telefone = preg_replace('/[^0-9]/', '', $data->telefone);
+            PessoaContatoService::exigirTelefoneValido($data->telefone);
 
             // Curciol (seguranca 22/10/2026): cadastro publico sempre cria pessoa nova (id postado nao vale)
             unset($data->id);
@@ -129,6 +130,9 @@ class NovoClienteForm extends TPage
             $object->criacao_user_id = TSession::getValue('userid');
 
             $object->store(); // save the object 
+
+            // contato principal com o telefone informado (PessoaContatoService)
+            PessoaContatoService::aplicarPrincipal($object->id, PessoaContatoService::estadoAtual(null));
 
             //if (Pessoa::where('documento', '=', $data->documento)->count() > 1)
             //{

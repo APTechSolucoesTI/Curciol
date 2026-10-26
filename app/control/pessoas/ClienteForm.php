@@ -10,6 +10,7 @@ class ClienteForm extends TPage
     private static $formName = 'form_Pessoa';
 
     use BuilderMasterDetailTrait;
+    use PessoaContatoAbaTrait;
     use Adianti\Base\AdiantiFileSaveTrait;
 
     /**
@@ -83,11 +84,6 @@ class ClienteForm extends TPage
         $pessoa_endereco_pessoa_complemento = new TEntry('pessoa_endereco_pessoa_complemento');
         $pessoa_endereco_pessoa_principal = new TCheckButton('pessoa_endereco_pessoa_principal');
         $button_adicionar_pessoa_endereco_pessoa = new TButton('button_adicionar_pessoa_endereco_pessoa');
-        $pessoa_contato_pessoa_descricao = new TEntry('pessoa_contato_pessoa_descricao');
-        $pessoa_contato_pessoa_id = new THidden('pessoa_contato_pessoa_id');
-        $pessoa_contato_pessoa_telefone = new TEntry('pessoa_contato_pessoa_telefone');
-        $pessoa_contato_pessoa_email = new TEntry('pessoa_contato_pessoa_email');
-        $button_adicionar_pessoa_contato_pessoa = new TButton('button_adicionar_pessoa_contato_pessoa');
         $pessoa_representantes_legais_pessoa_juridica_descricao = new TEntry('pessoa_representantes_legais_pessoa_juridica_descricao');
         $pessoa_representantes_legais_pessoa_juridica_id = new THidden('pessoa_representantes_legais_pessoa_juridica_id');
         $pessoa_representantes_legais_pessoa_juridica_representante_id = new TDBUniqueSearch('pessoa_representantes_legais_pessoa_juridica_representante_id', 'escritorio', 'Pessoa', 'id', 'nome','nome asc' , $criteria_pessoa_representantes_legais_pessoa_juridica_representante_id );
@@ -137,16 +133,13 @@ class ClienteForm extends TPage
         $pessoa_representantes_legais_pessoa_juridica_principal->setIndexValue("S");
 
         $nome->setTip("Nome do cliente");
-        $pessoa_contato_pessoa_descricao->setTip("Casa, Escritório, Celular");
         $pessoa_representantes_legais_pessoa_juridica_descricao->setTip("Gerente, Sócio, Proprietário");
 
         $nome->forceUpperCase();
-        $pessoa_contato_pessoa_descricao->forceUpperCase();
         $pessoa_representantes_legais_pessoa_juridica_descricao->forceUpperCase();
 
         $email->forceLowerCase();
         $profissao->forceLowerCase();
-        $pessoa_contato_pessoa_email->forceLowerCase();
 
         $processos->setId('b65ce0c8b211e9');
         $tarefas_cliente->setId('b66bba646654e9');
@@ -168,7 +161,6 @@ class ClienteForm extends TPage
         $btnBuscarCNPJ->addStyleClass('btn-default');
         $btnVerificarNome->addStyleClass('btn-success');
         $button_buscar_pessoa_endereco_pessoa->addStyleClass('btn-default');
-        $button_adicionar_pessoa_contato_pessoa->addStyleClass('btn-default');
         $button_adicionar_pessoa_endereco_pessoa->addStyleClass('btn-default');
         $button_novo_pessoa_representantes_legais_pessoa_juridica->addStyleClass('btn-success');
         $btnRepresentanteAdicionar_pessoa_representantes_legais_pessoa_juridica->addStyleClass('btn-default');
@@ -176,7 +168,6 @@ class ClienteForm extends TPage
         $btnBuscarCNPJ->setImage('fas:search #000000');
         $btnVerificarNome->setImage('fas:check #FFFFFF');
         $button_buscar_pessoa_endereco_pessoa->setImage('fas:search #2196F3');
-        $button_adicionar_pessoa_contato_pessoa->setImage('fas:plus #2ecc71');
         $button_adicionar_pessoa_endereco_pessoa->setImage('fas:plus #2ecc71');
         $button_novo_pessoa_representantes_legais_pessoa_juridica->setImage('fas:user-plus #FFFFFF');
         $btnRepresentanteAdicionar_pessoa_representantes_legais_pessoa_juridica->setImage('fas:plus #2ecc71');
@@ -188,7 +179,6 @@ class ClienteForm extends TPage
         $atendimento_historico->setAction(new TAction(['HistoricosAtendimentoCliente', 'onShow']));
         $button_buscar_pessoa_endereco_pessoa->setAction(new TAction([$this, 'onSearchCep'],['static' => 1]), "Buscar");
         $button_novo_pessoa_representantes_legais_pessoa_juridica->setAction(new TAction(['RepresentanteLegalForm', 'onShow']), "Novo");
-        $button_adicionar_pessoa_contato_pessoa->setAction(new TAction([$this, 'onAddDetailPessoaContatoPessoa'],['static' => 1]), "Adicionar");
         $button_adicionar_pessoa_endereco_pessoa->setAction(new TAction([$this, 'onAddDetailPessoaEnderecoPessoa'],['static' => 1]), "Adicionar");
         $btnRepresentanteAdicionar_pessoa_representantes_legais_pessoa_juridica->setAction(new TAction([$this, 'onAddDetailPessoaRepresentantesLegaisPessoaJuridica'],['static' => 1]), "Adicionar");
         $btnBuscarCNPJ->setAction(new TAction(['ModalBuscarCNPJ', 'onShow'],['campo' => '["nome", "telefone" ,"cpf_cnpj", "pessoa_endereco_pessoa_cep" ,"pessoa_endereco_pessoa_cidade_id", "pessoa_endereco_pessoa_id", "pessoa_endereco_pessoa_bairro", "pessoa_endereco_pessoa_rua" ,"pessoa_endereco_pessoa_numero" ,"pessoa_endereco_pessoa_complemento"]',"form" => self::$formName,"page" => "ClienteForm.php"]), "Buscar");
@@ -198,11 +188,8 @@ class ClienteForm extends TPage
         $telefone->setMaxLength(20);
         $pessoa_endereco_pessoa_cep->setMaxLength(8);
         $pessoa_endereco_pessoa_rua->setMaxLength(500);
-        $pessoa_contato_pessoa_email->setMaxLength(255);
         $pessoa_endereco_pessoa_bairro->setMaxLength(500);
         $pessoa_endereco_pessoa_numero->setMaxLength(100);
-        $pessoa_contato_pessoa_telefone->setMaxLength(20);
-        $pessoa_contato_pessoa_descricao->setMaxLength(255);
         $pessoa_endereco_pessoa_complemento->setMaxLength(500);
         $pessoa_representantes_legais_pessoa_juridica_descricao->setMaxLength(255);
 
@@ -228,7 +215,6 @@ class ClienteForm extends TPage
         $tarefas_cliente->setSize('100%');
         $nacionalidade_id->setSize('100%');
         $nome->setSize('calc(100% - 50px)');
-        $pessoa_contato_pessoa_id->setSize(200);
         $contrato_cliente_list->setSize('100%');
         $atendimento_historico->setSize('100%');
         $dt_nascimento_abertura->setSize('100%');
@@ -237,11 +223,8 @@ class ClienteForm extends TPage
         $classificacoes_cliente_id->setSize('100%');
         $pessoa_endereco_pessoa_rua->setSize('100%');
         $tipo_pessoa_id->setSize('calc(100% - 90px)');
-        $pessoa_contato_pessoa_email->setSize('100%');
         $pessoa_endereco_pessoa_bairro->setSize('100%');
         $pessoa_endereco_pessoa_numero->setSize('100%');
-        $pessoa_contato_pessoa_telefone->setSize('100%');
-        $pessoa_contato_pessoa_descricao->setSize('100%');
         $pessoa_endereco_pessoa_cidade_id->setSize('100%');
         $pessoa_endereco_pessoa_complemento->setSize('100%');
         $pessoa_endereco_pessoa_cep->setSize('calc(100% - 120px)');
@@ -249,7 +232,6 @@ class ClienteForm extends TPage
         $pessoa_representantes_legais_pessoa_juridica_descricao->setSize('100%');
         $pessoa_representantes_legais_pessoa_juridica_representante_id->setSize('calc(100% - 100px)');
 
-        $button_adicionar_pessoa_contato_pessoa->id = '64be92cf7046f';
         $button_adicionar_pessoa_endereco_pessoa->id = '60f6c58143f89';
         $btnRepresentanteAdicionar_pessoa_representantes_legais_pessoa_juridica->id = '64be9abc6308c';
 
@@ -295,15 +277,6 @@ class ClienteForm extends TPage
 
         TScript::create(
             "$(document).on('keydown', 'input[name=\"telefone\"]', function (e) {
-            var digit = e.key.replace(/\D/g, '');
-            var value = $(this).val().replace(/\D/g, '');
-            var size = value.concat(digit).length;
-            $(this).mask((size <= 10) ? '(##) ####-####' : '(##) #####-####');
-            });"
-        );
-
-        TScript::create(
-            "$(document).on('keydown', 'input[name=\"pessoa_contato_pessoa_telefone\"]', function (e) {
             var digit = e.key.replace(/\D/g, '');
             var value = $(this).val().replace(/\D/g, '');
             var size = value.concat(digit).length;
@@ -449,69 +422,7 @@ class ClienteForm extends TPage
         });        $row20 = $this->form->addFields([$this->detailFormPessoaEnderecoPessoa]);
         $row20->layout = [' col-sm-12'];
 
-        $this->form->appendPage("Contatos");
-
-        $this->detailFormPessoaContatoPessoa = new BootstrapFormBuilder('detailFormPessoaContatoPessoa');
-        $this->detailFormPessoaContatoPessoa->setProperty('style', 'border:none; box-shadow:none; width:100%;');
-
-        $this->detailFormPessoaContatoPessoa->setProperty('class', 'form-horizontal builder-detail-form');
-
-        $row21 = $this->detailFormPessoaContatoPessoa->addFields([new TLabel("Descrição:", '#ff0000', '12px', null, '100%'),$pessoa_contato_pessoa_descricao,$pessoa_contato_pessoa_id]);
-        $row21->layout = [' col-sm-12'];
-
-        $row22 = $this->detailFormPessoaContatoPessoa->addFields([new TLabel("Telefone:", null, '12px', null, '100%'),$pessoa_contato_pessoa_telefone],[new TLabel("Email:", null, '12px', null, '100%'),$pessoa_contato_pessoa_email]);
-        $row22->layout = ['col-sm-6','col-sm-6'];
-
-        $row23 = $this->detailFormPessoaContatoPessoa->addFields([$button_adicionar_pessoa_contato_pessoa]);
-        $row23->layout = [' col-sm-12'];
-
-        $row24 = $this->detailFormPessoaContatoPessoa->addFields([new THidden('pessoa_contato_pessoa__row__id')]);
-        $this->pessoa_contato_pessoa_criteria = new TCriteria();
-
-        $this->pessoa_contato_pessoa_list = new BootstrapDatagridWrapper(new TDataGrid);
-        $this->pessoa_contato_pessoa_list->generateHiddenFields();
-        $this->pessoa_contato_pessoa_list->setId('pessoa_contato_pessoa_list');
-
-        $this->pessoa_contato_pessoa_list->style = 'width:100%';
-        $this->pessoa_contato_pessoa_list->class .= ' table-bordered';
-
-        $column_pessoa_contato_pessoa_descricao = new TDataGridColumn('descricao', "Descrição", 'left');
-        $column_pessoa_contato_pessoa_telefone = new TDataGridColumn('telefone', "Telefone", 'left');
-        $column_pessoa_contato_pessoa_email = new TDataGridColumn('email', "Email", 'left');
-
-        $column_pessoa_contato_pessoa__row__data = new TDataGridColumn('__row__data', '', 'center');
-        $column_pessoa_contato_pessoa__row__data->setVisibility(false);
-
-        $action_onEditDetailPessoaContato = new TDataGridAction(array('ClienteForm', 'onEditDetailPessoaContato'));
-        $action_onEditDetailPessoaContato->setUseButton(false);
-        $action_onEditDetailPessoaContato->setButtonClass('btn btn-default btn-sm');
-        $action_onEditDetailPessoaContato->setLabel("Editar");
-        $action_onEditDetailPessoaContato->setImage('far:edit #478fca');
-        $action_onEditDetailPessoaContato->setFields(['__row__id', '__row__data']);
-
-        $this->pessoa_contato_pessoa_list->addAction($action_onEditDetailPessoaContato);
-        $action_onDeleteDetailPessoaContato = new TDataGridAction(array('ClienteForm', 'onDeleteDetailPessoaContato'));
-        $action_onDeleteDetailPessoaContato->setUseButton(false);
-        $action_onDeleteDetailPessoaContato->setButtonClass('btn btn-default btn-sm');
-        $action_onDeleteDetailPessoaContato->setLabel("Excluir");
-        $action_onDeleteDetailPessoaContato->setImage('fas:trash-alt #dd5a43');
-        $action_onDeleteDetailPessoaContato->setFields(['__row__id', '__row__data']);
-
-        $this->pessoa_contato_pessoa_list->addAction($action_onDeleteDetailPessoaContato);
-
-        $this->pessoa_contato_pessoa_list->addColumn($column_pessoa_contato_pessoa_descricao);
-        $this->pessoa_contato_pessoa_list->addColumn($column_pessoa_contato_pessoa_telefone);
-        $this->pessoa_contato_pessoa_list->addColumn($column_pessoa_contato_pessoa_email);
-
-        $this->pessoa_contato_pessoa_list->addColumn($column_pessoa_contato_pessoa__row__data);
-
-        $this->pessoa_contato_pessoa_list->createModel();
-        $tableResponsiveDiv = new TElement('div');
-        $tableResponsiveDiv->class = 'table-responsive';
-        $tableResponsiveDiv->add($this->pessoa_contato_pessoa_list);
-        $this->detailFormPessoaContatoPessoa->addContent([$tableResponsiveDiv]);
-        $row25 = $this->form->addFields([$this->detailFormPessoaContatoPessoa]);
-        $row25->layout = [' col-sm-12'];
+        $this->criarAbaContatos();
 
         $this->form->appendPage("Representantes legais");
 
@@ -829,83 +740,6 @@ class ClienteForm extends TPage
         }
     }
 
-    public  function onAddDetailPessoaContatoPessoa($param = null) 
-    {
-        try
-        {
-            $data = $this->form->getData();
-
-            $data->pessoa_contato_pessoa_telefone = preg_replace('/[^0-9]/', '', $data->pessoa_contato_pessoa_telefone);
-
-            $errors = [];
-            $requiredFields = [];
-            $requiredFields[] = ['label'=>"Descrição", 'name'=>"pessoa_contato_pessoa_descricao", 'class'=>'TRequiredValidator', 'value'=>[]];
-            $requiredFields[] = ['label'=>"Email", 'name'=>"pessoa_contato_pessoa_email", 'class'=>'TEmailValidator', 'value'=>[]];
-            foreach($requiredFields as $requiredField)
-            {
-                try
-                {
-                    (new $requiredField['class'])->validate($requiredField['label'], $data->{$requiredField['name']}, $requiredField['value']);
-                }
-                catch(Exception $e)
-                {
-                    $errors[] = $e->getMessage() . '.';
-                }
-             }
-             if(count($errors) > 0)
-             {
-                 throw new Exception(implode('<br>', $errors));
-             }
-
-            $__row__id = !empty($data->pessoa_contato_pessoa__row__id) ? $data->pessoa_contato_pessoa__row__id : 'b'.uniqid();
-
-            TTransaction::open(self::$database);
-
-            $grid_data = new PessoaContato();
-            $grid_data->__row__id = $__row__id;
-            $grid_data->descricao = $data->pessoa_contato_pessoa_descricao;
-            $grid_data->id = $data->pessoa_contato_pessoa_id;
-            $grid_data->telefone = $data->pessoa_contato_pessoa_telefone;
-            $grid_data->email = $data->pessoa_contato_pessoa_email;
-
-            $__row__data = array_merge($grid_data->toArray(), (array)$grid_data->getVirtualData());
-            $__row__data['__row__id'] = $__row__id;
-            $__row__data['__display__']['descricao'] =  $param['pessoa_contato_pessoa_descricao'] ?? null;
-            $__row__data['__display__']['id'] =  $param['pessoa_contato_pessoa_id'] ?? null;
-            $__row__data['__display__']['telefone'] =  $param['pessoa_contato_pessoa_telefone'] ?? null;
-            $__row__data['__display__']['email'] =  $param['pessoa_contato_pessoa_email'] ?? null;
-
-            $grid_data->__row__data = base64_encode(serialize((object)$__row__data));
-            $row = $this->pessoa_contato_pessoa_list->addItem($grid_data);
-            $row->id = $grid_data->__row__id;
-
-            TDataGrid::replaceRowById('pessoa_contato_pessoa_list', $grid_data->__row__id, $row);
-
-            TTransaction::close();
-
-            $data = new stdClass;
-            $data->pessoa_contato_pessoa_descricao = '';
-            $data->pessoa_contato_pessoa_id = '';
-            $data->pessoa_contato_pessoa_telefone = '';
-            $data->pessoa_contato_pessoa_email = '';
-            $data->pessoa_contato_pessoa__row__id = '';
-
-            TForm::sendData(self::$formName, $data);
-            TScript::create("
-               var element = $('#64be92cf7046f');
-               if(typeof element.attr('add') != 'undefined')
-               {
-                   element.html(base64_decode(element.attr('add')));
-               }
-            ");
-
-        }
-        catch (Exception $e) // in case of exception
-        {
-            new TMessage('error', $e->getMessage()); // shows the exception error message
-        }
-    }
-
     public  function onAddDetailPessoaRepresentantesLegaisPessoaJuridica($param = null) 
     {
         try
@@ -1043,72 +877,6 @@ class ClienteForm extends TPage
             TDataGrid::removeRowById('pessoa_endereco_pessoa_list', $__row__data->__row__id);
             TScript::create("
                var element = $('#60f6c58143f89');
-               if(typeof element.attr('add') != 'undefined')
-               {
-                   element.html(base64_decode(element.attr('add')));
-               }
-            ");
-
-        }
-        catch (Exception $e) // in case of exception
-        {
-            new TMessage('error', $e->getMessage()); // shows the exception error message
-        }
-    }
-    public static function onEditDetailPessoaContato($param = null) 
-    {
-        try
-        {
-
-            $__row__data = unserialize(base64_decode($param['__row__data']));
-            $__row__data->__display__ = is_array($__row__data->__display__) ? (object) $__row__data->__display__ : $__row__data->__display__;
-            $fireEvents = true;
-            $aggregate = false;
-
-            $data = new stdClass;
-            $data->pessoa_contato_pessoa_descricao = $__row__data->__display__->descricao ?? null;
-            $data->pessoa_contato_pessoa_id = $__row__data->__display__->id ?? null;
-            $data->pessoa_contato_pessoa_telefone = $__row__data->__display__->telefone ?? null;
-            $data->pessoa_contato_pessoa_email = $__row__data->__display__->email ?? null;
-            $data->pessoa_contato_pessoa__row__id = $__row__data->__row__id;
-
-            TForm::sendData(self::$formName, $data, $aggregate, $fireEvents);
-            TScript::create("
-               var element = $('#64be92cf7046f');
-               if(!element.attr('add')){
-                   element.attr('add', base64_encode(element.html()));
-               }
-               element.html(\"<span><i class='fas fa-save' style='color:#000000;padding-right:4px;'></i>Salvar</span>\");
-               if(!element.attr('edit')){
-                   element.attr('edit', base64_encode(element.html()));
-               }
-            ");
-
-        }
-        catch (Exception $e) // in case of exception
-        {
-            new TMessage('error', $e->getMessage()); // shows the exception error message
-        }
-    }
-    public static function onDeleteDetailPessoaContato($param = null) 
-    {
-        try
-        {
-
-            $__row__data = unserialize(base64_decode($param['__row__data']));
-
-            $data = new stdClass;
-            $data->pessoa_contato_pessoa_descricao = '';
-            $data->pessoa_contato_pessoa_id = '';
-            $data->pessoa_contato_pessoa_telefone = '';
-            $data->pessoa_contato_pessoa_email = '';
-            $data->pessoa_contato_pessoa__row__id = '';
-
-            TForm::sendData(self::$formName, $data);
-
-            TDataGrid::removeRowById('pessoa_contato_pessoa_list', $__row__data->__row__id);
-            TScript::create("
-               var element = $('#64be92cf7046f');
                if(typeof element.attr('add') != 'undefined')
                {
                    element.html(base64_decode(element.attr('add')));
@@ -1329,6 +1097,9 @@ class ClienteForm extends TPage
                 $telefone_anterior_apchat = $pessoa_gravada->telefone ?? null;
             }
 
+            // contato principal: telefone dos Dados valido e a situacao de antes (ver PessoaContatoService)
+            PessoaContatoService::exigirTelefoneValido($data->telefone);
+            $contatos_antes = PessoaContatoService::estadoAtual($data->id ?? null);
             $object->store(); // save the object 
 
             $repository = ClassificacoesCliente::where('pessoa_id', '=', $object->id);
@@ -1388,12 +1159,7 @@ class ClienteForm extends TPage
 
             }, $this->pessoa_representantes_legais_pessoa_juridica_criteria); 
 
-//<generatedAutoCode>
-            $this->pessoa_contato_pessoa_criteria->setProperty('order', 'id desc');
-//</generatedAutoCode>
-            $pessoa_contato_pessoa_items = $this->storeMasterDetailItems('PessoaContato', 'pessoa_id', 'pessoa_contato_pessoa', $object, $param['pessoa_contato_pessoa_list___row__data'] ?? [], $this->form, $this->pessoa_contato_pessoa_list, function($masterObject, $detailObject){ 
-
-            }, $this->pessoa_contato_pessoa_criteria); 
+            $this->salvarContatos($object, $param, $contatos_antes);
 
             if(isset($param['pessoa_endereco_pessoa_list___row__data'])){
                 $quantEnderecos = count($param['pessoa_endereco_pessoa_list___row__data']);
@@ -1580,14 +1346,7 @@ class ClienteForm extends TPage
 
                 }); 
 
-//<generatedAutoCode>
-                $this->pessoa_contato_pessoa_criteria->setProperty('order', 'id desc');
-//</generatedAutoCode>
-                $pessoa_contato_pessoa_items = $this->loadMasterDetailItems('PessoaContato', 'pessoa_id', 'pessoa_contato_pessoa', $object, $this->form, $this->pessoa_contato_pessoa_list, $this->pessoa_contato_pessoa_criteria, function($masterObject, $detailObject, $objectItems){ 
-
-                    //code here
-
-                }); 
+                $this->carregarContatos($object);
 
                 $pessoa_endereco_pessoa_items = $this->loadMasterDetailItems('PessoaEndereco', 'pessoa_id', 'pessoa_endereco_pessoa', $object, $this->form, $this->pessoa_endereco_pessoa_list, $this->pessoa_endereco_pessoa_criteria, function($masterObject, $detailObject, $objectItems){ 
 
