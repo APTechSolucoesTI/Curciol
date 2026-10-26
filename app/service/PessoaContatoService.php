@@ -4,7 +4,8 @@
  *
  * O telefone dos Dados cadastrais (pessoa.telefone) e o telefone do contato principal (pessoa_contato.principal = 'S')
  * sao sempre o mesmo, nos dois sentidos. Cada pessoa tem no maximo um principal (indice unico no banco) e, se tem
- * contato com telefone valido, tem de ter um. Telefone valido = a regra do APChat (APChatContactService::normalizarTelefone).
+ * contato com telefone valido, tem de ter um. Telefone valido = a regra do APChat (APChatContactService::normalizarTelefone),
+ * gravado sem o 55.
  *
  * Uso nas telas: estadoAtual() no comeco do salvar (antes de gravar), aplicarPrincipal() depois de gravar a pessoa e a
  * grade de contatos, dentro da mesma transacao. As excecoes trazem a mensagem para o usuario (a tela desfaz tudo).
@@ -22,9 +23,10 @@ class PessoaContatoService
      */
     public static function telefoneValido($telefone): ?string
     {
+        // o APChat devolve com o 55 do Brasil; na Curciol o telefone fica so com DDD + numero
         $normal = APChatContactService::normalizarTelefone($telefone);
 
-        return $normal === '' ? null : $normal;
+        return $normal === '' ? null : substr($normal, 2);
     }
 
     /**

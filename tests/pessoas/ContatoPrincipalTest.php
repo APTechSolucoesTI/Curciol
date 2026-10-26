@@ -146,7 +146,7 @@ try {
         igual('excluiu o principal e nao sobrou contato valido: telefone dos Dados fica vazio', null, estado($p)['telefone']);
     });
     isolado(function () {
-        [$p] = cenario('1998760009');
+        [$p] = cenario('199876000');
         lanca('telefone dos Dados invalido: bloqueia', function () use ($p) { PessoaContatoService::aplicarPrincipal($p, PessoaContatoService::estadoAtual(null)); }, 'Telefone inválido');
     });
     isolado(function () {
@@ -220,7 +220,8 @@ try {
     $livres = TTransaction::get()->query('SELECT id FROM system_users ORDER BY id DESC')->fetchAll(PDO::FETCH_COLUMN);
     TTransaction::close();
     $usuarioLivre = (int) (array_values(array_diff(array_map('intval', $livres), $usados))[0] ?? 0);
-    $p = ['id' => $cid, 'nome' => MARCA . ' CLIENTE', 'telefone' => '1932340199', 'tipo_profissional_id' => $tipoProfissional, 'system_users_id' => $usuarioLivre]
+    $p = ['id' => $cid, 'nome' => MARCA . ' CLIENTE', 'telefone' => '1932340199', 'tipo_profissional_id' => $tipoProfissional, 'system_users_id' => $usuarioLivre,
+        'registro_profissional' => '123456', 'orgao_registro_profissional' => 'OAB/SP']
         + $base + grade([linha($casa, 'CASA', '1932340199', 'S'), linha($cel, 'CELULAR', '19998760102', 'N')]);
     $s = saida(function () use ($p) { post($p); (new ProfissionalForm($p))->onSave($p); });
     $grupos = array_map('intval', array_column(q("SELECT grupo_id FROM pessoa_grupo WHERE pessoa_id = {$cid} ORDER BY grupo_id"), 'grupo_id'));
