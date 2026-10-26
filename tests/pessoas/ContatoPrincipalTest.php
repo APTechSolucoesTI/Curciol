@@ -225,11 +225,12 @@ try {
         + $base + grade([linha($casa, 'CASA', '1932340199', 'S'), linha($cel, 'CELULAR', '19998760102', 'N')]);
     $s = saida(function () use ($p) { post($p); (new ProfissionalForm($p))->onSave($p); });
     $grupos = array_map('intval', array_column(q("SELECT grupo_id FROM pessoa_grupo WHERE pessoa_id = {$cid} ORDER BY grupo_id"), 'grupo_id'));
-    $esperado = [Grupo::CLIENTE, Grupo::PROFISSIONAL]; sort($esperado);
-    igual('Profissional: salvar mantem o grupo Cliente e acrescenta o Profissional', $esperado, $grupos);
+    // Profissional traz junto Parceiro e Fornecedor (PessoaGrupo::GRUPOS_IMPLICITOS)
+    $esperado = [Grupo::CLIENTE, Grupo::PROFISSIONAL, Grupo::PARCEIRO, Grupo::FORNECEDOR]; sort($esperado);
+    igual('Profissional: salvar mantem o grupo Cliente e acrescenta o Profissional (com Parceiro e Fornecedor)', $esperado, $grupos);
     ok('Profissional: salvou sem erro', erro($s) === '', erro($s));
     $s = saida(function () use ($p) { post($p); (new ProfissionalForm($p))->onSave($p); });
-    igual('Profissional: salvar de novo nao duplica o grupo', 2, count(q("SELECT 1 FROM pessoa_grupo WHERE pessoa_id = {$cid}")));
+    igual('Profissional: salvar de novo nao duplica grupo', 4, count(q("SELECT 1 FROM pessoa_grupo WHERE pessoa_id = {$cid}")));
 
     // a aba Contatos com a chave Principal aparece nos 6 cadastros
     foreach (['ClienteForm', 'ContraparteForm', 'RepresentanteLegalForm', 'FornecedorForm', 'ParceiroForm', 'ProfissionalForm'] as $tela)
