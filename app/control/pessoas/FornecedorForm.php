@@ -10,6 +10,7 @@ class FornecedorForm extends TPage
     private static $formName = 'form_Pessoa';
 
     use BuilderMasterDetailTrait;
+    use PessoaContatoAbaTrait;
 
     /**
      * Form constructor
@@ -285,6 +286,8 @@ class FornecedorForm extends TPage
 
         });        $row13 = $this->form->addFields([$this->detailFormPessoaEnderecoPessoa]);
         $row13->layout = [' col-sm-12'];
+
+        $this->criarAbaContatos();
 
         $this->form->appendPage("Informações de cadastro");
         $row14 = $this->form->addFields([new TLabel("Criado em:", null, '12px', null, '100%'),$data_criacao],[new TLabel("Criado por:", null, '12px', null, '100%'),$criacao_user_name],[new TLabel("Atualizado em:", null, '12px', null, '100%'),$data_modificacao],[new TLabel("Atualizado por:", null, '12px', null, '100%'),$modificacao_user_name]);
@@ -689,6 +692,9 @@ class FornecedorForm extends TPage
 
             // APChat: telefone antes desta edicao (o contato antigo e localizado por ele)
             $telefone_anterior_apchat = APChatContactService::telefoneGravado($object->id ?? null);
+            // contato principal: telefone dos Dados valido e a situacao de antes (ver PessoaContatoService)
+            PessoaContatoService::exigirTelefoneValido($data->telefone);
+            $contatos_antes = PessoaContatoService::estadoAtual($data->id ?? null);
             $object->store(); // save the object 
 
             TForm::sendData(self::$formName, (object)['id' => $object->id]);
@@ -711,6 +717,8 @@ class FornecedorForm extends TPage
                 //code here
 
             }, $this->pessoa_endereco_pessoa_criteria); 
+
+            $this->salvarContatos($object, $param, $contatos_antes);
 
             $object->system_users_id = null;
 
@@ -827,6 +835,8 @@ class FornecedorForm extends TPage
                 $pessoa_endereco_pessoa_items = $this->loadMasterDetailItems('PessoaEndereco', 'pessoa_id', 'pessoa_endereco_pessoa', $object, $this->form, $this->pessoa_endereco_pessoa_list, $this->pessoa_endereco_pessoa_criteria, function($masterObject, $detailObject, $objectItems){ 
 
                 }); 
+
+                $this->carregarContatos($object);
 
                 $this->form->setData($object); // fill the form 
 

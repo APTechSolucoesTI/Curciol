@@ -18,6 +18,7 @@ class ParceiroForm extends TPage
     //</classProperties>
 
     use BuilderMasterDetailTrait;
+    use PessoaContatoAbaTrait;
 
     /**
      * Form constructor
@@ -301,6 +302,8 @@ class ParceiroForm extends TPage
 
         });        $row13 = $this->form->addFields([$this->detailFormPessoaEnderecoPessoa]);
         $row13->layout = [' col-sm-12'];
+
+        $this->criarAbaContatos();
 
         $this->form->appendPage("Informações de cadastro");
         $row14 = $this->form->addFields([new TLabel("Criado em:", null, '12px', null, '100%'),$data_criacao],[new TLabel("Criado por:", null, '12px', null, '100%'),$criacao_user_name],[new TLabel("Atualizado em:", null, '12px', null, '100%'),$data_modificacao],[new TLabel("Atualizado por:", null, '12px', null, '100%'),$modificacao_user_name]);
@@ -770,6 +773,9 @@ class ParceiroForm extends TPage
 
             // APChat: telefone antes desta edicao (o contato antigo e localizado por ele)
             $telefone_anterior_apchat = APChatContactService::telefoneGravado($object->id ?? null);
+            // contato principal: telefone dos Dados valido e a situacao de antes (ver PessoaContatoService)
+            PessoaContatoService::exigirTelefoneValido($data->telefone);
+            $contatos_antes = PessoaContatoService::estadoAtual($data->id ?? null);
             $object->store(); // save the object //</blockLine>
 
             //</afterStoreAutoCode> //</blockLine>
@@ -800,6 +806,8 @@ class ParceiroForm extends TPage
                 //</autoCode>
             }, $this->pessoa_endereco_pessoa_criteria); //</blockLine>
     //</hideLine> //</detailForm-2849843-23608167>
+
+            $this->salvarContatos($object, $param, $contatos_antes);
 
             $object->system_users_id = null;
 
@@ -935,6 +943,8 @@ class ParceiroForm extends TPage
                     //</autoCode>
                 }); //</blockLine>
     //</hideLine> //</detailForm-2849843-23608167>
+
+                $this->carregarContatos($object);
 
                 $this->form->setData($object); // fill the form //</blockLine>
 
