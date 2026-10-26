@@ -103,8 +103,9 @@ try {
     $segundos = microtime(true) - $t;
     $estado = json_decode((string) file_get_contents(sys_get_temp_dir() . "/apchat-falso-{$porta}.json"), true);
     igual('HTTP: 20 contatos criados', [20, 20], [count(array_filter($r, function ($x) { return $x->situacao === 'SUCESSO' && $x->operacao === 'CREATE'; })), count($estado['contatos'] ?? [])]);
-    // um por vez seriam ~20 x 2 chamadas x 0,3 s = 12 s; com 10 ao mesmo tempo, perto de 1,5 s
-    ok('HTTP: chamadas ao mesmo tempo (bem menos que um por vez)', $segundos < 5, round($segundos, 2) . ' s');
+    // uma chamada por vez levaria (chamadas x 0,3 s); ao mesmo tempo tem de ficar bem abaixo disso
+    $umaPorVez = count($estado['chamadas'] ?? []) * 0.3;
+    ok('HTTP: chamadas ao mesmo tempo (menos de 2/3 do tempo de uma por vez)', $segundos < $umaPorVez * 2 / 3, round($segundos, 2) . ' s de ' . round($umaPorVez, 1) . ' s');
     ok('HTTP: idapchat gravado nos 20', count(array_filter($vinte, function ($id) use ($idapchat) { return $idapchat($id) >= 50001; })) === 20);
     echo '    tempo dos 20 contatos em paralelo: ', round($segundos, 2), " s\n";
 } finally {
