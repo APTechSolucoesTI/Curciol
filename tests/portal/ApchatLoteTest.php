@@ -100,6 +100,15 @@ try {
     $r = APChatContactService::sincronizarPessoa($b, [], ApchatContatoLog::ORIGEM_CADASTRO);
     ok('telefone mudou: fluxo completo, pendente, sem criar', $r->situacao === 'PENDENTE' && !in_array('createContact', $falso['chamadas'], true), json_encode($falso['chamadas']));
 
+    // ---------- sincronizacao interrompida: oferece continuar de onde parou (so a pergunta; nada e enviado) ----------
+    TSession::setValue('ApchatContatoList_parou', 120);
+    ob_start(); ApchatContatoList::onSincronizarTodos([]); $pergunta = ob_get_clean();
+    ok('interrompida: pergunta continuar (offset 120) ou recomecar (offset 0)', strpos($pergunta, 'Continuar de onde parou') !== false
+        && strpos($pergunta, 'offset=120') !== false && strpos($pergunta, 'offset=0') !== false, substr(strip_tags($pergunta), 0, 200));
+    TSession::setValue('ApchatContatoList_parou', null);
+    ob_start(); ApchatContatoList::onSincronizarTodos([]); $pergunta = ob_get_clean();
+    ok('sem interrupcao: pergunta normal, comecando do inicio', strpos($pergunta, 'Continuar de onde parou') === false && strpos($pergunta, 'offset=0') !== false);
+
     // ---------- chamadas simultaneas de verdade (APChat falso por HTTP, ~0,3 s por resposta) ----------
     APChatContactService::usarTransporte(null);
     $porta = 18000 + random_int(0, 999);

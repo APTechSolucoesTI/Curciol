@@ -403,10 +403,26 @@ class ApchatContatoList extends TPage
                 return;
             }
 
+            // uma sincronizacao interrompida (aba recarregada ou fechada): continua de onde parou ou recomeca
+            $parou = (int) TSession::getValue(__CLASS__ . '_parou');
+            if ($parou > 0 && $parou < $total)
+            {
+                new TQuestion(
+                    "Uma sincronização foi interrompida em {$parou} de {$total} pessoas.<br><br>"
+                    . "Continuar de onde parou? (Recomeçar refaz desde o início; quem já foi sincronizado é atualizado rapidamente.)<br><br>"
+                    . "Enquanto roda, não recarregue nem navegue nesta aba: para usar o sistema, abra outra aba.",
+                    new TAction([__CLASS__, 'onSincronizarLote'], ['offset' => $parou, 'static' => 1]),
+                    new TAction([__CLASS__, 'onSincronizarLote'], ['offset' => 0, 'static' => 1]),
+                    'Sincronizar todos', 'Continuar de onde parou', 'Recomeçar do início'
+                );
+                return;
+            }
+
             new TQuestion(
                 "Sincronizar com o APChat as {$total} pessoas com telefone válido (clientes, colaboradores, partes contrárias e demais)?<br><br>"
                 . "Cada um é consultado no APChat e atualizado (se já existir) ou criado (se não existir), "
-                . "com a mesma regra do cadastro de clientes. Telefone vazio ou inválido fica como \"Não sincronizado\". O processo roda em lotes de " . self::TAMANHO_LOTE . ", com até " . APChatContactService::CHAMADAS_SIMULTANEAS . " contatos ao mesmo tempo; não feche esta tela até terminar.",
+                . "com a mesma regra do cadastro de clientes. Telefone vazio ou inválido fica como \"Não sincronizado\". O processo roda em lotes de " . self::TAMANHO_LOTE . ", com até " . APChatContactService::CHAMADAS_SIMULTANEAS . " contatos ao mesmo tempo.<br><br>"
+                . "Enquanto roda, não recarregue nem navegue nesta aba: para usar o sistema, abra outra aba. Se for interrompido, é só clicar de novo para continuar de onde parou.",
                 new TAction([__CLASS__, 'onSincronizarLote'], ['offset' => 0, 'static' => 1])
             );
         }
@@ -442,15 +458,18 @@ class ApchatContatoList extends TPage
             TSession::setValue(__CLASS__ . '_lote', $contagem);
 
             $feitos = min($total, $offset + self::TAMANHO_LOTE);
+            // ponto onde esta: se a aba for recarregada ou fechada, o "Sincronizar todos" oferece continuar daqui
+            TSession::setValue(__CLASS__ . '_parou', $feitos);
 
             if ($feitos < $total)
             {
-                TToast::show('info', "Sincronizando com o APChat: {$feitos} de {$total}...", 'topRight', 'fas:sync');
+                TToast::show('info', "Sincronizando com o APChat: {$feitos} de {$total}... Não recarregue nem navegue nesta aba.", 'topRight', 'fas:sync');
                 TScript::create("__adianti_ajax_exec('class=ApchatContatoList&method=onSincronizarLote&offset={$feitos}');");
                 return;
             }
 
             TSession::setValue(__CLASS__ . '_lote', null);
+            TSession::setValue(__CLASS__ . '_parou', null);
 
             $nomes = [
                 'SUCESSO|CREATE'  => 'contatos criados',
