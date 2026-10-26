@@ -44,8 +44,12 @@ class APChatContactService
 
     const ERRO_NAO_ENCONTRADO = 'ERR_CONTACT_NOT_FOUND';
 
-    /** Sincronizar todos: chamadas abertas ao mesmo tempo, repeticoes e pausa quando o APChat pede calma. */
-    const CHAMADAS_SIMULTANEAS = 10;
+    /**
+     * Sincronizar todos: chamadas abertas ao mesmo tempo, repeticoes e pausa quando o APChat pede calma.
+     * Medido em 26/10/2026: o APChat atende ~7 chamadas por segundo com 5, 10 ou 20 simultaneas (uma por vez, ~5,7);
+     * 5 ja chega no teto sem sobrecarregar o APChat.
+     */
+    const CHAMADAS_SIMULTANEAS = 5;
     const TENTATIVAS           = 2;
     const PAUSA_REPETICAO_MS   = 1500;
 
