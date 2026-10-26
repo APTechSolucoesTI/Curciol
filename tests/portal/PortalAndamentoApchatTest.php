@@ -54,7 +54,7 @@ try {
     ok('CPF vazio passa (fica sem login)', true);
     igual('banco: nenhum usuario diferente do CPF/CNPJ', 0, (int) q("SELECT COUNT(*) n FROM pessoa WHERE usuario IS NOT NULL AND usuario <> regexp_replace(COALESCE(cpf_cnpj, ''), '\D', '', 'g') AND nome NOT LIKE '" . MARCA . "%'")[0]['n']);
     $fonte = file_get_contents('app/control/pessoas/ClienteForm.php');
-    ok('cadastro de cliente: login = CPF/CNPJ pelo tipo, senha do banco mantida (gerada so com login)', strpos($fonte, 'PessoaLoginService::aplicarLogin($object, PessoaLoginService::senhaGravada(') !== false && strpos($fonte, 'PessoaLoginService::exigirDocumentoValido') !== false && strpos($fonte, "$senha->setEditable(false)") !== false);
+    ok('cadastro de cliente: login = CPF/CNPJ pelo tipo, senha do banco mantida (gerada so com login)', strpos($fonte, 'PessoaLoginService::aplicarLogin($object, PessoaLoginService::senhaGravada(') !== false && strpos($fonte, 'PessoaLoginService::exigirDocumentoValido') !== false && strpos($fonte, '$senha->setEditable(false)') !== false);
 
     // ---------- portal: login pelo usuario (= CPF) ----------
     $entra = function (string $login, string $senha) { return saida(function () use ($login, $senha) { Home::onDocumentos(['usuario' => $login, 'senha' => $senha]); }); };
