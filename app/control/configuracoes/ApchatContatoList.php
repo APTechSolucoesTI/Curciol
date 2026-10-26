@@ -26,7 +26,7 @@ class ApchatContatoList extends TPage
     private $showMethods = ['onReload', 'onSearch', 'onRefresh', 'onClearFilters', 'onGlobalSearch'];
     private $limit = 20;
 
-    const TAMANHO_LOTE = 10;
+    const TAMANHO_LOTE = 60; // por pedido; dentro do lote ate APChatContactService::CHAMADAS_SIMULTANEAS ao mesmo tempo
 
     use BuilderDatagridTrait;
 
@@ -406,7 +406,7 @@ class ApchatContatoList extends TPage
             new TQuestion(
                 "Sincronizar com o APChat as {$total} pessoas com telefone válido (clientes, colaboradores, partes contrárias e demais)?<br><br>"
                 . "Cada um é consultado no APChat e atualizado (se já existir) ou criado (se não existir), "
-                . "com a mesma regra do cadastro de clientes. Telefone vazio ou inválido fica como \"Não sincronizado\". O processo roda em lotes de " . self::TAMANHO_LOTE . "; não feche esta tela até terminar.",
+                . "com a mesma regra do cadastro de clientes. Telefone vazio ou inválido fica como \"Não sincronizado\". O processo roda em lotes de " . self::TAMANHO_LOTE . ", com até " . APChatContactService::CHAMADAS_SIMULTANEAS . " contatos ao mesmo tempo; não feche esta tela até terminar.",
                 new TAction([__CLASS__, 'onSincronizarLote'], ['offset' => 0, 'static' => 1])
             );
         }
@@ -424,7 +424,7 @@ class ApchatContatoList extends TPage
     {
         try
         {
-            set_time_limit(180);
+            set_time_limit(300);
 
             $offset = max(0, (int) ($param['offset'] ?? 0));
             $ids = APChatContactService::idsAutorizados();
@@ -432,9 +432,9 @@ class ApchatContatoList extends TPage
 
             $contagem = ($offset === 0) ? [] : (array) TSession::getValue(__CLASS__ . '_lote');
 
-            foreach (array_slice($ids, $offset, self::TAMANHO_LOTE) as $pessoa_id)
+            // varios contatos ao mesmo tempo (o lote ja em andamento tambem passa por aqui no proximo pedido)
+            foreach (APChatContactService::sincronizarLote(array_slice($ids, $offset, self::TAMANHO_LOTE), ApchatContatoLog::ORIGEM_LOTE) as $r)
             {
-                $r = APChatContactService::sincronizarPessoa($pessoa_id, [], ApchatContatoLog::ORIGEM_LOTE);
                 $chave = $r->situacao . '|' . $r->operacao;
                 $contagem[$chave] = ($contagem[$chave] ?? 0) + 1;
             }

@@ -44,6 +44,11 @@ class APChatContactService
 
     const ERRO_NAO_ENCONTRADO = 'ERR_CONTACT_NOT_FOUND';
 
+    /** Sincronizar todos: chamadas abertas ao mesmo tempo, repeticoes e pausa quando o APChat pede calma. */
+    const CHAMADAS_SIMULTANEAS = 10;
+    const TENTATIVAS           = 2;
+    const PAUSA_REPETICAO_MS   = 1500;
+
     private static $database = 'escritorio';
 
     /**
@@ -57,6 +62,14 @@ class APChatContactService
     public static function usarTransporte(?callable $transporte): void
     {
         self::$transporte = $transporte;
+    }
+
+    /** Endereco da API (testes: um APChat falso local); null volta ao de verdade. */
+    private static $urlBase = null;
+
+    public static function usarUrlBase(?string $url): void
+    {
+        self::$urlBase = $url;
     }
 
     // =================================================================
@@ -135,9 +148,10 @@ class APChatContactService
 
             $anteriores = self::numerosAnteriores($pessoa_id, $telefones_anteriores, $contato['number']);
 
-            $r = self::decidir($contato, $anteriores, $token);
+            $r = self::rodar(self::passosDecidir($contato, $anteriores, self::numeroConhecido($pessoa_id, $contato['number'])), $token);
 
             self::registrar($pessoa_id, $origem, $r, $contato['number'], $r->numero_anterior ?? null);
+            self::gravarIdApchat($pessoa_id, $r);
 
             TTransaction::close();
 
@@ -166,6 +180,125 @@ class APChatContactService
 
             return $r;
         }
+    }
+
+    /**
+     * "Sincronizar todos": o mesmo que sincronizarPessoa para varios cadastros, com as chamadas de ate
+     * CHAMADAS_SIMULTANEAS contatos ao mesmo tempo. Quem divide o numero (ou a variante do nono digito) com outro do
+     * lote vai depois, um por vez, e acha o contato que o primeiro criou: nada de contato duplicado. Os numeros do lote
+     * ficam travados ate o fim (mesma trava do cadastro). Nunca lanca excecao.
+     *
+     * @param int[] $ids
+     * @return object[] [pessoa_id => {situacao, operacao, mensagem}]
+     */
+    public static function sincronizarLote(array $ids, string $origem = ApchatContatoLog::ORIGEM_LOTE): array
+    {
+        $ids = array_values(array_unique(array_map('intval', $ids)));
+        $resultados = [];
+        $porId = [];
+
+        try
+        {
+            TTransaction::open(self::$database);
+            $token = self::token();
+
+            foreach (($ids ? Pessoa::where('id', 'in', $ids)->load() : []) as $p) { $porId[(int) $p->id] = $p; }
+
+            $contatos = [];
+            foreach ($ids as $id)
+            {
+                if (!isset($porId[$id]))
+                {
+                    $resultados[$id] = self::resultado(ApchatContatoLog::SITUACAO_IGNORADO, ApchatContatoLog::OPERACAO_NENHUMA, 'Pessoa não encontrada: nenhuma chamada ao APChat.');
+                    continue;
+                }
+
+                $contato = self::montarContato($porId[$id]);
+                $r = null;
+                if (empty($contato['number']))
+                {
+                    $r = self::resultado(ApchatContatoLog::SITUACAO_IGNORADO, ApchatContatoLog::OPERACAO_NENHUMA, 'Telefone ausente ou inválido: nada foi enviado ao APChat.');
+                }
+                elseif (empty($contato['name']))
+                {
+                    $r = self::resultado(ApchatContatoLog::SITUACAO_IGNORADO, ApchatContatoLog::OPERACAO_NENHUMA, 'Cliente sem nome: nada foi enviado ao APChat.');
+                }
+                elseif ($token === '')
+                {
+                    $r = self::resultado(ApchatContatoLog::SITUACAO_ERRO, ApchatContatoLog::OPERACAO_NENHUMA, 'Token do APChat não configurado no cadastro do escritório.');
+                }
+
+                if ($r)
+                {
+                    self::registrar($id, $origem, $r, ($contato['number'] ?? '') ?: null, null);
+                    $resultados[$id] = $r;
+                    continue;
+                }
+                $contatos[$id] = $contato;
+            }
+
+            // trava os numeros do lote em ordem fixa (duas sincronizacoes ao mesmo tempo nao se travam mutuamente)
+            $chaves = array_values(array_unique(array_map(function ($c) { return 'apchat:' . $c['number']; }, $contatos)));
+            sort($chaves);
+            foreach ($chaves as $chave) { self::travar($chave); }
+
+            // quem divide numero com outro do lote espera o primeiro terminar
+            $usados = [];
+            $juntos = [];
+            $depois = [];
+            foreach ($contatos as $id => $contato)
+            {
+                $variantes = self::variantes($contato['number']);
+                if (array_intersect($variantes, array_keys($usados))) { $depois[] = $id; continue; }
+                foreach ($variantes as $v) { $usados[$v] = true; }
+                $juntos[] = $id;
+            }
+
+            $passos = function (int $id) use ($contatos) {
+                return self::passosDecidir($contatos[$id], self::numerosAnteriores($id, [], $contatos[$id]['number']),
+                                           self::numeroConhecido($id, $contatos[$id]['number']));
+            };
+
+            $feitos = [];
+            if ($juntos)
+            {
+                $feitos = self::rodarVarios(array_combine($juntos, array_map($passos, $juntos)), $token, self::CHAMADAS_SIMULTANEAS);
+            }
+            foreach ($depois as $id) { $feitos[$id] = self::rodar($passos($id), $token); }
+
+            foreach ($feitos as $id => $r)
+            {
+                self::registrar($id, $origem, $r, $contatos[$id]['number'], $r->numero_anterior ?? null);
+                self::gravarIdApchat($id, $r);
+                $resultados[$id] = $r;
+            }
+
+            TTransaction::close();
+        }
+        catch (Throwable $e)
+        {
+            try { if (TTransaction::get()) { TTransaction::rollback(); } } catch (Throwable $ignorado) {}
+
+            $r = self::resultado(ApchatContatoLog::SITUACAO_ERRO, ApchatContatoLog::OPERACAO_NENHUMA, 'Falha interna na sincronização: ' . $e->getMessage());
+            $resultados = [];
+
+            try
+            {
+                TTransaction::open(self::$database);
+                foreach ($ids as $id)
+                {
+                    $resultados[$id] = $r;
+                    if (isset($porId[$id])) { self::registrar($id, $origem, $r, null, null); }
+                }
+                TTransaction::close();
+            }
+            catch (Throwable $ignorado)
+            {
+                try { TTransaction::rollback(); } catch (Throwable $x) {}
+            }
+        }
+
+        return $resultados;
     }
 
     /**
@@ -207,7 +340,7 @@ class APChatContactService
             return (object) ['situacao' => 'ERRO', 'mensagem' => 'Token do APChat não configurado no cadastro do escritório.'];
         }
 
-        return self::buscar(self::variantes($contato['number']), $token);
+        return self::rodar(self::passosBuscar(self::variantes($contato['number'])), $token);
     }
 
     /**
@@ -244,8 +377,13 @@ class APChatContactService
     // =================================================================
     // Decisao: consultar -> atualizar ou criar
     // =================================================================
+    //
+    // Cada passo e um generator: "yield [rota, corpo]" pede uma chamada a API e recebe a resposta. Assim a mesma regra
+    // roda um contato por vez (cadastro: rodar) ou varios ao mesmo tempo (Sincronizar todos: rodarVarios, curl_multi).
 
     /**
+     * 0. Caminho curto: o ultimo envio deu certo com este mesmo numero -> atualiza direto (1 chamada). Se o APChat
+     *    responder "nao encontrado" (o numero mudou la), segue o fluxo completo abaixo.
      * 1. Consulta o numero atual (e a variante com/sem o nono digito).
      *    Achou: UPDATE nele.
      * 2. Nao achou: consulta os numeros anteriores. Achou: UPDATE no contato
@@ -254,9 +392,33 @@ class APChatContactService
      *    consultas: CREATE.
      * Qualquer erro de consulta encerra sem criar.
      */
-    private static function decidir(array $contato, array $anteriores, string $token): object
+    private static function passosDecidir(array $contato, array $anteriores, bool $conhecido = false): Generator
     {
-        $atual = self::buscar(self::variantes($contato['number']), $token);
+        if ($conhecido)
+        {
+            $resposta = yield ['updateContact', $contato];
+            $classe = self::classificar($resposta);
+
+            if ($classe->tipo === 'OK')
+            {
+                $r = self::resultado(ApchatContatoLog::SITUACAO_SUCESSO, ApchatContatoLog::OPERACAO_UPDATE, 'Contato atualizado no APChat.');
+                $r->http_status = $resposta['status'];
+                $r->apchat_contato_id = $classe->dados['id'] ?? null;
+
+                return $r;
+            }
+
+            if ($classe->tipo !== 'NAO_ENCONTRADO')
+            {
+                $r = self::resultado(ApchatContatoLog::SITUACAO_ERRO, ApchatContatoLog::OPERACAO_UPDATE, 'Atualização no APChat falhou; nenhum contato foi criado. ' . $classe->mensagem);
+                $r->http_status = $resposta['status'];
+
+                return $r;
+            }
+            // nao achou pelo numero de antes: segue o fluxo completo
+        }
+
+        $atual = yield from self::passosBuscar(self::variantes($contato['number']));
 
         if ($atual->situacao === 'ERRO')
         {
@@ -265,7 +427,8 @@ class APChatContactService
 
         if ($atual->situacao === 'ENCONTRADO')
         {
-            $r = self::atualizar($contato, $atual->numero, $token);
+            $r = yield from self::passosAtualizar($contato, $atual->numero);
+            $r->apchat_contato_id = $r->apchat_contato_id ?? ($atual->contato['id'] ?? null);
 
             if ($r->situacao === ApchatContatoLog::SITUACAO_SUCESSO && $atual->numero !== $contato['number'])
             {
@@ -277,7 +440,7 @@ class APChatContactService
 
         if (!empty($anteriores))
         {
-            $antigo = self::buscar($anteriores, $token);
+            $antigo = yield from self::passosBuscar($anteriores);
 
             if ($antigo->situacao === 'ERRO')
             {
@@ -286,7 +449,8 @@ class APChatContactService
 
             if ($antigo->situacao === 'ENCONTRADO')
             {
-                $r = self::atualizar($contato, $antigo->numero, $token);
+                $r = yield from self::passosAtualizar($contato, $antigo->numero);
+                $r->apchat_contato_id = $r->apchat_contato_id ?? ($antigo->contato['id'] ?? null);
                 $r->numero_anterior = $antigo->numero;
 
                 if ($r->situacao === ApchatContatoLog::SITUACAO_SUCESSO)
@@ -300,7 +464,7 @@ class APChatContactService
             }
         }
 
-        return self::criar($contato, $token);
+        return yield from self::passosCriar($contato);
     }
 
     private static function erroDeConsulta(object $busca): object
@@ -320,13 +484,13 @@ class APChatContactService
      * responderem ERR_CONTACT_NOT_FOUND.
      *
      * @param string[] $numeros
-     * @return object {situacao: ENCONTRADO|NAO_ENCONTRADO|ERRO, numero?, contato?, mensagem, http_status?}
+     * @return Generator que devolve {situacao: ENCONTRADO|NAO_ENCONTRADO|ERRO, numero?, contato?, mensagem, http_status?}
      */
-    private static function buscar(array $numeros, string $token): object
+    private static function passosBuscar(array $numeros): Generator
     {
         foreach ($numeros as $numero)
         {
-            $resposta = self::chamar('showcontact', ['number' => $numero], $token);
+            $resposta = yield ['showcontact', ['number' => $numero]];
             $classe = self::classificar($resposta);
 
             if ($classe->tipo === 'OK')
@@ -353,12 +517,12 @@ class APChatContactService
         return (object) ['situacao' => 'NAO_ENCONTRADO', 'mensagem' => 'Contato não existe no APChat.'];
     }
 
-    private static function atualizar(array $contato, string $numero_no_apchat, string $token): object
+    private static function passosAtualizar(array $contato, string $numero_no_apchat): Generator
     {
         $corpo = $contato;
         $corpo['number'] = $numero_no_apchat;
 
-        $resposta = self::chamar('updateContact', $corpo, $token);
+        $resposta = yield ['updateContact', $corpo];
         $classe = self::classificar($resposta);
 
         if ($classe->tipo === 'OK')
@@ -377,9 +541,9 @@ class APChatContactService
         return $r;
     }
 
-    private static function criar(array $contato, string $token): object
+    private static function passosCriar(array $contato): Generator
     {
-        $resposta = self::chamar('createContact', $contato, $token);
+        $resposta = yield ['createContact', $contato];
         $classe = self::classificar($resposta);
 
         if ($classe->tipo === 'OK')
@@ -411,7 +575,17 @@ class APChatContactService
             return call_user_func(self::$transporte, $rota, $corpo, $token);
         }
 
-        $ch = curl_init(self::URL_BASE . $rota);
+        $ch = self::novoHandle($rota, $corpo, $token);
+        $texto = curl_exec($ch);
+        $resposta = self::respostaDoHandle($ch, $texto);
+        curl_close($ch);
+
+        return $resposta;
+    }
+
+    private static function novoHandle(string $rota, array $corpo, string $token)
+    {
+        $ch = curl_init((self::$urlBase ?? self::URL_BASE) . $rota);
 
         curl_setopt_array($ch, [
             CURLOPT_POST           => true,
@@ -426,17 +600,135 @@ class APChatContactService
             CURLOPT_TIMEOUT        => self::TIMEOUT_TOTAL,
         ]);
 
-        $texto  = curl_exec($ch);
-        $erro   = curl_error($ch);
+        return $ch;
+    }
+
+    private static function respostaDoHandle($ch, $texto): array
+    {
         $status = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
 
-        curl_close($ch);
-
         return [
-            'status' => ($texto === false) ? 0 : $status,
-            'corpo'  => ($texto === false) ? '' : (string) $texto,
-            'erro'   => (string) $erro,
+            'status' => ($texto === false || $texto === null) ? 0 : $status,
+            'corpo'  => ($texto === false || $texto === null) ? '' : (string) $texto,
+            'erro'   => (string) curl_error($ch),
         ];
+    }
+
+    /** O APChat pediu calma (429) ou ficou instavel (502/503/504): a chamada e repetida depois de uma pausa. */
+    private static function repetir(array $resposta, int $tentativa): bool
+    {
+        return $tentativa < self::TENTATIVAS && in_array((int) $resposta['status'], [429, 502, 503, 504], true);
+    }
+
+    /** Chamada com as repeticoes de repetir(). */
+    private static function chamarComRepeticao(string $rota, array $corpo, string $token): array
+    {
+        for ($tentativa = 0; ; $tentativa++)
+        {
+            $resposta = self::chamar($rota, $corpo, $token);
+            if (!self::repetir($resposta, $tentativa)) { return $resposta; }
+            usleep(self::PAUSA_REPETICAO_MS * 1000 * ($tentativa + 1));
+        }
+    }
+
+    /** Roda os passos de um contato, uma chamada por vez. */
+    private static function rodar(Generator $passos, string $token): object
+    {
+        while ($passos->valid())
+        {
+            [$rota, $corpo] = $passos->current();
+            $passos->send(self::chamarComRepeticao($rota, $corpo, $token));
+        }
+
+        return $passos->getReturn();
+    }
+
+    /**
+     * Roda os passos de varios contatos ao mesmo tempo: ate $maximo chamadas abertas juntas (curl_multi). A resposta de
+     * cada chamada destrava o proximo passo daquele contato. Devolve [chave => resultado], na mesma chave de $passos.
+     *
+     * @param Generator[] $passos
+     */
+    private static function rodarVarios(array $passos, string $token, int $maximo): array
+    {
+        $resultados = [];
+
+        // testes: sem rede, os contatos andam em rodizio (mesma ordem de eventos de chamadas simultaneas)
+        if (self::$transporte)
+        {
+            $ativos = $passos;
+            while ($ativos)
+            {
+                foreach ($ativos as $chave => $g)
+                {
+                    if (!$g->valid()) { $resultados[$chave] = $g->getReturn(); unset($ativos[$chave]); continue; }
+                    [$rota, $corpo] = $g->current();
+                    $g->send(self::chamarComRepeticao($rota, $corpo, $token));
+                }
+            }
+            return $resultados;
+        }
+
+        $multi = curl_multi_init();
+        $fila = $passos;
+        $abertos = []; // id do handle => [chave, handle, rota, corpo, tentativa]
+
+        $abrir = function ($chave, Generator $g, int $tentativa = 0, ?array $pedido = null) use (&$abertos, &$resultados, $multi, $token) {
+            if ($pedido === null)
+            {
+                if (!$g->valid()) { $resultados[$chave] = $g->getReturn(); return; }
+                $pedido = $g->current();
+            }
+            [$rota, $corpo] = $pedido;
+            $ch = self::novoHandle($rota, $corpo, $token);
+            curl_multi_add_handle($multi, $ch);
+            $abertos[(int) $ch] = [$chave, $ch, $rota, $corpo, $tentativa];
+        };
+
+        while (count($abertos) < $maximo && $fila)
+        {
+            $chave = array_key_first($fila);
+            $abrir($chave, $fila[$chave]);
+            unset($fila[$chave]);
+        }
+
+        while ($abertos)
+        {
+            do { $estado = curl_multi_exec($multi, $rodando); } while ($estado === CURLM_CALL_MULTI_PERFORM);
+            if (curl_multi_select($multi, 1.0) === -1) { usleep(1000); }
+
+            while ($info = curl_multi_info_read($multi))
+            {
+                $ch = $info['handle'];
+                [$chave, , $rota, $corpo, $tentativa] = $abertos[(int) $ch];
+                unset($abertos[(int) $ch]);
+                $resposta = self::respostaDoHandle($ch, curl_multi_getcontent($ch));
+                curl_multi_remove_handle($multi, $ch);
+                curl_close($ch);
+
+                $g = $passos[$chave];
+                if (self::repetir($resposta, $tentativa))
+                {
+                    usleep(self::PAUSA_REPETICAO_MS * 1000 * ($tentativa + 1));
+                    $abrir($chave, $g, $tentativa + 1, [$rota, $corpo]);
+                    continue;
+                }
+
+                $g->send($resposta);
+                $abrir($chave, $g);
+
+                while (count($abertos) < $maximo && $fila)
+                {
+                    $proxima = array_key_first($fila);
+                    $abrir($proxima, $fila[$proxima]);
+                    unset($fila[$proxima]);
+                }
+            }
+        }
+
+        curl_multi_close($multi);
+
+        return $resultados;
     }
 
     /**
@@ -699,6 +991,35 @@ class APChatContactService
         }
 
         return $lista;
+    }
+
+    /**
+     * Caminho curto: o ultimo envio com sucesso foi com este mesmo numero (o telefone nao mudou desde entao), entao o
+     * contato esta no APChat com ele e da para atualizar direto. Usa a transacao aberta.
+     */
+    private static function numeroConhecido(int $pessoa_id, string $atual): bool
+    {
+        $ultimo = ApchatContatoLog::where('pessoa_id', '=', $pessoa_id)
+                                  ->where('situacao', 'in', [ApchatContatoLog::SITUACAO_SUCESSO, ApchatContatoLog::SITUACAO_PENDENTE])
+                                  ->orderBy('id', 'desc')
+                                  ->first();
+
+        return $ultimo && $ultimo->situacao === ApchatContatoLog::SITUACAO_SUCESSO && (string) $ultimo->numero === $atual && empty($ultimo->numero_anterior);
+    }
+
+    /**
+     * Guarda na pessoa o id do contato no APChat (pessoa.idapchat; base da trigger APChat -> Curciol). Mexe so nessa
+     * coluna e so quando muda. Usa a transacao aberta.
+     */
+    private static function gravarIdApchat(int $pessoa_id, object $r): void
+    {
+        $id = (int) ($r->apchat_contato_id ?? 0);
+        if ($id <= 0 || !in_array($r->situacao, [ApchatContatoLog::SITUACAO_SUCESSO, ApchatContatoLog::SITUACAO_PENDENTE], true))
+        {
+            return;
+        }
+
+        TTransaction::get()->prepare('UPDATE pessoa SET idapchat = ? WHERE id = ? AND idapchat IS DISTINCT FROM ?')->execute([$id, $pessoa_id, $id]);
     }
 
     private static function travar(string $chave): void
