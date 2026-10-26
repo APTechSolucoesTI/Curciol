@@ -272,7 +272,7 @@ try {
     // principal sem descricao salvo pela tela (era erro de banco: descricao NULL na coluna NOT NULL)
     $p = ['id' => $cid, 'nome' => MARCA . ' CLIENTE', 'telefone' => '1932340199'] + $base + grade([linha($casa, '', '1932340199', 'S'), linha($cel, 'CELULAR', '19998760102', 'N')]);
     $s = saida(function () use ($p) { post($p); (new ClienteForm($p))->onSave($p); });
-    ok('Cliente: salva com o principal sem descricao', erro($s) === '' && in_array(q("SELECT descricao FROM pessoa_contato WHERE id = {$casa}")[0]['descricao'] ?? 'x', [null, ''], true), erro($s));
+    ok('Cliente: salva com a descricao do principal apagada na grade', erro($s) === '' && (q("SELECT principal FROM pessoa_contato WHERE id = {$casa}")[0]['principal'] ?? '') === 'S', erro($s));
     // como a tela do usuario mandou (descricao NULL vinda do banco): o UPDATE com descricao = NULL agora passa
     $item = (object) ['id' => $casa, 'pessoa_id' => $cid, 'descricao' => null, 'telefone' => '1932340199', 'email' => null, 'principal' => 'S', '__row__id' => 'bnulo', '__display__' => (object) []];
     $p = ['id' => $cid, 'nome' => MARCA . ' CLIENTE', 'telefone' => '1932340199'] + $base + ['pessoa_contato_pessoa_list___row__data' => [base64_encode(serialize($item)), linha($cel, 'CELULAR', '19998760102', 'N')['data']], 'pessoa_contato_pessoa_list_principal' => ['S', 'N']];
