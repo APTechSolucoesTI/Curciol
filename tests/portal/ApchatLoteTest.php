@@ -12,7 +12,7 @@ function q(string $sql) { TTransaction::open('escritorio'); $r = TTransaction::g
 function x(string $sql): void { TTransaction::open('escritorio'); TTransaction::get()->exec($sql); TTransaction::close(); }
 
 // ---------- APChat falso em memoria ----------
-$falso = ['contatos' => [], 'proximo' => 70001, 'chamadas' => [], 'falhar_create' => 0];
+$falso = ['contatos' => [], 'proximo' => 70001, 'chamadas' => [], 'falhar_create' => 0, 'tempo_update' => 0, 'tempo_create' => 0];
 $responder = function (int $status, array $json) { return ['status' => $status, 'corpo' => json_encode($json), 'erro' => '']; };
 APChatContactService::usarTransporte(function ($rota, $corpo, $token) use (&$falso, $responder) {
     $falso['chamadas'][] = $rota;
@@ -20,6 +20,9 @@ APChatContactService::usarTransporte(function ($rota, $corpo, $token) use (&$fal
     if ($rota === 'showcontact') {
         return isset($falso['contatos'][$n]) ? $responder(200, ['success' => true, 'data' => $falso['contatos'][$n]]) : $responder(404, ['success' => false, 'error' => 'ERR_CONTACT_NOT_FOUND']);
     }
+    $semResposta = ['status' => 0, 'corpo' => '', 'erro' => 'Operation timed out after 15000 milliseconds'];
+    if ($rota === 'updateContact' && $falso['tempo_update'] > 0) { $falso['tempo_update']--; return $semResposta; }
+    if ($rota === 'createContact' && $falso['tempo_create'] > 0) { $falso['tempo_create']--; return $semResposta; }
     if ($rota === 'createContact') {
         if ($falso['falhar_create'] > 0) { $falso['falhar_create']--; return $responder(429, ['success' => false, 'error' => 'TOO_MANY_REQUESTS']); }
         $falso['contatos'][$n] = $corpo + ['id' => $falso['proximo']++];
@@ -79,6 +82,17 @@ try {
     $r = APChatContactService::sincronizarLote([$a, $b], ApchatContatoLog::ORIGEM_LOTE);
     igual('caminho curto: so updateContact, 1 por pessoa', ['updateContact', 'updateContact'], $falso['chamadas']);
     igual('caminho curto: atualizados', ['SUCESSO|UPDATE', 'SUCESSO|UPDATE'], [$r[$a]->situacao . '|' . $r[$a]->operacao, $r[$b]->situacao . '|' . $r[$b]->operacao]);
+
+    // tempo esgotado: atualizacao e repetida (da o mesmo resultado); criacao nao (repetir poderia duplicar)
+    $falso['chamadas'] = [];
+    $falso['tempo_update'] = 1;
+    $r = APChatContactService::sincronizarLote([$a], ApchatContatoLog::ORIGEM_LOTE);
+    ok('tempo esgotado na atualizacao: repetida e deu certo', $r[$a]->situacao === 'SUCESSO' && $falso['chamadas'] === ['updateContact', 'updateContact'], json_encode($falso['chamadas']));
+    $f = $novo('F CRIACAO SEM RESPOSTA', '11987650004');
+    $falso['chamadas'] = [];
+    $falso['tempo_create'] = 1;
+    $r = APChatContactService::sincronizarLote([$f], ApchatContatoLog::ORIGEM_LOTE);
+    ok('tempo esgotado na criacao: nao repete (fica erro, sem duplicar)', $r[$f]->situacao === 'ERRO' && count(array_keys($falso['chamadas'], 'createContact')) === 1, json_encode($falso['chamadas']));
 
     // telefone mudou: volta ao fluxo completo (contato antigo atualizado, pendente, nada criado)
     x("UPDATE pessoa SET telefone = '11987650099' WHERE id = {$b}");

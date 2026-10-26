@@ -618,10 +618,16 @@ class APChatContactService
         ];
     }
 
-    /** O APChat pediu calma (429) ou ficou instavel (502/503/504): a chamada e repetida depois de uma pausa. */
-    private static function repetir(array $resposta, int $tentativa): bool
+    /**
+     * O APChat pediu calma (429) ou ficou instavel (502/503/504): a chamada e repetida depois de uma pausa.
+     * Sem resposta (tempo esgotado) so consulta e atualizacao se repetem: repetir da o mesmo resultado. A criacao nao:
+     * se o APChat criou e so a resposta se perdeu, repetir duplicaria o contato (a proxima sincronizacao o acha).
+     */
+    private static function repetir(array $resposta, int $tentativa, string $rota): bool
     {
-        return $tentativa < self::TENTATIVAS && in_array((int) $resposta['status'], [429, 502, 503, 504], true);
+        if ($tentativa >= self::TENTATIVAS) { return false; }
+        $status = (int) $resposta['status'];
+        return in_array($status, [429, 502, 503, 504], true) || ($status === 0 && $rota !== 'createContact');
     }
 
     /** Chamada com as repeticoes de repetir(). */
@@ -630,7 +636,7 @@ class APChatContactService
         for ($tentativa = 0; ; $tentativa++)
         {
             $resposta = self::chamar($rota, $corpo, $token);
-            if (!self::repetir($resposta, $tentativa)) { return $resposta; }
+            if (!self::repetir($resposta, $tentativa, $rota)) { return $resposta; }
             usleep(self::PAUSA_REPETICAO_MS * 1000 * ($tentativa + 1));
         }
     }
@@ -711,7 +717,7 @@ class APChatContactService
                 curl_close($ch);
 
                 $g = $passos[$chave];
-                if (self::repetir($resposta, $tentativa))
+                if (self::repetir($resposta, $tentativa, $rota))
                 {
                     usleep(self::PAUSA_REPETICAO_MS * 1000 * ($tentativa + 1));
                     $abrir($chave, $g, $tentativa + 1, [$rota, $corpo]);
