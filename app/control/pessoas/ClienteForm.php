@@ -1225,7 +1225,7 @@ class ClienteForm extends TPage
                 TSession::setValue(__CLASS__.'_filters', NULL);
 
             TToast::show('success', "Registro salvo", 'topRight', 'far:check-circle');
-            Navegacao::voltarParaLista('ClienteList', __CLASS__);
+            Navegacao::continuarNoRegistro(__CLASS__, (int) $object->id, (array) $param);
 
             }
 

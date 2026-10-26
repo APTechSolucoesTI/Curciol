@@ -30,7 +30,15 @@ function linha(?int $id, string $descricao, string $telefone, string $principal)
     $rowId = 'b' . uniqid();
     $item = (object) ['id' => $id, 'descricao' => $descricao, 'telefone' => $telefone, 'email' => '', 'principal' => $principal,
         '__row__id' => $rowId, '__display__' => (object) []];
-    return ['data' => base64_encode(serialize($item)), 'principal' => $principal];
+    return ['data' => base64_encode(serialize($item)), 'principal' => $principal, 'row' => $rowId];
+}
+/** linhas da grade que a tela trocou na tela: [row id => html] */
+function linhasTrocadas(string $saida): array
+{
+    preg_match_all("/ttable_replace_row_by_id\\('pessoa_contato_pessoa_list', '([^']+)', '([^']+)'\\)/", $saida, $m, PREG_SET_ORDER);
+    $r = [];
+    foreach ($m as $x) { $r[$x[1]] = base64_decode($x[2]); }
+    return $r;
 }
 function grade(array $linhas): array
 {
@@ -183,6 +191,8 @@ try {
     $fid = (int) ($f[0]['id'] ?? 0);
     igual('Fornecedor novo: salvou e criou o contato principal', [1, '19998760101'], [count($f), q("SELECT telefone FROM pessoa_contato WHERE pessoa_id = {$fid} AND principal = 'S'")[0]['telefone'] ?? null]);
     ok('Fornecedor novo: APChat falso chamado (nunca o real)', $chamadasApchat > 0, erro($s));
+    ok('Fornecedor novo: depois de salvar a cortina continua no registro (reabre no onEdit, nao fecha)',
+        strpos($s, "class=FornecedorForm&method=onEdit&key={$fid}") !== false && strpos($s, 'closeRightPanel') === false, substr($s, -400));
 
     // Fornecedor com telefone invalido: bloqueia e nao grava nada
     $s = saida(function () use ($base) { $p = post($base + ['nome' => MARCA . ' INVALIDO', 'telefone' => '(19) 8765-432']); (new FornecedorForm($p))->onSave($p); });
@@ -231,6 +241,43 @@ try {
     ok('Profissional: salvou sem erro', erro($s) === '', erro($s));
     $s = saida(function () use ($p) { post($p); (new ProfissionalForm($p))->onSave($p); });
     igual('Profissional: salvar de novo nao duplica grupo', 4, count(q("SELECT 1 FROM pessoa_grupo WHERE pessoa_id = {$cid}")));
+
+    // na aba, antes de salvar: marcar um contato como principal tira a marca do antigo e troca o telefone dos Dados
+    $antigo = linha(501, 'CASA', '1932340301', 'S');
+    $outro = linha(502, 'RECADO', '1932340302', 'N');
+    $p = post(['pessoa_contato_pessoa_descricao' => 'CELULAR', 'pessoa_contato_pessoa_telefone' => '(19) 99876-0300', 'pessoa_contato_pessoa_email' => '',
+        'pessoa_contato_pessoa_principal' => 'S', 'pessoa_contato_pessoa_id' => '', 'pessoa_contato_pessoa__row__id' => ''] + grade([$antigo, $outro]));
+    $s = saida(function () use ($p) { (new ClienteForm([]))->onAddDetailPessoaContatoPessoa($p); });
+    $trocadas = linhasTrocadas($s);
+    ok('aba: o antigo principal volta como Nao na grade', isset($trocadas[$antigo['row']]) && strpos($trocadas[$antigo['row']], 'Não') !== false && strpos($trocadas[$antigo['row']], 'Sim') === false, erro($s) ?: implode(',', array_keys($trocadas)));
+    ok('aba: o contato que nao era principal nao e mexido', !isset($trocadas[$outro['row']]));
+    ok('aba: o contato novo entra como principal', (bool) array_filter($trocadas, function ($html, $id) use ($antigo) { return $id !== $antigo['row'] && strpos($html, 'CELULAR') !== false && strpos($html, 'Sim') !== false; }, ARRAY_FILTER_USE_BOTH));
+    ok('aba: telefone dos Dados cadastrais passa a ser o do novo principal', preg_match("/telefone.{0,10}\\(19\\) 99876-0300/", $s) === 1, substr($s, 0, 300));
+
+    // contato que nao e principal: nada muda nas outras linhas nem nos Dados
+    $p = post(['pessoa_contato_pessoa_descricao' => 'TRABALHO', 'pessoa_contato_pessoa_telefone' => '1932340303', 'pessoa_contato_pessoa_email' => '',
+        'pessoa_contato_pessoa_principal' => 'N', 'pessoa_contato_pessoa_id' => '', 'pessoa_contato_pessoa__row__id' => ''] + grade([$antigo, $outro]));
+    $s = saida(function () use ($p) { (new ClienteForm([]))->onAddDetailPessoaContatoPessoa($p); });
+    ok('aba: contato nao principal nao mexe no principal nem nos Dados', count(linhasTrocadas($s)) === 1 && !isset(linhasTrocadas($s)[$antigo['row']]) && strpos($s, '3234-0303') === false, erro($s));
+
+    // descricao: obrigatoria so para quem nao e o principal
+    $p = post(['pessoa_contato_pessoa_descricao' => '', 'pessoa_contato_pessoa_telefone' => '19998760304', 'pessoa_contato_pessoa_email' => '',
+        'pessoa_contato_pessoa_principal' => 'S', 'pessoa_contato_pessoa_id' => '', 'pessoa_contato_pessoa__row__id' => '']);
+    $s = saida(function () use ($p) { (new ClienteForm([]))->onAddDetailPessoaContatoPessoa($p); });
+    ok('aba: principal sem descricao e aceito', erro($s) === '' && count(linhasTrocadas($s)) === 1, erro($s));
+    $p = post(['pessoa_contato_pessoa_principal' => 'N'] + $p);
+    $s = saida(function () use ($p) { (new ClienteForm([]))->onAddDetailPessoaContatoPessoa($p); });
+    ok('aba: contato que nao e principal sem descricao e recusado', strpos(erro($s), 'Descrição') !== false && !linhasTrocadas($s), erro($s));
+
+    // principal sem descricao salvo pela tela (era erro de banco: descricao NULL na coluna NOT NULL)
+    $p = ['id' => $cid, 'nome' => MARCA . ' CLIENTE', 'telefone' => '1932340199'] + $base + grade([linha($casa, '', '1932340199', 'S'), linha($cel, 'CELULAR', '19998760102', 'N')]);
+    $s = saida(function () use ($p) { post($p); (new ClienteForm($p))->onSave($p); });
+    ok('Cliente: salva com o principal sem descricao', erro($s) === '' && (q("SELECT descricao FROM pessoa_contato WHERE id = {$casa}")[0]['descricao'] ?? 'x') === null, erro($s));
+
+    // Cliente salvo na cortina: continua no registro e na mesma aba
+    $p = ['id' => $cid, 'nome' => MARCA . ' CLIENTE', 'telefone' => '1932340199', 'current_tab' => '2'] + $base + grade([linha($casa, 'CASA', '1932340199', 'S'), linha($cel, 'CELULAR', '19998760102', 'N')]);
+    $s = saida(function () use ($p) { post($p); (new ClienteForm($p))->onSave($p); });
+    ok('Cliente salvo: cortina continua no registro, na aba em que estava', strpos($s, "class=ClienteForm&method=onEdit&key={$cid}") !== false && strpos($s, 'current_tab=2') !== false, erro($s) ?: substr($s, -400));
 
     // a aba Contatos com a chave Principal aparece nos 6 cadastros
     foreach (['ClienteForm', 'ContraparteForm', 'RepresentanteLegalForm', 'FornecedorForm', 'ParceiroForm', 'ProfissionalForm'] as $tela)
