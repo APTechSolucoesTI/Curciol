@@ -30,6 +30,17 @@ class PessoaContatoService
     }
 
     /**
+     * Telefone para mostrar no formulario: (19) 99876-5432 / (19) 3234-5678; fora disso, so os digitos.
+     */
+    public static function formatarTelefone($telefone): string
+    {
+        $d = self::telefoneValido($telefone) ?? self::digitos($telefone);
+        if (strlen($d) === 11) { return sprintf('(%s) %s-%s', substr($d, 0, 2), substr($d, 2, 5), substr($d, 7)); }
+        if (strlen($d) === 10) { return sprintf('(%s) %s-%s', substr($d, 0, 2), substr($d, 2, 4), substr($d, 6)); }
+        return $d;
+    }
+
+    /**
      * Bloqueia telefone preenchido e invalido (vazio pode).
      */
     public static function exigirTelefoneValido($telefone, string $mensagem = self::MSG_TELEFONE_INVALIDO): void
@@ -53,8 +64,10 @@ class PessoaContatoService
             return $estado;
         }
 
+        // trava a pessoa ate o fim do salvar: dois salvamentos ao mesmo tempo (ex.: duplo clique no Salvar) ficam um
+        // depois do outro, em vez de os dois criarem o contato principal e o segundo bater no indice unico
         $conn = TTransaction::get();
-        $st = $conn->prepare('SELECT telefone FROM pessoa WHERE id = ?');
+        $st = $conn->prepare('SELECT telefone FROM pessoa WHERE id = ? FOR UPDATE');
         $st->execute([$pessoaId]);
         $estado['telefone'] = (string) $st->fetchColumn();
 
@@ -160,7 +173,7 @@ class PessoaContatoService
             }
             else
             {
-                $conn->prepare("INSERT INTO pessoa_contato (pessoa_id, descricao, telefone, principal) VALUES (?, '', ?, 'S')")->execute([$pessoaId, $telefone]);
+                $conn->prepare("INSERT INTO pessoa_contato (pessoa_id, descricao, telefone, principal) VALUES (?, NULL, ?, 'S')")->execute([$pessoaId, $telefone]);
             }
 
             if ($telefoneDados !== $telefone)

@@ -818,7 +818,7 @@ class RepresentanteLegalForm extends TPage
             {
 
             TToast::show('success', "Registro salvo", 'topRight', 'far:check-circle');
-            Navegacao::voltarParaLista('RepresentantesLegaisList', __CLASS__);
+            Navegacao::continuarNoRegistro(__CLASS__, (int) $object->id, (array) $param);
 
             }
 

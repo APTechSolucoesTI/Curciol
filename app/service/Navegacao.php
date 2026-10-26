@@ -53,6 +53,20 @@ class Navegacao
         })();");
     }
 
+    /**
+     * Depois de salvar um cadastro na cortina: ela continua aberta no registro, recarregada do banco (abas e grades
+     * com o que foi gravado), na mesma aba; a lista de baixo se atualiza quando a cortina fechar.
+     */
+    public static function continuarNoRegistro(string $formulario, int $id, array $param = []): void
+    {
+        self::atualizarListaAoFechar();
+        $abrir = ['key' => $id, 'id' => $id, 'target_container' => 'adianti_right_panel'];
+        if (isset($param['current_tab']) && ctype_digit((string) $param['current_tab'])) {
+            $abrir['current_tab'] = (int) $param['current_tab'];
+        }
+        AdiantiCoreApplication::loadPage(preg_replace('/[^A-Za-z0-9_]/', '', $formulario), 'onEdit', $abrir);
+    }
+
     /** Fecha a cortina atual e atualiza a lista de baixo (ex.: registro excluido). */
     public static function fecharCortinaEAtualizar(): void
     {

@@ -21,7 +21,7 @@ trait PessoaContatoAbaTrait
         $pessoa_contato_pessoa_principal = new TCheckButton('pessoa_contato_pessoa_principal');
         $button_adicionar_pessoa_contato_pessoa = new TButton('button_adicionar_pessoa_contato_pessoa');
 
-        $pessoa_contato_pessoa_descricao->setTip("Casa, Escritório, Celular");
+        $pessoa_contato_pessoa_descricao->setTip("Casa, Escritório, Celular. Obrigatória para os contatos que não são o principal.");
         $pessoa_contato_pessoa_descricao->forceUpperCase();
         $pessoa_contato_pessoa_email->forceLowerCase();
 
@@ -59,13 +59,13 @@ trait PessoaContatoAbaTrait
 
         $this->detailFormPessoaContatoPessoa->setProperty('class', 'form-horizontal builder-detail-form');
 
-        $row = $this->detailFormPessoaContatoPessoa->addFields([new TLabel("Descrição:", '#ff0000', '12px', null, '100%'),$pessoa_contato_pessoa_descricao,$pessoa_contato_pessoa_id],[new TLabel("Principal:", null, '12px', null, '100%'),$pessoa_contato_pessoa_principal]);
+        $row = $this->detailFormPessoaContatoPessoa->addFields([new TLabel("Descrição (obrigatória se não for o principal):", '#ff0000', '12px', null, '100%'),$pessoa_contato_pessoa_descricao,$pessoa_contato_pessoa_id],[new TLabel("Principal:", null, '12px', null, '100%'),$pessoa_contato_pessoa_principal]);
         $row->layout = [' col-sm-9',' col-sm-3'];
 
         $row = $this->detailFormPessoaContatoPessoa->addFields([new TLabel("Telefone:", null, '12px', null, '100%'),$pessoa_contato_pessoa_telefone],[new TLabel("Email:", null, '12px', null, '100%'),$pessoa_contato_pessoa_email]);
         $row->layout = ['col-sm-6','col-sm-6'];
 
-        $row = $this->detailFormPessoaContatoPessoa->addFields([new TLabel(new TImage('fas:info-circle #03A9F4')." O contato principal tem o mesmo telefone da aba Dados cadastrais: mudar um muda o outro.", '#607D8B', '11px', 'I')]);
+        $row = $this->detailFormPessoaContatoPessoa->addFields([new TLabel(new TImage('fas:info-circle #03A9F4')." Só um contato é o principal: marcar outro tira a marca do anterior. O principal tem o mesmo telefone da aba Dados cadastrais: mudar um muda o outro.", '#607D8B', '11px', 'I')]);
         $row->layout = [' col-sm-12'];
 
         $row = $this->detailFormPessoaContatoPessoa->addFields([$button_adicionar_pessoa_contato_pessoa]);
@@ -139,7 +139,11 @@ trait PessoaContatoAbaTrait
 
             $errors = [];
             $requiredFields = [];
-            $requiredFields[] = ['label'=>"Descrição", 'name'=>"pessoa_contato_pessoa_descricao", 'class'=>'TRequiredValidator', 'value'=>[]];
+            // descricao obrigatoria so para os contatos que nao sao o principal
+            if ($data->pessoa_contato_pessoa_principal !== 'S')
+            {
+                $requiredFields[] = ['label'=>"Descrição", 'name'=>"pessoa_contato_pessoa_descricao", 'class'=>'TRequiredValidator', 'value'=>[]];
+            }
             $requiredFields[] = ['label'=>"Email", 'name'=>"pessoa_contato_pessoa_email", 'class'=>'TEmailValidator', 'value'=>[]];
             foreach($requiredFields as $requiredField)
             {
@@ -187,9 +191,21 @@ trait PessoaContatoAbaTrait
 
             TDataGrid::replaceRowById('pessoa_contato_pessoa_list', $grid_data->__row__id, $row);
 
+            // so um principal por pessoa: o que era principal deixa de ser e o telefone dos Dados cadastrais acompanha
+            $novoTelefoneDados = null;
+            if ($grid_data->principal === 'S')
+            {
+                $this->desmarcarOutrosPrincipais($param, $__row__id);
+                $novoTelefoneDados = PessoaContatoService::formatarTelefone($grid_data->telefone);
+            }
+
             TTransaction::close();
 
             $data = new stdClass;
+            if ($novoTelefoneDados !== null)
+            {
+                $data->telefone = $novoTelefoneDados;
+            }
             $data->pessoa_contato_pessoa_descricao = '';
             $data->pessoa_contato_pessoa_id = '';
             $data->pessoa_contato_pessoa_telefone = '';
@@ -210,6 +226,37 @@ trait PessoaContatoAbaTrait
         catch (Exception $e) // in case of exception
         {
             new TMessage('error', $e->getMessage()); // shows the exception error message
+        }
+    }
+
+    /**
+     * Na grade (antes de salvar): as outras linhas marcadas como principal passam a "Não".
+     */
+    private function desmarcarOutrosPrincipais($param, string $rowIdAtual): void
+    {
+        foreach ((array) ($param['pessoa_contato_pessoa_list___row__data'] ?? []) as $serializado)
+        {
+            $item = unserialize(base64_decode((string) $serializado));
+            if (!is_object($item) || ($item->__row__id ?? '') === $rowIdAtual || ($item->principal ?? '') !== 'S')
+            {
+                continue;
+            }
+
+            $item->principal = 'N';
+            $item->__display__ = (object) ($item->__display__ ?? []);
+            $item->__display__->principal = 'N';
+
+            $contato = new PessoaContato();
+            foreach (['id', 'descricao', 'telefone', 'email', 'principal'] as $campo)
+            {
+                $contato->$campo = $item->$campo ?? null;
+            }
+            $contato->__row__id = $item->__row__id;
+            $contato->__row__data = base64_encode(serialize($item));
+
+            $row = $this->pessoa_contato_pessoa_list->addItem($contato);
+            $row->id = $item->__row__id;
+            TDataGrid::replaceRowById('pessoa_contato_pessoa_list', $item->__row__id, $row);
         }
     }
 
@@ -300,7 +347,6 @@ trait PessoaContatoAbaTrait
         $this->storeMasterDetailItems('PessoaContato', 'pessoa_id', 'pessoa_contato_pessoa', $object, $param['pessoa_contato_pessoa_list___row__data'] ?? [], $this->form, $this->pessoa_contato_pessoa_list, function($masterObject, $detailObject){
 
             $detailObject->principal = (($detailObject->principal ?? '') === 'S') ? 'S' : 'N';
-            $detailObject->descricao = (string) ($detailObject->descricao ?? '');
 
         }, $this->pessoa_contato_pessoa_criteria);
 
@@ -313,6 +359,12 @@ trait PessoaContatoAbaTrait
 
     protected function carregarContatos(Pessoa $object): void
     {
+        // reaberto depois de salvar (Navegacao::continuarNoRegistro): volta na aba em que estava
+        if (isset($_GET['current_tab']) && ctype_digit((string) $_GET['current_tab']))
+        {
+            $this->form->setCurrentPage((int) $_GET['current_tab']);
+        }
+
         $this->loadMasterDetailItems('PessoaContato', 'pessoa_id', 'pessoa_contato_pessoa', $object, $this->form, $this->pessoa_contato_pessoa_list, $this->pessoa_contato_pessoa_criteria, function($masterObject, $detailObject, $objectItems){
 
         });

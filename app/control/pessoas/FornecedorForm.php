@@ -744,10 +744,7 @@ class FornecedorForm extends TPage
 
             TToast::show('success', "Registro salvo", 'topRight', 'far:check-circle'); 
 
-            if(isset($param['page'])){
-                Navegacao::voltarParaLista('FornecedorList', __CLASS__);
-            }
-                        TScript::create("Template.closeRightPanel();"); 
+            Navegacao::continuarNoRegistro(__CLASS__, (int) $object->id, (array) $param);
 
         }
         catch (Exception $e) // in case of exception

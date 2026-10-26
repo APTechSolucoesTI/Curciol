@@ -836,13 +836,8 @@ class ParceiroForm extends TPage
             TToast::show('success', "Registro salvo", 'topRight', 'far:check-circle');
 //</generatedAutoCode>
 
-            if(isset($param['page'])){
-                Navegacao::voltarParaLista('ParceirosHeaderList', __CLASS__);
-            }
+            Navegacao::continuarNoRegistro(__CLASS__, (int) $object->id, (array) $param);
             //</endTryAutoCode> //</blockLine>
-//<generatedAutoCode>
-            TScript::create("Template.closeRightPanel();");
-//</generatedAutoCode>
 
         }
         catch (Exception $e) // in case of exception

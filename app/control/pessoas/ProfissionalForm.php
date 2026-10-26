@@ -849,7 +849,7 @@ class ProfissionalForm extends TPage
             }
 
             TToast::show('success', "Registro salvo", 'topRight', 'far:check-circle');
-            Navegacao::voltarParaLista('ProfissionalList', __CLASS__);
+            Navegacao::continuarNoRegistro(__CLASS__, (int) $object->id, (array) $param);
 
             TForm::sendData(self::$formName, (object)['id' => $object->id]);
 

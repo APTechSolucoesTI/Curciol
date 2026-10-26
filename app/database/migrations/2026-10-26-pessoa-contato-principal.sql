@@ -7,6 +7,9 @@ BEGIN;
 
 ALTER TABLE pessoa_contato ADD COLUMN IF NOT EXISTS principal CHAR(1) NOT NULL DEFAULT 'N';
 
+-- descricao opcional: o contato principal pode ficar sem (as telas gravam descricao vazia como NULL)
+ALTER TABLE pessoa_contato ALTER COLUMN descricao DROP NOT NULL;
+
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_pessoa_contato_principal') THEN
