@@ -1,7 +1,8 @@
 <?php
 
 
-require_once '/www/wwwroot/curciol.sislawyer.com.br/app/lib/phpspreadsheet/vendor/autoload.php';
+// biblioteca de planilhas da propria instalacao (app/lib/phpspreadsheet), nao a pasta de producao
+require_once __DIR__ . '/../../lib/phpspreadsheet/vendor/autoload.php';
 
 class RequisicaoPagamentoRelatorioDinamico extends TWindow
 {

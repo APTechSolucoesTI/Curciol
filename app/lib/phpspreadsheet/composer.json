@@ -1,0 +1,6 @@
+{
+    "name": "curciol/phpspreadsheet",
+    "require": {
+        "phpoffice/phpspreadsheet": "^5.9"
+    }
+}
