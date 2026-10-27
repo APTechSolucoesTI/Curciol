@@ -180,13 +180,6 @@ try {
         igual('nome sugerido pelo telefone: o do dono do principal', MARCA . ' DONO', PessoaContatoService::nomeDoTelefone('(19) 99876-0011'));
     });
     isolado(function () {
-        [$outra] = cenario('19998760012', [['', '19998760012', 'S']]);
-        [$p, [$c1]] = cenario(null, [['', '19998760012', 'N']]);
-        $antes = PessoaContatoService::estadoAtual($p);
-        sql("UPDATE pessoa_contato SET principal = 'S' WHERE id = {$c1}");
-        lanca('marcou na aba como principal um telefone que e principal de outra pessoa: bloqueia', function () use ($p, $antes) { PessoaContatoService::aplicarPrincipal($p, $antes); }, 'já é o contato principal de');
-    });
-    isolado(function () {
         [$p] = cenario('199876000');
         lanca('telefone dos Dados invalido: bloqueia', function () use ($p) { PessoaContatoService::aplicarPrincipal($p, PessoaContatoService::estadoAtual(null)); }, 'Telefone inválido');
     });
@@ -343,6 +336,11 @@ try {
     ok('aba: o mesmo telefone como nao principal entra com o nome do dono', erro($s) === '' && strpos(implode('', linhasTrocadas($s)), MARCA . ' FORNECEDOR') !== false, erro($s));
     $s = saida(function () { TSession::setValue('x', 1); (new ClienteForm([])); ClienteForm::onTelefoneContatoSaida(['pessoa_contato_pessoa_telefone' => '(19) 99876-0101', 'pessoa_contato_pessoa_nome' => '']); });
     ok('aba: ao sair do telefone sugere o nome do dono do principal', strpos($s, MARCA . ' FORNECEDOR') !== false, erro($s) ?: substr($s, 0, 200));
+
+    // grade salva com um principal cujo telefone e principal de outra pessoa (aba antiga aberta): mensagem clara, nada gravado
+    $p = ['id' => $cid, 'nome' => MARCA . ' CLIENTE', 'telefone' => '1932340199', 'email' => 'casa@teste.com'] + $base + grade([linha($casa, 'CASA', '1932340199', 'N', 'casa@teste.com'), linha(null, 'OUTRO', '19998760101', 'S')]);
+    $s = saida(function () use ($p) { post($p); (new ClienteForm($p))->onSave($p); });
+    ok('Cliente: salvar com principal de telefone de outra pessoa mostra mensagem clara', strpos(erro($s), 'já é o contato principal de ' . MARCA . ' FORNECEDOR') !== false, erro($s));
 
     // Cliente salvo na cortina: continua no registro e na mesma aba
     $p = ['id' => $cid, 'nome' => MARCA . ' CLIENTE', 'telefone' => '1932340199', 'email' => 'casa@teste.com', 'current_tab' => '2'] + $base + grade([linha($casa, 'CASA', '1932340199', 'S', 'casa@teste.com'), linha($cel, 'CELULAR', '19998760102', 'N')]);

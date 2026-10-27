@@ -408,6 +408,12 @@ trait PessoaContatoAbaTrait
 
             $detailObject->principal = (($detailObject->principal ?? '') === 'S') ? 'S' : 'N';
 
+            // um telefone so pode ser principal de uma pessoa: mensagem clara em vez do erro do indice unico
+            if ($detailObject->principal === 'S' && ($dono = PessoaContatoService::donoDoPrincipal($detailObject->telefone, $masterObject->id)))
+            {
+                throw new Exception(PessoaContatoService::mensagemTelefoneDeOutro($detailObject->telefone, $dono));
+            }
+
         }, $this->pessoa_contato_pessoa_criteria);
 
         $aviso = PessoaContatoService::aplicarPrincipal($object->id, $antes);
