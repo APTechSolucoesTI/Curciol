@@ -191,15 +191,13 @@ class PessoaContatoService
             return 0;
         }
 
+        // pelo numero de antes; com idapchat, tambem pelo id (copia exportada cujo numero ja estava diferente)
+        $filtro = "regexp_replace(COALESCE(telefone, ''), '\D', '', 'g') IN (?, ?)";
+        $args = [$telAntes, '55' . $telAntes];
         if (!empty($p['idapchat']))
         {
-            $filtro = 'idapchat = ?';
-            $args = [(int) $p['idapchat']];
-        }
-        else
-        {
-            $filtro = "regexp_replace(COALESCE(telefone, ''), '\D', '', 'g') IN (?, ?)";
-            $args = [$telAntes, '55' . $telAntes];
+            $filtro .= ' OR idapchat = ?';
+            $args[] = (int) $p['idapchat'];
         }
         $st = $conn->prepare("UPDATE pessoa_contato SET telefone = ?, nome = COALESCE(NULLIF(?, ''), nome), updated_at = now()
                                WHERE principal = 'N' AND id <> ? AND (" . $filtro . ')');
