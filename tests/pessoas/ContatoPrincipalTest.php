@@ -41,6 +41,12 @@ function linhasTrocadas(string $saida): array
     foreach ($m as $x) { $r[$x[1]] = base64_decode($x[2]); }
     return $r;
 }
+/** textos dos avisos (TToast) mostrados na tela */
+function avisos(string $saida): string
+{
+    preg_match_all("/__adianti_show_toast64\('[a-z]+', '([^']*)'/", $saida, $m);
+    return implode(' | ', array_map('base64_decode', $m[1]));
+}
 function grade(array $linhas): array
 {
     return ['pessoa_contato_pessoa_list___row__data' => array_column($linhas, 'data'),
@@ -254,7 +260,7 @@ try {
     $s = saida(function () use ($base) { $p = post(['nome' => MARCA . ' MESMO TELEFONE', 'telefone' => '(19) 99876-0101'] + $base); (new FornecedorForm($p))->onSave($p); });
     $m = q("SELECT p.telefone, c.telefone AS contato, c.principal FROM pessoa p JOIN pessoa_contato c ON c.pessoa_id = p.id WHERE p.nome = '" . MARCA . " MESMO TELEFONE'");
     igual('telefone que ja e principal de outra pessoa: contato nao principal e Telefone principal vazio', [[null, '19998760101', 'N']], array_map('array_values', $m));
-    ok('telefone que ja e principal de outra pessoa: aviso na tela', strpos($s, MARCA . ' FORNECEDOR') !== false, erro($s) ?: substr($s, 0, 300));
+    ok('telefone que ja e principal de outra pessoa: aviso na tela', strpos(avisos($s), MARCA . ' FORNECEDOR') !== false, erro($s) ?: avisos($s));
 
     // Cliente: Dados sem telefone, aba com 2 contatos e o segundo marcado como principal -> Dados recebem telefone e e-mail dele
     $p = ['nome' => MARCA . ' CLIENTE', 'telefone' => ''] + $base + grade([linha(null, 'CASA', '1932340102', 'N'), linha(null, 'CELULAR', '19998760102', 'S', 'cel@teste.com')]);
