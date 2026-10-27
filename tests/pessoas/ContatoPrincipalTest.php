@@ -125,9 +125,10 @@ try {
         igual('contato com o telefone e sem e-mail: vira o principal e ganha o e-mail (nada criado, descricao mantida)', [[['19998760002', 'a@b.com', 'S']], 'CELULAR'], [$resumo($e['contatos']), $e['contatos'][0]['descricao']]);
     });
     isolado(function () use ($resumo) {
-        [$p, [$c1]] = cenario('19998760003', [['FILHA', '19998760003', 'N', 'filha@b.com']], 'mae@b.com');
+        [$p, [$c1]] = cenario('19998760003', [['CELULAR', '19998760003', 'N', 'antigo@b.com']], 'novo@b.com');
         PessoaContatoService::aplicarPrincipal($p, PessoaContatoService::estadoAtual($p));
-        igual('contato com o mesmo telefone e outro e-mail: continua nao principal e e criado um principal novo', [['19998760003', 'filha@b.com', 'N'], ['19998760003', 'mae@b.com', 'S']], $resumo(estado($p)['contatos']));
+        igual('contato com o telefone dos Dados e outro e-mail: vira o principal com o e-mail dos Dados e o outro e-mail fica num contato so com ele',
+            [['19998760003', 'novo@b.com', 'S', 'CELULAR'], [null, 'antigo@b.com', 'N', 'CELULAR']], array_map(function ($x) { return [$x['telefone'], $x['email'], $x['principal'], $x['descricao']]; }, estado($p)['contatos']));
     });
     isolado(function () use ($resumo) {
         [$p, [$c1]] = cenario('19998760004', [['', null, 'N', 'x@b.com']], 'x@b.com');

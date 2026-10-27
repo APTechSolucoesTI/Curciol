@@ -342,6 +342,27 @@ class PessoaContatoService
         }
 
         $escolhido = self::contatoCompativel($contatos, $telefone, self::email($email));
+        if (!$escolhido && $telefone !== '')
+        {
+            // contato com o telefone dos Dados e outro e-mail: ele vira o principal com o e-mail dos Dados e o outro
+            // e-mail fica num contato so com ele (nada se perde); sem e-mail nos Dados, o principal fica com o dele
+            foreach ($contatos as $c)
+            {
+                if (empty($c['representante_id']) && self::telefoneValido($c['telefone']) === $telefone)
+                {
+                    if ($email !== '')
+                    {
+                        self::inserirSoEmail($pessoaId, $c);
+                    }
+                    else
+                    {
+                        $email = trim((string) $c['email']);
+                    }
+                    $escolhido = $c;
+                    break;
+                }
+            }
+        }
         if ($escolhido)
         {
             self::atualizarContato((int) $escolhido['id'], ['telefone' => $telefone ?: $escolhido['telefone'], 'email' => $email ?: $escolhido['email']]);
@@ -441,6 +462,13 @@ class PessoaContatoService
     {
         TTransaction::get()->prepare("INSERT INTO pessoa_contato (pessoa_id, nome, descricao, telefone, email, principal, created_at, updated_at) VALUES (?, ?, NULL, ?, ?, ?, now(), now())")
             ->execute([$pessoaId, $nome, $telefone ?: null, $email ?: null, $principal]);
+    }
+
+    /** o e-mail de um contato que vai receber outro e-mail fica guardado num contato so com ele (mesmo nome e descricao) */
+    private static function inserirSoEmail(int $pessoaId, array $contato): void
+    {
+        TTransaction::get()->prepare("INSERT INTO pessoa_contato (pessoa_id, nome, descricao, telefone, email, principal, created_at, updated_at) VALUES (?, ?, ?, NULL, ?, 'N', now(), now())")
+            ->execute([$pessoaId, $contato['nome'] ?: null, $contato['descricao'] ?: null, trim((string) $contato['email'])]);
     }
 
     private static function marcar(int $contatoId, string $principal): void
