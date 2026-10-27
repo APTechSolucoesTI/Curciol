@@ -39,7 +39,8 @@ $novo = function (string $nome, array $campos) use ($c) {
 $cpf = '52998224725';   // CPF valido de teste
 $comSenha = $novo('COM SENHA', ['cpf_cnpj' => $cpf, 'usuario' => $cpf, 'senha' => 'senha-teste-1', 'telefone' => '']);
 $semSenha = $novo('SEM SENHA', ['cpf_cnpj' => '11144477735', 'usuario' => '11144477735', 'senha' => '', 'telefone' => '123']);
-$foneOk = $novo('FONE OK', ['telefone' => '(19) 99876-5432']);
+$foneOk = $novo('FONE OK', ['telefone' => '19998765432']);
+PessoaContatoService::aplicarPrincipal($foneOk, PessoaContatoService::estadoAtual(null)); // o telefone vira contato (o APChat exporta os contatos)
 TTransaction::close();
 $ids = [$comSenha, $semSenha, $foneOk];
 try {
@@ -119,6 +120,7 @@ try {
 } finally {
     TTransaction::open('escritorio');
     TTransaction::get()->exec('DELETE FROM apchat_contato_log WHERE pessoa_id IN (' . implode(',', $ids) . ')');
+    TTransaction::get()->exec('DELETE FROM pessoa_contato WHERE pessoa_id IN (' . implode(',', $ids) . ')');
     TTransaction::get()->exec('DELETE FROM pessoa WHERE id IN (' . implode(',', $ids) . ')');
     TTransaction::close();
     TSession::setValue('portal_cliente_id', null);

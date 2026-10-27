@@ -97,7 +97,7 @@ class PessoaContatoService
      */
     public static function estadoAtual($pessoaId): array
     {
-        $estado = ['novo' => true, 'telefone' => '', 'email' => '', 'principal_id' => null, 'principal_telefone' => '', 'principal_email' => ''];
+        $estado = ['novo' => true, 'telefone' => '', 'email' => '', 'principal_id' => null, 'principal_telefone' => '', 'principal_email' => '', 'principal_nome' => ''];
         $pessoaId = (int) $pessoaId;
 
         if ($pessoaId <= 0)
@@ -117,13 +117,14 @@ class PessoaContatoService
             $estado['email'] = (string) $pessoa['email'];
         }
 
-        $st = $conn->prepare("SELECT id, telefone, email FROM pessoa_contato WHERE pessoa_id = ? AND principal = 'S'");
+        $st = $conn->prepare("SELECT id, telefone, email, nome FROM pessoa_contato WHERE pessoa_id = ? AND principal = 'S'");
         $st->execute([$pessoaId]);
         if ($principal = $st->fetch(PDO::FETCH_ASSOC))
         {
             $estado['principal_id'] = (int) $principal['id'];
             $estado['principal_telefone'] = (string) $principal['telefone'];
             $estado['principal_email'] = (string) $principal['email'];
+            $estado['principal_nome'] = (string) $principal['nome'];
         }
 
         return $estado;
@@ -154,6 +155,64 @@ class PessoaContatoService
      * @return string|null aviso para o usuario
      */
     public static function aplicarPrincipal($pessoaId, array $antes): ?string
+    {
+        $aviso = self::acertarPrincipalComDados($pessoaId, $antes);
+        self::propagarPrincipal($pessoaId, $antes);
+
+        return $aviso;
+    }
+
+    /**
+     * O mesmo numero em outras pessoas (contatos nao principais, ex.: "MAE" no cadastro da filha) acompanha o contato
+     * principal: mudou o telefone ou o nome do principal, as copias mudam junto (a descricao nao, e de cada uma). Acha as
+     * copias pelo idapchat (um por numero) ou, antes da exportacao ao APChat, pelo numero de antes.
+     *
+     * @return int quantos contatos mudaram
+     */
+    public static function propagarPrincipal($pessoaId, array $antes): int
+    {
+        if (empty($antes['principal_id']))
+        {
+            return 0;
+        }
+        $conn = TTransaction::get();
+        $st = $conn->prepare("SELECT id, nome, telefone, idapchat FROM pessoa_contato WHERE id = ? AND pessoa_id = ? AND principal = 'S'");
+        $st->execute([(int) $antes['principal_id'], (int) $pessoaId]);
+        $p = $st->fetch(PDO::FETCH_ASSOC);
+        $telAntes = self::telefoneValido($antes['principal_telefone'] ?? '');
+        $telAgora = $p ? self::telefoneValido($p['telefone']) : null;
+        if (!$p || !$telAntes || !$telAgora)
+        {
+            return 0;
+        }
+        $nome = trim((string) $p['nome']);
+        if ($telAntes === $telAgora && ($nome === '' || $nome === trim((string) ($antes['principal_nome'] ?? ''))))
+        {
+            return 0;
+        }
+
+        if (!empty($p['idapchat']))
+        {
+            $filtro = 'idapchat = ?';
+            $args = [(int) $p['idapchat']];
+        }
+        else
+        {
+            $filtro = "regexp_replace(COALESCE(telefone, ''), '\D', '', 'g') IN (?, ?)";
+            $args = [$telAntes, '55' . $telAntes];
+        }
+        $st = $conn->prepare("UPDATE pessoa_contato SET telefone = ?, nome = COALESCE(NULLIF(?, ''), nome), updated_at = now()
+                               WHERE principal = 'N' AND id <> ? AND (" . $filtro . ')');
+        $st->execute(array_merge([$telAgora, $nome, (int) $p['id']], $args));
+
+        return $st->rowCount();
+    }
+
+    /**
+     * Depois de gravar a pessoa e os contatos: deixa os Dados cadastrais e o contato principal iguais (ver
+     * aplicarPrincipal).
+     */
+    private static function acertarPrincipalComDados($pessoaId, array $antes): ?string
     {
         $pessoaId = (int) $pessoaId;
         $pessoa = self::pessoa($pessoaId);

@@ -8,6 +8,12 @@
  * autorizacao de WhatsApp (aceita_receber_mensagen_whatsapp). Telefone vazio
  * ou invalido nao chama nenhuma rota.
  *
+ * Desde 27/10/2026: um contato no APChat por NUMERO de telefone dos contatos
+ * (pessoa_contato), nao so o principal. Dados do contato principal com o
+ * numero (ou do mais antigo); nome = nome do contato, senao a descricao,
+ * senao o numero. O id do APChat (vem na resposta da criacao ou da consulta)
+ * fica em pessoa_contato.idapchat de todos os contatos com o numero.
+ *
  * API (confirmada em 09/10/2026)
  * -------------------------------
  * Todas as rotas sao POST com JSON e "Authorization: Bearer <token>"; o token
@@ -101,30 +107,20 @@ class APChatContactService
             TTransaction::open(self::$database);
             $aberta = true;
 
-            $pessoa = Pessoa::find($pessoa_id);
-
-            if (!$pessoa)
+            if (!Pessoa::find($pessoa_id))
             {
                 TTransaction::close();
 
                 return self::resultado(ApchatContatoLog::SITUACAO_IGNORADO, ApchatContatoLog::OPERACAO_NENHUMA, 'Pessoa não encontrada: nenhuma chamada ao APChat.');
             }
 
-            $contato = self::montarContato($pessoa);
+            // um contato no APChat por numero: os numeros validos dos contatos da pessoa (27/10/2026)
+            $numeros = self::numerosDaPessoa($pessoa_id);
 
-            if (empty($contato['number']))
+            if (!$numeros)
             {
-                $r = self::resultado(ApchatContatoLog::SITUACAO_IGNORADO, ApchatContatoLog::OPERACAO_NENHUMA, 'Telefone ausente ou inválido: nada foi enviado ao APChat.');
+                $r = self::resultado(ApchatContatoLog::SITUACAO_IGNORADO, ApchatContatoLog::OPERACAO_NENHUMA, 'Nenhum contato com telefone válido: nada foi enviado ao APChat.');
                 self::registrar($pessoa_id, $origem, $r, null, null);
-                TTransaction::close();
-
-                return $r;
-            }
-
-            if (empty($contato['name']))
-            {
-                $r = self::resultado(ApchatContatoLog::SITUACAO_IGNORADO, ApchatContatoLog::OPERACAO_NENHUMA, 'Cliente sem nome: nada foi enviado ao APChat.');
-                self::registrar($pessoa_id, $origem, $r, $contato['number'], null);
                 TTransaction::close();
 
                 return $r;
@@ -136,7 +132,7 @@ class APChatContactService
             {
                 // sem token = integracao desligada (ex.: homologacao): o salvar da pessoa nao envia e nao avisa erro
                 $r = self::resultado(ApchatContatoLog::SITUACAO_IGNORADO, ApchatContatoLog::OPERACAO_NENHUMA, 'Integração com o APChat desligada (escritório sem token): nada foi enviado.');
-                self::registrar($pessoa_id, $origem, $r, $contato['number'], null);
+                self::registrar($pessoa_id, $origem, $r, $numeros[0], null);
                 TTransaction::close();
 
                 return $r;
@@ -149,18 +145,26 @@ class APChatContactService
                 o numero ate o fim desta transacao; o segundo espera e, ao
                 consultar, ja encontra o contato criado pelo primeiro.
             */
-            self::travar('apchat:' . $contato['number']);
+            $chaves = array_map(function ($n) { return 'apchat:' . $n; }, $numeros);
+            sort($chaves);
+            foreach ($chaves as $chave) { self::travar($chave); }
 
-            $anteriores = self::numerosAnteriores($pessoa_id, $telefones_anteriores, $contato['number']);
+            $principal = self::numeroPrincipal($pessoa_id);
+            $resultados = [];
+            foreach ($numeros as $numero)
+            {
+                $contato = self::montarContatoDoNumero($numero);
+                $anteriores = self::numerosAnterioresDoNumero($numero, $numero === $principal ? $telefones_anteriores : []);
+                $r = self::rodar(self::passosDecidir($contato, $anteriores, self::numeroComId($numero)), $token);
 
-            $r = self::rodar(self::passosDecidir($contato, $anteriores, self::numeroConhecido($pessoa_id, $contato['number'])), $token);
-
-            self::registrar($pessoa_id, $origem, $r, $contato['number'], $r->numero_anterior ?? null);
-            self::gravarIdApchat($pessoa_id, $r);
+                self::registrar($pessoa_id, $origem, $r, $numero, $r->numero_anterior ?? null);
+                self::gravarIdApchatDoNumero($numero, $r);
+                $resultados[$numero] = $r;
+            }
 
             TTransaction::close();
 
-            return $r;
+            return self::resumirResultados($resultados, $principal);
         }
         catch (Throwable $e)
         {
@@ -209,7 +213,9 @@ class APChatContactService
 
             foreach (($ids ? Pessoa::where('id', 'in', $ids)->load() : []) as $p) { $porId[(int) $p->id] = $p; }
 
-            $contatos = [];
+            // um contato no APChat por numero: os numeros validos dos contatos de cada pessoa, cada numero uma vez so
+            $numerosDe = [];
+            $donoDoNumero = [];
             foreach ($ids as $id)
             {
                 if (!isset($porId[$id]))
@@ -218,15 +224,11 @@ class APChatContactService
                     continue;
                 }
 
-                $contato = self::montarContato($porId[$id]);
+                $numerosDe[$id] = self::numerosDaPessoa($id);
                 $r = null;
-                if (empty($contato['number']))
+                if (!$numerosDe[$id])
                 {
-                    $r = self::resultado(ApchatContatoLog::SITUACAO_IGNORADO, ApchatContatoLog::OPERACAO_NENHUMA, 'Telefone ausente ou inválido: nada foi enviado ao APChat.');
-                }
-                elseif (empty($contato['name']))
-                {
-                    $r = self::resultado(ApchatContatoLog::SITUACAO_IGNORADO, ApchatContatoLog::OPERACAO_NENHUMA, 'Cliente sem nome: nada foi enviado ao APChat.');
+                    $r = self::resultado(ApchatContatoLog::SITUACAO_IGNORADO, ApchatContatoLog::OPERACAO_NENHUMA, 'Nenhum contato com telefone válido: nada foi enviado ao APChat.');
                 }
                 elseif ($token === '')
                 {
@@ -235,47 +237,55 @@ class APChatContactService
 
                 if ($r)
                 {
-                    self::registrar($id, $origem, $r, ($contato['number'] ?? '') ?: null, null);
+                    self::registrar($id, $origem, $r, $numerosDe[$id][0] ?? null, null);
                     $resultados[$id] = $r;
+                    unset($numerosDe[$id]);
                     continue;
                 }
-                $contatos[$id] = $contato;
+                foreach ($numerosDe[$id] as $numero) { $donoDoNumero[$numero] = $donoDoNumero[$numero] ?? $id; }
             }
 
             // trava os numeros do lote em ordem fixa (duas sincronizacoes ao mesmo tempo nao se travam mutuamente)
-            $chaves = array_values(array_unique(array_map(function ($c) { return 'apchat:' . $c['number']; }, $contatos)));
+            $chaves = array_map(function ($n) { return 'apchat:' . $n; }, array_keys($donoDoNumero));
             sort($chaves);
             foreach ($chaves as $chave) { self::travar($chave); }
 
-            // quem divide numero com outro do lote espera o primeiro terminar
+            // numero que e a variante (nono digito) de outro do lote espera o primeiro terminar
             $usados = [];
             $juntos = [];
             $depois = [];
-            foreach ($contatos as $id => $contato)
+            foreach (array_keys($donoDoNumero) as $numero)
             {
-                $variantes = self::variantes($contato['number']);
-                if (array_intersect($variantes, array_keys($usados))) { $depois[] = $id; continue; }
+                $variantes = self::variantes((string) $numero);
+                if (array_intersect($variantes, array_keys($usados))) { $depois[] = (string) $numero; continue; }
                 foreach ($variantes as $v) { $usados[$v] = true; }
-                $juntos[] = $id;
+                $juntos[] = (string) $numero;
             }
 
-            $passos = function (int $id) use ($contatos) {
-                return self::passosDecidir($contatos[$id], self::numerosAnteriores($id, [], $contatos[$id]['number']),
-                                           self::numeroConhecido($id, $contatos[$id]['number']));
+            $passos = function (string $numero) {
+                return self::passosDecidir(self::montarContatoDoNumero($numero), self::numerosAnterioresDoNumero($numero, []), self::numeroComId($numero));
             };
 
             $feitos = [];
             if ($juntos)
             {
-                $feitos = self::rodarVarios(array_combine($juntos, array_map($passos, $juntos)), $token, self::CHAMADAS_SIMULTANEAS);
+                // rodarVarios usa as chaves do array: prefixo para o numero nao virar indice numerico
+                $porChave = self::rodarVarios(array_combine(array_map(function ($n) { return 'n' . $n; }, $juntos), array_map($passos, $juntos)), $token, self::CHAMADAS_SIMULTANEAS);
+                foreach ($porChave as $chave => $r) { $feitos[substr((string) $chave, 1)] = $r; }
             }
-            foreach ($depois as $id) { $feitos[$id] = self::rodar($passos($id), $token); }
+            foreach ($depois as $numero) { $feitos[$numero] = self::rodar($passos($numero), $token); }
 
-            foreach ($feitos as $id => $r)
+            foreach ($feitos as $numero => $r) { self::gravarIdApchatDoNumero((string) $numero, $r); }
+
+            foreach ($numerosDe as $id => $numeros)
             {
-                self::registrar($id, $origem, $r, $contatos[$id]['number'], $r->numero_anterior ?? null);
-                self::gravarIdApchat($id, $r);
-                $resultados[$id] = $r;
+                $porNumero = [];
+                foreach ($numeros as $numero)
+                {
+                    $porNumero[$numero] = $feitos[$numero];
+                    self::registrar($id, $origem, $feitos[$numero], $numero, $feitos[$numero]->numero_anterior ?? null);
+                }
+                $resultados[$id] = self::resumirResultados($porNumero, self::numeroPrincipal($id));
             }
 
             TTransaction::close();
@@ -366,17 +376,24 @@ class APChatContactService
     }
 
     /**
-     * Ids das pessoas com telefone valido, em ordem, para o "Sincronizar todos".
+     * Ids das pessoas com algum contato de telefone valido, em ordem, para o "Sincronizar todos" (todos os contatos
+     * sao exportados, nao so o principal).
      *
      * @return int[]
      */
     public static function idsAutorizados(): array
     {
         TTransaction::open(self::$database);
-        $ids = TTransaction::get()->query('SELECT id FROM apchat_contato_view WHERE telefone_valido ORDER BY id')->fetchAll(PDO::FETCH_COLUMN);
+        $linhas = TTransaction::get()->query("SELECT pessoa_id, telefone FROM pessoa_contato WHERE COALESCE(telefone, '') <> '' ORDER BY pessoa_id")->fetchAll(PDO::FETCH_ASSOC);
         TTransaction::close();
 
-        return array_map('intval', $ids);
+        $ids = [];
+        foreach ($linhas as $l)
+        {
+            if (self::normalizarTelefone($l['telefone']) !== '') { $ids[(int) $l['pessoa_id']] = true; }
+        }
+
+        return array_keys($ids);
     }
 
     // =================================================================
@@ -960,26 +977,176 @@ class APChatContactService
         return $escritorio ? trim((string) $escritorio->token_apchat) : '';
     }
 
+    // =================================================================
+    // Um contato no APChat por numero (27/10/2026)
+    // =================================================================
+    //
+    // Todo contato da Curciol com telefone valido (pessoa_contato) e exportado. O mesmo numero em varias pessoas e um
+    // contato so no APChat; o id dele fica em pessoa_contato.idapchat de todos os contatos com esse numero.
+
+    /** filtro SQL "o telefone do contato e este numero" (com ou sem o 55); $numero = 55 + DDD + numero */
+    private static function mesmoNumeroSql(string $coluna = 'telefone'): string
+    {
+        return "regexp_replace(COALESCE({$coluna}, ''), '\\D', '', 'g') IN (?, ?)";
+    }
+
+    private static function argsNumero(string $numero): array
+    {
+        return [substr($numero, 2), $numero];
+    }
+
     /**
-     * Numeros em que o contato pode estar no APChat alem do atual: o
-     * telefone gravado antes da edicao e o ultimo numero sincronizado com
-     * sucesso. Cada um com a variante do nono digito; sem os do numero atual.
+     * Numeros validos (55 + DDD + numero) dos contatos da pessoa, o do principal primeiro.
      *
      * @return string[]
      */
-    private static function numerosAnteriores(int $pessoa_id, array $telefones, string $atual): array
+    private static function numerosDaPessoa(int $pessoa_id): array
     {
-        $ultimo = ApchatContatoLog::where('pessoa_id', '=', $pessoa_id)
-                                  ->where('situacao', 'in', [ApchatContatoLog::SITUACAO_SUCESSO, ApchatContatoLog::SITUACAO_PENDENTE])
-                                  ->orderBy('id', 'desc')
-                                  ->first();
-
-        if ($ultimo)
+        $st = TTransaction::get()->prepare("SELECT telefone FROM pessoa_contato WHERE pessoa_id = ? ORDER BY (principal = 'S') DESC, id");
+        $st->execute([$pessoa_id]);
+        $numeros = [];
+        foreach ($st->fetchAll(PDO::FETCH_COLUMN) as $telefone)
         {
-            $telefones[] = $ultimo->numero_anterior ?: $ultimo->numero;
-            $telefones[] = $ultimo->numero;
+            $numero = self::normalizarTelefone($telefone);
+            if ($numero !== '' && !in_array($numero, $numeros, true)) { $numeros[] = $numero; }
         }
 
+        return $numeros;
+    }
+
+    /** numero (55 + ...) do contato principal da pessoa; '' sem principal com telefone */
+    private static function numeroPrincipal(int $pessoa_id): string
+    {
+        $st = TTransaction::get()->prepare("SELECT telefone FROM pessoa_contato WHERE pessoa_id = ? AND principal = 'S'");
+        $st->execute([$pessoa_id]);
+
+        return self::normalizarTelefone((string) $st->fetchColumn());
+    }
+
+    /**
+     * Corpo enviado ao APChat para um numero: dados do contato principal com esse numero (de qualquer pessoa) ou, sem
+     * principal, do contato mais antigo. Nome = o nome do contato; sem nome, a descricao; sem os dois, o numero. O
+     * principal leva tambem os dados da pessoa (CPF, nascimento, razao social), como antes.
+     */
+    public static function montarContatoDoNumero(string $numero): array
+    {
+        $st = TTransaction::get()->prepare('SELECT c.pessoa_id, c.nome, c.descricao, c.email, c.principal FROM pessoa_contato c
+            WHERE ' . self::mesmoNumeroSql('c.telefone') . " ORDER BY (c.principal = 'S') DESC, c.id LIMIT 1");
+        $st->execute(self::argsNumero($numero));
+        $ref = $st->fetch(PDO::FETCH_ASSOC);
+
+        $nome = trim(preg_replace('/\s+/', ' ', (string) ($ref['nome'] ?? '')));
+        if ($nome === '') { $nome = trim(preg_replace('/\s+/', ' ', (string) ($ref['descricao'] ?? ''))); }
+
+        if ($ref && $ref['principal'] === 'S' && ($pessoa = Pessoa::find((int) $ref['pessoa_id'])))
+        {
+            $contato = self::montarContato($pessoa);
+            if ($nome !== '') { $contato['name'] = $nome; }
+        }
+        else
+        {
+            $contato = [];
+            if ($nome !== '') { $contato['name'] = $nome; }
+        }
+
+        $contato['number'] = $numero;
+        $contato['name'] = $contato['name'] ?? '';
+        if ($contato['name'] === '') { $contato['name'] = PessoaContatoService::formatarTelefone($numero); }
+
+        unset($contato['email']);
+        $email = trim((string) ($ref['email'] ?? ''));
+        if ($email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL)) { $contato['email'] = mb_strtolower($email); }
+
+        return array_filter($contato, function ($valor) { return $valor !== null && $valor !== ''; });
+    }
+
+    /** algum contato com esse numero ja tem o id do APChat: da para tentar atualizar direto (caminho curto) */
+    private static function numeroComId(string $numero): bool
+    {
+        $st = TTransaction::get()->prepare('SELECT 1 FROM pessoa_contato WHERE idapchat IS NOT NULL AND ' . self::mesmoNumeroSql() . ' LIMIT 1');
+        $st->execute(self::argsNumero($numero));
+
+        return (bool) $st->fetchColumn();
+    }
+
+    /**
+     * Numeros em que o contato pode estar no APChat alem do atual: os ultimos enviados com sucesso para o mesmo id do
+     * APChat (o telefone do contato mudou na Curciol e a API nao troca numero) e os telefones de antes da edicao.
+     *
+     * @return string[]
+     */
+    private static function numerosAnterioresDoNumero(string $numero, array $telefones): array
+    {
+        $st = TTransaction::get()->prepare('SELECT DISTINCT idapchat FROM pessoa_contato WHERE idapchat IS NOT NULL AND ' . self::mesmoNumeroSql());
+        $st->execute(self::argsNumero($numero));
+        $ids = array_map('intval', $st->fetchAll(PDO::FETCH_COLUMN));
+        if ($ids)
+        {
+            $ultimos = ApchatContatoLog::where('apchat_contato_id', 'in', $ids)
+                                       ->where('situacao', 'in', [ApchatContatoLog::SITUACAO_SUCESSO, ApchatContatoLog::SITUACAO_PENDENTE])
+                                       ->orderBy('id', 'desc')
+                                       ->take(5)
+                                       ->load();
+            foreach ($ultimos as $log)
+            {
+                $telefones[] = $log->numero_anterior ?: $log->numero;
+                $telefones[] = $log->numero;
+            }
+        }
+
+        return self::numerosAnteriores($telefones, $numero);
+    }
+
+    /** id do APChat em todos os contatos com esse numero (e em pessoa.idapchat de quem o tem como principal) */
+    private static function gravarIdApchatDoNumero(string $numero, object $r): void
+    {
+        $id = (int) ($r->apchat_contato_id ?? 0);
+        if ($id <= 0 || !in_array($r->situacao, [ApchatContatoLog::SITUACAO_SUCESSO, ApchatContatoLog::SITUACAO_PENDENTE], true))
+        {
+            return;
+        }
+
+        $conn = TTransaction::get();
+        $conn->prepare('UPDATE pessoa_contato SET idapchat = ? WHERE ' . self::mesmoNumeroSql() . ' AND idapchat IS DISTINCT FROM ?')
+             ->execute(array_merge([$id], self::argsNumero($numero), [$id]));
+        $conn->prepare("UPDATE pessoa SET idapchat = ? WHERE idapchat IS DISTINCT FROM ? AND id IN (SELECT pessoa_id FROM pessoa_contato WHERE principal = 'S' AND " . self::mesmoNumeroSql() . ')')
+             ->execute(array_merge([$id, $id], self::argsNumero($numero)));
+    }
+
+    /**
+     * Um resultado para a pessoa a partir dos de cada numero: erro se algum deu erro, pendente se algum ficou
+     * pendente; a operacao e a do numero principal.
+     *
+     * @param object[] $porNumero [numero => resultado]
+     */
+    private static function resumirResultados(array $porNumero, string $principal): object
+    {
+        $base = $porNumero[$principal] ?? reset($porNumero);
+        $r = clone $base;
+        $problemas = array_filter($porNumero, function ($x) { return $x->situacao === ApchatContatoLog::SITUACAO_ERRO || $x->situacao === ApchatContatoLog::SITUACAO_PENDENTE; });
+        foreach ([ApchatContatoLog::SITUACAO_ERRO, ApchatContatoLog::SITUACAO_PENDENTE] as $pior)
+        {
+            if ($x = array_values(array_filter($problemas, function ($y) use ($pior) { return $y->situacao === $pior; }))[0] ?? null)
+            {
+                $r = clone $x;
+                break;
+            }
+        }
+        if (count($porNumero) > 1)
+        {
+            $r->mensagem .= ' (' . count($porNumero) . ' contatos com telefone enviados' . ($problemas ? ', ' . count($problemas) . ' com problema' : '') . ')';
+        }
+
+        return $r;
+    }
+
+    /**
+     * Numeros em que o contato pode estar no APChat alem do atual (com a variante do nono digito), sem os do atual.
+     *
+     * @return string[]
+     */
+    private static function numerosAnteriores(array $telefones, string $atual): array
+    {
         $proibidos = self::variantes($atual);
         $lista = [];
 
@@ -1002,35 +1169,6 @@ class APChatContactService
         }
 
         return $lista;
-    }
-
-    /**
-     * Caminho curto: o ultimo envio com sucesso foi com este mesmo numero (o telefone nao mudou desde entao), entao o
-     * contato esta no APChat com ele e da para atualizar direto. Usa a transacao aberta.
-     */
-    private static function numeroConhecido(int $pessoa_id, string $atual): bool
-    {
-        $ultimo = ApchatContatoLog::where('pessoa_id', '=', $pessoa_id)
-                                  ->where('situacao', 'in', [ApchatContatoLog::SITUACAO_SUCESSO, ApchatContatoLog::SITUACAO_PENDENTE])
-                                  ->orderBy('id', 'desc')
-                                  ->first();
-
-        return $ultimo && $ultimo->situacao === ApchatContatoLog::SITUACAO_SUCESSO && (string) $ultimo->numero === $atual && empty($ultimo->numero_anterior);
-    }
-
-    /**
-     * Guarda na pessoa o id do contato no APChat (pessoa.idapchat; base da trigger APChat -> Curciol). Mexe so nessa
-     * coluna e so quando muda. Usa a transacao aberta.
-     */
-    private static function gravarIdApchat(int $pessoa_id, object $r): void
-    {
-        $id = (int) ($r->apchat_contato_id ?? 0);
-        if ($id <= 0 || !in_array($r->situacao, [ApchatContatoLog::SITUACAO_SUCESSO, ApchatContatoLog::SITUACAO_PENDENTE], true))
-        {
-            return;
-        }
-
-        TTransaction::get()->prepare('UPDATE pessoa SET idapchat = ? WHERE id = ? AND idapchat IS DISTINCT FROM ?')->execute([$id, $pessoa_id, $id]);
     }
 
     private static function travar(string $chave): void

@@ -195,6 +195,30 @@ try {
         [$p] = cenario(null, [['', '123', 'S']]);
         lanca('principal com telefone invalido: bloqueia', function () use ($p) { PessoaContatoService::aplicarPrincipal($p, PessoaContatoService::estadoAtual(null)); }, 'Telefone inválido');
     });
+    // o mesmo numero em outra pessoa (copia nao principal) acompanha o principal: telefone e nome; a descricao fica
+    isolado(function () {
+        [$mae, [$cm]] = cenario('19998760040', [['', '19998760040', 'S']], null, MARCA . ' MAE');
+        sql("UPDATE pessoa_contato SET nome = '" . MARCA . " MAE' WHERE id = {$cm}");
+        [$filha, [$cf]] = cenario(null, [['MÃE', '19998760040', 'N']]);
+        [$outra, [$co]] = cenario(null, [['VIZINHA', '19998760099', 'N']]);
+        $antes = PessoaContatoService::estadoAtual($mae);
+        sql("UPDATE pessoa SET telefone = '19998760041' WHERE id = {$mae}");
+        PessoaContatoService::aplicarPrincipal($mae, $antes);
+        $c = estado($filha)['contatos'][0];
+        igual('mudou o telefone do principal: a copia na outra pessoa acompanha (descricao fica)', ['19998760041', 'MÃE', MARCA . ' MAE'], [$c['telefone'], $c['descricao'], $c['nome']]);
+        igual('mudou o telefone do principal: contato com outro numero nao e mexido', '19998760099', estado($outra)['contatos'][0]['telefone']);
+        $antes = PessoaContatoService::estadoAtual($mae);
+        sql("UPDATE pessoa_contato SET nome = 'NOME NOVO' WHERE id = {$cm}");
+        PessoaContatoService::aplicarPrincipal($mae, $antes);
+        igual('mudou o nome do principal: a copia acompanha', 'NOME NOVO', estado($filha)['contatos'][0]['nome']);
+        // com idapchat a copia e achada pelo id (o mesmo numero no APChat), mesmo que o numero dela esteja diferente
+        sql("UPDATE pessoa_contato SET idapchat = 777001 WHERE id IN ({$cm}, {$cf})");
+        sql("UPDATE pessoa_contato SET telefone = '19998760040' WHERE id = {$cf}");
+        $antes = PessoaContatoService::estadoAtual($mae);
+        sql("UPDATE pessoa SET telefone = '19998760042' WHERE id = {$mae}");
+        PessoaContatoService::aplicarPrincipal($mae, $antes);
+        igual('com idapchat: a copia e achada pelo id e acompanha', '19998760042', estado($filha)['contatos'][0]['telefone']);
+    });
     // representantes legais
     isolado(function () {
         [$rep] = cenario('19998760020', [['', '19998760020', 'S', 'rep@b.com']], 'rep@b.com', MARCA . ' REPRESENTANTE');

@@ -419,9 +419,9 @@ class ApchatContatoList extends TPage
             }
 
             new TQuestion(
-                "Sincronizar com o APChat as {$total} pessoas com telefone válido (clientes, colaboradores, partes contrárias e demais)?<br><br>"
-                . "Cada um é consultado no APChat e atualizado (se já existir) ou criado (se não existir), "
-                . "com a mesma regra do cadastro de clientes. Telefone vazio ou inválido fica como \"Não sincronizado\". O processo roda em lotes de " . self::TAMANHO_LOTE . ", com até " . APChatContactService::CHAMADAS_SIMULTANEAS . " contatos ao mesmo tempo.<br><br>"
+                "Sincronizar com o APChat as {$total} pessoas com algum contato de telefone válido (clientes, colaboradores, partes contrárias e demais)?<br><br>"
+                . "Cada telefone dos contatos é um contato no APChat (o mesmo número em várias pessoas é um contato só): consultado e atualizado (se já existir) ou criado (se não existir), "
+                . "com a mesma regra do cadastro. Telefone vazio ou inválido não é enviado. O processo roda em lotes de " . self::TAMANHO_LOTE . ", com até " . APChatContactService::CHAMADAS_SIMULTANEAS . " contatos ao mesmo tempo.<br><br>"
                 . "Enquanto roda, não recarregue nem navegue nesta aba: para usar o sistema, abra outra aba. Se for interrompido, é só clicar de novo para continuar de onde parou.",
                 new TAction([__CLASS__, 'onSincronizarLote'], ['offset' => 0, 'static' => 1])
             );
