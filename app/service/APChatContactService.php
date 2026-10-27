@@ -134,7 +134,8 @@ class APChatContactService
 
             if ($token === '')
             {
-                $r = self::resultado(ApchatContatoLog::SITUACAO_ERRO, ApchatContatoLog::OPERACAO_NENHUMA, 'Token do APChat não configurado no cadastro do escritório.');
+                // sem token = integracao desligada (ex.: homologacao): o salvar da pessoa nao envia e nao avisa erro
+                $r = self::resultado(ApchatContatoLog::SITUACAO_IGNORADO, ApchatContatoLog::OPERACAO_NENHUMA, 'Integração com o APChat desligada (escritório sem token): nada foi enviado.');
                 self::registrar($pessoa_id, $origem, $r, $contato['number'], null);
                 TTransaction::close();
 

@@ -18,7 +18,8 @@ class PessoaContatoService
     const MSG_CONTATO_VAZIO = 'Informe o telefone ou o e-mail do contato.';
     const MSG_VARIOS_PRINCIPAIS = 'Selecione apenas um contato como principal!';
     const MSG_TELEFONE_DE_OUTRO = 'O telefone %s já é o contato principal de %s (código %d). Ele pode ser salvo aqui só como contato não principal.';
-    const MSG_AVISO_TELEFONE_DE_OUTRO = 'O telefone %s já é o contato principal de %s (código %d): foi salvo na aba Contatos como não principal e o Telefone principal ficou vazio.';
+    const MSG_SAIDA_TELEFONE_DE_OUTRO = 'O telefone %s já é o contato principal de %s (código %d). Ao salvar, ele fica na aba Contatos como não principal e o Telefone principal fica vazio.';
+    const MSG_AVISO_TELEFONE_DE_OUTRO ='O telefone %s já é o contato principal de %s (código %d): foi salvo na aba Contatos como não principal e o Telefone principal ficou vazio.';
 
     /**
      * Telefone so com DDD + numero (sem o 55) quando valido; null quando invalido ou vazio.
@@ -315,12 +316,28 @@ class PessoaContatoService
 
         if ($telefone !== '' && ($dono = self::donoDoPrincipal($telefone, $pessoaId)))
         {
-            // o numero ja e principal de outra pessoa: fica so como contato nao principal desta
-            if (!array_filter($contatos, function ($c) use ($telefone) { return self::telefoneValido($c['telefone']) === $telefone; }))
+            // o numero ja e principal de outra pessoa: fica so como contato nao principal desta, com o nome do dono;
+            // com e-mail nos Dados, o principal fica so com o e-mail
+            $doTelefone = array_filter($contatos, function ($c) use ($telefone) { return self::telefoneValido($c['telefone']) === $telefone; });
+            if (!$doTelefone)
             {
-                self::inserir($pessoaId, $pessoa['nome'], $telefone, $email, 'N');
+                self::inserir($pessoaId, $dono['nome'], $telefone, '', 'N');
             }
-            self::gravarDados($pessoaId, null, $email ?: null);
+            foreach ($doTelefone as $c)
+            {
+                if (trim((string) $c['nome']) === '')
+                {
+                    self::atualizarContato((int) $c['id'], ['nome' => $dono['nome']]);
+                }
+            }
+            if ($email !== '')
+            {
+                self::principalPelosDados($pessoaId, $pessoa, '', $email, self::contatos($pessoaId));
+            }
+            else
+            {
+                self::gravarDados($pessoaId, null, null);
+            }
             return self::mensagemTelefoneDeOutro($telefone, $dono, self::MSG_AVISO_TELEFONE_DE_OUTRO);
         }
 

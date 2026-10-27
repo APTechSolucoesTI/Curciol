@@ -33,3 +33,24 @@ function fim(): void
     echo $f ? "\nFALHAS: {$f}\n" : "\nTUDO OK\n";
     exit($f ? 1 : 0);
 }
+
+/**
+ * Testes do APChat (sempre com o transporte falso): sem token no escritorio (envio desligado, ex.: homologacao), poe um
+ * token falso ate o fim do teste - o servico so roda com token. Um token falso tambem seria recusado pelo APChat real.
+ */
+function tokenApchatDeTeste(): void
+{
+    TTransaction::open('escritorio');
+    $c = TTransaction::get();
+    if (!(int) $c->query("SELECT count(*) FROM escritorio WHERE COALESCE(token_apchat, '') <> ''")->fetchColumn())
+    {
+        $c->exec("UPDATE escritorio SET token_apchat = 'TOKEN-FALSO-DE-TESTE' WHERE id = (SELECT min(id) FROM escritorio)");
+        register_shutdown_function(function () {
+            while (TTransaction::get()) { TTransaction::rollback(); }
+            TTransaction::open('escritorio');
+            TTransaction::get()->exec("UPDATE escritorio SET token_apchat = NULL WHERE token_apchat = 'TOKEN-FALSO-DE-TESTE'");
+            TTransaction::close();
+        });
+    }
+    TTransaction::close();
+}

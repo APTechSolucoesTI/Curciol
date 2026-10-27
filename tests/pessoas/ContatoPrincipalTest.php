@@ -67,6 +67,7 @@ APChatContactService::usarTransporte(function ($rota, $corpo, $token) use (&$cha
     return ['status' => 201, 'corpo' => json_encode(['success' => true, 'data' => $corpo + ['id' => 90000 + random_int(1, 9999)]]), 'erro' => ''];
 });
 TSession::setValue('userid', 1);
+tokenApchatDeTeste();
 
 // ---------- cenarios direto no servico: tudo dentro de uma transacao desfeita no fim ----------
 /** pessoa + contatos [descricao, telefone, principal, email]; devolve [pessoa_id, ids dos contatos] */
@@ -180,8 +181,8 @@ try {
         [$p] = cenario('19998760011', [], 'b@b.com');
         $aviso = PessoaContatoService::aplicarPrincipal($p, PessoaContatoService::estadoAtual(null));
         $e = estado($p);
-        igual('telefone dos Dados ja e principal de outra pessoa: fica como contato nao principal e o Telefone principal fica vazio',
-            [[['19998760011', 'b@b.com', 'N']], null], [$resumo($e['contatos']), $e['telefone']]);
+        igual('telefone dos Dados ja e principal de outra pessoa: contato nao principal com o nome do dono, Telefone principal vazio e principal so com o e-mail',
+            [[['19998760011', null, 'N'], [null, 'b@b.com', 'S']], null, 'b@b.com', MARCA . ' DONO'], [$resumo($e['contatos']), $e['telefone'], $e['email'], $e['contatos'][0]['nome']]);
         ok('telefone de outra pessoa: aviso com o nome do dono', strpos((string) $aviso, MARCA . ' DONO') !== false, (string) $aviso);
         igual('nome sugerido pelo telefone: o do dono do principal', MARCA . ' DONO', PessoaContatoService::nomeDoTelefone('(19) 99876-0011'));
     });
@@ -347,6 +348,32 @@ try {
     $p = ['id' => $cid, 'nome' => MARCA . ' CLIENTE', 'telefone' => '1932340199', 'email' => 'casa@teste.com'] + $base + grade([linha($casa, 'CASA', '1932340199', 'N', 'casa@teste.com'), linha(null, 'OUTRO', '19998760101', 'S')]);
     $s = saida(function () use ($p) { post($p); (new ClienteForm($p))->onSave($p); });
     ok('Cliente: salvar com principal de telefone de outra pessoa mostra mensagem clara', strpos(erro($s), 'já é o contato principal de ' . MARCA . ' FORNECEDOR') !== false, erro($s));
+
+    // ao sair dos campos de telefone: formato invalido avisa; telefone que e principal de outra pessoa avisa
+    $s = saida(function () { ClienteForm::onTelefoneDadosSaida(['telefone' => '(19) 8765-432', 'id' => '']); });
+    ok('Dados: ao sair do Telefone principal invalido aparece o aviso', strpos(avisos($s), 'Telefone inválido') !== false, avisos($s) ?: substr($s, 0, 200));
+    $s = saida(function () use ($cid) { ClienteForm::onTelefoneDadosSaida(['telefone' => '(19) 99876-0101', 'id' => $cid]); });
+    ok('Dados: ao sair do Telefone principal de outra pessoa aparece o aviso com o nome do dono', strpos(avisos($s), MARCA . ' FORNECEDOR') !== false, avisos($s) ?: substr($s, 0, 200));
+    $s = saida(function () use ($cid) { ClienteForm::onTelefoneDadosSaida(['telefone' => '(19) 3234-0199', 'id' => $cid]); });
+    ok('Dados: telefone valido da propria pessoa nao avisa nada', avisos($s) === '', avisos($s));
+    $s = saida(function () { ClienteForm::onTelefoneContatoSaida(['pessoa_contato_pessoa_telefone' => '123', 'pessoa_contato_pessoa_nome' => '']); });
+    ok('aba: ao sair do telefone invalido aparece o aviso', strpos(avisos($s), 'Telefone inválido') !== false, avisos($s) ?: substr($s, 0, 200));
+
+    // APChat sem token (envio desligado, como na homologacao): o salvar nao envia nada e nao mostra erro
+    TTransaction::open('escritorio');
+    $tokens = TTransaction::get()->query('SELECT id, token_apchat FROM escritorio')->fetchAll(PDO::FETCH_KEY_PAIR);
+    TTransaction::get()->exec('UPDATE escritorio SET token_apchat = NULL');
+    TTransaction::close();
+    try {
+        $antes = $chamadasApchat;
+        $r = APChatContactService::sincronizarPessoa($fid);
+        igual('APChat sem token: nada enviado e situacao IGNORADO (sem aviso de erro)', ['IGNORADO', $antes], [$r->situacao, $chamadasApchat]);
+    } finally {
+        TTransaction::open('escritorio');
+        $st = TTransaction::get()->prepare('UPDATE escritorio SET token_apchat = ? WHERE id = ?');
+        foreach ($tokens as $id => $token) { $st->execute([$token, $id]); }
+        TTransaction::close();
+    }
 
     // Cliente salvo na cortina: continua no registro e na mesma aba
     $p = ['id' => $cid, 'nome' => MARCA . ' CLIENTE', 'telefone' => '1932340199', 'email' => 'casa@teste.com', 'current_tab' => '2'] + $base + grade([linha($casa, 'CASA', '1932340199', 'S', 'casa@teste.com'), linha($cel, 'CELULAR', '19998760102', 'N')]);

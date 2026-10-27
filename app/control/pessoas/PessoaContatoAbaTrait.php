@@ -16,6 +16,14 @@ trait PessoaContatoAbaTrait
 {
     protected function criarAbaContatos(): void
     {
+        // Telefone principal (aba Dados cadastrais): ao sair do campo, avisa se o formato e invalido ou se o numero ja e
+        // o principal de outra pessoa (o salvar continua bloqueando o invalido)
+        $telefoneDados = $this->form->getField('telefone');
+        if ($telefoneDados instanceof TEntry)
+        {
+            $telefoneDados->setExitAction(new TAction([$this, 'onTelefoneDadosSaida'], ['static' => 1]));
+        }
+
         $pessoa_contato_pessoa_nome = new TEntry('pessoa_contato_pessoa_nome');
         $pessoa_contato_pessoa_descricao = new TEntry('pessoa_contato_pessoa_descricao');
         $pessoa_contato_pessoa_id = new THidden('pessoa_contato_pessoa_id');
@@ -262,13 +270,51 @@ trait PessoaContatoAbaTrait
     }
 
     /**
-     * Saida do telefone na aba Contatos: se o numero ja e o principal de alguem e o nome esta vazio, sugere o nome.
+     * Saida do Telefone principal (aba Dados cadastrais): formato invalido ou numero que ja e o principal de outra pessoa.
+     */
+    public static function onTelefoneDadosSaida($param = null)
+    {
+        try
+        {
+            $telefone = (string) ($param['telefone'] ?? '');
+            if (preg_replace('/\D/', '', $telefone) === '')
+            {
+                return;
+            }
+            if (PessoaContatoService::telefoneValido($telefone) === null)
+            {
+                TToast::show('error', PessoaContatoService::MSG_TELEFONE_INVALIDO, 'topRight', 'fas:exclamation-circle');
+                return;
+            }
+            TTransaction::open(self::$database);
+            $dono = PessoaContatoService::donoDoPrincipal($telefone, $param['id'] ?? null);
+            TTransaction::close();
+            if ($dono)
+            {
+                TToast::show('warning', PessoaContatoService::mensagemTelefoneDeOutro($telefone, $dono, PessoaContatoService::MSG_SAIDA_TELEFONE_DE_OUTRO), 'topRight', 'fas:exclamation-triangle');
+            }
+        }
+        catch (Exception $e)
+        {
+            TTransaction::rollbackAll();
+        }
+    }
+
+    /**
+     * Saida do telefone na aba Contatos: avisa se o formato e invalido; se o numero ja e o principal de alguem e o nome
+     * esta vazio, sugere o nome.
      */
     public static function onTelefoneContatoSaida($param = null)
     {
         try
         {
-            if (trim((string) ($param['pessoa_contato_pessoa_nome'] ?? '')) !== '' || ($param['pessoa_contato_pessoa_telefone'] ?? '') === '')
+            $telefone = (string) ($param['pessoa_contato_pessoa_telefone'] ?? '');
+            if (preg_replace('/\D/', '', $telefone) !== '' && PessoaContatoService::telefoneValido($telefone) === null)
+            {
+                TToast::show('error', PessoaContatoService::MSG_TELEFONE_INVALIDO, 'topRight', 'fas:exclamation-circle');
+                return;
+            }
+            if (trim((string) ($param['pessoa_contato_pessoa_nome'] ?? '')) !== '' || $telefone === '')
             {
                 return;
             }

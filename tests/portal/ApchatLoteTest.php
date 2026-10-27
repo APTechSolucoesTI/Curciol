@@ -37,6 +37,7 @@ APChatContactService::usarTransporte(function ($rota, $corpo, $token) use (&$fal
 });
 
 TSession::setValue('userid', 1);
+tokenApchatDeTeste();
 TTransaction::open('escritorio');
 $unidade = (int) TTransaction::get()->query("SELECT system_unit_id FROM escritorio WHERE COALESCE(token_apchat, '') <> '' ORDER BY id LIMIT 1")->fetchColumn();
 TTransaction::close();
