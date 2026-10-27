@@ -1,22 +1,24 @@
 <?php
 /**
- * Contato principal da pessoa (26/10/2026).
+ * Contato principal da pessoa (26/10/2026; regras revistas em 27/10/2026).
  *
- * O telefone dos Dados cadastrais (pessoa.telefone) e o telefone do contato principal (pessoa_contato.principal = 'S')
- * sao sempre o mesmo, nos dois sentidos. Cada pessoa tem no maximo um principal (indice unico no banco) e, se tem
- * contato com telefone valido, tem de ter um. Telefone valido = a regra do APChat (APChatContactService::normalizarTelefone),
- * gravado sem o 55.
+ * O "Telefone principal" e o e-mail dos Dados cadastrais (pessoa.telefone / pessoa.email) sao o telefone e o e-mail do
+ * contato principal (pessoa_contato.principal = 'S'), nos dois sentidos. O principal nao e obrigatorio; cada pessoa tem
+ * no maximo um e o mesmo telefone so pode ser principal de uma pessoa (indices unicos no banco). O mesmo telefone pode
+ * estar nos contatos de varias pessoas como nao principal. Telefone valido = a regra do APChat
+ * (APChatContactService::normalizarTelefone), gravado sem o 55.
  *
  * Uso nas telas: estadoAtual() no comeco do salvar (antes de gravar), aplicarPrincipal() depois de gravar a pessoa e a
- * grade de contatos, dentro da mesma transacao. As excecoes trazem a mensagem para o usuario (a tela desfaz tudo).
+ * grade de contatos, dentro da mesma transacao. As excecoes trazem a mensagem para o usuario (a tela desfaz tudo);
+ * aplicarPrincipal() devolve um aviso quando o telefone dos Dados nao pode ser principal.
  */
 class PessoaContatoService
 {
     const MSG_TELEFONE_INVALIDO = 'Telefone inválido. Informe o DDD e o número (celular com 11 dígitos, começando com 9).';
-    const MSG_PRINCIPAL_INVALIDO = 'O contato principal precisa ter um telefone válido (DDD e número; celular com 11 dígitos, começando com 9).';
+    const MSG_CONTATO_VAZIO = 'Informe o telefone ou o e-mail do contato.';
     const MSG_VARIOS_PRINCIPAIS = 'Selecione apenas um contato como principal!';
-    const MSG_SEM_PRINCIPAL = 'Selecione um contato como principal na aba Contatos!';
-    const MSG_APAGAR_TELEFONE = 'Para tirar o telefone principal, exclua o contato principal na aba Contatos ou marque outro contato como principal.';
+    const MSG_TELEFONE_DE_OUTRO = 'O telefone %s já é o contato principal de %s (código %d). Ele pode ser salvo aqui só como contato não principal.';
+    const MSG_AVISO_TELEFONE_DE_OUTRO = 'O telefone %s já é o contato principal de %s (código %d): foi salvo na aba Contatos como não principal e o Telefone principal ficou vazio.';
 
     /**
      * Telefone so com DDD + numero (sem o 55) quando valido; null quando invalido ou vazio.
@@ -52,11 +54,49 @@ class PessoaContatoService
     }
 
     /**
-     * Situacao gravada antes do salvar: telefone dos Dados e o contato principal (id e telefone).
+     * Pessoa (outra que nao $exceto) que ja tem esse telefone como contato principal: ['id' => , 'nome' => ] ou null.
+     */
+    public static function donoDoPrincipal($telefone, $exceto = null): ?array
+    {
+        $numero = self::telefoneValido($telefone);
+        if ($numero === null)
+        {
+            return null;
+        }
+
+        $st = TTransaction::get()->prepare(
+            "SELECT p.id, p.nome FROM pessoa_contato c JOIN pessoa p ON p.id = c.pessoa_id
+              WHERE c.principal = 'S' AND regexp_replace(COALESCE(c.telefone, ''), '\D', '', 'g') IN (?, ?) AND c.pessoa_id <> ?
+              LIMIT 1");
+        $st->execute([$numero, '55' . $numero, (int) $exceto]);
+        $dono = $st->fetch(PDO::FETCH_ASSOC);
+
+        return $dono ? ['id' => (int) $dono['id'], 'nome' => (string) $dono['nome']] : null;
+    }
+
+    /**
+     * Mensagem de "telefone ja e principal de outra pessoa" para a aba Contatos.
+     */
+    public static function mensagemTelefoneDeOutro($telefone, array $dono, string $formato = self::MSG_TELEFONE_DE_OUTRO): string
+    {
+        return sprintf($formato, self::formatarTelefone($telefone), $dono['nome'], $dono['id']);
+    }
+
+    /**
+     * Nome para sugerir no contato: o da pessoa que tem esse telefone como principal (vazio se ninguem tem).
+     */
+    public static function nomeDoTelefone($telefone): string
+    {
+        $dono = self::donoDoPrincipal($telefone);
+        return $dono['nome'] ?? '';
+    }
+
+    /**
+     * Situacao gravada antes do salvar: telefone e e-mail dos Dados e o contato principal.
      */
     public static function estadoAtual($pessoaId): array
     {
-        $estado = ['telefone' => '', 'principal_id' => null, 'principal_telefone' => ''];
+        $estado = ['novo' => true, 'telefone' => '', 'email' => '', 'principal_id' => null, 'principal_telefone' => '', 'principal_email' => ''];
         $pessoaId = (int) $pessoaId;
 
         if ($pessoaId <= 0)
@@ -67,16 +107,22 @@ class PessoaContatoService
         // trava a pessoa ate o fim do salvar: dois salvamentos ao mesmo tempo (ex.: duplo clique no Salvar) ficam um
         // depois do outro, em vez de os dois criarem o contato principal e o segundo bater no indice unico
         $conn = TTransaction::get();
-        $st = $conn->prepare('SELECT telefone FROM pessoa WHERE id = ? FOR UPDATE');
+        $st = $conn->prepare('SELECT telefone, email FROM pessoa WHERE id = ? FOR UPDATE');
         $st->execute([$pessoaId]);
-        $estado['telefone'] = (string) $st->fetchColumn();
+        if ($pessoa = $st->fetch(PDO::FETCH_ASSOC))
+        {
+            $estado['novo'] = false;
+            $estado['telefone'] = (string) $pessoa['telefone'];
+            $estado['email'] = (string) $pessoa['email'];
+        }
 
-        $st = $conn->prepare("SELECT id, telefone FROM pessoa_contato WHERE pessoa_id = ? AND principal = 'S'");
+        $st = $conn->prepare("SELECT id, telefone, email FROM pessoa_contato WHERE pessoa_id = ? AND principal = 'S'");
         $st->execute([$pessoaId]);
         if ($principal = $st->fetch(PDO::FETCH_ASSOC))
         {
             $estado['principal_id'] = (int) $principal['id'];
             $estado['principal_telefone'] = (string) $principal['telefone'];
+            $estado['principal_email'] = (string) $principal['email'];
         }
 
         return $estado;
@@ -88,134 +134,328 @@ class PessoaContatoService
      */
     public static function desmarcarPrincipais($pessoaId): void
     {
-        $st = TTransaction::get()->prepare("UPDATE pessoa_contato SET principal = 'N' WHERE pessoa_id = ? AND principal = 'S'");
+        $st = TTransaction::get()->prepare("UPDATE pessoa_contato SET principal = 'N', updated_at = now() WHERE pessoa_id = ? AND principal = 'S'");
         $st->execute([(int) $pessoaId]);
     }
 
     /**
-     * Depois de gravar a pessoa e os contatos: deixa o telefone dos Dados e o contato principal iguais.
+     * Depois de gravar a pessoa e os contatos: deixa os Dados cadastrais e o contato principal iguais.
      *
-     * - mudou o principal na grade (outro contato ou outro telefone): o telefone dos Dados passa a ser o dele;
-     * - mudou so o telefone dos Dados: o contato principal recebe o novo telefone (apagar o telefone bloqueia);
-     * - sem principal e com telefone nos Dados: vira principal o contato com o mesmo numero (o mais antigo sem
-     *   descricao), ou e criado um;
-     * - principal excluido/desmarcado na grade: o telefone dos Dados sai junto;
-     * - sobrou contato com telefone valido e nenhum principal: bloqueia.
+     * - mudou o principal na grade (outro contato, outro telefone ou e-mail): os Dados passam a ser os dele;
+     * - mudou so o telefone/e-mail dos Dados: o contato principal recebe os novos (apagar os dois tira o principal);
+     * - principal excluido/desmarcado na grade: o telefone e o e-mail dos Dados saem junto;
+     * - sem principal e com telefone/e-mail nos Dados: vira principal o contato com os mesmos dados (o que so falta
+     *   completar), ou e criado um com o nome da pessoa;
+     * - telefone dos Dados ja e principal de outra pessoa: fica num contato nao principal, o Telefone principal fica
+     *   vazio e volta o aviso para mostrar ao usuario.
      *
      * @param array $antes resultado de estadoAtual() lido antes de gravar
+     * @return string|null aviso para o usuario
      */
-    public static function aplicarPrincipal($pessoaId, array $antes): void
+    public static function aplicarPrincipal($pessoaId, array $antes): ?string
     {
         $pessoaId = (int) $pessoaId;
-        $conn = TTransaction::get();
+        $pessoa = self::pessoa($pessoaId);
+        self::exigirTelefoneValido($pessoa['telefone']);
+        $telefone = self::telefoneValido($pessoa['telefone']) ?? '';
+        $email = self::email($pessoa['email']);
+        $emailDados = trim((string) $pessoa['email']);
 
-        $st = $conn->prepare('SELECT telefone FROM pessoa WHERE id = ?');
-        $st->execute([$pessoaId]);
-        $telefoneDados = (string) $st->fetchColumn();
-        self::exigirTelefoneValido($telefoneDados);
-        $telefone = self::telefoneValido($telefoneDados) ?? '';
-
-        $st = $conn->prepare('SELECT id, descricao, telefone, principal FROM pessoa_contato WHERE pessoa_id = ? ORDER BY id');
-        $st->execute([$pessoaId]);
-        $contatos = $st->fetchAll(PDO::FETCH_ASSOC);
-
+        $contatos = self::contatos($pessoaId);
         $principais = array_values(array_filter($contatos, function ($c) { return $c['principal'] === 'S'; }));
         if (count($principais) > 1)
         {
             throw new Exception(self::MSG_VARIOS_PRINCIPAIS);
         }
-
-        $telefoneMudou = self::chave($telefoneDados) !== self::chave($antes['telefone'] ?? '');
         $principal = $principais[0] ?? null;
+
+        $dadosMudou = self::chave($pessoa['telefone']) !== self::chave($antes['telefone'] ?? '')
+            || $email !== self::email($antes['email'] ?? '');
 
         if ($principal)
         {
-            $telefonePrincipal = self::telefoneValido($principal['telefone']);
-            if ($telefonePrincipal === null)
-            {
-                throw new Exception(self::MSG_PRINCIPAL_INVALIDO);
-            }
-
             $gradeMudou = (int) $principal['id'] !== (int) ($antes['principal_id'] ?? 0)
-                || $telefonePrincipal !== self::telefoneValido($antes['principal_telefone'] ?? '');
+                || self::chave($principal['telefone']) !== self::chave($antes['principal_telefone'] ?? '')
+                || self::email($principal['email']) !== self::email($antes['principal_email'] ?? '');
 
-            if (!$gradeMudou && $telefoneMudou)
+            if ($gradeMudou || !$dadosMudou)
             {
-                if ($telefone === '')
-                {
-                    throw new Exception(self::MSG_APAGAR_TELEFONE);
-                }
-                self::gravarTelefoneContato((int) $principal['id'], $telefone);
+                // a escolha da grade vale (tambem quando os dois mudaram): os Dados ficam iguais ao principal
+                self::exigirPrincipalValido($principal, $pessoaId);
+                self::acertarPrincipal($principal, $pessoa);
+                self::gravarDados($pessoaId, self::telefoneValido($principal['telefone']), trim((string) $principal['email']) ?: null);
+                return null;
             }
-            elseif ($telefonePrincipal !== $telefone || $telefoneDados !== $telefonePrincipal)
+
+            // mudou so nos Dados: o contato principal acompanha
+            if ($telefone === '' && $email === '')
             {
-                // a escolha da grade vale (tambem quando os dois mudaram)
-                self::gravarTelefonePessoa($pessoaId, $telefonePrincipal);
+                self::marcar((int) $principal['id'], 'N');
+                return null;
             }
-            return;
+            if ($telefone === '' || !self::donoDoPrincipal($telefone, $pessoaId))
+            {
+                self::atualizarContato((int) $principal['id'], ['telefone' => $telefone ?: null, 'email' => $emailDados ?: null]);
+                self::acertarPrincipal(['id' => $principal['id'], 'nome' => $principal['nome']], $pessoa);
+                return null;
+            }
+
+            // o novo telefone e principal de outra pessoa: o principal antigo fica como contato nao principal
+            self::marcar((int) $principal['id'], 'N');
+            $contatos = self::contatos($pessoaId);
         }
-
-        // sem principal: se ele existia e o telefone dos Dados nao foi mexido, saiu da grade e leva o telefone junto
-        if (!empty($antes['principal_id']) && !$telefoneMudou && $telefone !== '')
+        elseif (!empty($antes['principal_id']) && !$dadosMudou)
         {
-            self::gravarTelefonePessoa($pessoaId, null);
-            $telefone = '';
+            // o principal saiu da grade (excluido ou desmarcado) e os Dados nao foram mexidos: os Dados saem junto
+            self::gravarDados($pessoaId, null, null);
+            return null;
         }
 
-        if ($telefone !== '')
-        {
-            $iguais = array_values(array_filter($contatos, function ($c) use ($telefone) { return self::telefoneValido($c['telefone']) === $telefone; }));
-            usort($iguais, function ($a, $b) { return [trim((string) $a['descricao']) !== '', (int) $a['id']] <=> [trim((string) $b['descricao']) !== '', (int) $b['id']]; });
-
-            if ($iguais)
-            {
-                $conn->prepare("UPDATE pessoa_contato SET principal = 'S' WHERE id = ?")->execute([(int) $iguais[0]['id']]);
-            }
-            else
-            {
-                $conn->prepare("INSERT INTO pessoa_contato (pessoa_id, descricao, telefone, principal) VALUES (?, NULL, ?, 'S')")->execute([$pessoaId, $telefone]);
-            }
-
-            if ($telefoneDados !== $telefone)
-            {
-                self::gravarTelefonePessoa($pessoaId, $telefone);
-            }
-            return;
-        }
-
-        foreach ($contatos as $contato)
-        {
-            if (self::telefoneValido($contato['telefone']) !== null)
-            {
-                throw new Exception(self::MSG_SEM_PRINCIPAL);
-            }
-        }
+        return self::principalPelosDados($pessoaId, $pessoa, $telefone, $emailDados, $contatos);
     }
 
     /**
-     * Telefone dos Dados cadastrais depois do salvar (a tela devolve ao formulario quando a grade mandou).
+     * Telefone e e-mail dos Dados cadastrais depois do salvar (a tela devolve ao formulario).
      */
-    public static function telefoneDados($pessoaId): string
+    public static function dadosAtuais($pessoaId): array
     {
-        $st = TTransaction::get()->prepare('SELECT telefone FROM pessoa WHERE id = ?');
-        $st->execute([(int) $pessoaId]);
+        $pessoa = self::pessoa((int) $pessoaId);
 
-        return (string) $st->fetchColumn();
+        return ['telefone' => (string) $pessoa['telefone'], 'email' => (string) $pessoa['email']];
     }
 
-    private static function gravarTelefonePessoa(int $pessoaId, ?string $telefone): void
+    /**
+     * Contatos que vem dos representantes legais da pessoa (cadastro de Cliente): para cada representante com contato
+     * principal, o contato da pessoa com o mesmo telefone ou e-mail passa a ser dele (nome do representante, nao
+     * principal), ou e criado um (descricao = a do vinculo). Representante sem contato principal nao gera contato.
+     * Os contatos de representantes desvinculados saem.
+     */
+    public static function sincronizarRepresentantes($pessoaId): void
     {
-        TTransaction::get()->prepare('UPDATE pessoa SET telefone = ? WHERE id = ?')->execute([$telefone, $pessoaId]);
+        $pessoaId = (int) $pessoaId;
+        $conn = TTransaction::get();
+
+        $st = $conn->prepare(
+            "SELECT r.representante_id, r.descricao, p.nome, c.telefone, c.email
+               FROM pessoa_representantes_legais r
+               JOIN pessoa p ON p.id = r.representante_id
+               LEFT JOIN pessoa_contato c ON c.pessoa_id = r.representante_id AND c.principal = 'S'
+              WHERE r.pessoa_juridica_id = ? AND r.representante_id IS NOT NULL
+              ORDER BY r.id");
+        $st->execute([$pessoaId]);
+        $representantes = $st->fetchAll(PDO::FETCH_ASSOC);
+
+        $vinculados = [];
+        foreach ($representantes as $rep)
+        {
+            $repId = (int) $rep['representante_id'];
+            $vinculados[] = $repId;
+            $repTelefone = self::telefoneValido($rep['telefone']) ?? '';
+            $repEmail = self::email($rep['email']);
+            if ($repTelefone === '' && $repEmail === '')
+            {
+                continue;
+            }
+
+            $contato = null;
+            foreach (self::contatos($pessoaId) as $c)
+            {
+                if ((int) $c['representante_id'] === $repId)
+                {
+                    $contato = $c;
+                    break;
+                }
+                if ($c['principal'] !== 'S' && empty($c['representante_id'])
+                    && (($repTelefone !== '' && self::telefoneValido($c['telefone']) === $repTelefone) || ($repEmail !== '' && self::email($c['email']) === $repEmail)))
+                {
+                    $contato = $contato ?? $c;
+                }
+            }
+
+            $descricao = trim((string) $rep['descricao']) !== '' ? trim((string) $rep['descricao']) : null;
+            if ($contato)
+            {
+                self::atualizarContato((int) $contato['id'], [
+                    'nome' => $rep['nome'],
+                    'representante_id' => $repId,
+                    'telefone' => $repTelefone !== '' ? $repTelefone : $contato['telefone'],
+                    'email' => $repEmail !== '' ? $repEmail : $contato['email'],
+                    'descricao' => trim((string) $contato['descricao']) !== '' ? $contato['descricao'] : $descricao,
+                ]);
+            }
+            else
+            {
+                $conn->prepare("INSERT INTO pessoa_contato (pessoa_id, nome, descricao, telefone, email, principal, representante_id, created_at, updated_at)
+                                VALUES (?, ?, ?, ?, ?, 'N', ?, now(), now())")
+                     ->execute([$pessoaId, $rep['nome'], $descricao, $repTelefone ?: null, $repEmail ?: null, $repId]);
+            }
+        }
+
+        // representante desvinculado: o contato que veio dele sai
+        $sql = "DELETE FROM pessoa_contato WHERE pessoa_id = ? AND representante_id IS NOT NULL AND principal = 'N'";
+        $args = [$pessoaId];
+        if ($vinculados)
+        {
+            $sql .= ' AND representante_id NOT IN (' . implode(',', array_fill(0, count($vinculados), '?')) . ')';
+            $args = array_merge($args, $vinculados);
+        }
+        $conn->prepare($sql)->execute($args);
     }
 
-    private static function gravarTelefoneContato(int $contatoId, string $telefone): void
+    /**
+     * Sem principal: o telefone/e-mail dos Dados viram o principal (contato com os mesmos dados ou um novo).
+     */
+    private static function principalPelosDados(int $pessoaId, array $pessoa, string $telefone, string $email, array $contatos): ?string
     {
-        TTransaction::get()->prepare('UPDATE pessoa_contato SET telefone = ? WHERE id = ?')->execute([$telefone, $contatoId]);
+        // $email: como esta nos Dados (gravado assim); a comparacao com os contatos e sem diferenca de maiusculas
+        if ($telefone === '' && $email === '')
+        {
+            return null;
+        }
+
+        if ($telefone !== '' && ($dono = self::donoDoPrincipal($telefone, $pessoaId)))
+        {
+            // o numero ja e principal de outra pessoa: fica so como contato nao principal desta
+            if (!array_filter($contatos, function ($c) use ($telefone) { return self::telefoneValido($c['telefone']) === $telefone; }))
+            {
+                self::inserir($pessoaId, $pessoa['nome'], $telefone, $email, 'N');
+            }
+            self::gravarDados($pessoaId, null, $email ?: null);
+            return self::mensagemTelefoneDeOutro($telefone, $dono, self::MSG_AVISO_TELEFONE_DE_OUTRO);
+        }
+
+        $escolhido = self::contatoCompativel($contatos, $telefone, self::email($email));
+        if ($escolhido)
+        {
+            self::atualizarContato((int) $escolhido['id'], ['telefone' => $telefone ?: $escolhido['telefone'], 'email' => $email ?: $escolhido['email']]);
+            self::marcar((int) $escolhido['id'], 'S');
+            self::acertarPrincipal(['id' => $escolhido['id'], 'nome' => $escolhido['nome']], $pessoa);
+        }
+        else
+        {
+            self::inserir($pessoaId, $pessoa['nome'], $telefone, $email, 'S');
+        }
+
+        self::gravarDados($pessoaId, $telefone ?: null, $email ?: null);
+        return null;
+    }
+
+    /**
+     * Contato que pode virar o principal dos Dados: tem o telefone ou o e-mail dos Dados e nada diferente deles (so
+     * falta completar). Prefere o que tem os dois, depois o do telefone, depois o mais antigo.
+     */
+    private static function contatoCompativel(array $contatos, string $telefone, string $email): ?array
+    {
+        $candidatos = [];
+        foreach ($contatos as $c)
+        {
+            if (!empty($c['representante_id']))
+            {
+                continue;
+            }
+            $ct = self::telefoneValido($c['telefone']) ?? self::digitos($c['telefone']);
+            $ce = self::email($c['email']);
+            $telOk = $ct === '' || ($telefone !== '' && $ct === $telefone);
+            $mailOk = $ce === '' || ($email !== '' && $ce === $email);
+            $bateTel = $telefone !== '' && $ct === $telefone;
+            $bateMail = $email !== '' && $ce === $email;
+            if ($telOk && $mailOk && ($bateTel || $bateMail))
+            {
+                $candidatos[] = [($bateTel ? 0 : 1) + ($bateMail ? 0 : 2), (int) $c['id'], $c];
+            }
+        }
+        if (!$candidatos)
+        {
+            return null;
+        }
+        usort($candidatos, function ($a, $b) { return [$a[0], $a[1]] <=> [$b[0], $b[1]]; });
+
+        return $candidatos[0][2];
+    }
+
+    private static function exigirPrincipalValido(array $principal, int $pessoaId): void
+    {
+        if (self::digitos($principal['telefone']) === '' && self::email($principal['email']) === '')
+        {
+            throw new Exception(self::MSG_CONTATO_VAZIO);
+        }
+        self::exigirTelefoneValido($principal['telefone']);
+        if (self::digitos($principal['telefone']) !== '' && ($dono = self::donoDoPrincipal($principal['telefone'], $pessoaId)))
+        {
+            throw new Exception(self::mensagemTelefoneDeOutro($principal['telefone'], $dono));
+        }
+    }
+
+    /** principal gravado com o telefone so com DDD + numero e, sem nome, com o nome da pessoa */
+    private static function acertarPrincipal(array $principal, array $pessoa): void
+    {
+        $campos = [];
+        if (isset($principal['telefone']) && ($normal = self::telefoneValido($principal['telefone'])) !== null && $normal !== $principal['telefone'])
+        {
+            $campos['telefone'] = $normal;
+        }
+        if (trim((string) ($principal['nome'] ?? '')) === '')
+        {
+            $campos['nome'] = $pessoa['nome'];
+        }
+        if ($campos)
+        {
+            self::atualizarContato((int) $principal['id'], $campos);
+        }
+    }
+
+    private static function pessoa(int $pessoaId): array
+    {
+        $st = TTransaction::get()->prepare('SELECT nome, telefone, email FROM pessoa WHERE id = ?');
+        $st->execute([$pessoaId]);
+
+        return $st->fetch(PDO::FETCH_ASSOC) ?: ['nome' => '', 'telefone' => '', 'email' => ''];
+    }
+
+    private static function contatos(int $pessoaId): array
+    {
+        $st = TTransaction::get()->prepare('SELECT id, nome, descricao, telefone, email, principal, representante_id FROM pessoa_contato WHERE pessoa_id = ? ORDER BY id');
+        $st->execute([$pessoaId]);
+
+        return $st->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    private static function inserir(int $pessoaId, ?string $nome, string $telefone, string $email, string $principal): void
+    {
+        TTransaction::get()->prepare("INSERT INTO pessoa_contato (pessoa_id, nome, descricao, telefone, email, principal, created_at, updated_at) VALUES (?, ?, NULL, ?, ?, ?, now(), now())")
+            ->execute([$pessoaId, $nome, $telefone ?: null, $email ?: null, $principal]);
+    }
+
+    private static function marcar(int $contatoId, string $principal): void
+    {
+        TTransaction::get()->prepare('UPDATE pessoa_contato SET principal = ?, updated_at = now() WHERE id = ?')->execute([$principal, $contatoId]);
+    }
+
+    private static function atualizarContato(int $contatoId, array $campos): void
+    {
+        $sets = [];
+        foreach (array_keys($campos) as $campo)
+        {
+            $sets[] = "$campo = ?";
+        }
+        TTransaction::get()->prepare('UPDATE pessoa_contato SET ' . implode(', ', $sets) . ', updated_at = now() WHERE id = ?')
+            ->execute(array_merge(array_values($campos), [$contatoId]));
+    }
+
+    private static function gravarDados(int $pessoaId, ?string $telefone, ?string $email): void
+    {
+        TTransaction::get()->prepare('UPDATE pessoa SET telefone = ?, email = ? WHERE id = ? AND (telefone IS DISTINCT FROM ? OR email IS DISTINCT FROM ?)')
+            ->execute([$telefone, $email, $pessoaId, $telefone, $email]);
     }
 
     private static function digitos($telefone): string
     {
         return preg_replace('/\D/', '', (string) $telefone);
+    }
+
+    private static function email($email): string
+    {
+        return mb_strtolower(trim((string) $email));
     }
 
     /** chave de comparacao: o numero normalizado quando valido, senao os digitos */

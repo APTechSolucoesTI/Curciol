@@ -1,7 +1,9 @@
 <?php
 /**
  * Aba "Contatos" dos cadastros de pessoa (Cliente, Parte contraria, Representante legal, Fornecedor, Parceiro,
- * Profissional), com a chave "Principal" como na aba Enderecos (26/10/2026).
+ * Profissional), com a chave "Principal" como na aba Enderecos (26/10/2026; regras revistas em 27/10/2026).
+ * Contato com telefone e/ou e-mail; nome preenchido sozinho quando possivel; um principal por pessoa, e o mesmo
+ * telefone so e principal de uma pessoa (ver PessoaContatoService).
  *
  * A classe que usa precisa de: BuilderMasterDetailTrait, $this->form e private static $formName.
  * No construtor: $this->criarAbaContatos() onde a aba deve aparecer.
@@ -14,6 +16,7 @@ trait PessoaContatoAbaTrait
 {
     protected function criarAbaContatos(): void
     {
+        $pessoa_contato_pessoa_nome = new TEntry('pessoa_contato_pessoa_nome');
         $pessoa_contato_pessoa_descricao = new TEntry('pessoa_contato_pessoa_descricao');
         $pessoa_contato_pessoa_id = new THidden('pessoa_contato_pessoa_id');
         $pessoa_contato_pessoa_telefone = new TEntry('pessoa_contato_pessoa_telefone');
@@ -21,7 +24,9 @@ trait PessoaContatoAbaTrait
         $pessoa_contato_pessoa_principal = new TCheckButton('pessoa_contato_pessoa_principal');
         $button_adicionar_pessoa_contato_pessoa = new TButton('button_adicionar_pessoa_contato_pessoa');
 
-        $pessoa_contato_pessoa_descricao->setTip("Casa, Escritório, Celular. Obrigatória para os contatos que não são o principal.");
+        $pessoa_contato_pessoa_nome->setTip("De quem é o contato. Preenchido sozinho quando o telefone já é o principal de alguém.");
+        $pessoa_contato_pessoa_nome->forceUpperCase();
+        $pessoa_contato_pessoa_descricao->setTip("Casa, Escritório, Celular, Filha... (opcional)");
         $pessoa_contato_pessoa_descricao->forceUpperCase();
         $pessoa_contato_pessoa_email->forceLowerCase();
 
@@ -37,11 +42,16 @@ trait PessoaContatoAbaTrait
         $pessoa_contato_pessoa_email->setMaxLength(255);
         $pessoa_contato_pessoa_telefone->setMaxLength(20);
         $pessoa_contato_pessoa_descricao->setMaxLength(255);
+        $pessoa_contato_pessoa_nome->setMaxLength(255);
+
+        // telefone que ja e o principal de alguem: sugere o nome dessa pessoa
+        $pessoa_contato_pessoa_telefone->setExitAction(new TAction([$this, 'onTelefoneContatoSaida'], ['static' => 1]));
 
         $pessoa_contato_pessoa_id->setSize(200);
         $pessoa_contato_pessoa_email->setSize('100%');
         $pessoa_contato_pessoa_telefone->setSize('100%');
         $pessoa_contato_pessoa_descricao->setSize('100%');
+        $pessoa_contato_pessoa_nome->setSize('100%');
 
         TScript::create(
             "$(document).on('keydown', 'input[name=\"pessoa_contato_pessoa_telefone\"]', function (e) {
@@ -59,13 +69,13 @@ trait PessoaContatoAbaTrait
 
         $this->detailFormPessoaContatoPessoa->setProperty('class', 'form-horizontal builder-detail-form');
 
-        $row = $this->detailFormPessoaContatoPessoa->addFields([new TLabel("Descrição (obrigatória se não for o principal):", '#ff0000', '12px', null, '100%'),$pessoa_contato_pessoa_descricao,$pessoa_contato_pessoa_id],[new TLabel("Principal:", null, '12px', null, '100%'),$pessoa_contato_pessoa_principal]);
-        $row->layout = [' col-sm-9',' col-sm-3'];
+        $row = $this->detailFormPessoaContatoPessoa->addFields([new TLabel("Nome:", null, '12px', null, '100%'),$pessoa_contato_pessoa_nome,$pessoa_contato_pessoa_id],[new TLabel("Descrição:", null, '12px', null, '100%'),$pessoa_contato_pessoa_descricao],[new TLabel("Principal:", null, '12px', null, '100%'),$pessoa_contato_pessoa_principal]);
+        $row->layout = [' col-sm-5',' col-sm-5',' col-sm-2'];
 
         $row = $this->detailFormPessoaContatoPessoa->addFields([new TLabel("Telefone:", null, '12px', null, '100%'),$pessoa_contato_pessoa_telefone],[new TLabel("Email:", null, '12px', null, '100%'),$pessoa_contato_pessoa_email]);
         $row->layout = ['col-sm-6','col-sm-6'];
 
-        $row = $this->detailFormPessoaContatoPessoa->addFields([new TLabel(new TImage('fas:info-circle #03A9F4')." Só um contato é o principal: marcar outro tira a marca do anterior. O principal tem o mesmo telefone da aba Dados cadastrais: mudar um muda o outro.", '#607D8B', '11px', 'I')]);
+        $row = $this->detailFormPessoaContatoPessoa->addFields([new TLabel(new TImage('fas:info-circle #03A9F4')." Informe o telefone, o e-mail ou os dois. Só um contato é o principal: marcar outro tira a marca do anterior. O principal tem o telefone e o e-mail da aba Dados cadastrais: mudar um muda o outro. Um telefone só pode ser principal de uma pessoa.", '#607D8B', '11px', 'I')]);
         $row->layout = [' col-sm-12'];
 
         $row = $this->detailFormPessoaContatoPessoa->addFields([$button_adicionar_pessoa_contato_pessoa]);
@@ -82,6 +92,7 @@ trait PessoaContatoAbaTrait
         $this->pessoa_contato_pessoa_list->style = 'width:100%';
         $this->pessoa_contato_pessoa_list->class .= ' table-bordered';
 
+        $column_pessoa_contato_pessoa_nome = new TDataGridColumn('nome', "Nome", 'left');
         $column_pessoa_contato_pessoa_descricao = new TDataGridColumn('descricao', "Descrição", 'left');
         $column_pessoa_contato_pessoa_telefone = new TDataGridColumn('telefone', "Telefone", 'left');
         $column_pessoa_contato_pessoa_email = new TDataGridColumn('email', "Email", 'left');
@@ -107,6 +118,7 @@ trait PessoaContatoAbaTrait
 
         $this->pessoa_contato_pessoa_list->addAction($action_onDeleteDetailPessoaContato);
 
+        $this->pessoa_contato_pessoa_list->addColumn($column_pessoa_contato_pessoa_nome);
         $this->pessoa_contato_pessoa_list->addColumn($column_pessoa_contato_pessoa_descricao);
         $this->pessoa_contato_pessoa_list->addColumn($column_pessoa_contato_pessoa_telefone);
         $this->pessoa_contato_pessoa_list->addColumn($column_pessoa_contato_pessoa_email);
@@ -135,50 +147,67 @@ trait PessoaContatoAbaTrait
             $data = $this->form->getData();
 
             $data->pessoa_contato_pessoa_telefone = preg_replace('/[^0-9]/', '', (string) $data->pessoa_contato_pessoa_telefone);
+            $data->pessoa_contato_pessoa_email = trim((string) $data->pessoa_contato_pessoa_email);
             $data->pessoa_contato_pessoa_principal = (($data->pessoa_contato_pessoa_principal ?? '') === 'S') ? 'S' : 'N';
 
+            // telefone ou e-mail (um dos dois basta); telefone preenchido precisa ser valido
             $errors = [];
-            $requiredFields = [];
-            // descricao obrigatoria so para os contatos que nao sao o principal
-            if ($data->pessoa_contato_pessoa_principal !== 'S')
+            if ($data->pessoa_contato_pessoa_telefone === '' && $data->pessoa_contato_pessoa_email === '')
             {
-                $requiredFields[] = ['label'=>"Descrição", 'name'=>"pessoa_contato_pessoa_descricao", 'class'=>'TRequiredValidator', 'value'=>[]];
+                $errors[] = PessoaContatoService::MSG_CONTATO_VAZIO;
             }
-            $requiredFields[] = ['label'=>"Email", 'name'=>"pessoa_contato_pessoa_email", 'class'=>'TEmailValidator', 'value'=>[]];
-            foreach($requiredFields as $requiredField)
+            if ($data->pessoa_contato_pessoa_telefone !== '' && PessoaContatoService::telefoneValido($data->pessoa_contato_pessoa_telefone) === null)
             {
-                try
-                {
-                    (new $requiredField['class'])->validate($requiredField['label'], $data->{$requiredField['name']}, $requiredField['value']);
-                }
-                catch(Exception $e)
-                {
-                    $errors[] = $e->getMessage() . '.';
-                }
-             }
-             if ($data->pessoa_contato_pessoa_principal === 'S' && PessoaContatoService::telefoneValido($data->pessoa_contato_pessoa_telefone) === null)
-             {
-                 $errors[] = PessoaContatoService::MSG_PRINCIPAL_INVALIDO;
-             }
-             if(count($errors) > 0)
-             {
-                 throw new Exception(implode('<br>', $errors));
-             }
+                $errors[] = PessoaContatoService::MSG_TELEFONE_INVALIDO;
+            }
+            try
+            {
+                (new TEmailValidator)->validate("Email", $data->pessoa_contato_pessoa_email);
+            }
+            catch(Exception $e)
+            {
+                $errors[] = $e->getMessage() . '.';
+            }
+            if(count($errors) > 0)
+            {
+                throw new Exception(implode('<br>', $errors));
+            }
+
+            if ($data->pessoa_contato_pessoa_telefone !== '')
+            {
+                $data->pessoa_contato_pessoa_telefone = PessoaContatoService::telefoneValido($data->pessoa_contato_pessoa_telefone);
+            }
 
             $__row__id = !empty($data->pessoa_contato_pessoa__row__id) ? $data->pessoa_contato_pessoa__row__id : 'b'.uniqid();
 
             TTransaction::open(self::$database);
 
+            // um telefone so pode ser principal de uma pessoa
+            if ($data->pessoa_contato_pessoa_principal === 'S' && ($dono = PessoaContatoService::donoDoPrincipal($data->pessoa_contato_pessoa_telefone, $data->id ?? null)))
+            {
+                throw new Exception(PessoaContatoService::mensagemTelefoneDeOutro($data->pessoa_contato_pessoa_telefone, $dono));
+            }
+
+            // sem nome: o principal e da propria pessoa; nos outros, o dono do telefone (quem o tem como principal)
+            if (trim((string) $data->pessoa_contato_pessoa_nome) === '')
+            {
+                $data->pessoa_contato_pessoa_nome = ($data->pessoa_contato_pessoa_principal === 'S')
+                    ? mb_strtoupper(trim((string) ($data->nome ?? '')))
+                    : PessoaContatoService::nomeDoTelefone($data->pessoa_contato_pessoa_telefone);
+            }
+
             $grid_data = new PessoaContato();
             $grid_data->__row__id = $__row__id;
-            $grid_data->descricao = $data->pessoa_contato_pessoa_descricao;
+            $grid_data->nome = trim((string) $data->pessoa_contato_pessoa_nome) !== '' ? $data->pessoa_contato_pessoa_nome : null;
+            $grid_data->descricao = trim((string) $data->pessoa_contato_pessoa_descricao) !== '' ? $data->pessoa_contato_pessoa_descricao : null;
             $grid_data->id = $data->pessoa_contato_pessoa_id;
-            $grid_data->telefone = $data->pessoa_contato_pessoa_telefone;
-            $grid_data->email = $data->pessoa_contato_pessoa_email;
+            $grid_data->telefone = $data->pessoa_contato_pessoa_telefone !== '' ? $data->pessoa_contato_pessoa_telefone : null;
+            $grid_data->email = $data->pessoa_contato_pessoa_email !== '' ? $data->pessoa_contato_pessoa_email : null;
             $grid_data->principal = $data->pessoa_contato_pessoa_principal;
 
             $__row__data = array_merge($grid_data->toArray(), (array)$grid_data->getVirtualData());
             $__row__data['__row__id'] = $__row__id;
+            $__row__data['__display__']['nome'] =  $grid_data->nome;
             $__row__data['__display__']['descricao'] =  $param['pessoa_contato_pessoa_descricao'] ?? null;
             $__row__data['__display__']['id'] =  $param['pessoa_contato_pessoa_id'] ?? null;
             $__row__data['__display__']['telefone'] =  $param['pessoa_contato_pessoa_telefone'] ?? null;
@@ -191,21 +220,23 @@ trait PessoaContatoAbaTrait
 
             TDataGrid::replaceRowById('pessoa_contato_pessoa_list', $grid_data->__row__id, $row);
 
-            // so um principal por pessoa: o que era principal deixa de ser e o telefone dos Dados cadastrais acompanha
-            $novoTelefoneDados = null;
+            // so um principal por pessoa: o que era principal deixa de ser e o telefone e o e-mail dos Dados acompanham
+            $dados = null;
             if ($grid_data->principal === 'S')
             {
                 $this->desmarcarOutrosPrincipais($param, $__row__id);
-                $novoTelefoneDados = PessoaContatoService::formatarTelefone($grid_data->telefone);
+                $dados = ['telefone' => PessoaContatoService::formatarTelefone($grid_data->telefone), 'email' => (string) $grid_data->email];
             }
 
             TTransaction::close();
 
             $data = new stdClass;
-            if ($novoTelefoneDados !== null)
+            if ($dados !== null)
             {
-                $data->telefone = $novoTelefoneDados;
+                $data->telefone = $dados['telefone'];
+                $data->email = $dados['email'];
             }
+            $data->pessoa_contato_pessoa_nome = '';
             $data->pessoa_contato_pessoa_descricao = '';
             $data->pessoa_contato_pessoa_id = '';
             $data->pessoa_contato_pessoa_telefone = '';
@@ -225,7 +256,33 @@ trait PessoaContatoAbaTrait
         }
         catch (Exception $e) // in case of exception
         {
+            TTransaction::rollbackAll();
             new TMessage('error', $e->getMessage()); // shows the exception error message
+        }
+    }
+
+    /**
+     * Saida do telefone na aba Contatos: se o numero ja e o principal de alguem e o nome esta vazio, sugere o nome.
+     */
+    public static function onTelefoneContatoSaida($param = null)
+    {
+        try
+        {
+            if (trim((string) ($param['pessoa_contato_pessoa_nome'] ?? '')) !== '' || ($param['pessoa_contato_pessoa_telefone'] ?? '') === '')
+            {
+                return;
+            }
+            TTransaction::open(self::$database);
+            $nome = PessoaContatoService::nomeDoTelefone($param['pessoa_contato_pessoa_telefone']);
+            TTransaction::close();
+            if ($nome !== '')
+            {
+                TForm::sendData(self::$formName, (object) ['pessoa_contato_pessoa_nome' => $nome], false, false);
+            }
+        }
+        catch (Exception $e)
+        {
+            TTransaction::rollbackAll();
         }
     }
 
@@ -247,7 +304,7 @@ trait PessoaContatoAbaTrait
             $item->__display__->principal = 'N';
 
             $contato = new PessoaContato();
-            foreach (['id', 'descricao', 'telefone', 'email', 'principal'] as $campo)
+            foreach (['id', 'nome', 'descricao', 'telefone', 'email', 'principal'] as $campo)
             {
                 $contato->$campo = $item->$campo ?? null;
             }
@@ -271,6 +328,7 @@ trait PessoaContatoAbaTrait
             $aggregate = false;
 
             $data = new stdClass;
+            $data->pessoa_contato_pessoa_nome = $__row__data->__display__->nome ?? ($__row__data->nome ?? null);
             $data->pessoa_contato_pessoa_descricao = $__row__data->__display__->descricao ?? null;
             $data->pessoa_contato_pessoa_id = $__row__data->__display__->id ?? null;
             $data->pessoa_contato_pessoa_telefone = $__row__data->__display__->telefone ?? null;
@@ -305,6 +363,7 @@ trait PessoaContatoAbaTrait
             $__row__data = unserialize(base64_decode($param['__row__data']));
 
             $data = new stdClass;
+            $data->pessoa_contato_pessoa_nome = '';
             $data->pessoa_contato_pessoa_descricao = '';
             $data->pessoa_contato_pessoa_id = '';
             $data->pessoa_contato_pessoa_telefone = '';
@@ -331,10 +390,11 @@ trait PessoaContatoAbaTrait
     }
 
     /**
-     * Grava a grade de contatos e acerta o contato principal com o telefone dos Dados cadastrais (ver
+     * Grava a grade de contatos e acerta o contato principal com o telefone e o e-mail dos Dados cadastrais (ver
      * PessoaContatoService::aplicarPrincipal). Chamar depois de gravar a pessoa, dentro da transacao do salvar.
+     * $comRepresentantes: o cadastro tem a aba Representantes legais (Cliente) - os contatos deles entram/saem aqui.
      */
-    protected function salvarContatos(Pessoa $object, $param, array $antes): void
+    protected function salvarContatos(Pessoa $object, $param, array $antes, bool $comRepresentantes = false): void
     {
         $marcados = array_count_values((array) ($param['pessoa_contato_pessoa_list_principal'] ?? []));
         if (($marcados['S'] ?? 0) > 1)
@@ -350,11 +410,23 @@ trait PessoaContatoAbaTrait
 
         }, $this->pessoa_contato_pessoa_criteria);
 
-        PessoaContatoService::aplicarPrincipal($object->id, $antes);
+        $aviso = PessoaContatoService::aplicarPrincipal($object->id, $antes);
 
-        // a grade pode ter trocado o telefone dos Dados cadastrais
-        $object->telefone = PessoaContatoService::telefoneDados($object->id);
-        TForm::sendData(self::$formName, (object) ['telefone' => $object->telefone]);
+        if ($comRepresentantes)
+        {
+            PessoaContatoService::sincronizarRepresentantes($object->id);
+        }
+
+        // a grade pode ter trocado o telefone e o e-mail dos Dados cadastrais
+        $dados = PessoaContatoService::dadosAtuais($object->id);
+        $object->telefone = $dados['telefone'];
+        $object->email = $dados['email'];
+        TForm::sendData(self::$formName, (object) ['telefone' => PessoaContatoService::formatarTelefone($dados['telefone']), 'email' => $dados['email']]);
+
+        if ($aviso)
+        {
+            TToast::show('warning', $aviso, 'topRight', 'fas:exclamation-triangle');
+        }
     }
 
     protected function carregarContatos(Pessoa $object): void

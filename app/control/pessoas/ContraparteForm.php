@@ -240,7 +240,7 @@ class ContraparteForm extends TPage
         $row2 = $bcontainer_654e625781bfb->addFields([new TLabel("Tipo de pessoa:", '#FF0000', '12px', null, '100%'),$tipo_pessoa_id,$btnBuscarCNPJ],[new TLabel("Nome:", '#ff0000', '12px', null, '100%'),$nome,$btnVerificarNome]);
         $row2->layout = ['col-sm-6',' col-sm-6'];
 
-        $row3 = $bcontainer_654e625781bfb->addFields([new TLabel("Telefone:", null, '12px', null, '100%'),$telefone],[new TLabel("Email:", null, '12px', null, '100%'),$email]);
+        $row3 = $bcontainer_654e625781bfb->addFields([new TLabel("Telefone principal:", null, '12px', null, '100%'),$telefone],[new TLabel("Email:", null, '12px', null, '100%'),$email]);
         $row3->layout = ['col-sm-6','col-sm-6'];
 
         $row4 = $this->form->addFields([$bcontainer_654e625781bfb],[$foto]);

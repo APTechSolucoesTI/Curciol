@@ -971,12 +971,15 @@ class PessoaEditHeaderList extends TPage
             $object = $class::find($id);
             if ($object)
             {
-                // contato principal: o telefone dos Dados e o do contato principal andam juntos (PessoaContatoService)
+                // contato principal: o telefone e o e-mail dos Dados e os do contato principal andam juntos (PessoaContatoService)
                 $contatos_antes = null;
-                if ($column === 'telefone')
+                if (in_array($column, ['telefone', 'email'], true))
                 {
-                    $value = preg_replace('/\D/', '', (string) $value);
-                    PessoaContatoService::exigirTelefoneValido($value);
+                    if ($column === 'telefone')
+                    {
+                        $value = preg_replace('/\D/', '', (string) $value);
+                        PessoaContatoService::exigirTelefoneValido($value);
+                    }
                     $contatos_antes = PessoaContatoService::estadoAtual($object->id);
                 }
 
@@ -986,7 +989,11 @@ class PessoaEditHeaderList extends TPage
 
                 if ($contatos_antes !== null)
                 {
-                    PessoaContatoService::aplicarPrincipal($object->id, $contatos_antes);
+                    $aviso_contato = PessoaContatoService::aplicarPrincipal($object->id, $contatos_antes);
+                    if ($aviso_contato)
+                    {
+                        TToast::show('warning', $aviso_contato, 'topRight', 'fas:exclamation-triangle');
+                    }
                 }
 
             }

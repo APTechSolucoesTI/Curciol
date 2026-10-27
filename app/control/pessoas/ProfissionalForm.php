@@ -234,7 +234,7 @@ class ProfissionalForm extends TPage
         $row3 = $bcontainer_654e607d81be4->addFields([new TLabel("Tipo de profissional:", '#FF0000', '12px', null, '100%'),$tipo_profissional_id],[new TLabel("Registro profissional:", '#000000', '12px', null, '100%'),$registro_profissional],[new TLabel("Orgão emissor:", '#000000', '12px', null, '100%'),$orgao_registro_profissional]);
         $row3->layout = ['col-sm-4','col-sm-4','col-sm-4'];
 
-        $row4 = $bcontainer_654e607d81be4->addFields([new TLabel("Assinatura para documentos:", null, '12px', null),$assinatura],[new TLabel("Telefone:", null, '12px', null, '100%'),$telefone],[new TLabel("Email:", null, '12px', null, '100%'),$email],[new TLabel("Tratamento:", null, '12px', null, '100%'),$tratamento]);
+        $row4 = $bcontainer_654e607d81be4->addFields([new TLabel("Assinatura para documentos:", null, '12px', null),$assinatura],[new TLabel("Telefone principal:", null, '12px', null, '100%'),$telefone],[new TLabel("Email:", null, '12px', null, '100%'),$email],[new TLabel("Tratamento:", null, '12px', null, '100%'),$tratamento]);
         $row4->layout = ['col-sm-3','col-sm-3','col-sm-3','col-sm-3'];
 
         $row5 = $this->form->addFields([$bcontainer_654e607d81be4],[$foto]);

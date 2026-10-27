@@ -6,6 +6,9 @@ class PessoaContato extends TRecord
     const PRIMARYKEY = 'id';
     const IDPOLICY   =  'serial'; // {max, serial}
 
+    const CREATEDAT  = 'created_at';
+    const UPDATEDAT  = 'updated_at';
+
     private Pessoa $pessoa;
 
     
@@ -22,6 +25,10 @@ class PessoaContato extends TRecord
         parent::addAttribute('telefone');
         parent::addAttribute('email');
         parent::addAttribute('principal');
+        parent::addAttribute('nome');
+        parent::addAttribute('representante_id');
+        parent::addAttribute('created_at');
+        parent::addAttribute('updated_at');
             
     }
 

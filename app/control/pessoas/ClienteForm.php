@@ -298,7 +298,7 @@ class ClienteForm extends TPage
         $row2 = $bcontainer_654b89b1308c8->addFields([new TLabel("Tipo de pessoa:", '#FF0000', '13px', null, '100%'),$tipo_pessoa_id,$btnBuscarCNPJ],[new TLabel("Nome:", '#ff0000', '12px', null, '100%'),$nome,$btnVerificarNome]);
         $row2->layout = [' col-sm-4',' col-sm-8'];
 
-        $row3 = $bcontainer_654b89b1308c8->addFields([new TLabel("Telefone:", null, '12px', null, '100%'),$telefone],[new TLabel("Email:", null, '12px', null, '100%'),$email]);
+        $row3 = $bcontainer_654b89b1308c8->addFields([new TLabel("Telefone principal:", null, '12px', null, '100%'),$telefone],[new TLabel("Email:", null, '12px', null, '100%'),$email]);
         $row3->layout = [' col-sm-6',' col-sm-6'];
 
         $row4 = $bcontainer_654b89b1308c8->addFields([new TLabel("Usuário:", null, '14px', null),$usuario],[new TLabel("Senha:", null, '14px', null),$senha]);
@@ -1159,7 +1159,7 @@ class ClienteForm extends TPage
 
             }, $this->pessoa_representantes_legais_pessoa_juridica_criteria); 
 
-            $this->salvarContatos($object, $param, $contatos_antes);
+            $this->salvarContatos($object, $param, $contatos_antes, true); // true: contatos dos representantes legais
 
             if(isset($param['pessoa_endereco_pessoa_list___row__data'])){
                 $quantEnderecos = count($param['pessoa_endereco_pessoa_list___row__data']);

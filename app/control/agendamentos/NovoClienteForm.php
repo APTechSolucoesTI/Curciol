@@ -65,7 +65,7 @@ class NovoClienteForm extends TPage
         $row1 = $this->form->addFields([new TLabel("Tipo de pessoa:", '#FF0000', '12px', null, '100%'),$tipo_pessoa_id],[new TLabel("Nome:", '#ff0000', '12px', null, '100%'),$nome]);
         $row1->layout = ['col-sm-4',' col-sm-8'];
 
-        $row2 = $this->form->addFields([new TLabel("Telefone:", '#FF0000', '12px', null, '100%'),$telefone],[new TLabel("E-mail:", '#FF0000', '12px', null, '100%'),$email]);
+        $row2 = $this->form->addFields([new TLabel("Telefone principal:", '#FF0000', '12px', null, '100%'),$telefone],[new TLabel("E-mail:", '#FF0000', '12px', null, '100%'),$email]);
         $row2->layout = [' col-sm-6','col-sm-6'];
 
         $row3 = $this->form->addFields([new TLabel("Autorizo receber mensagens do escritório pelo WhatsApp", null, '12px', null, '100%'),$aceita_receber_mensagen_whatsapp,new TLabel(new TImage('fas:info-circle #03A9F4')."Por exemplo, lembretes e confirmações de agendamento. Seu contato também é cadastrado no APChat, o atendimento do escritório pelo WhatsApp.", '#607D8B', '8px', 'I', '100%')]);
@@ -131,8 +131,13 @@ class NovoClienteForm extends TPage
 
             $object->store(); // save the object 
 
-            // contato principal com o telefone informado (PessoaContatoService)
-            PessoaContatoService::aplicarPrincipal($object->id, PessoaContatoService::estadoAtual(null));
+            // contato principal com o telefone e o e-mail informados (PessoaContatoService); telefone que ja e principal
+            // de outra pessoa fica como contato nao principal
+            $aviso_contato = PessoaContatoService::aplicarPrincipal($object->id, PessoaContatoService::estadoAtual(null));
+            if ($aviso_contato)
+            {
+                TToast::show('warning', $aviso_contato, 'topRight', 'fas:exclamation-triangle');
+            }
 
             //if (Pessoa::where('documento', '=', $data->documento)->count() > 1)
             //{
