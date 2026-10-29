@@ -53,16 +53,27 @@ try {
 
     // ---------- tela e filtros ----------
     $html = saida(function () { (new AgendamentosFilterForm([]))->show(); });
-    ok('tela: Adicionar com compromisso, bloqueio e excecao; clientes, agendas e periodo', strpos($html, 'Adicionar') !== false && strpos($html, 'CompromissoForm') !== false && strpos($html, 'BloqueioForm') !== false
-        && strpos($html, 'AgendamentoExcecao') !== false && strpos($html, 'cliente_id') !== false && strpos($html, 'dt_busca_fim') !== false && strpos($html, 'Limpar filtros') !== false, substr(strip_tags($html), 0, 200));
+    ok('tela: Adicionar (compromisso, bloqueio, excecao) e Limpar filtros no cabecalho; clientes, agendas, periodo e legenda', strpos($html, 'Adicionar') !== false && strpos($html, 'CompromissoForm') !== false && strpos($html, 'BloqueioForm') !== false
+        && strpos($html, 'AgendamentoExcecao') !== false && strpos($html, 'onLimparFiltros') !== false && strpos($html, 'data-nome="cliente_id"') !== false && strpos($html, 'data-nome="agenda_id"') !== false
+        && strpos($html, 'dt_busca_fim') !== false && strpos($html, 'agd-alternar') !== false && strpos($html, 'Estado do agendamento') !== false, substr(strip_tags($html), 0, 200));
+    ok('tela: periodo vem com hoje e hoje', substr_count($html, 'value="' . date('d/m/Y') . '"') >= 2);
+    ok('tela: agendas na lista com a cor e "Todas" no topo', strpos($html, 'Todas as agendas') !== false && preg_match('/class="fm-item" data-id="\d+"[^>]*data-cor="#[0-9a-f]{6}"/', $html) === 1);
+
+    $json = saida(function () { AgendamentosFilterForm::onBuscarClientes(['q' => 'sil']); });
+    $lista = json_decode($json, true);
+    ok('busca de clientes: lista {id, nome} com o texto', is_array($lista) && (!$lista || (isset($lista[0]['id'], $lista[0]['nome']) && stripos(TratamentosService::removerAcentos($lista[0]['nome']), 'sil') !== false)), substr($json, 0, 200));
+    igual('busca de clientes: menos de 3 letras nao busca', '[]', saida(function () { AgendamentosFilterForm::onBuscarClientes(['q' => 'si']); }));
 
     saida(function () use ($a1, $a2) { AgendamentosFilterForm::onFilter(['cliente_id' => ['5', ''], 'agenda_id' => [(string) $a1, (string) $a2], 'dt_busca' => '01/10/2026', 'dt_busca_fim' => '31/10/2026']); });
     $f = TSession::getValue('agendamentos_filter_data');
     igual('filtro: varios clientes, varias agendas e periodo na sessao', [[5], [$a1, $a2], '2026-10-01', '2026-10-31'], [$f->cliente_id, $f->agenda_id, $f->dt_busca, $f->dt_busca_fim]);
+    $html = saida(function () { (new AgendamentosFilterForm([]))->show(); });
+    ok('tela: agendas filtradas empilhadas abaixo do campo (com a cor)', strpos($html, 'class="fm-marcado" data-id="' . $a1 . '"') !== false && strpos($html, 'name="agenda_id[]" value="' . $a2 . '"') !== false);
+    saida(function () { AgendamentosFilterForm::onFilter(['dt_busca' => date('d/m/Y'), 'dt_busca_fim' => date('d/m/Y')]); });
+    igual('filtro: hoje a hoje (padrao do campo) nao filtra', ['', ''], [TSession::getValue('agendamentos_filter_data')->dt_busca, TSession::getValue('agendamentos_filter_data')->dt_busca_fim]);
 
     $html = saida(function () { (new AgendamentoCalendarFormView([]))->show(); });
-    ok('calendario: faixa com as agendas filtradas e legenda; hora atual', strpos($html, 'agd-faixa') !== false && strpos($html, 'data-agenda="' . $a1 . '"') !== false
-        && strpos($html, 'data-agenda="' . $a2 . '"') !== false && strpos($html, 'Estado do agendamento') !== false && strpos($html, 'nowIndicator') !== false, substr(strip_tags($html), 0, 200));
+    ok('calendario: abre na semana, altura natural (rola com a pagina) e hora atual', strpos($html, 'timeGridWeek') !== false && strpos($html, '"height":"auto"') !== false && strpos($html, 'nowIndicator') !== false && strpos($html, 'agd-faixa') === false, substr(strip_tags($html), 0, 200));
 
     // eventos: so as agendas e o periodo filtrados (sem filtro de cliente, para ter o que contar)
     saida(function () use ($a1, $a2) { AgendamentosFilterForm::onFilter(['agenda_id' => [(string) $a1, (string) $a2], 'dt_busca' => '01/01/2020', 'dt_busca_fim' => '31/12/2030']); });

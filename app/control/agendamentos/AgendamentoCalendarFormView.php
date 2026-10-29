@@ -2,7 +2,7 @@
 /**
  * Calendario da agenda (tela Agendamentos > Agendamentos, dentro de AgendamentosFilterForm).
  * Curciol (29/10/2026): visual repaginado (AgendaVisual): horarios na cor da agenda (agendamento com fundo claro,
- * compromisso tracejado, bloqueio listrado), faixa com as agendas para mostrar/esconder e "Calendario e legenda".
+ * compromisso tracejado, bloqueio listrado), altura natural (rola com a pagina); filtros e legenda em AgendamentosFilterForm.
  * Filtros (sessao agendamentos_filter_data): varios clientes, varias agendas e periodo (inicio e fim).
  */
 class AgendamentoCalendarFormView extends TPage
@@ -37,7 +37,9 @@ class AgendamentoCalendarFormView extends TPage
 
         $agendas_id = TSession::getValue('agendamentos_filter_agenda_id');
 
-        $this->fc->enableFullHeight();
+        // altura natural: a agenda rola junto com a pagina (antes tinha rolagem propria)
+        $this->fc->setOption('height', 'auto');
+        $this->fc->setOption('stickyHeaderDates', true);
         $this->fc->setEventClickAction(new TAction(array($this, 'onClick')));
         $this->fc->id = 'agendamentos';
 
@@ -54,11 +56,10 @@ class AgendamentoCalendarFormView extends TPage
                 $horario_final[$key] =   $agenda->horario_final;
                 $strohra_final[$key] = strtotime($horario_final[$key]);
 
+                // a agenda sempre abre na semana (29/10/2026); com uma agenda so, a duracao do horario e a dela
                 if(count($agendas_id)>1){
-                    $this->fc->setCurrentView('agendaWeek');
                     $duracao=60;
                 }else{
-                    $this->fc->setCurrentView($agenda->visualizacao_inicial);
                     $duracao = $agenda->duracao;
                 }
             }
@@ -78,17 +79,10 @@ class AgendamentoCalendarFormView extends TPage
             }
         }
 
-        // faixa: as agendas filtradas (sem filtro, todas as da unidade) e a legenda dos estados
-        $agendas = $agendas_id
-            ? Agenda::where('id', 'in', $agendas_id)->orderBy('nome')->load()
-            : Agenda::where('escritorio_id', 'in', "(SELECT id FROM escritorio WHERE system_unit_id = '" . (int) TSession::getValue('userunitid') . "')")->orderBy('nome')->load();
-        $estados = EstadoAgenda::where('id', '>', 0)->orderBy('id')->load();
         TTransaction::close();
 
         parent::add(AgendaVisual::estilo());
-        parent::add(AgendaVisual::faixa($agendas ?: [], $estados ?: []));
         parent::add( $this->fc );
-        parent::add(TScript::create(AgendaVisual::script(), false));
     }
 
     /** Ids do filtro da sessao (aceita o formato antigo, um id so). */
