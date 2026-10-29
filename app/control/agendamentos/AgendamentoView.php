@@ -180,6 +180,11 @@ class AgendamentoView extends TPage
             {
                 throw new Exception('Não é possível cancelar um agendamento confirmado. Entre em contato com a clínica!');
             }
+            // com financeiro gerado nao cancela (29/10/2026)
+            if (AgendamentoFinanceiroService::ficha((int) $agendamento->id))
+            {
+                throw new Exception('Não é possível cancelar este agendamento. Entre em contato com o escritório!');
+            }
 
             $agendamento->estado_agenda_id = EstadoAgenda::CANCELADO;
             $agendamento->store();

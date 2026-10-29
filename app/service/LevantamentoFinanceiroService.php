@@ -313,6 +313,10 @@ class LevantamentoFinanceiroService
         if ($g && ($g['papel'] === 'RECEBER' || $bloqueiaPagar)) {
             throw new Exception('Conta gerada pelo financeiro do levantamento. Para corrigir, use "Desfazer financeiro" no pagamento da requisição.');
         }
+        // conta a receber gerada pelo financeiro do agendamento: so pelo "Desfazer financeiro" do agendamento
+        if ($motivo = AgendamentoFinanceiroService::motivoConta($contaId)) {
+            throw new Exception($motivo);
+        }
         // conta a pagar de repasse a colaborador: so muda pelo estorno do recebimento que a gerou
         if ($bloqueiaPagar) {
             RepasseColaboradorService::exigirNaoRepasse($contaId);

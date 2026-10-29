@@ -174,6 +174,9 @@ class AgendamentoFormView extends TPage
         $row7 = $this->form->addFields([$btncancelar,$btnconfirmar,$btnnaocompareceu,$btniniciar,$btnentrar,$btnvalidar]);
         $row7->layout = [' col-sm-12'];
 
+        // Curciol (29/10/2026): financeiro do agendamento (gerar/desfazer so grupo Financeiro; AgendamentoFinanceiroService)
+        $this->adicionarFinanceiro($agendamento);
+
         $this->form->appendPage("Procedimentos");
 
         $this->agendamento_procedimento_agendamento_id_list = new TQuickGrid;
@@ -506,6 +509,46 @@ class AgendamentoFormView extends TPage
 
     }
 
+    /**
+     * Bloco "Financeiro": sem financeiro, o botao "Gerar financeiro" (janela AgendamentoFinanceiroForm); com financeiro, a
+     * conta a receber gerada (situacao e link) e o "Desfazer financeiro". Gerar/desfazer so para quem tem a janela.
+     */
+    private function adicionarFinanceiro(Agendamento $agendamento): void
+    {
+        $ficha = AgendamentoFinanceiroService::ficha((int) $agendamento->id);
+        $pode = AgendamentoFinanceiroForm::podeGerar();
+        if (!$ficha && (!$pode || (string) $agendamento->estado_agenda_id === (string) EstadoAgenda::CANCELADO)) {
+            return;
+        }
+
+        $this->form->addContent([new TFormSeparator("Financeiro", '#333', '18', '#eee')]);
+        if (!$ficha) {
+            $gerar = new TActionLink(" Gerar financeiro", new TAction(['AgendamentoFinanceiroForm', 'onShow'], ['agendamento_id' => $agendamento->id]), '#1565C0', '14px', 'B', 'fas:hand-holding-usd #1565C0');
+            $gerar->class = 'btn btn-default';
+            $row = $this->form->addFields([$gerar]);
+            $row->layout = [' col-sm-12'];
+            return;
+        }
+
+        $conta = Conta::find((int) $ficha->conta_receber_id);
+        $quitada = $conta && in_array($conta->quitada, ['S', 'T'], true);
+        $situacao = $quitada ? "<span class='label label-success'>Recebida</span>" : "<span class='label label-warning'>Em aberto</span>";
+        $texto = new TElement('div');
+        $texto->style = 'font-size:14px; padding:6px 0';
+        $texto->add('Conta a receber nº ' . (int) $ficha->conta_receber_id . ' - R$ ' . number_format((float) $ficha->valor, 2, ',', '.') . ' ' . $situacao);
+
+        $ver = new TActionLink(" Ver conta a receber", new TAction(['ContaFormView', 'onShow'], ['key' => (int) $ficha->conta_receber_id]), '#1565C0', '14px', 'B', 'fas:file-invoice-dollar #1565C0');
+        $ver->class = 'btn btn-default';
+        $campos = [$texto, $ver];
+        if ($pode) {
+            $desfazer = new TActionLink(" Desfazer financeiro", new TAction(['AgendamentoFinanceiroForm', 'onDesfazer'], ['key' => $agendamento->id]), '#F44336', '14px', 'B', 'fas:undo #F44336');
+            $desfazer->class = 'btn btn-default';
+            $campos[] = $desfazer;
+        }
+        $row = $this->form->addFields($campos);
+        $row->layout = [' col-sm-12'];
+    }
+
     public  function onVisualizarCliente($param = null) 
     {
         try 
@@ -535,6 +578,8 @@ class AgendamentoFormView extends TPage
             {
                 throw new Exception('Você não pode cancelar esse agendamento!');
             }
+            // com financeiro gerado, desfazer antes (29/10/2026)
+            AgendamentoFinanceiroService::exigirCancelavel((int) $agendamento->id);
 
             $agendamento->estado_agenda_id = EstadoAgenda::CANCELADO;
             $agendamento->store();
@@ -748,9 +793,8 @@ class AgendamentoFormView extends TPage
             $atendimento->store();
             $agendamento->atendimento = $atendimento;
 
-            if($atendimento->valor_total>0){
-                AtendimentoService::gerarContaReceber($atendimento);
-            }
+            // Curciol (29/10/2026): a conta a receber do agendamento nao nasce mais no Confirmar - so pelo
+            // "Gerar financeiro" (com parceria de repasse; AgendamentoFinanceiroService)
 
             TToast::show('success', 'Estado alterado com sucesso');
 

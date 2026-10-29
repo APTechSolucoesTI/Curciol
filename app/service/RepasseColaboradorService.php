@@ -258,7 +258,7 @@ class RepasseColaboradorService
                        lp.dt_vencimento AS vencimento, lp.dt_pagamento AS pago_em,
                        xp.lote_pagamento_id AS lote_id, xp.compensado, xp.data_compensacao,
                        lr.parcela, cr.total_parcelas, cr.descricao AS receber_descricao,
-                       cr.contrato_id, ct.numero AS contrato_numero,
+                       cr.contrato_id, ct.numero AS contrato_numero, cr.agendamento_id,
                        COALESCE(cr.requisicao_pagamento_id, lf.requisicao_pagamento_id) AS requisicao_id,
                        (SELECT trp.nome FROM requisicao_pagamento rq JOIN tipos_requisicao_pagamento trp ON trp.id = rq.tipos_requisicao_pagamento_id
                          WHERE rq.id = COALESCE(cr.requisicao_pagamento_id, lf.requisicao_pagamento_id)) AS requisicao_tipo,
@@ -296,6 +296,8 @@ class RepasseColaboradorService
             $partes[] = 'Requisição' . (!empty($r->requisicao_tipo) ? ' ' . $r->requisicao_tipo : '') . ($r->data_deposito ? ' (depósito de ' . date('d/m/Y', strtotime($r->data_deposito)) . ')' : '');
         } elseif ($r->contrato_id) {
             $partes[] = 'Contrato' . ($r->contrato_numero ? ' ' . $r->contrato_numero : '') . ((int) $r->total_parcelas > 1 ? ' - parcela ' . (int) $r->parcela . '/' . (int) $r->total_parcelas : '');
+        } elseif (!empty($r->agendamento_id)) {
+            $partes[] = 'Agendamento nº ' . (int) $r->agendamento_id;
         } elseif (trim((string) ($r->receber_descricao ?? '')) !== '') {
             // conta a receber avulsa (sem processo, requisicao nem contrato): a descricao dela
             $partes[] = trim((string) $r->receber_descricao) . ((int) $r->total_parcelas > 1 ? ' - parcela ' . (int) $r->parcela . '/' . (int) $r->total_parcelas : '');
@@ -320,6 +322,7 @@ class RepasseColaboradorService
         $pagar->contrato_id = $receber->contrato_id ?: null;
         $pagar->processo_id = $receber->processo_id ?: null;
         $pagar->requisicao_pagamento_id = $receber->requisicao_pagamento_id ?: null;
+        $pagar->agendamento_id = $receber->agendamento_id ?: null;
         $pagar->data_emissao = $extra['data_recebimento'];
         $pagar->total_conta = $valor;
         $pagar->total_parcelas = 1;

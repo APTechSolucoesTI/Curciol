@@ -598,6 +598,11 @@ class AgendamentoCalendarForm extends TPage
                 TTransaction::open(self::$database);
                 $class = self::$activeRecord;
                 $agendamento = new $class($key);
+                // com financeiro gerado, desfazer antes (29/10/2026)
+                if ($ficha = AgendamentoFinanceiroService::ficha((int) $agendamento->id))
+                {
+                    throw new Exception('Este agendamento já tem financeiro gerado (conta a receber nº ' . (int) $ficha->conta_receber_id . ') e não pode ser excluído. Use "Desfazer financeiro" no agendamento antes.');
+                }
                 AgendamentoProcedimento::where('agendamento_id','=',$agendamento->id)->delete();
                 EstadoAgendamento::where('agendamento_id','=',$agendamento->id)->delete();
                 EstadoAgendamento::where('agendamento_id','=',$agendamento->id)->delete();

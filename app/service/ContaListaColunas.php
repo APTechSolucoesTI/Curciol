@@ -1,7 +1,8 @@
 <?php
 /**
  * Colunas e filtros de cabecalho compartilhados por Contas a pagar e Contas a receber (22/10/2026):
- * - Origem: requisicao de pagamento e/ou contrato que gerou a conta (com link), ou "Manual".
+ * - Origem: so de onde a conta surgiu (29/10/2026): requisicao de pagamento (mesmo com contrato ligado), senao o
+ *   contrato, senao o agendamento (com link), ou "Manual".
  *   Os formularios manuais nao deixam escolher requisicao nem contrato; esses campos so sao preenchidos pelas
  *   geracoes automaticas (levantamento, financeiro do contrato, repasse ao colaborador e conta a pagar ao cliente).
  * - Vencimento: proxima parcela em aberto; conta quitada (ou sem proximo vencimento) mostra o da ultima parcela.
@@ -25,14 +26,14 @@ class ContaListaColunas
         $numero->placeholder = 'Número do documento';
 
         $origem = new TCombo('origem_col');
-        $origem->addItems(['manual' => 'Manual', 'requisicao' => 'Requisição', 'contrato' => 'Contrato']);
+        $origem->addItems(['manual' => 'Manual', 'requisicao' => 'Requisição', 'contrato' => 'Contrato', 'agendamento' => 'Agendamento']);
         $origem->setChangeAction($buscar);
         $origem->setSize('100%');
         $origemNumero = new TEntry('origem_numero_col');
         $origemNumero->exitOnEnter();
         $origemNumero->setExitAction($buscar);
         $origemNumero->setSize('100%');
-        $origemNumero->placeholder = 'Nº da requisição ou do contrato';
+        $origemNumero->placeholder = 'Nº da requisição, do contrato ou do agendamento';
 
         $totalDe = new TNumeric('total_col_ini', 2, ',', '.', true);
         $totalDe->setExitAction($buscar);
@@ -68,16 +69,16 @@ class ContaListaColunas
         return TElement::tag('td', $div);
     }
 
+    /** So de onde a conta surgiu: a requisicao (mesmo com contrato ligado), senao o contrato, senao o agendamento. */
     public static function origem($conta): string
     {
-        $partes = [];
         if (!empty($conta->requisicao_pagamento_id))
         {
             $id = (int) $conta->requisicao_pagamento_id;
             // abre na aba do cliente a que a conta se refere (a requisicao pode ter varios clientes)
             $rpc = !empty($conta->id) ? LevantamentoFinanceiroService::clienteDaRequisicao((int) $conta->id) : null;
             $aba = $rpc ? "&requisicao_pagamento_cliente_id={$rpc}" : '';
-            $partes[] = "<a generator='adianti' style='color:#1a73e8; text-decoration:underline' href='index.php?class=RequisicaoPagamentoVisualizacao&method=onShow&key={$id}{$aba}&register_state=false'>Requisição nº {$id}</a>";
+            return "<a generator='adianti' style='color:#1a73e8; text-decoration:underline' href='index.php?class=RequisicaoPagamentoVisualizacao&method=onShow&key={$id}{$aba}&register_state=false'>Requisição nº {$id}</a>";
         }
         if (!empty($conta->contrato_id))
         {
@@ -93,9 +94,14 @@ class ContaListaColunas
                 TTransaction::close();
             }
             $numero = $contrato && trim((string) $contrato->numero) !== '' ? htmlspecialchars((string) $contrato->numero) : "#{$id}";
-            $partes[] = "<a generator='adianti' style='color:#1a73e8; text-decoration:underline' href='index.php?class=ContratoFormView&method=onShow&key={$id}&register_state=false'>Contrato {$numero}</a>";
+            return "<a generator='adianti' style='color:#1a73e8; text-decoration:underline' href='index.php?class=ContratoFormView&method=onShow&key={$id}&register_state=false'>Contrato {$numero}</a>";
         }
-        return $partes ? implode('<br>', $partes) : '<span style="color:#888">Manual</span>';
+        if (!empty($conta->agendamento_id))
+        {
+            $id = (int) $conta->agendamento_id;
+            return "<a generator='adianti' style='color:#1a73e8; text-decoration:underline' href='index.php?class=AgendamentoFormView&method=onShow&key={$id}&register_state=false'>Agendamento nº {$id}</a>";
+        }
+        return '<span style="color:#888">Manual</span>';
     }
 
     /** Vencimento exibido (aaaa-mm-dd) ou null. */
@@ -147,11 +153,13 @@ class ContaListaColunas
                                      'ilike', '%' . TratamentosService::removerAcentos($valor('numero_documento_col')) . '%');
         }
 
+        // a mesma regra da coluna: so a origem (requisicao, senao contrato, senao agendamento)
         $tipo = $valor('origem_col');
         if ($tipo == 'manual')
         {
             $filtros[] = new TFilter('requisicao_pagamento_id', 'IS', NULL);
             $filtros[] = new TFilter('contrato_id', 'IS', NULL);
+            $filtros[] = new TFilter('agendamento_id', 'IS', NULL);
         }
         elseif ($tipo == 'requisicao')
         {
@@ -160,19 +168,30 @@ class ContaListaColunas
         elseif ($tipo == 'contrato')
         {
             $filtros[] = new TFilter('contrato_id', 'IS NOT', NULL);
+            $filtros[] = new TFilter('requisicao_pagamento_id', 'IS', NULL);
+        }
+        elseif ($tipo == 'agendamento')
+        {
+            $filtros[] = new TFilter('agendamento_id', 'IS NOT', NULL);
+            $filtros[] = new TFilter('requisicao_pagamento_id', 'IS', NULL);
+            $filtros[] = new TFilter('contrato_id', 'IS', NULL);
         }
 
         $numero = $valor('origem_numero_col');
         if ($numero !== '' AND $tipo != 'manual')
         {
             $condicoes = [];
-            if ($tipo != 'contrato' AND ctype_digit($numero))
+            if (in_array($tipo, ['', 'requisicao'], true) AND ctype_digit($numero))
             {
                 $condicoes[] = 'c.requisicao_pagamento_id = ' . (int) $numero;
             }
-            if ($tipo != 'requisicao')
+            if (in_array($tipo, ['', 'contrato'], true))
             {
                 $condicoes[] = "c.contrato_id IN (SELECT ct.id FROM contrato ct WHERE CAST(ct.numero AS TEXT) ILIKE '%" . SqlSeguro::texto($numero) . "%')";
+            }
+            if (in_array($tipo, ['', 'agendamento'], true) AND ctype_digit($numero))
+            {
+                $condicoes[] = 'c.agendamento_id = ' . (int) $numero;
             }
             $filtros[] = new TFilter('id', 'in', '(SELECT c.id FROM conta c WHERE ' . ($condicoes ? implode(' OR ', $condicoes) : 'false') . ')');
         }
