@@ -56,6 +56,9 @@ try {
     ok('tela: Adicionar (compromisso, bloqueio, excecao) e Limpar filtros no cabecalho; clientes, agendas, periodo e legenda', strpos($html, 'Adicionar') !== false && strpos($html, 'CompromissoForm') !== false && strpos($html, 'BloqueioForm') !== false
         && strpos($html, 'AgendamentoExcecao') !== false && strpos($html, 'onLimparFiltros') !== false && strpos($html, 'data-nome="cliente_id"') !== false && strpos($html, 'data-nome="agenda_id"') !== false
         && strpos($html, 'dt_busca_fim') !== false && strpos($html, 'agd-alternar') !== false && strpos($html, 'Estado do agendamento') !== false, substr(strip_tags($html), 0, 200));
+    $pos = function ($t) use ($html) { $p = strpos($html, $t); return $p === false ? -1 : $p; };
+    ok('tela: Limpar filtros entre Novo agendamento e Atualizar', $pos('Novo agendamento') > 0 && $pos('Novo agendamento') < $pos('Limpar filtros') && $pos('Limpar filtros') < $pos('Atualizar'));
+    ok('tela: filtros numa linha so (clientes, agendas, periodo) e a legenda no canto direito', $pos('class="agd-filtros"') > 0 && $pos('agd-filtro-largo') < $pos('agd-filtro-periodo') && $pos('agd-filtro-periodo') < $pos('agd-filtro-legenda') && $pos('agd-filtro-legenda') < $pos('id="agd-legenda"'));
     ok('tela: periodo vem com hoje e hoje', substr_count($html, 'value="' . date('d/m/Y') . '"') >= 2);
     ok('tela: agendas na lista com a cor e "Todas" no topo', strpos($html, 'Todas as agendas') !== false && preg_match('/class="fm-item" data-id="\d+"[^>]*data-cor="#[0-9a-f]{6}"/', $html) === 1);
 

@@ -70,12 +70,19 @@ class AgendaVisual
     public static function estilo(): string
     {
         return '<style>
+            .agd-filtros { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px 14px; width: 100%; }
+            .agd-filtro { display: flex; flex-direction: column; gap: 3px; }
+            .agd-filtro label { margin: 0; }
+            .agd-filtro-largo { width: 290px; max-width: 100%; }
+            .agd-filtro-periodo { width: 230px; max-width: 100%; }
+            .agd-filtro-legenda { margin-left: auto; align-items: flex-start; }
+            .agd-filtro-legenda .agd-alternar { padding: 0; }
             .agd-alternar { border: 0; background: transparent; color: #2b6a9b; font-weight: 600; height: 28px; padding: 0 6px; cursor: pointer; white-space: nowrap; }
             .agd-alternar i { transition: transform .15s; font-size: 10px; }
             .agd-alternar .agd-txt-fechar, .agd-alternar.agd-aberta .agd-txt-abrir { display: none; }
             .agd-alternar.agd-aberta .agd-txt-fechar { display: inline; }
             .agd-alternar.agd-aberta i { transform: rotate(90deg); }
-            .agd-painel { display: none; flex-wrap: wrap; gap: 12px 40px; padding: 6px 4px 4px; font-size: 12px; }
+            .agd-painel { display: none; flex-wrap: wrap; gap: 8px 24px; padding: 4px 0 0; font-size: 12px; }
             .agd-painel.agd-aberta { display: flex; }
             .agd-legenda { display: flex; flex-direction: column; gap: 5px; min-width: 170px; }
             .agd-leg { display: flex; align-items: center; gap: 7px; }

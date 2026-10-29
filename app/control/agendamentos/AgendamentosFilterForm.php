@@ -1,8 +1,9 @@
 <?php
 /**
  * Tela Agendamentos > Agendamentos (agenda). Curciol (29/10/2026): visual repaginado no padrao do Adianti:
- * - cabecalho: Visualizar como listagem, Limpar filtros, Adicionar (compromisso, bloqueio e excecao), Cliente,
- *   Novo agendamento, Atualizar;
+ * - cabecalho: Visualizar como listagem, Adicionar (compromisso, bloqueio e excecao), Cliente, Novo agendamento,
+ *   Limpar filtros, Atualizar;
+ * - filtros numa linha so: clientes, agendas e periodo juntos a esquerda, a legenda no canto direito;
  * - filtros: clientes e agendas (FiltroMultiplo: campo fino, lista que so fecha ao clicar fora, "Todas" no topo,
  *   marcados empilhados abaixo, agendas com a cor), periodo (o calendario abre so pelo icone; vem com hoje e hoje,
  *   que nao filtra: a agenda abre na semana) e a Legenda, que abre/fecha ao lado;
@@ -94,16 +95,30 @@ class AgendamentosFilterForm extends TPage
         $calendario->add($loadingContainer);
         $this->calendario = $calendario;
 
-        $botaoLegenda = new TElement('div');
-        $botaoLegenda->add(AgendaVisual::botaoLegenda());
-
-        $row1 = $this->form->addFields([new TLabel("Clientes:", null, '14px', null, '100%'), $clientes], [new TLabel("Agendas:", null, '14px', null, '100%'), $agendasCampo],
-                                       [new TLabel("Período:", null, '14px', null, '100%'), $periodo], [new TLabel("&nbsp;", null, '14px', null, '100%'), $botaoLegenda]);
-        $row1->layout = ['col-sm-4', 'col-sm-4', 'col-sm-3', 'col-sm-1'];
-
+        // uma linha so: clientes, agendas e periodo juntos a esquerda; a legenda no canto direito
+        $this->form->addField($periodo);
+        $bloco = function (string $classe, string $rotulo, $campo) {
+            $div = new TElement('div');
+            $div->class = 'agd-filtro ' . $classe;
+            $div->add(new TLabel($rotulo, null, '14px', null));
+            $div->add($campo);
+            return $div;
+        };
         $corExemplo = $agendasMarcadas ? reset($agendasMarcadas)['cor'] : ($agendas ? reset($agendas)['cor'] : null);
-        $row2 = $this->form->addFields([AgendaVisual::legenda($estados ?: [], $corExemplo)]);
-        $row2->layout = ['col-sm-12'];
+        $legenda = new TElement('div');
+        $legenda->class = 'agd-filtro agd-filtro-legenda';
+        $legenda->add(AgendaVisual::botaoLegenda());
+        $legenda->add(AgendaVisual::legenda($estados ?: [], $corExemplo));
+
+        $linha = new TElement('div');
+        $linha->class = 'agd-filtros';
+        $linha->add($bloco('agd-filtro-largo', 'Clientes:', $clientes));
+        $linha->add($bloco('agd-filtro-largo', 'Agendas:', $agendasCampo));
+        $linha->add($bloco('agd-filtro-periodo', 'Período:', $periodo));
+        $linha->add($legenda);
+
+        $row1 = $this->form->addFields([$linha]);
+        $row1->layout = ['col-sm-12'];
 
         $row3 = $this->form->addFields([$calendario]);
         $row3->layout = [' col-sm-12'];
@@ -111,8 +126,6 @@ class AgendamentosFilterForm extends TPage
         // create the form actions
         $btn_onshow = $this->form->addHeaderAction("Visualizar como listagem", new TAction(['AgendaAgendamentoList', 'onShow']), 'fas:list-ul #009688');
         $this->btn_onshow = $btn_onshow;
-
-        $this->form->addHeaderAction("Limpar filtros", new TAction([__CLASS__, 'onLimparFiltros'], ['static' => '1']), 'fas:eraser #dd5a43');
 
         // compromisso, bloqueio e excecao juntos num menu
         $adicionar = new TDropDown('Adicionar', 'fas:calendar-plus #2196F3');
@@ -127,6 +140,8 @@ class AgendamentosFilterForm extends TPage
 
         $btn_onshow = $this->form->addHeaderAction("Novo agendamento", new TAction(['AgendamentoFormBtn', 'onShow']), 'fas:calendar-plus #9C27B0');
         $this->btn_onshow = $btn_onshow;
+
+        $this->form->addHeaderAction("Limpar filtros", new TAction([__CLASS__, 'onLimparFiltros'], ['static' => '1']), 'fas:eraser #dd5a43');
 
         $btnAtualiza = $this->form->addHeaderAction("Atualizar", new TAction([$this, 'onAtualiza']), 'fas:sync-alt #000000');
         $this->btnAtualiza = $btnAtualiza;
