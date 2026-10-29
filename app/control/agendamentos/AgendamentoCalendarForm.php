@@ -203,6 +203,9 @@ class AgendamentoCalendarForm extends TPage
         $row6 = $this->form->addFields([$this->fieldList_procedimentos]);
         $row6->layout = ['col-sm-12'];
 
+        // Curciol (29/10/2026): parceria de repasse do agendamento (usada no Gerar financeiro) e a divisao por colaborador
+        AgendamentoParceriaCampo::adicionar($this->form, self::$formName);
+
         $row7 = $this->form->addFields([new TLabel("Observação:", null, '14px', null, '100%'),$observacao]);
         $row7->layout = [' col-sm-12'];
 
@@ -504,6 +507,16 @@ class AgendamentoCalendarForm extends TPage
             if ($new)
             {
                 $object->estado_agenda_id = EstadoAgenda::AGENDADO;
+            }
+            else
+            {
+                // com financeiro gerado, a parceria e a da conta a receber: trocar so desfazendo o financeiro
+                $ficha = AgendamentoFinanceiroService::ficha((int) $object->id);
+                if ($ficha && (int) $ficha->parceria_levantamento_id !== (int) $object->parceria_levantamento_id)
+                {
+                    throw new Exception('Este agendamento já tem financeiro gerado com a parceria ' . (ParceriaLevantamento::find((int) $ficha->parceria_levantamento_id)->nome ?? '')
+                        . '. Para trocar a parceria, use "Desfazer financeiro" no agendamento antes.');
+                }
             }
 
             if (! $object->validate()) {

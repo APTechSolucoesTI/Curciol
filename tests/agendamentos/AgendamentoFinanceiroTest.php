@@ -31,7 +31,7 @@ $temporal = (int) $c->query("SELECT id FROM parceria_levantamento WHERE tipo = '
 $cc = (int) $c->query("SELECT id FROM conta_caixa WHERE COALESCE(ativo, 'S') <> 'N' AND (dt_inicial IS NULL OR dt_inicial < current_date - 1) ORDER BY id LIMIT 1")->fetchColumn();
 $pix = (int) $c->query("SELECT id FROM tipo_pagamento WHERE COALESCE(ativo, 'S') <> 'N' AND id <> " . (int) TipoPagamento::CHEQUE . " ORDER BY id LIMIT 1")->fetchColumn();
 $categoria = (int) $c->query("SELECT id FROM categoria_conta WHERE lower(nome) = 'recebimentos de agendamentos'")->fetchColumn();
-$documento = (int) $c->query("SELECT id FROM tipo_documento_financeiro WHERE lower(nome) = 'agendamento'")->fetchColumn();
+$documento = (int) $c->query("SELECT id FROM tipo_documento_financeiro WHERE nome = 'Atendimento'")->fetchColumn();
 $unidade = (int) $c->query("SELECT e.system_unit_id FROM agenda a JOIN escritorio e ON e.id = a.escritorio_id WHERE a.id = {$agendaId}")->fetchColumn();
 TTransaction::close();
 TSession::setValue('userid', $userId);
@@ -91,12 +91,17 @@ $novoAgendamento = function (string $nome, float $valor) use (&$criados, $agenda
 };
 $dados = function (array $extra = []) use ($parceria, $cc, $pix, $categoria, $documento) {
     return $extra + ['valor' => 150.00, 'parceria_levantamento_id' => $parceria, 'conta_caixa_id' => $cc, 'tipo_pagamento_id' => $pix,
-        'categoria_conta_id' => $categoria, 'tipo_documento_financeiro_id' => $documento, 'vencimento' => date('Y-m-d'), 'quitar' => 'N', 'compensado' => 'N'];
+        'categoria_conta_id' => $categoria, 'tipo_documento_financeiro_id' => $documento, 'vencimento' => date('Y-m-d'), 'quitacao' => 'N'];
 };
 $lotes = [];
 
 try {
-    ok('migracao: categoria e documento do agendamento existem; parceria fixa de teste existe', $categoria > 0 && $documento > 0 && $parceria > 0 && $cc > 0 && $agendaId > 0);
+    ok('migracao: categoria do agendamento e documento Atendimento existem; parceria fixa de teste existe', $categoria > 0 && $documento > 0 && $parceria > 0 && $cc > 0 && $agendaId > 0);
+    igual('migracao: o tipo de documento Agendamento saiu', 0, count(q("SELECT 1 FROM tipo_documento_financeiro WHERE nome = 'Agendamento' AND codigo = 'Agd'")));
+    TTransaction::open('escritorio');
+    $part = AgendamentoFinanceiroService::participantes($parceria);
+    TTransaction::close();
+    igual('participantes da parceria: somam 100% e um fica com a diferenca', [100.0, 1], [round(array_sum(array_column($part, 'percentual')), 2), count(array_filter(array_column($part, 'diferenca')))]);
 
     // ---------- gerar em aberto ----------
     $a1 = $novoAgendamento('ABERTO', 150);
@@ -108,8 +113,10 @@ try {
 
     lanca('parceria por tempo e recusada', function () use ($a1, $dados, $temporal) { AgendamentoFinanceiroService::gerar($a1, $dados(['parceria_levantamento_id' => $temporal])); }, 'percentual fixo');
     lanca('sem valor e recusado', function () use ($a1, $dados) { AgendamentoFinanceiroService::gerar($a1, $dados(['valor' => 0])); }, 'valor');
+    lanca('sem informar se esta quitado e recusado', function () use ($a1, $dados) { AgendamentoFinanceiroService::gerar($a1, $dados(['quitacao' => 'X'])); }, 'quitado');
 
     $ficha = AgendamentoFinanceiroService::gerar($a1, $dados());
+    igual('agendamento sem parceria: a escolhida no gerar fica gravada nele', $parceria, (int) q("SELECT parceria_levantamento_id p FROM agendamento WHERE id = {$a1}")[0]['p']);
     $conta = q("SELECT id, quitada, total_conta, agendamento_id, tipo_conta_id FROM conta WHERE id = {$ficha->conta_receber_id}")[0];
     igual('gerar em aberto: conta a receber em aberto, ligada ao agendamento', ['N', 150.0, $a1], [$conta['quitada'], (float) $conta['total_conta'], (int) $conta['agendamento_id']]);
     $lps = q("SELECT pessoa_id, valor FROM lancamento_profissional WHERE lancamento_id = {$ficha->lancamento_id} ORDER BY id");
@@ -147,12 +154,12 @@ try {
 
     // ---------- gerar ja quitado ----------
     $a2 = $novoAgendamento('QUITADO', 200);
-    $ficha2 = AgendamentoFinanceiroService::gerar($a2, $dados(['valor' => 180.00, 'quitar' => 'S', 'compensado' => 'S']));
+    $ficha2 = AgendamentoFinanceiroService::gerar($a2, $dados(['valor' => 180.00, 'quitacao' => 'C']));
     $conta2 = q("SELECT c.quitada, l.dt_pagamento, l.extrato_id, x.compensado, x.entrada_valor FROM conta c JOIN lancamento l ON l.conta_id = c.id LEFT JOIN extrato x ON x.id = l.extrato_id WHERE c.id = {$ficha2->conta_receber_id}")[0];
     igual('gerar quitado: conta quitada, recebimento compensado no extrato com o valor editado', ['S', 'S', 180.0], [$conta2['quitada'], $conta2['compensado'], (float) $conta2['entrada_valor']]);
     $soma = (float) (q("SELECT COALESCE(SUM(valor), 0) s FROM repasse_colaborador WHERE conta_receber_id = {$ficha2->conta_receber_id}")[0]['s']);
     ok('gerar quitado: repasses gerados na hora', $soma > 0, (string) $soma);
-    ok('gerar quitado: desfazer bloqueado (conta recebida)', strpos((string) AgendamentoFinanceiroService::motivoBloqueioDesfazer($a2), 'já foi recebida') !== false);
+    ok('gerar quitado: desfazer bloqueado (conta recebida)', strpos((string) AgendamentoFinanceiroService::motivoBloqueioDesfazer($a2), 'Estorne/desquite') !== false);
     $s = saida(function () use ($a2) { (new AgendamentoCalendarForm([]))->onDelete(['key' => $a2, 'id' => $a2, 'delete' => 1, 'view' => 'month', 'dt_inicial' => date('Y-m-d H:i')]); });
     ok('com financeiro nao exclui o agendamento', strpos($s, 'não pode ser excluído') !== false && count(q("SELECT 1 FROM agendamento WHERE id = {$a2}")) === 1, substr(strip_tags($s), 0, 200));
 
@@ -167,7 +174,24 @@ try {
     $html = saida(function () use ($a3) { (new AgendamentoFormView(['key' => $a3]))->show(); });
     ok('tela do agendamento sem financeiro: botao Gerar financeiro', strpos($html, 'Gerar financeiro') !== false);
     $html = saida(function () use ($a3) { (new AgendamentoFinanceiroForm(['agendamento_id' => $a3]))->show(); });
-    ok('janela: campos e valor do agendamento', strpos($html, 'parceria_levantamento_id') !== false && strpos($html, 'conta_caixa_id') !== false && strpos($html, 'quitar') !== false && strpos($html, '99,90') !== false, substr(strip_tags($html), 0, 200));
+    ok('janela: campos e valor do agendamento', strpos($html, 'parceria_levantamento_id') !== false && strpos($html, 'conta_caixa_id') !== false && strpos($html, 'quitacao') !== false && strpos($html, 'Sim, já quitado e compensado') !== false && strpos($html, '99,90') !== false, substr(strip_tags($html), 0, 200));
+    // ---------- parceria escolhida no agendamento ----------
+    $a4 = $novoAgendamento('PARCERIA', 120);
+    $outra = (int) q("SELECT id FROM parceria_levantamento WHERE tipo = 'FIXA' AND ativo = 'S' AND id <> {$parceria} ORDER BY id LIMIT 1")[0]['id'];
+    TTransaction::open('escritorio'); TTransaction::get()->exec("UPDATE agendamento SET parceria_levantamento_id = {$parceria} WHERE id = {$a4}"); TTransaction::close();
+    $html = saida(function () use ($a4) { (new AgendamentoFormView(['key' => $a4]))->show(); });
+    ok('aba Financeiro: parceria do agendamento e divisao por colaborador', strpos($html, 'Previdência') !== false && strpos($html, 'Divisão por colaborador') !== false && strpos($html, 'Porcentagem') !== false, substr(strip_tags($html), 0, 200));
+    $html = saida(function () use ($a4) { (new AgendamentoFinanceiroForm(['agendamento_id' => $a4]))->show(); });
+    ok('janela: parceria do agendamento so mostrada (sem combo) e divisao ja aparece', strpos($html, 'Previdência') !== false && strpos($html, 'parceria_levantamento_id') !== false && !preg_match('/<select[^>]*name="parceria_levantamento_id"/', $html) && strpos($html, 'repasse (conta a pagar)') !== false, substr(strip_tags($html), 0, 200));
+    $html = saida(function () use ($a4) { $t = new AgendamentoCalendarForm([]); $t->onEdit(['key' => $a4]); $t->show(); });
+    ok('edicao do agendamento: Parceria de repasse junto dos procedimentos, com a divisao', strpos($html, 'Parceria de repasse') !== false && strpos($html, 'agp_divisao_form_') !== false && strpos($html, 'Porcentagem') !== false, substr(strip_tags($html), 0, 200));
+    $html = saida(function () { (new AgendamentoFormBtn([]))->show(); });
+    ok('novo agendamento: Parceria de repasse junto dos procedimentos', strpos($html, 'Parceria de repasse') !== false && strpos($html, 'agp_divisao_form_') !== false, substr(strip_tags($html), 0, 200));
+    $ficha4 = AgendamentoFinanceiroService::gerar($a4, $dados(['valor' => 120.00, 'quitacao' => 'S', 'parceria_levantamento_id' => $outra]));
+    igual('gerar usa a parceria do agendamento (nao a enviada)', $parceria, (int) $ficha4->parceria_levantamento_id);
+    $conta4 = q("SELECT c.quitada, x.compensado FROM conta c JOIN lancamento l ON l.conta_id = c.id LEFT JOIN extrato x ON x.id = l.extrato_id WHERE c.id = {$ficha4->conta_receber_id}")[0];
+    igual('Sim, ja quitado: quitada e a compensar', ['S', 'N'], [$conta4['quitada'], $conta4['compensado']]);
+
     ok('Confirmar nao gera mais conta a receber', strpos((string) file_get_contents('app/control/agendamentos/AgendamentoFormView.php'), 'AtendimentoService::gerarContaReceber') === false);
     igual('coluna Origem: requisicao mostra so a requisicao (mesmo com contrato)', 0, substr_count(ContaListaColunas::origem((object) ['requisicao_pagamento_id' => 1, 'contrato_id' => 2]), 'Contrato'));
 } finally {

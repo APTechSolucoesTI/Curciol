@@ -232,6 +232,9 @@ class AgendamentoFormBtn extends TPage
         $row7 = $this->form->addFields([$this->fieldList_procedimentos]);
         $row7->layout = [' col-sm-12'];
 
+        // Curciol (29/10/2026): parceria de repasse do agendamento (usada no Gerar financeiro) e a divisao por colaborador
+        AgendamentoParceriaCampo::adicionar($this->form, self::$formName);
+
         $row8 = $this->form->addFields([new TLabel("Observação:", null, '14px', null, '100%'),$observacao]);
         $row8->layout = [' col-sm-12'];
 

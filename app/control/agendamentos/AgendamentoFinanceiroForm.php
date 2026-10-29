@@ -1,8 +1,9 @@
 <?php
 /**
  * Gerar financeiro do agendamento (29/10/2026): janela aberta pelo botao "Gerar financeiro" da tela do agendamento.
- * Conta a receber do cliente com a parceria de repasse (so as de percentual fixo); "Já quitar" registra o recebimento
- * na conta-caixa e gera os repasses na hora; em aberto, os repasses saem quando a conta for quitada.
+ * Conta a receber do cliente com a parceria de repasse do agendamento (so as de percentual fixo; agendamento sem
+ * parceria escolhe aqui). "Valor já quitado?" (Sim / Sim e compensado) registra o recebimento na conta-caixa e gera os
+ * repasses na hora; "Não, ainda a quitar": os repasses saem quando a conta for quitada.
  * Esta tela (e o desfazer) so para o grupo Financeiro (permissao do programa AgendamentoFinanceiroForm).
  * Regras em AgendamentoFinanceiroService.
  */
@@ -76,9 +77,17 @@ class AgendamentoFinanceiroForm extends TWindow
         $id = new THidden('agendamento_id');
         $valor = new TNumeric('valor', 2, ',', '.');
         $valor->setSize('100%');
-        $parceria = new TCombo('parceria_levantamento_id');
-        $parceria->addItems($parcerias);
-        $parceria->setSize('100%');
+        // a parceria e a do agendamento (escolhida no cadastro); sem ela, escolhe aqui e fica gravada no agendamento
+        $parceriaDoAgendamento = (int) $agendamento->parceria_levantamento_id;
+        if ($parceriaDoAgendamento > 0) {
+            $parceria = new THidden('parceria_levantamento_id');
+            $parceriaCampo = [new TTextDisplay(htmlspecialchars((string) (ParceriaLevantamento::find($parceriaDoAgendamento)->nome ?? '')), '', '12px', ''), $parceria];
+        } else {
+            $parceria = new TCombo('parceria_levantamento_id');
+            $parceria->addItems($parcerias);
+            $parceria->setSize('100%');
+            $parceriaCampo = [$parceria];
+        }
         $contaCaixa = new TCombo('conta_caixa_id');
         $contaCaixa->addItems($contas);
         $contaCaixa->setSize('100%');
@@ -89,12 +98,10 @@ class AgendamentoFinanceiroForm extends TWindow
         $vencimento->setMask('dd/mm/yyyy');
         $vencimento->setDatabaseMask('yyyy-mm-dd');
         $vencimento->setSize('100%');
-        $quitar = new TCombo('quitar');
-        $quitar->addItems(['N' => 'Não, fica em aberto', 'S' => 'Sim, já recebido']);
-        $quitar->setSize('100%');
-        $compensado = new TCombo('compensado');
-        $compensado->addItems(['S' => 'Sim, já compensado', 'N' => 'Não, ainda a compensar']);
-        $compensado->setSize('100%');
+        $quitacao = new TCombo('quitacao');
+        $quitacao->addItems(['N' => 'Não, ainda a quitar', 'S' => 'Sim, já quitado', 'C' => 'Sim, já quitado e compensado']);
+        $quitacao->setDefaultOption(false);
+        $quitacao->setSize('100%');
         $categoria = new TCombo('categoria_conta_id');
         $categoria->addItems($categorias);
         $categoria->setSize('100%');
@@ -103,40 +110,40 @@ class AgendamentoFinanceiroForm extends TWindow
         $documento->setSize('100%');
 
         $previa = new TAction([__CLASS__, 'onPrevia'], ['static' => '1']);
-        $parceria->setChangeAction($previa);
+        if ($parceria instanceof TCombo) { $parceria->setChangeAction($previa); }
         $valor->setExitAction($previa);
-        $quitar->setChangeAction(new TAction([__CLASS__, 'onMudarQuitar'], ['static' => '1']));
 
         $this->form->addFields([$id]);
         $this->form->addContent([LevantamentoFinanceiroForm::titulo('Conta a receber')]);
         $row = $this->form->addFields(
             [LevantamentoFinanceiroForm::rotulo('Valor (R$)', true), $valor],
-            [LevantamentoFinanceiroForm::rotulo('Parceria de repasse', true), $parceria],
+            array_merge([LevantamentoFinanceiroForm::rotulo('Parceria de repasse', true)], $parceriaCampo),
             [LevantamentoFinanceiroForm::rotulo('Conta-caixa', true), $contaCaixa],
             [LevantamentoFinanceiroForm::rotulo('Forma de pagamento', true), $tipoPgto]
         );
         $row->layout = ['col-sm-2', 'col-sm-4', 'col-sm-3', 'col-sm-3'];
         $row = $this->form->addFields(
             [LevantamentoFinanceiroForm::rotulo('Vencimento', true), $vencimento],
-            [LevantamentoFinanceiroForm::rotulo('Já quitar a conta a receber?', true), $quitar],
-            [LevantamentoFinanceiroForm::rotulo('Valor já compensado?'), $compensado],
+            [LevantamentoFinanceiroForm::rotulo('Valor já quitado?', true), $quitacao],
             [LevantamentoFinanceiroForm::rotulo('Categoria da conta', true), $categoria],
             [LevantamentoFinanceiroForm::rotulo('Documento da conta a receber', true), $documento]
         );
-        $row->layout = ['col-sm-2', 'col-sm-2', 'col-sm-2', 'col-sm-3', 'col-sm-3'];
+        $row->layout = ['col-sm-2', 'col-sm-4', 'col-sm-3', 'col-sm-3'];
 
         $nota = new TElement('div');
         $nota->class = 'lf-nota';
-        $nota->add('Quitada agora: o recebimento entra na conta-caixa (na data do vencimento) e os repasses aos colaboradores são gerados na hora. '
-            . 'Em aberto: os repasses saem quando a conta a receber for quitada. Depois de gerado, o agendamento não pode ser cancelado; '
-            . 'o financeiro pode ser desfeito enquanto a conta a receber não tiver recebimento.');
+        $nota->add('Já quitado: o recebimento entra na conta-caixa (na data do vencimento; compensado ou a compensar) e os repasses aos colaboradores são gerados na hora. '
+            . 'Ainda a quitar: os repasses saem quando a conta a receber for quitada. Depois de gerado, o agendamento não pode ser cancelado; '
+            . 'para desfazer o financeiro, a conta a receber precisa estar sem recebimento (quitada, estorne/desquite antes).');
         $this->form->addContent([$nota]);
 
         // --- previa da divisao
         $this->form->addContent([LevantamentoFinanceiroForm::titulo('Divisão da parceria (repasses)')]);
         $div = new TElement('div');
         $div->id = 'agf_previa';
-        $div->add(LevantamentoFinanceiroForm::caixaAviso('Escolha a parceria para ver a divisão.', 'info'));
+        $div->add($parceriaDoAgendamento > 0
+            ? self::tabelaDivisao(AgendamentoFinanceiroService::divisao($parceriaDoAgendamento, $valorAgendamento, AgendamentoFinanceiroService::escritorioDoAgendamento($agendamentoId)))
+            : LevantamentoFinanceiroForm::caixaAviso('Escolha a parceria para ver a divisão.', 'info'));
         $this->form->addContent([$div]);
 
         $btn = $this->form->addAction('Gerar financeiro', new TAction([__CLASS__, 'onGerar'], ['static' => '1']), 'fas:check');
@@ -153,21 +160,29 @@ class AgendamentoFinanceiroForm extends TWindow
         $data->valor = $valorAgendamento;
         $data->conta_caixa_id = (count($contas) === 1) ? key($contas) : null;
         $data->vencimento = date('Y-m-d');
-        $data->quitar = 'N';
-        $data->compensado = 'S';
+        $data->parceria_levantamento_id = $parceriaDoAgendamento ?: null;
+        $data->quitacao = 'N';
         $data->categoria_conta_id = $porNome($categorias, 'recebimentos de agendamentos');
-        $data->tipo_documento_financeiro_id = $porNome($documentos, 'agendamento');
+        $data->tipo_documento_financeiro_id = $porNome($documentos, 'atendimento');
         $this->form->setData($data);
 
         parent::add($this->form);
-        TScript::create("setTimeout(function () { var f = $('form[name=" . self::$formName . "]'); f.find('[name=compensado]').closest('[class*=col-sm-]').hide(); }, 200);");
     }
 
-    /** Compensado so faz sentido quando a conta ja e quitada. */
-    public static function onMudarQuitar($param)
+    /** Tabela da divisao da parceria (participante, %, valor e se vira repasse). */
+    private static function tabelaDivisao(array $linhas)
     {
-        $mostrar = (($param['quitar'] ?? 'N') === 'S') ? 'show' : 'hide';
-        TScript::create("$('form[name=" . self::$formName . "]').find('[name=compensado]').closest('[class*=col-sm-]').{$mostrar}();");
+        if (!$linhas) {
+            return LevantamentoFinanceiroForm::caixaAviso('A parceria não tem participantes com percentual.', 'info');
+        }
+        $html = new TElement('table');
+        $html->class = 'lf-tabela';
+        $html->add('<tr><th>Participante</th><th class="lf-num">%</th><th class="lf-num">Valor</th><th></th></tr>');
+        foreach ($linhas as $l) {
+            $html->add('<tr><td>' . htmlspecialchars($l['nome']) . '</td><td class="lf-num">' . number_format($l['percentual'], 2, ',', '.') . '%</td><td class="lf-num">'
+                . LevantamentoFinanceiroForm::moeda($l['valor']) . '</td><td>' . ($l['escritorio'] ? '<span class="lf-nota">fica com o escritório (sem conta a pagar)</span>' : 'repasse (conta a pagar)') . '</td></tr>');
+        }
+        return $html;
     }
 
     /** Previa da divisao da parceria para o valor informado. */
@@ -182,13 +197,7 @@ class AgendamentoFinanceiroForm extends TWindow
                 TTransaction::open(self::$database);
                 $linhas = AgendamentoFinanceiroService::divisao($parceriaId, $valor, AgendamentoFinanceiroService::escritorioDoAgendamento((int) ($param['agendamento_id'] ?? 0)));
                 TTransaction::close();
-                $html = new TElement('table');
-                $html->class = 'lf-tabela';
-                $html->add('<tr><th>Participante</th><th class="lf-num">%</th><th class="lf-num">Valor</th><th></th></tr>');
-                foreach ($linhas as $l) {
-                    $html->add('<tr><td>' . htmlspecialchars($l['nome']) . '</td><td class="lf-num">' . number_format($l['percentual'], 2, ',', '.') . '%</td><td class="lf-num">'
-                        . LevantamentoFinanceiroForm::moeda($l['valor']) . '</td><td>' . ($l['escritorio'] ? '<span class="lf-nota">fica com o escritório (sem conta a pagar)</span>' : 'repasse (conta a pagar)') . '</td></tr>');
-                }
+                $html = self::tabelaDivisao($linhas);
             }
             TScript::create("$('#agf_previa').html(" . json_encode((string) $html) . ");");
         } catch (Throwable $e) {
@@ -211,12 +220,11 @@ class AgendamentoFinanceiroForm extends TWindow
                 'categoria_conta_id' => (int) ($param['categoria_conta_id'] ?? 0),
                 'tipo_documento_financeiro_id' => (int) ($param['tipo_documento_financeiro_id'] ?? 0),
                 'vencimento' => $vencimento ?? '',
-                'quitar' => ($param['quitar'] ?? 'N') === 'S' ? 'S' : 'N',
-                'compensado' => $param['compensado'] ?? '',
+                'quitacao' => (string) ($param['quitacao'] ?? ''),
             ]);
             TScript::create('$("#' . self::$formName . '").closest(".ui-dialog").remove();');
             TToast::show('success', 'Financeiro do agendamento gerado', 'topRight', 'far:check-circle');
-            TApplication::loadPage('AgendamentoFormView', 'onShow', ['key' => $agendamentoId]);
+            TApplication::loadPage('AgendamentoFormView', 'onShow', ['key' => $agendamentoId, 'current_tab' => 2]); // volta na aba Financeiro
         } catch (Throwable $e) {
             new TMessage('error', LevantamentoFinanceiroForm::mensagem($e));
         }
@@ -243,7 +251,7 @@ class AgendamentoFinanceiroForm extends TWindow
             $agendamentoId = (int) ($param['key'] ?? 0);
             AgendamentoFinanceiroService::desfazer($agendamentoId);
             TToast::show('success', 'Financeiro do agendamento desfeito', 'topRight', 'far:check-circle');
-            TApplication::loadPage('AgendamentoFormView', 'onShow', ['key' => $agendamentoId]);
+            TApplication::loadPage('AgendamentoFormView', 'onShow', ['key' => $agendamentoId, 'current_tab' => 2]); // volta na aba Financeiro
         } catch (Throwable $e) {
             new TMessage('error', LevantamentoFinanceiroForm::mensagem($e));
         }

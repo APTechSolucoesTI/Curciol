@@ -150,7 +150,7 @@ class AgendamentoFormView extends TPage
             $WHATSAPP_CONFIRMACAO_AGENDAMENTO->style = 'display: block';
         }
 
-        $this->form->appendPage("Informações gerais");
+        $this->form->appendPage("Atendimento");
 
         $this->form->addFields([new THidden('current_tab')]);
         $this->form->setTabFunction("$('[name=current_tab]').val($(this).attr('data-current_page'));");
@@ -173,9 +173,6 @@ class AgendamentoFormView extends TPage
         $row6 = $this->form->addContent([new TFormSeparator("Ajustar estado do agendamento", '#333', '18', '#eee')]);
         $row7 = $this->form->addFields([$btncancelar,$btnconfirmar,$btnnaocompareceu,$btniniciar,$btnentrar,$btnvalidar]);
         $row7->layout = [' col-sm-12'];
-
-        // Curciol (29/10/2026): financeiro do agendamento (gerar/desfazer so grupo Financeiro; AgendamentoFinanceiroService)
-        $this->adicionarFinanceiro($agendamento);
 
         $this->form->appendPage("Procedimentos");
 
@@ -257,6 +254,9 @@ class AgendamentoFormView extends TPage
         $panel->add(new BootstrapDatagridWrapper($this->agendamento_procedimento_agendamento_id_list));
 
         $this->form->addContent([$panel]);
+
+        // Curciol (29/10/2026): financeiro do agendamento numa aba propria (gerar/desfazer so grupo Financeiro)
+        $this->adicionarFinanceiro($agendamento);
 
         $this->form->appendPage("Histórico");
 
@@ -510,19 +510,51 @@ class AgendamentoFormView extends TPage
     }
 
     /**
-     * Bloco "Financeiro": sem financeiro, o botao "Gerar financeiro" (janela AgendamentoFinanceiroForm); com financeiro, a
-     * conta a receber gerada (situacao e link) e o "Desfazer financeiro". Gerar/desfazer so para quem tem a janela.
+     * Aba "Financeiro" (separada do atendimento): parceria de repasse do agendamento e a divisao por colaborador; sem
+     * financeiro, o botao "Gerar financeiro" (janela AgendamentoFinanceiroForm); com financeiro, a conta a receber gerada
+     * (situacao e link) e o "Desfazer financeiro". Gerar/desfazer so para quem tem a janela (grupo Financeiro).
      */
     private function adicionarFinanceiro(Agendamento $agendamento): void
     {
         $ficha = AgendamentoFinanceiroService::ficha((int) $agendamento->id);
         $pode = AgendamentoFinanceiroForm::podeGerar();
-        if (!$ficha && (!$pode || (string) $agendamento->estado_agenda_id === (string) EstadoAgenda::CANCELADO)) {
-            return;
+
+        $this->form->appendPage("Financeiro");
+
+        // parceria e divisao: a do financeiro gerado (valor da conta) ou a do agendamento (total dos procedimentos)
+        $parceriaId = (int) ($ficha->parceria_levantamento_id ?? $agendamento->parceria_levantamento_id);
+        $valor = $ficha ? (float) $ficha->valor : AgendamentoFinanceiroService::valorDoAgendamento((int) $agendamento->id);
+        $parceria = $parceriaId > 0 ? ParceriaLevantamento::find($parceriaId) : null;
+        $row = $this->form->addFields(
+            [new TLabel("Parceria de repasse:", '', '14px', 'B', '100%'), new TTextDisplay($parceria ? htmlspecialchars((string) $parceria->nome) : 'Não informada (escolha ao editar o agendamento ou no Gerar financeiro)', '', '14px', '')],
+            [new TLabel($ficha ? "Valor da conta a receber:" : "Total dos procedimentos:", '', '14px', 'B', '100%'), new TTextDisplay('R$ ' . number_format($valor, 2, ',', '.'), '', '14px', '')]
+        );
+        $row->layout = [' col-sm-6', ' col-sm-6'];
+
+        if ($parceria) {
+            $linhas = AgendamentoFinanceiroService::divisao($parceriaId, $valor, AgendamentoFinanceiroService::escritorioDoAgendamento((int) $agendamento->id));
+            $tabela = new TElement('table');
+            $tabela->class = 'table table-sm';
+            $tabela->style = 'width:100%; max-width:720px; font-size:13px';
+            $tabela->add('<thead><tr><th>Colaborador</th><th style="text-align:right">Porcentagem</th><th style="text-align:right">Valor</th></tr></thead>');
+            foreach ($linhas as $l) {
+                $tabela->add('<tr><td>' . htmlspecialchars($l['nome']) . '</td><td style="text-align:right">' . number_format($l['percentual'], 2, ',', '.') . '%</td><td style="text-align:right">R$ '
+                    . number_format($l['valor'], 2, ',', '.') . '</td></tr>');
+            }
+            $row = $this->form->addFields([new TLabel("Divisão por colaborador:", '', '14px', 'B', '100%'), $tabela]);
+            $row->layout = [' col-sm-12'];
         }
 
-        $this->form->addContent([new TFormSeparator("Financeiro", '#333', '18', '#eee')]);
+        $this->form->addContent([new TFormSeparator("Conta a receber", '#333', '18', '#eee')]);
         if (!$ficha) {
+            if (!$pode) {
+                $this->form->addFields([new TTextDisplay('Financeiro ainda não gerado.', '#6f7d92', '14px', '')]);
+                return;
+            }
+            if ((string) $agendamento->estado_agenda_id === (string) EstadoAgenda::CANCELADO) {
+                $this->form->addFields([new TTextDisplay('Agendamento cancelado não gera financeiro.', '#6f7d92', '14px', '')]);
+                return;
+            }
             $gerar = new TActionLink(" Gerar financeiro", new TAction(['AgendamentoFinanceiroForm', 'onShow'], ['agendamento_id' => $agendamento->id]), '#1565C0', '14px', 'B', 'fas:hand-holding-usd #1565C0');
             $gerar->class = 'btn btn-default';
             $row = $this->form->addFields([$gerar]);

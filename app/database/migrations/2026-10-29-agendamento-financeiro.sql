@@ -31,14 +31,10 @@ CREATE TABLE IF NOT EXISTS agendamento_financeiro (
 CREATE UNIQUE INDEX IF NOT EXISTS uk_agendamento_financeiro_agendamento ON agendamento_financeiro (agendamento_id);
 COMMENT ON TABLE agendamento_financeiro IS 'Financeiro gerado pelo agendamento (Gerar financeiro); sai com o Desfazer financeiro';
 
--- categoria e documento padrao da conta a receber do agendamento
+-- categoria padrao da conta a receber do agendamento (o documento padrao e o "Atendimento", que ja existe)
 INSERT INTO categoria_conta (tipo_conta_id, nome, data_criacao)
 SELECT 1, 'Recebimentos de agendamentos', now()
  WHERE NOT EXISTS (SELECT 1 FROM categoria_conta WHERE lower(nome) = 'recebimentos de agendamentos');
-
-INSERT INTO tipo_documento_financeiro (nome, tipo_conta_id, codigo, gera_codigo, padrao_id, data_criacao)
-SELECT 'Agendamento', 1, 'Agd', 'S', 1, now()
- WHERE NOT EXISTS (SELECT 1 FROM tipo_documento_financeiro WHERE lower(nome) = 'agendamento');
 
 -- gerar/desfazer o financeiro do agendamento: so o grupo Financeiro (regra de 23/10/2026)
 INSERT INTO system_program (id, name, controller)

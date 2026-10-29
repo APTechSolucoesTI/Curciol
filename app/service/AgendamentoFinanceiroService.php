@@ -2,12 +2,15 @@
 /**
  * Financeiro do agendamento (29/10/2026), no mesmo padrao do financeiro da requisicao de pagamento e do contrato.
  *
+ * - A parceria de repasse e escolhida no agendamento (cadastro/edicao, com a divisao por colaborador na tela); o Gerar
+ *   financeiro usa a dela (agendamento sem parceria: escolhida na janela e gravada no agendamento).
  * - Gerar financeiro: conta a receber do cliente com uma parcela (valor do agendamento, editavel) e a divisao da
- *   parceria de repasse gravada na parcela (lancamento_profissional, como no contrato). Quitada na hora (conta-caixa,
- *   compensado ou nao): ja gera os repasses aos colaboradores. Em aberto: os repasses saem quando a parcela for quitada
- *   (fluxo normal da conta, RepasseColaboradorService::gerarPorRecebimento); desquitar estorna os repasses e e recusado
- *   se algum ja foi pago ao colaborador.
- * - Desfazer financeiro: so com a conta a receber sem nenhum recebimento (nem repasse); apaga a conta e a ficha.
+ *   parceria de repasse gravada na parcela (lancamento_profissional, como no contrato). "Valor já quitado?":
+ *   N = ainda a quitar (os repasses saem quando a parcela for quitada, RepasseColaboradorService::gerarPorRecebimento),
+ *   S = ja quitado, C = ja quitado e compensado (recebimento na conta-caixa e repasses na hora). Desquitar estorna os
+ *   repasses e e recusado se algum ja foi pago ao colaborador.
+ * - Desfazer financeiro: so com a conta a receber sem nenhum recebimento (nem repasse), como em todo financeiro
+ *   gerado: quitada, primeiro desquita; apaga a conta e a ficha.
  * - Agendamento com financeiro nao pode ser cancelado; a conta a receber gerada so muda pelo desfazer.
  * Parcerias: so as de percentual fixo (as por tempo dependem de datas de distribuicao/levantamento).
  */
@@ -98,6 +101,33 @@ class AgendamentoFinanceiroService
         });
     }
 
+    /**
+     * Participantes da parceria para a divisao na tela do agendamento, na ordem dos colaboradores:
+     * [['nome', 'percentual' (0-100), 'diferenca' (fica com a diferenca de centavos)], ...]. Parceria nao fixa: [].
+     */
+    public static function participantes(int $parceriaId): array
+    {
+        return self::comTransacao(function (PDO $c) use ($parceriaId) {
+            $parceria = ParceriaLevantamento::find($parceriaId);
+            if (!$parceria || $parceria->tipo !== ParceriaLevantamento::TIPO_FIXA) { return []; }
+            $per = ParceriaPercentualService::percentuais($parceria->tipo, array_map(function ($p) {
+                return ['pessoa_id' => $p->pessoa_id, 'nivel' => $p->nivel, 'percentual' => $p->percentual,
+                        'percentual_antes' => $p->percentual_antes, 'percentual_depois' => $p->percentual_depois, 'recebe_diferenca' => $p->recebe_diferenca];
+            }, $parceria->participantes()), null, null, null, null);
+            $linhas = array_values(array_filter($per['participantes'], function ($p) { return (float) $p['percentual'] > 0; }));
+            if (!$linhas) { return []; }
+            $fechaCem = abs(array_sum(array_column($linhas, 'percentual')) - 1) < 0.0001;
+            $receptor = $fechaCem ? RepasseColaboradorService::indiceDaDiferenca(array_column($linhas, 'pessoa_id'), count($linhas) - 1) : null;
+            $r = [];
+            foreach ($linhas as $i => $p) {
+                $r[] = ['pessoa_id' => (int) $p['pessoa_id'], 'nome' => Pessoa::find((int) $p['pessoa_id'])->nome ?? '',
+                        'percentual' => round((float) $p['percentual'] * 100, 4), 'diferenca' => ($i === $receptor)];
+            }
+            $r = RepasseColaboradorService::ordenarPorColaborador($r, function ($x) { return $x['pessoa_id']; }, function ($x) { return $x['nome']; });
+            return array_map(function ($x) { unset($x['pessoa_id']); return $x; }, $r);
+        });
+    }
+
     /** Escritorio da conta a receber do agendamento: o da agenda (sem ele, o da unidade logada). Usa a transacao aberta. */
     public static function escritorioDoAgendamento(int $agendamentoId): int
     {
@@ -113,8 +143,9 @@ class AgendamentoFinanceiroService
 
     /**
      * Gera o financeiro do agendamento. $d: valor, parceria_levantamento_id, conta_caixa_id, tipo_pagamento_id,
-     * categoria_conta_id, tipo_documento_financeiro_id, vencimento (aaaa-mm-dd), quitar (S/N), compensado (S/N).
-     * Quitada: a data do recebimento e o vencimento. Abre a propria transacao.
+     * categoria_conta_id, tipo_documento_financeiro_id, vencimento (aaaa-mm-dd), quitacao (N = ainda a quitar,
+     * S = ja quitado, C = ja quitado e compensado). Quitada: a data do recebimento e o vencimento. A parceria e a do
+     * agendamento (sem parceria, a informada fica gravada nele). Abre a propria transacao.
      */
     public static function gerar(int $agendamentoId, array $d): AgendamentoFinanceiro
     {
@@ -130,7 +161,9 @@ class AgendamentoFinanceiroService
             $valor = round((float) ($d['valor'] ?? 0), 2);
             if ($valor <= 0) { throw new Exception('Informe o valor da conta a receber (maior que zero).'); }
 
-            $parceria = ParceriaLevantamento::find((int) ($d['parceria_levantamento_id'] ?? 0));
+            // a parceria e a do agendamento; sem ela, a informada na janela
+            $parceriaId = (int) ($agendamento->parceria_levantamento_id ?: ($d['parceria_levantamento_id'] ?? 0));
+            $parceria = ParceriaLevantamento::find($parceriaId);
             if (!$parceria || $parceria->ativo !== 'S') { throw new Exception('Escolha a parceria de repasse.'); }
             if ($parceria->tipo !== ParceriaLevantamento::TIPO_FIXA) { throw new Exception('No agendamento só valem parcerias de percentual fixo.'); }
 
@@ -148,11 +181,11 @@ class AgendamentoFinanceiroService
             $dv = DateTime::createFromFormat('Y-m-d', $vencimento);
             if ($vencimento === '' || !$dv || $dv->format('Y-m-d') !== $vencimento) { throw new Exception('Informe uma data de vencimento válida.'); }
 
-            $quitar = (($d['quitar'] ?? 'N') === 'S');
-            $compensado = false;
+            $quitacao = $d['quitacao'] ?? null;
+            if (!in_array($quitacao, ['N', 'S', 'C'], true)) { throw new Exception('Informe se o valor já está quitado.'); }
+            $quitar = ($quitacao !== 'N');
+            $compensado = ($quitacao === 'C');
             if ($quitar) {
-                if (!in_array($d['compensado'] ?? null, ['S', 'N'], true)) { throw new Exception('Informe se o valor já está compensado.'); }
-                $compensado = ($d['compensado'] === 'S');
                 if ($compensado && $cc->dt_inicial && $vencimento < substr((string) $cc->dt_inicial, 0, 10)) {
                     throw new Exception('A data do recebimento é anterior ao início da conta-caixa ' . $cc->nome . ' (' . date('d/m/Y', strtotime($cc->dt_inicial)) . ').');
                 }
@@ -169,6 +202,10 @@ class AgendamentoFinanceiroService
             }, $parceria->participantes());
             $per = ParceriaPercentualService::percentuais($parceria->tipo, $participantes, null, null, null, null);
             $divisao = array_map(function ($p) { return [(int) $p['pessoa_id'], round((float) $p['percentual'] * 100, 8)]; }, $per['participantes']);
+
+            if (empty($agendamento->parceria_levantamento_id)) {
+                $c->prepare('UPDATE agendamento SET parceria_levantamento_id = ? WHERE id = ?')->execute([(int) $parceria->id, $agendamentoId]);
+            }
 
             $userId = TSession::getValue('userid');
             $cliente = Pessoa::find((int) $agendamento->cliente_id);
@@ -288,8 +325,8 @@ class AgendamentoFinanceiroService
                 $recebida = !empty($l->dt_pagamento) || !empty($l->extrato_id) || (int) $l->extratos > 0
                     || ($l->saldo !== null && round((float) $l->saldo, 2) != round((float) $l->valor, 2));
                 if ($recebida || (int) $l->repasses > 0) {
-                    return 'A conta a receber nº ' . (int) $ficha->conta_receber_id . ' deste agendamento já foi recebida (total ou parcialmente). '
-                        . 'Desquite o recebimento na conta a receber antes de desfazer o financeiro (não é possível se algum repasse ao colaborador já foi pago).';
+                    return 'A conta a receber nº ' . (int) $ficha->conta_receber_id . ' deste agendamento está quitada (total ou parcialmente). '
+                        . 'Estorne/desquite o recebimento da conta a receber antes de desfazer o financeiro (não é possível se algum repasse ao colaborador já foi pago).';
                 }
             }
             return null;
