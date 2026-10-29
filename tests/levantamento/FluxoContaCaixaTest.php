@@ -65,7 +65,7 @@ try {
 
     // 1) pagamento parcial de 30, nao compensado
     post(['id' => $l1, 'conta_caixa_id' => $cc, 'valor' => '30,00', 'tipo_pagamento_id' => TipoPagamento::TRANSFERENCIA, 'dt_pagamento' => '10/02/2026', 'compensado' => 'N', 'historico' => 'TESTE LEVANTAMENTO parcial']);
-    $erro = tela(function () use ($l1) { (new ModalQuitarParcelaParcial(['key' => $l1, 'id' => $l1]))->onPagar(['id' => $l1, 'key' => $l1]); });
+    $erro = tela(function () use ($l1) { (new ModalQuitarParcelaParcial(['key' => $l1, 'id' => $l1]))->onPagar($_POST + ['id' => $l1, 'key' => $l1]); });
     igual('parcial: sem erro', '', $erro);
     igual('parcial: parcela deve 70', 70.0, (float) $lanc($l1)->saldo);
     $confere('parcial', $cc, [0.0, 30.0]);
@@ -73,7 +73,7 @@ try {
 
     // 2) quitar o restante com acrescimo de 10, compensado
     post(['id' => $l1, 'conta_caixa_id' => $cc, 'acrescimo' => '10,00', 'desconto' => '0,00', 'tipo_pagamento_id' => TipoPagamento::TRANSFERENCIA, 'dt_pagamento' => '11/02/2026', 'compensado' => 'S', 'historico' => 'TESTE LEVANTAMENTO quitacao', 'valor' => '100,00', 'valor_total' => '100', 'dt_vencimento' => '10/02/2026']);
-    $erro = tela(function () use ($l1) { (new ModalQuitarParcela(['key' => $l1, 'id' => $l1]))->onPagar(['id' => $l1, 'key' => $l1]); });
+    $erro = tela(function () use ($l1) { (new ModalQuitarParcela(['key' => $l1, 'id' => $l1]))->onPagar($_POST + ['id' => $l1, 'key' => $l1]); });
     igual('quitar: sem erro', '', $erro);
     $p = $lanc($l1);
     ok('quitar: parcela paga', !empty($p->dt_pagamento));
@@ -96,7 +96,7 @@ try {
 
     // 4) quitar de novo, sem acrescimo: cobra so os 70 que faltavam
     post(['id' => $l1, 'conta_caixa_id' => $cc, 'acrescimo' => '0,00', 'desconto' => '0,00', 'tipo_pagamento_id' => TipoPagamento::TRANSFERENCIA, 'dt_pagamento' => '12/02/2026', 'compensado' => 'S', 'historico' => 'TESTE LEVANTAMENTO quitacao 2', 'valor' => '100,00', 'valor_total' => '100', 'dt_vencimento' => '10/02/2026']);
-    $erro = tela(function () use ($l1) { (new ModalQuitarParcela(['key' => $l1, 'id' => $l1]))->onPagar(['id' => $l1, 'key' => $l1]); });
+    $erro = tela(function () use ($l1) { (new ModalQuitarParcela(['key' => $l1, 'id' => $l1]))->onPagar($_POST + ['id' => $l1, 'key' => $l1]); });
     igual('quitar de novo: sem erro', '', $erro);
     $extQuit2 = $extratos($l1)[1];
     igual('quitar de novo: extrato 70', 70.0, (float) $extQuit2['v']);
@@ -118,7 +118,7 @@ try {
 
     // 7) quitar a parcela 2 (compensado) -> conta quitada; excluir a conta e recusado
     post(['id' => $l2, 'conta_caixa_id' => $cc, 'acrescimo' => '0,00', 'desconto' => '5,00', 'tipo_pagamento_id' => TipoPagamento::TRANSFERENCIA, 'dt_pagamento' => '13/02/2026', 'compensado' => 'S', 'historico' => 'TESTE LEVANTAMENTO parcela 2', 'valor' => '100,00', 'valor_total' => '100', 'dt_vencimento' => '10/03/2026']);
-    $erro = tela(function () use ($l2) { (new ModalQuitarParcela(['key' => $l2, 'id' => $l2]))->onPagar(['id' => $l2, 'key' => $l2]); });
+    $erro = tela(function () use ($l2) { (new ModalQuitarParcela(['key' => $l2, 'id' => $l2]))->onPagar($_POST + ['id' => $l2, 'key' => $l2]); });
     igual('parcela 2 com desconto 5: sem erro', '', $erro);
     igual('parcela 2: conta quitada', 'S', $conta($contaId)->quitada);
     $confere('parcela 2', $cc, [125.0, 70.0]);

@@ -113,7 +113,7 @@ try {
     $L1 = (int) q("SELECT id FROM lancamento WHERE contrato_parcela_id = {$A} ORDER BY parcela LIMIT 1")[0]['id'];
     post(['id' => $L1, 'conta_caixa_id' => $cc, 'acrescimo' => '0,00', 'desconto' => '0,00', 'distribuicao_ajuste' => 'T', 'tipo_pagamento_id' => TipoPagamento::TRANSFERENCIA,
           'dt_pagamento' => '10/03/2026', 'compensado' => 'S', 'historico' => 'TESTE LEVANTAMENTO quitacao contrato', 'valor' => '500,00', 'valor_total' => '500', 'dt_vencimento' => '10/03/2026']);
-    igual('quitar parcela 1 de A: sem erro', '', erro(saida(function () use ($L1) { (new ModalQuitarParcela(['key' => $L1, 'id' => $L1]))->onPagar(['id' => $L1, 'key' => $L1, 'confirmar_profissional_negativo' => null]); })));
+    igual('quitar parcela 1 de A: sem erro', '', erro(saida(function () use ($L1) { (new ModalQuitarParcela(['key' => $L1, 'id' => $L1]))->onPagar($_POST + ['id' => $L1, 'key' => $L1, 'confirmar_profissional_negativo' => null]); })));
     $s = erro(saida(function () use ($A, $ct) { ContratoFormView::onDesfazerFinanceiro(['contrato_parcela_id' => $A, 'contrato_id' => $ct, 'confirmado' => 1]); }));
     ok('A com parcela recebida: bloqueado, com o motivo', strpos($s, 'A parcela 1 da conta a receber (vencimento') !== false && strpos($s, 'já foi recebida em 10/03/2026') !== false && strpos($s, 'Desquite') !== false, $s);
     igual('A continua com as 2 parcelas', 2, (int) q("SELECT count(*) n FROM lancamento WHERE contrato_parcela_id = {$A}")[0]['n']);

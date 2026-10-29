@@ -73,14 +73,14 @@ try {
 
     // pagamento parcial de 400 -> Jac 200, Juan 80
     post(['id' => $L1, 'conta_caixa_id' => $cc, 'valor' => '400,00', 'tipo_pagamento_id' => TipoPagamento::TRANSFERENCIA, 'dt_pagamento' => '10/03/2026', 'compensado' => 'S', 'historico' => 'TESTE LEVANTAMENTO parcial']);
-    igual('parcial: sem erro', '', tela(function () use ($L1) { (new ModalQuitarParcelaParcial(['key' => $L1, 'id' => $L1]))->onPagar(['id' => $L1, 'key' => $L1]); }));
+    igual('parcial: sem erro', '', tela(function () use ($L1) { (new ModalQuitarParcelaParcial(['key' => $L1, 'id' => $L1]))->onPagar($_POST + ['id' => $L1, 'key' => $L1]); }));
     $parc = q('SELECT pessoa_id, valor FROM repasse_colaborador WHERE lancamento_receber_id = ' . $L1 . ' ORDER BY pessoa_id');
     igual('parcial: repasses proporcionais (Jac 200, Juan 80)', [[$jac, 200.0], [$juan, 80.0]], array_map(function ($x) { return [(int) $x['pessoa_id'], round((float) $x['valor'], 2)]; }, $parc));
 
     // quitacao do restante com acrescimo de 10 rateado entre os profissionais -> Jac 500+5-200 = 305, Juan 200+2-80 = 122
     post(['id' => $L1, 'conta_caixa_id' => $cc, 'acrescimo' => '10,00', 'desconto' => '0,00', 'distribuicao_ajuste' => 'T', 'tipo_pagamento_id' => TipoPagamento::TRANSFERENCIA,
           'dt_pagamento' => '20/03/2026', 'compensado' => 'S', 'historico' => 'TESTE LEVANTAMENTO quitacao', 'valor' => '1.000,00', 'valor_total' => '1000', 'dt_vencimento' => '10/03/2026']);
-    igual('quitacao: sem erro', '', tela(function () use ($L1) { (new ModalQuitarParcela(['key' => $L1, 'id' => $L1]))->onPagar(['id' => $L1, 'key' => $L1, 'confirmar_profissional_negativo' => null]); }));
+    igual('quitacao: sem erro', '', tela(function () use ($L1) { (new ModalQuitarParcela(['key' => $L1, 'id' => $L1]))->onPagar($_POST + ['id' => $L1, 'key' => $L1, 'confirmar_profissional_negativo' => null]); }));
     $todos = q('SELECT pessoa_id, valor, extrato_recebimento_id FROM repasse_colaborador WHERE lancamento_receber_id = ' . $L1 . ' ORDER BY id');
     $soma = []; foreach ($todos as $x) { $soma[(int) $x['pessoa_id']] = round(($soma[(int) $x['pessoa_id']] ?? 0) + (float) $x['valor'], 2); }
     igual('quitacao: total por colaborador = parte na parcela + acrescimo rateado (Jac 505, Juan 202)', [$jac => 505.0, $juan => 202.0], [$jac => $soma[$jac] ?? null, $juan => $soma[$juan] ?? null]);

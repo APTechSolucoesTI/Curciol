@@ -59,6 +59,7 @@ try {
     igual('contaDoLevantamento pagar', 'PAGAR', $r['papel'] ?? null);
 
     // depois de desfazer, tudo liberado
+    Fixtures::desquitarRecebimento((int) $f['etapa3_id']); // o desfazer exige o recebimento estornado
     $S::desfazer($f['etapa3_id']);
     $S::garantirPagamentoEditavel($f['etapa3_id'], ['valor_bruto_depositado' => 1.00]);
     $S::garantirClienteRemovivel($f['rpc_id']);

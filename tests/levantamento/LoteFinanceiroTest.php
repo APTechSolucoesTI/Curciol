@@ -113,7 +113,7 @@ try {
 
     // pagamento parcial de 400 antes do lote
     post(['id' => $L1, 'conta_caixa_id' => $cc, 'valor' => '400,00', 'tipo_pagamento_id' => TipoPagamento::TRANSFERENCIA, 'dt_pagamento' => date('d/m/Y'), 'compensado' => 'S', 'historico' => 'TESTE LEVANTAMENTO parcial']);
-    igual('parcial: sem erro', '', erro(saida(function () use ($L1) { (new ModalQuitarParcelaParcial(['key' => $L1, 'id' => $L1]))->onPagar(['id' => $L1, 'key' => $L1]); })));
+    igual('parcial: sem erro', '', erro(saida(function () use ($L1) { (new ModalQuitarParcelaParcial(['key' => $L1, 'id' => $L1]))->onPagar($_POST + ['id' => $L1, 'key' => $L1]); })));
     igual('a pagar no lote: o saldo de 600', 600.0, round((float) $L::proximasParcelas([$contaRec])[$contaRec]->valor ?? 0, 2));
     $lote4 = $L::quitar([$contaRec], $RECEBER, ['data_pagamento' => $hoje, 'conta_caixa_id' => $cc, 'tipo_pagamento_id' => TipoPagamento::TRANSFERENCIA, 'compensado' => 'S']);
     $rep = q('SELECT pessoa_id, valor, conta_pagar_id FROM repasse_colaborador WHERE lancamento_receber_id = ' . $L1 . ' ORDER BY id');

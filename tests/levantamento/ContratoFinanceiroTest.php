@@ -79,7 +79,7 @@ try {
     ok('quitacao sugere a conta-caixa prevista', strpos($s, "tform_send_data('form_ModalQuitarParcela', 'conta_caixa_id', '{$cc}'") !== false, substr($s, 0, 300));
     post(['id' => $L1, 'conta_caixa_id' => $cc, 'acrescimo' => '0,00', 'desconto' => '0,00', 'distribuicao_ajuste' => 'T', 'tipo_pagamento_id' => TipoPagamento::TRANSFERENCIA,
           'dt_pagamento' => '10/03/2026', 'compensado' => 'S', 'historico' => 'TESTE LEVANTAMENTO quitacao contrato', 'valor' => '500,00', 'valor_total' => '500', 'dt_vencimento' => '10/03/2026']);
-    $s = saida(function () use ($L1) { (new ModalQuitarParcela(['key' => $L1, 'id' => $L1]))->onPagar(['id' => $L1, 'key' => $L1, 'confirmar_profissional_negativo' => null]); });
+    $s = saida(function () use ($L1) { (new ModalQuitarParcela(['key' => $L1, 'id' => $L1]))->onPagar($_POST + ['id' => $L1, 'key' => $L1, 'confirmar_profissional_negativo' => null]); });
     igual('quitar parcela do contrato: sem erro', '', erro($s));
     $rep = q("SELECT pessoa_id, valor FROM repasse_colaborador WHERE lancamento_receber_id = {$L1} ORDER BY pessoa_id");
     igual('recebimento gera repasse para Jac (250) e Juan (100), sem o escritorio',
