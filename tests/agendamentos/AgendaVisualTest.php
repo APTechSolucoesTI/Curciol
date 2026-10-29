@@ -84,7 +84,7 @@ try {
     post($base + ['agendas' => [(string) $a1, (string) $a2], 'observacao' => MARCA_AV . ' compromisso']);
     $s = saida(function () { (new CompromissoForm($_POST))->onSave($_POST); });
     igual('compromisso: um em cada agenda marcada', [$a1, $a2], array_map('intval', array_column(q("SELECT agenda_id FROM compromisso WHERE observacao = '" . MARCA_AV . " compromisso' ORDER BY agenda_id"), 'agenda_id')));
-    ok('compromisso: aviso de quantos foram salvos', strpos($s, '2 compromissos salvos') !== false, substr(strip_tags($s), 0, 200));
+    ok('compromisso: aviso de quantos foram salvos', strpos($s, base64_encode('2 compromissos salvos, um em cada agenda marcada')) !== false, substr(strip_tags($s), 0, 200));
     post($base + ['agendas' => [], 'observacao' => MARCA_AV . ' sem agenda']);
     $s = saida(function () { (new CompromissoForm($_POST))->onSave($_POST); });
     ok('compromisso: sem agenda marcada e recusado', strpos($s, 'Marque pelo menos uma agenda') !== false && !q("SELECT 1 FROM compromisso WHERE observacao = '" . MARCA_AV . " sem agenda'"), substr(strip_tags($s), 0, 200));
