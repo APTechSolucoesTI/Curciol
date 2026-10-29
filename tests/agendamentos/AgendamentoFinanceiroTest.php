@@ -32,8 +32,45 @@ $cc = (int) $c->query("SELECT id FROM conta_caixa WHERE COALESCE(ativo, 'S') <> 
 $pix = (int) $c->query("SELECT id FROM tipo_pagamento WHERE COALESCE(ativo, 'S') <> 'N' AND id <> " . (int) TipoPagamento::CHEQUE . " ORDER BY id LIMIT 1")->fetchColumn();
 $categoria = (int) $c->query("SELECT id FROM categoria_conta WHERE lower(nome) = 'recebimentos de agendamentos'")->fetchColumn();
 $documento = (int) $c->query("SELECT id FROM tipo_documento_financeiro WHERE lower(nome) = 'agendamento'")->fetchColumn();
+$unidade = (int) $c->query("SELECT e.system_unit_id FROM agenda a JOIN escritorio e ON e.id = a.escritorio_id WHERE a.id = {$agendaId}")->fetchColumn();
 TTransaction::close();
 TSession::setValue('userid', $userId);
+TSession::setValue('userunitid', $unidade);
+
+/** Apaga tudo o que o teste criou (pelo nome dos clientes de teste): agendamentos, contas, repasses, lotes, extratos. */
+function limparAgendamentoFinanceiro(): void
+{
+    TTransaction::open('escritorio');
+    $c = TTransaction::get();
+    $ids = function (string $sql) use ($c) { return array_map('intval', $c->query($sql)->fetchAll(PDO::FETCH_COLUMN)); };
+    $lista = function (array $l) { return $l ? implode(',', $l) : '0'; };
+    $pessoas = $ids("SELECT id FROM pessoa WHERE nome LIKE '" . MARCA_AG . "%'");
+    if (!$pessoas) { TTransaction::close(); return; }
+    $ags = $ids('SELECT id FROM agendamento WHERE cliente_id IN (' . $lista($pessoas) . ')');
+    $contas = $ids('SELECT id FROM conta WHERE agendamento_id IN (' . $lista($ags) . ') OR pessoa_id IN (' . $lista($pessoas) . ')');
+    $lancs = $ids('SELECT id FROM lancamento WHERE conta_id IN (' . $lista($contas) . ')');
+    $lotes = $ids('SELECT lote_pagamento_id FROM lote_pagamento_item WHERE lancamento_id IN (' . $lista($lancs) . ') UNION SELECT id FROM lote_pagamento WHERE pessoa_id IN (' . $lista($pessoas) . ')');
+    $caixas = $ids('SELECT DISTINCT conta_caixa_id FROM extrato WHERE lancamento_id IN (' . $lista($lancs) . ')');
+    $c->exec('DELETE FROM agendamento_financeiro WHERE agendamento_id IN (' . $lista($ags) . ')');
+    $c->exec('DELETE FROM repasse_colaborador WHERE conta_receber_id IN (' . $lista($contas) . ') OR conta_pagar_id IN (' . $lista($contas) . ')');
+    $c->exec('UPDATE lancamento SET extrato_id = NULL WHERE id IN (' . $lista($lancs) . ')');
+    $c->exec('DELETE FROM lote_pagamento_item WHERE lote_pagamento_id IN (' . $lista($lotes) . ') OR lancamento_id IN (' . $lista($lancs) . ')');
+    $c->exec('DELETE FROM extrato WHERE lancamento_id IN (' . $lista($lancs) . ') OR lote_pagamento_id IN (' . $lista($lotes) . ')');
+    $c->exec('DELETE FROM lote_pagamento WHERE id IN (' . $lista($lotes) . ')');
+    $c->exec('DELETE FROM lancamento_profissional WHERE lancamento_id IN (' . $lista($lancs) . ')');
+    $c->exec('DELETE FROM lancamento WHERE id IN (' . $lista($lancs) . ')');
+    $c->exec('DELETE FROM conta_profissional WHERE conta_id IN (' . $lista($contas) . ')');
+    $c->exec('DELETE FROM conta WHERE id IN (' . $lista($contas) . ') AND conta_origem_id IS NOT NULL');
+    $c->exec('DELETE FROM conta WHERE id IN (' . $lista($contas) . ')');
+    $c->exec('DELETE FROM estado_agendamento WHERE agendamento_id IN (' . $lista($ags) . ')');
+    $c->exec('DELETE FROM atendimento WHERE agendamento_id IN (' . $lista($ags) . ')');
+    $c->exec('DELETE FROM agendamento_procedimento WHERE agendamento_id IN (' . $lista($ags) . ')');
+    $c->exec('DELETE FROM agendamento WHERE id IN (' . $lista($ags) . ')');
+    $c->exec('DELETE FROM pessoa WHERE id IN (' . $lista($pessoas) . ')');
+    if ($caixas) { ContaCaixaSaldoService::recalcular(...$caixas); }
+    TTransaction::close();
+}
+limparAgendamentoFinanceiro(); // sobras de uma rodada interrompida
 
 $criados = ['pessoa' => [], 'agendamento' => []];
 $novoAgendamento = function (string $nome, float $valor) use (&$criados, $agendaId, $proc, $especialidade) {
@@ -57,7 +94,6 @@ $dados = function (array $extra = []) use ($parceria, $cc, $pix, $categoria, $do
         'categoria_conta_id' => $categoria, 'tipo_documento_financeiro_id' => $documento, 'vencimento' => date('Y-m-d'), 'quitar' => 'N', 'compensado' => 'N'];
 };
 $lotes = [];
-$cc_saldo_recalcular = [$cc];
 
 try {
     ok('migracao: categoria e documento do agendamento existem; parceria fixa de teste existe', $categoria > 0 && $documento > 0 && $parceria > 0 && $cc > 0 && $agendaId > 0);
@@ -137,31 +173,6 @@ try {
 } finally {
     while (TTransaction::get()) { TTransaction::rollback(); }
     try { foreach (array_reverse($lotes) as $l) { LoteFinanceiroService::desfazer($l, $userId); } } catch (Throwable $e) { echo '  (limpeza lote: ', $e->getMessage(), ")\n"; }
-    if ($criados['agendamento']) {
-        $ags = implode(',', $criados['agendamento']);
-        TTransaction::open('escritorio');
-        $c = TTransaction::get();
-        $contas = array_map('intval', $c->query("SELECT id FROM conta WHERE agendamento_id IN ({$ags})")->fetchAll(PDO::FETCH_COLUMN));
-        if ($contas) {
-            $lista = implode(',', $contas);
-            $c->exec("DELETE FROM agendamento_financeiro WHERE agendamento_id IN ({$ags})");
-            $c->exec("DELETE FROM repasse_colaborador WHERE conta_receber_id IN ({$lista}) OR conta_pagar_id IN ({$lista})");
-            $c->exec("UPDATE lancamento SET extrato_id = NULL WHERE conta_id IN ({$lista})");
-            $c->exec("DELETE FROM lote_pagamento_item WHERE lancamento_id IN (SELECT id FROM lancamento WHERE conta_id IN ({$lista}))");
-            $c->exec("DELETE FROM extrato WHERE lancamento_id IN (SELECT id FROM lancamento WHERE conta_id IN ({$lista}))");
-            $c->exec("DELETE FROM lancamento_profissional WHERE lancamento_id IN (SELECT id FROM lancamento WHERE conta_id IN ({$lista}))");
-            $c->exec("DELETE FROM lancamento WHERE conta_id IN ({$lista})");
-            $c->exec("DELETE FROM conta_profissional WHERE conta_id IN ({$lista})");
-            $c->exec("DELETE FROM conta WHERE id IN ({$lista}) AND conta_origem_id IS NOT NULL");
-            $c->exec("DELETE FROM conta WHERE id IN ({$lista})");
-        }
-        $c->exec("DELETE FROM agendamento_financeiro WHERE agendamento_id IN ({$ags})");
-        $c->exec("DELETE FROM estado_agendamento WHERE agendamento_id IN ({$ags})");
-        $c->exec("DELETE FROM agendamento_procedimento WHERE agendamento_id IN ({$ags})");
-        $c->exec("DELETE FROM agendamento WHERE id IN ({$ags})");
-        $c->exec('DELETE FROM pessoa WHERE id IN (' . implode(',', $criados['pessoa']) . ')');
-        ContaCaixaSaldoService::recalcular(...$cc_saldo_recalcular);
-        TTransaction::close();
-    }
+    limparAgendamentoFinanceiro();
 }
 fim();
