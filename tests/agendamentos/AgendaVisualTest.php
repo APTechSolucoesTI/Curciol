@@ -127,6 +127,40 @@ try {
     $s = saida(function () { (new AgendamentoExcecao($_POST))->onSave($_POST); });
     $criados = q("SELECT a.agenda_id, (SELECT count(*) FROM agendamento_procedimento p WHERE p.agendamento_id = a.id) procs FROM agendamento a WHERE a.cliente_id = {$cliente} ORDER BY a.agenda_id");
     igual('excecao: um agendamento em cada agenda, com os procedimentos', [[$a1, 1], [$a2, 1]], array_map(function ($r) { return [(int) $r['agenda_id'], (int) $r['procs']]; }, $criados), substr(strip_tags($s), 0, 300));
+
+    // ---------- horario livre na agenda (30/10/2026) ----------
+    $livre = function (int $agenda, string $ini, string $fim) {
+        TTransaction::open('escritorio');
+        try { AgendaConflitoService::exigirLivre($agenda, $ini, $fim); TTransaction::close(); return ''; }
+        catch (Throwable $e) { TTransaction::rollback(); return $e->getMessage(); }
+    };
+    $choque = q("SELECT fl_permite_choque_horario f FROM agenda WHERE id = {$a1}")[0]['f'];
+    if ($choque !== 'T') {
+        ok('conflito: outro agendamento no mesmo horario', strpos($livre($a1, '2030-01-17 09:15', '2030-01-17 09:45'), 'Já existe um agendamento') !== false);
+        $s = saida(function () { (new AgendamentoExcecao($_POST))->onSave($_POST); });
+        ok('conflito: a excecao de novo no mesmo horario e recusada, com o motivo', strpos($s, 'Já existe um agendamento') !== false && count(q("SELECT 1 FROM agendamento WHERE cliente_id = {$cliente}")) === 2, substr(strip_tags($s), 0, 300));
+    }
+    $m = $livre($a1, '2030-01-16 11:00', '2030-01-16 13:00');
+    ok('conflito: bloqueio no horario (com data e horas na mensagem)', strpos($m, 'Já existe um bloqueio') !== false && strpos($m, '16/01/2030 das 08:00 às 12:00') !== false, $m);
+    ok('conflito: compromisso no horario', strpos($livre($a2, '2030-01-15 10:30', '2030-01-15 10:45'), 'Já existe um compromisso') !== false);
+    igual('conflito: encostar (comeca quando o bloqueio termina) pode', '', $livre($a1, '2030-01-16 12:00', '2030-01-16 12:30'));
+    ok('conflito: fim antes do inicio e recusado', strpos($livre($a1, '2030-01-16 13:00', '2030-01-16 12:30'), 'depois do início') !== false);
+
+    // ---------- cartoes e sobreposicao (30/10/2026) ----------
+    $ev = AgendaVisual::estilizar(['title' => "<div class='agd-ev'><span class='agd-ev-l1'>NOME</span></div>", 'start' => '2030-01-01T09:00:00', 'end' => '2030-01-01T09:30:00'], 'agendamento', '#2563eb', 1);
+    ok('cartao: horario real dentro do cartao', strpos($ev['title'], "<span class='agd-ev-hora'>09:00–09:30</span> NOME") !== false, $ev['title']);
+    $camadas = AgendaVisual::camadas([
+        ['id' => 'ag', 'agenda_id' => '1', 'camada' => 1, 'start' => '2030-01-01T09:00:00', 'end' => '2030-01-01T11:00:00'],
+        ['id' => 'bl', 'agenda_id' => '1', 'camada' => 3, 'start' => '2030-01-01T10:00:00', 'end' => '2030-01-01T12:00:00'],
+        ['id' => 'in', 'agenda_id' => '1', 'camada' => 4, 'start' => '2030-01-01T11:00:00', 'end' => '2030-01-01T11:30:00'],
+        ['id' => 'outra', 'agenda_id' => '2', 'camada' => 1, 'start' => '2030-01-01T10:00:00', 'end' => '2030-01-01T11:00:00'],
+        ['id' => 'tudo', 'agenda_id' => '1', 'camada' => 2, 'start' => '2030-01-01T10:15:00', 'end' => '2030-01-01T10:45:00'],
+    ]);
+    igual('sobreposicao: intervalo > bloqueio > compromisso > agendamento na mesma agenda; outra agenda nao muda',
+        ['ag 09:00-10:00', 'bl 10:00-11:00', 'bl 11:30-12:00', 'in 11:00-11:30', 'outra 10:00-11:00'],
+        array_map(function ($e) { return $e['id'] . ' ' . substr($e['start'], 11, 5) . '-' . substr($e['end'], 11, 5); }, $camadas));
+    $html = saida(function () { (new AgendamentoCalendarFormView([]))->show(); });
+    ok('calendario: cartoes lado a lado (sem cascata) e cabecalho dos dias sem ficar fixo', strpos($html, '"slotEventOverlap":false') !== false && strpos($html, '"stickyHeaderDates":false') !== false && strpos($html, '"eventMinHeight":28') !== false);
 } finally {
     limparAgendaMulti();
     FiltroLista::limparSessao('AgendamentosFilterForm');

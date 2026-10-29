@@ -46,7 +46,10 @@ class AgendamentoCalendarFormView extends TPage
 
         // altura natural: a agenda rola junto com a pagina (antes tinha rolagem propria)
         $this->fc->setOption('height', 'auto');
-        $this->fc->setOption('stickyHeaderDates', true);
+        // cabecalho dos dias rola junto (fixo ele passava por cima do titulo ao rolar); cartoes lado a lado, sem cascata
+        $this->fc->setOption('stickyHeaderDates', false);
+        $this->fc->setOption('slotEventOverlap', false);
+        $this->fc->setOption('eventMinHeight', 28);
         $this->fc->setEventClickAction(new TAction(array($this, 'onClick')));
         $this->fc->id = 'agendamentos';
 
@@ -205,7 +208,7 @@ class AgendamentoCalendarFormView extends TPage
 
                             $return[] = [
                                 'type' => 'disponivel',
-                                'title' =>'Disponível',
+                                'title' => '',
                                 'overlap' => false,
                                 'rendering' => "background",
                                 'display' => 'background',
@@ -263,6 +266,7 @@ class AgendamentoCalendarFormView extends TPage
                             $return[] = [
                                 'type' => 'feriado',
                                 'title' => 'Intervalo',
+                                'camada' => 4, // por cima de bloqueio, compromisso e agendamento da agenda (AgendaVisual::camadas)
                                 'overlap' => true,
                                 'rendering' => "block",
                                 'display' => 'background',
@@ -339,7 +343,8 @@ class AgendamentoCalendarFormView extends TPage
                     $event_array['start'] = str_replace( ' ', 'T', $compromisso->dt_inicio);
                     $event_array['end'] = str_replace( ' ', 'T', $compromisso->dt_final);
                     $event_array['title'] = "<div class='agd-ev'><span class='agd-ev-l1'><i class='fas fa-briefcase'></i> " . htmlspecialchars((string) ($compromisso->tipo_compromisso->nome ?? 'Compromisso')) . "</span>"
-                        . "<span class='agd-ev-l2'>Compromisso" . ($agenda ? ' · ' . htmlspecialchars((string) $agenda->nome) : '') . "</span></div>";
+                        . "<span class='agd-ev-l2'>Compromisso" . ($agenda ? ' · ' . htmlspecialchars((string) $agenda->nome) : '')
+                        . (trim((string) $compromisso->observacao) !== '' ? ' · ' . htmlspecialchars((string) $compromisso->observacao) : '') . "</span></div>";
                     $event_array['id'] = 'compromisso-'.$compromisso->id;
 
                     $return[] = AgendaVisual::estilizar($event_array, 'compromisso', $agenda->cor ?? null, $compromisso->agenda_id);
@@ -444,7 +449,8 @@ class AgendamentoCalendarFormView extends TPage
                 }
             }
             TTransaction::close();
-            echo json_encode($return);
+            // na mesma agenda: intervalo > bloqueio > compromisso > agendamento (o de cima corta o de baixo)
+            echo json_encode(AgendaVisual::camadas($return));
         }
         catch (Exception $e)
         {

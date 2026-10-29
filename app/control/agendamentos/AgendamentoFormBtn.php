@@ -538,6 +538,8 @@ class AgendamentoFormBtn extends TPage
                 $object->link_atendimento_online = implode('', [bin2hex(random_bytes(4)),bin2hex(random_bytes(2)),bin2hex(chr((ord(random_bytes(1)) & 0x0F) | 0x40)) . bin2hex(random_bytes(1)),bin2hex(chr((ord(random_bytes(1)) & 0x3F) | 0x80)) . bin2hex(random_bytes(1)),bin2hex(random_bytes(6))]);
             }
 
+            // Curciol (30/10/2026): horario livre na agenda (sem agendamento, bloqueio ou compromisso no mesmo horario)
+            AgendaConflitoService::exigirLivre((int) $object->agenda_id, (string) $object->dt_inicial, (string) $object->dt_final, (int) $object->id);
             $object->store(); // save the object 
 
             if ($new)
@@ -843,6 +845,8 @@ class AgendamentoFormBtn extends TPage
             throw new Exception('Verifique o horário. Existem bloqueios ou horarios de intervalo sobrepostos');
         }
 
+        // Curciol (30/10/2026): a repeticao tambem nao pode cair sobre agendamento, bloqueio ou compromisso da agenda
+        AgendaConflitoService::exigirLivre((int) $newObject->agenda_id, (string) $newObject->dt_inicial, (string) $newObject->dt_final);
         $newObject->store();
 
         // preenche procedimentos

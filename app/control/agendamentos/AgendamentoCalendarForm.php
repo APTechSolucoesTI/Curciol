@@ -519,6 +519,16 @@ class AgendamentoCalendarForm extends TPage
                 }
             }
 
+            // Curciol (30/10/2026): horario livre na agenda (sem agendamento, bloqueio ou compromisso no mesmo horario);
+            // editando sem mudar agenda nem horario, nao confere (nao trava quem ja estava assim)
+            $antes = $new ? null : Agendamento::find((int) $object->id);
+            if (!$antes || (int) $antes->agenda_id !== (int) $object->agenda_id
+                || substr((string) $antes->dt_inicial, 0, 16) !== substr((string) $object->dt_inicial, 0, 16)
+                || substr((string) $antes->dt_final, 0, 16) !== substr((string) $object->dt_final, 0, 16))
+            {
+                AgendaConflitoService::exigirLivre((int) $object->agenda_id, (string) $object->dt_inicial, (string) $object->dt_final, (int) $object->id);
+            }
+
             if (! $object->validate()) {
                 throw new Exception('Verifique o horário. Existem bloqueios ou horarios de intervalo sobrepostos');
             }
@@ -944,6 +954,8 @@ class AgendamentoCalendarForm extends TPage
             throw new Exception('Verifique o horário. Existem bloqueios ou horarios de intervalo sobrepostos');
         }
 
+        // Curciol (30/10/2026): a repeticao tambem nao pode cair sobre agendamento, bloqueio ou compromisso da agenda
+        AgendaConflitoService::exigirLivre((int) $newObject->agenda_id, (string) $newObject->dt_inicial, (string) $newObject->dt_final);
         $newObject->store();
 
         // preenche procedimentos
