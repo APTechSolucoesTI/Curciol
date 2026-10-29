@@ -32,8 +32,15 @@ class AgendamentoCalendarFormView extends TPage
         $this->fc->enablePopover('', "{detalhe_html}");
         $this->fc->setOption('slotTime', "00:30:00");
         $this->fc->setOption('slotDuration', "00:30:00");
-        $this->fc->setOption('slotLabelInterval', 30);
+        $this->fc->setOption('slotLabelInterval', '01:00:00');
         $this->fc->setOption('nowIndicator', true);
+        // semana de domingo a sabado; Mes e Agenda (lista) comecam no dia de hoje (29/10/2026)
+        $this->fc->setOption('firstDay', 0);
+        $this->fc->setOption('views', [
+            'mesHoje'    => ['type' => 'dayGrid', 'duration' => ['weeks' => 5], 'dateAlignment' => 'day', 'dateIncrement' => ['months' => 1], 'buttonText' => 'Mês'],
+            'agendaHoje' => ['type' => 'list', 'duration' => ['weeks' => 1], 'dateAlignment' => 'day', 'buttonText' => 'Agenda'],
+        ]);
+        $this->fc->setOption('headerToolbar', ['left' => 'prev,next today', 'center' => 'title', 'right' => 'timeGridDay,timeGridWeek,mesHoje,agendaHoje']);
 
         $agendas_id = TSession::getValue('agendamentos_filter_agenda_id');
 
@@ -56,11 +63,12 @@ class AgendamentoCalendarFormView extends TPage
                 $horario_final[$key] =   $agenda->horario_final;
                 $strohra_final[$key] = strtotime($horario_final[$key]);
 
-                // a agenda sempre abre na semana (29/10/2026); com uma agenda so, a duracao do horario e a dela
+                // a agenda sempre abre na semana (29/10/2026); linhas de no maximo 30 minutos (com uma agenda so e
+                // horario menor, o dela), para o agendamento curto caber no bloco
                 if(count($agendas_id)>1){
-                    $duracao=60;
+                    $duracao=30;
                 }else{
-                    $duracao = $agenda->duracao;
+                    $duracao = min(30, max(5, (int) $agenda->duracao ?: 30));
                 }
             }
 
@@ -75,7 +83,6 @@ class AgendamentoCalendarFormView extends TPage
 
                 $this->fc->setOption('slotTime', $time);
                 $this->fc->setOption('slotDuration', $time);
-                $this->fc->setOption('slotLabelInterval', $duracao);
             }
         }
 
@@ -494,7 +501,7 @@ class AgendamentoCalendarFormView extends TPage
         if ($de) {
             $ate = SqlSeguro::data($filterData->dt_busca_fim ?? '') ?: $de;
             $dias = (int) round((strtotime($ate) - strtotime($de)) / 86400) + 1;
-            $this->fc->setCurrentView($dias <= 1 ? 'agendaDay' : ($dias <= 7 ? 'agendaWeek' : 'month'));
+            $this->fc->setCurrentView($dias <= 1 ? 'agendaDay' : ($dias <= 7 ? 'agendaWeek' : 'mesHoje'));
             $this->fc->setCurrentDate($de);
         }
     }

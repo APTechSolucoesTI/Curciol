@@ -63,7 +63,7 @@ class AgendaVisual
     /** Botao que abre/fecha a legenda (fica ao lado do periodo). */
     public static function botaoLegenda(): string
     {
-        return '<button type="button" class="agd-alternar" aria-expanded="false"><i class="fas fa-chevron-right"></i> <span class="agd-txt-abrir">Legenda</span><span class="agd-txt-fechar">Recolher legenda</span></button>';
+        return '<button type="button" class="agd-alternar" aria-expanded="false"><i class="fas fa-chevron-right"></i> <span class="agd-txt-abrir">Expandir legenda</span><span class="agd-txt-fechar">Recolher legenda</span></button>';
     }
 
 
@@ -75,7 +75,8 @@ class AgendaVisual
             .agd-filtro label { margin: 0; }
             .agd-filtro-largo { width: 290px; max-width: 100%; }
             .agd-filtro-periodo { width: 230px; max-width: 100%; }
-            .agd-filtro-legenda { margin-left: auto; align-items: flex-start; }
+            /* largura da legenda aberta: o botao fica no mesmo lugar aberto ou fechado */
+            .agd-filtro-legenda { margin-left: auto; align-items: flex-start; width: 470px; max-width: 100%; }
             .agd-filtro-legenda .agd-alternar { padding: 0; }
             .agd-alternar { border: 0; background: transparent; color: #2b6a9b; font-weight: 600; height: 28px; padding: 0 6px; cursor: pointer; white-space: nowrap; }
             .agd-alternar i { transition: transform .15s; font-size: 10px; }
@@ -93,6 +94,14 @@ class AgendaVisual
             .agd-am-bloq { border: 1px solid var(--agd-cor); background: repeating-linear-gradient(135deg, var(--agd-lista) 0 4px, var(--agd-fundo) 4px 8px); }
             .agd-am-fundo { background: repeating-linear-gradient(135deg, #e3e6ea 0 3px, #f8f9fa 3px 7px); }
             #agendamentos .fc-event.agd-agendamento, #agendamentos .fc-event.agd-compromisso, #agendamentos .fc-event.agd-bloqueio { border-radius: 4px; font-size: 12px; }
+            /* linhas de horario mais altas e o conteudo do bloco preso dentro dele (antes vazava do agendamento curto) */
+            #agendamentos .fc-timegrid-slot { height: 30px; }
+            #agendamentos .fc-timegrid-event .agd-ev-l2 { line-height: 12px; }
+            #agendamentos .fc-timegrid-event { overflow: hidden; }
+            #agendamentos .fc-timegrid-event .fc-event-time { float: left; margin: 0 5px 0 0; font-size: 11px; line-height: 15px; }
+            #agendamentos .fc-timegrid-event .fc-event-title-container, #agendamentos .fc-timegrid-event .fc-event-title { overflow: hidden; line-height: 15px; }
+            #agendamentos .fc-timegrid-event .agd-ev-l1 { display: block; }
+            #agendamentos .fc-timegrid-event .agd-ev-est { display: inline-block; vertical-align: middle; margin-right: 4px; }
             #agendamentos .fc-event.agd-compromisso { border-style: dashed; border-width: 1.5px; }
             #agendamentos .fc-event.agd-bloqueio { background-image: repeating-linear-gradient(135deg, rgba(255,255,255,.55) 0 7px, rgba(255,255,255,0) 7px 14px); }
             #agendamentos .fc-event.agd-bloqueio .agd-ev-texto { background: rgba(255,255,255,.85); border-radius: 3px; padding: 0 3px; }

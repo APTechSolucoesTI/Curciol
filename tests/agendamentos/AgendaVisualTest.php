@@ -77,6 +77,9 @@ try {
 
     $html = saida(function () { (new AgendamentoCalendarFormView([]))->show(); });
     ok('calendario: abre na semana, altura natural (rola com a pagina) e hora atual', strpos($html, 'timeGridWeek') !== false && strpos($html, '"height":"auto"') !== false && strpos($html, 'nowIndicator') !== false && strpos($html, 'agd-faixa') === false, substr(strip_tags($html), 0, 200));
+    ok('calendario: semana de domingo a sabado; Mes e Agenda comecam hoje', strpos($html, '"firstDay":0') !== false && strpos($html, '"mesHoje":{"type":"dayGrid"') !== false
+        && strpos($html, '"agendaHoje":{"type":"list"') !== false && substr_count($html, '"dateAlignment":"day"') === 2 && strpos($html, 'timeGridDay,timeGridWeek,mesHoje,agendaHoje') !== false);
+    ok('legenda: botao "Expandir legenda" com a largura da legenda aberta', strpos(AgendaVisual::botaoLegenda(), 'Expandir legenda') !== false && strpos(AgendaVisual::estilo(), '.agd-filtro-legenda { margin-left: auto; align-items: flex-start; width: 470px;') !== false);
 
     // eventos: so as agendas e o periodo filtrados (sem filtro de cliente, para ter o que contar)
     saida(function () use ($a1, $a2) { AgendamentosFilterForm::onFilter(['agenda_id' => [(string) $a1, (string) $a2], 'dt_busca' => '01/01/2020', 'dt_busca_fim' => '31/12/2030']); });
