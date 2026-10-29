@@ -29,7 +29,7 @@ $especialidade = (int) $c->query('SELECT especialidade_id FROM agendamento WHERE
 $parceria = (int) $c->query("SELECT id FROM parceria_levantamento WHERE nome = 'Previdência' AND tipo = 'FIXA'")->fetchColumn();
 $temporal = (int) $c->query("SELECT id FROM parceria_levantamento WHERE tipo = 'TEMPORAL' ORDER BY id LIMIT 1")->fetchColumn();
 $cc = (int) $c->query("SELECT id FROM conta_caixa WHERE COALESCE(ativo, 'S') <> 'N' AND (dt_inicial IS NULL OR dt_inicial < current_date - 1) ORDER BY id LIMIT 1")->fetchColumn();
-$pix = (int) TipoPagamento::PIX;
+$pix = (int) $c->query("SELECT id FROM tipo_pagamento WHERE COALESCE(ativo, 'S') <> 'N' AND id <> " . (int) TipoPagamento::CHEQUE . " ORDER BY id LIMIT 1")->fetchColumn();
 $categoria = (int) $c->query("SELECT id FROM categoria_conta WHERE lower(nome) = 'recebimentos de agendamentos'")->fetchColumn();
 $documento = (int) $c->query("SELECT id FROM tipo_documento_financeiro WHERE lower(nome) = 'agendamento'")->fetchColumn();
 TTransaction::close();
