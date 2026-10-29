@@ -94,7 +94,6 @@ class AgendamentoExcecao extends TPage
         $agendamento_procedimento_agendamento_valor->setExitAction(new TAction([$this,'onExitValor']));
         $agendamento_procedimento_agendamento_quantidade->setExitAction(new TAction([$this,'onExitQuantidade']));
 
-        $agenda_id->addValidation("Agenda", new TRequiredValidator()); 
         $cliente_id->addValidation("Cliente", new TRequiredValidator()); 
         $dt_inicial->addValidation("Início ", new TRequiredValidator()); 
         $dt_final->addValidation("Fim", new TRequiredValidator()); 
@@ -164,8 +163,24 @@ class AgendamentoExcecao extends TPage
         $row1 = $this->form->addFields([new TLabel("Código:", null, '14px', null, '100%'),$id]);
         $row1->layout = ['col-sm-6'];
 
-        $row2 = $this->form->addFields([new TLabel("Agenda:", '#ff0000', '14px', null, '100%'),$agenda_id],[new TLabel("Profissional:", null, '14px', null, '100%'),$agenda_profissional_nome],[new TLabel("Especialidade:", null, '14px', null, '100%'),$especialidade_id]);
-        $row2->layout = [' col-sm-4',' col-sm-4',' col-sm-4'];
+        // Curciol (29/10/2026): excecao nova pode ir para varias agendas (um agendamento por agenda marcada); editando, a dela
+        if (AgendaSelecaoMultipla::editando($param))
+        {
+            $agenda_id->addValidation("Agenda", new TRequiredValidator());
+            $row2 = $this->form->addFields([new TLabel("Agenda:", '#ff0000', '14px', null, '100%'),$agenda_id],[new TLabel("Profissional:", null, '14px', null, '100%'),$agenda_profissional_nome],[new TLabel("Especialidade:", null, '14px', null, '100%'),$especialidade_id]);
+            $row2->layout = [' col-sm-4',' col-sm-4',' col-sm-4'];
+        }
+        else
+        {
+            $criteriaAgendasUnidade = new TCriteria();
+            $criteriaAgendasUnidade->add(new TFilter('escritorio_id', 'in', "(SELECT id FROM escritorio WHERE system_unit_id = '" . (int) TSession::getValue('userunitid') . "')"));
+            $agendas = AgendaSelecaoMultipla::campo($criteriaAgendasUnidade);
+            $agendas->setChangeAction(new TAction([$this,'onChange']));
+            $rowAgendas = $this->form->addFields([new TLabel("Agendas:", '#ff0000', '14px', null, '100%'), $agendas]);
+            $rowAgendas->layout = [' col-sm-12'];
+            $row2 = $this->form->addFields([new TLabel("Profissional:", null, '14px', null, '100%'),$agenda_profissional_nome],[new TLabel("Especialidade:", null, '14px', null, '100%'),$especialidade_id]);
+            $row2->layout = [' col-sm-6',' col-sm-6'];
+        }
 
         $row3 = $this->form->addFields([new TLabel("Cliente:", '#ff0000', '14px', null, '100%'),$cliente_id],[new TLabel("Período:", '#ff0000', '14px', null, '100%'),$dt_inicial,new TLabel("até", null, '14px', null),$dt_final]);
         $row3->layout = [' col-sm-4',' col-sm-8'];
@@ -285,11 +300,26 @@ class AgendamentoExcecao extends TPage
         try 
         {
             TTransaction::open(self::$database);
-            if (! empty($param['agenda_id']))
+            // varias agendas marcadas: a primeira define especialidade e procedimento; com mais de uma, so os profissionais
+            $agendaId = $param['agenda_id'] ?? null;
+            $marcadas = array_values(array_filter(array_map('intval', (array) ($param['agendas'] ?? []))));
+            if (empty($agendaId) && $marcadas)
+            {
+                $agendaId = $marcadas[0];
+                if (count($marcadas) > 1)
+                {
+                    $nomes = [];
+                    foreach ($marcadas as $m) { $a = Agenda::find($m); if ($a && $a->profissional) { $nomes[] = $a->profissional->nome; } }
+                    TForm::sendData(self::$formName, (object) ['agenda_profissional_nome' => implode(', ', array_unique($nomes))]);
+                    TTransaction::close();
+                    return;
+                }
+            }
+            if (! empty($agendaId))
             {
                 TFieldList::clear('fieldList_procedimentos');
 
-                $agenda = Agenda::find($param['agenda_id']);
+                $agenda = Agenda::find($agendaId);
 
                 $parceiros = EscritorioParceiro::where('escritorio_id', '=', $agenda->escritorio_id)->getIndexedArray('parceiro_id', 'parceiro_id')??[];
                 $especialidades = PessoaEspecialidade::where('pessoa_id', '=', $agenda->profissional_id)->getIndexedArray('especialidade_id', '{especialidade->descricao}');
@@ -431,12 +461,16 @@ class AgendamentoExcecao extends TPage
 
             $this->form->validate(); // validate form data
 
-            $object = new Agendamento(); // create an empty object 
-
             $data = $this->form->getData(); // get form data as array
-            $object->fromArray( (array) $data); // load the object with data
+            $new = empty($data->id) || empty(Agendamento::find($data->id));
 
-            $new = empty($object->id) || empty(Agendamento::find($object->id));
+            // nova: um agendamento em cada agenda marcada (mesmo cliente, horario e procedimentos); editando: o proprio
+            $agendasMarcadas = $new ? AgendaSelecaoMultipla::marcadas($data) : [null];
+            foreach ($agendasMarcadas as $agendaMarcada)
+            {
+            $object = new Agendamento(); // create an empty object 
+            $object->fromArray( (array) $data); // load the object with data
+            if ($agendaMarcada) { $object->agenda_id = $agendaMarcada; }
 
             if ($new)
             {
@@ -461,7 +495,7 @@ class AgendamentoExcecao extends TPage
 
                 if ($agendamentos > 0)
                 {
-                     throw new Exception('Verifique o horário! Existem agendamentos sobrepostos.');
+                     throw new Exception('Verifique o horário! Existem agendamentos sobrepostos' . ($agenda ? ' na agenda ' . $agenda->nome : '') . '.');
                 }
 
             }
@@ -505,6 +539,7 @@ class AgendamentoExcecao extends TPage
             if ($new)
             {
                 $this->clonar($object, $data);
+            }
             }
 
             if (! empty($param['origin']) && $param['origin'] === 'list' )

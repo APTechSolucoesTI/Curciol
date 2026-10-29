@@ -1,0 +1,118 @@
+<?php
+// tests/agendamentos/AgendaVisualTest.php
+// Agenda repaginada (29/10/2026): cores pela agenda, faixa das agendas e legenda, filtros com varios clientes/agendas e
+// periodo; compromisso, bloqueio e excecao novos em varias agendas (um registro por agenda marcada).
+// Grava na homologacao (registros marcados com MARCA_AV, em 2030) e apaga tudo no fim.
+require __DIR__ . '/../bootstrap.php';
+if (!class_exists('TApplication')) { class TApplication extends AdiantiCoreApplication {} }
+
+const MARCA_AV = 'TESTE AGENDA MULTI';
+function q(string $sql) { TTransaction::open('escritorio'); $r = TTransaction::get()->query($sql)->fetchAll(PDO::FETCH_ASSOC); TTransaction::close(); return $r; }
+function x(string $sql): void { TTransaction::open('escritorio'); TTransaction::get()->exec($sql); TTransaction::close(); }
+function post(array $dados): void { $_POST = $dados; $_REQUEST = $dados; }
+function saida(callable $fn): string
+{
+    ob_start();
+    try { $fn(); } catch (Throwable $e) { echo 'EXCECAO: ' . $e->getMessage(); }
+    $s = ob_get_clean();
+    while (TTransaction::get()) { TTransaction::rollback(); }
+    return $s;
+}
+function limparAgendaMulti(): void
+{
+    $m = MARCA_AV;
+    x("DELETE FROM convidado_compromisso WHERE compromisso_id IN (SELECT id FROM compromisso WHERE observacao LIKE '{$m}%')");
+    x("DELETE FROM compromisso WHERE observacao LIKE '{$m}%'");
+    x("DELETE FROM bloqueio WHERE observacao LIKE '{$m}%'");
+    $ags = "(SELECT id FROM agendamento WHERE cliente_id IN (SELECT id FROM pessoa WHERE nome LIKE '{$m}%'))";
+    x("DELETE FROM agendamento_procedimento WHERE agendamento_id IN {$ags}");
+    x("DELETE FROM estado_agendamento WHERE agendamento_id IN {$ags}");
+    x("DELETE FROM convidado WHERE agendamento_id IN {$ags}");
+    x("DELETE FROM agendamento WHERE id IN {$ags}");
+    x("DELETE FROM pessoa WHERE nome LIKE '{$m}%'");
+}
+
+if (q('SELECT current_database() d')[0]['d'] !== 'curciol_homologacao') { echo "ABORTADO: so na homologacao\n"; exit(1); }
+$par = q("SELECT a1.id a1, a2.id a2, e.system_unit_id u FROM agenda a1 JOIN agenda a2 ON a2.escritorio_id = a1.escritorio_id AND a2.id > a1.id
+            JOIN escritorio e ON e.id = a1.escritorio_id ORDER BY a1.id LIMIT 1")[0] ?? null;
+if (!$par) { echo "ABORTADO: precisa de duas agendas no mesmo escritorio\n"; exit(1); }
+[$a1, $a2, $unidade] = [(int) $par['a1'], (int) $par['a2'], (int) $par['u']];
+TSession::setValue('userid', (int) q('SELECT min(id) i FROM system_users')[0]['i']);
+TSession::setValue('userunitid', $unidade);
+$tipoCompromisso = (int) (q('SELECT id FROM tipo_compromisso ORDER BY id LIMIT 1')[0]['id'] ?? 0);
+$proc = q('SELECT procedimento_id, parceiro_id FROM agendamento_procedimento ORDER BY id LIMIT 1')[0];
+
+limparAgendaMulti();
+try {
+    // ---------- cores ----------
+    $c = AgendaVisual::cores('#2563eb');
+    igual('cores: a cor da agenda, fundo claro e texto escuro', ['#2563eb', '#dee8fc', '#0f285e'], [$c['cor'], $c['fundo'], $c['texto']]);
+    igual('cores: cor invalida usa a padrao', '#528bb7', AgendaVisual::cores('azul')['cor']);
+    $ev = AgendaVisual::estilizar(['title' => 'x', 'color' => '#f00'], 'compromisso', '#2563eb', 7);
+    igual('compromisso: fundo branco, contorno na cor da agenda, classe tracejada', ['#ffffff', '#2563eb', ['agd-compromisso'], '7', false], [$ev['backgroundColor'], $ev['borderColor'], $ev['classNames'], $ev['agenda_id'], isset($ev['color'])]);
+
+    // ---------- tela e filtros ----------
+    $html = saida(function () { (new AgendamentosFilterForm([]))->show(); });
+    ok('tela: Adicionar com compromisso, bloqueio e excecao; clientes, agendas e periodo', strpos($html, 'Adicionar') !== false && strpos($html, 'CompromissoForm') !== false && strpos($html, 'BloqueioForm') !== false
+        && strpos($html, 'AgendamentoExcecao') !== false && strpos($html, 'cliente_id') !== false && strpos($html, 'dt_busca_fim') !== false && strpos($html, 'Limpar filtros') !== false, substr(strip_tags($html), 0, 200));
+
+    saida(function () use ($a1, $a2) { AgendamentosFilterForm::onFilter(['cliente_id' => ['5', ''], 'agenda_id' => [(string) $a1, (string) $a2], 'dt_busca' => '01/10/2026', 'dt_busca_fim' => '31/10/2026']); });
+    $f = TSession::getValue('agendamentos_filter_data');
+    igual('filtro: varios clientes, varias agendas e periodo na sessao', [[5], [$a1, $a2], '2026-10-01', '2026-10-31'], [$f->cliente_id, $f->agenda_id, $f->dt_busca, $f->dt_busca_fim]);
+
+    $html = saida(function () { (new AgendamentoCalendarFormView([]))->show(); });
+    ok('calendario: faixa com as agendas filtradas e legenda; hora atual', strpos($html, 'agd-faixa') !== false && strpos($html, 'data-agenda="' . $a1 . '"') !== false
+        && strpos($html, 'data-agenda="' . $a2 . '"') !== false && strpos($html, 'Estado do agendamento') !== false && strpos($html, 'nowIndicator') !== false, substr(strip_tags($html), 0, 200));
+
+    // eventos: so as agendas e o periodo filtrados (sem filtro de cliente, para ter o que contar)
+    saida(function () use ($a1, $a2) { AgendamentosFilterForm::onFilter(['agenda_id' => [(string) $a1, (string) $a2], 'dt_busca' => '01/01/2020', 'dt_busca_fim' => '31/12/2030']); });
+    $json = saida(function () { AgendamentoCalendarFormView::getEvents(['start' => '2026-10-01T00:00:00', 'end' => '2026-11-01T00:00:00']); });
+    $eventos = json_decode($json, true);
+    ok('eventos: json valido', is_array($eventos), substr($json, 0, 200));
+    $agendamentos = array_values(array_filter((array) $eventos, function ($e) { return in_array('agd-agendamento', $e['classNames'] ?? [], true) && is_numeric($e['id'] ?? null) && empty($e['convidado']); }));
+    $esperado = (int) q("SELECT count(*) n FROM agendamento WHERE ativo = 'T' AND agenda_id IN ({$a1}, {$a2}) AND dt_inicial <= '2026-10-31 23:59:59' AND dt_final >= '2026-10-01 00:00:00'")[0]['n'];
+    ok('eventos: agendamentos das agendas filtradas, na cor da agenda', count($agendamentos) >= $esperado && !array_filter($agendamentos, function ($e) use ($a1, $a2) { return !in_array((int) $e['agenda_id'], [$a1, $a2], true) || empty($e['backgroundColor']); }),
+        count($agendamentos) . ' x ' . $esperado);
+    saida(function () { AgendamentosFilterForm::onLimparFiltros([]); });
+    igual('Limpar filtros zera clientes, agendas e periodo', [[], [], ''], [TSession::getValue('agendamentos_filter_data')->cliente_id, TSession::getValue('agendamentos_filter_data')->agenda_id, TSession::getValue('agendamentos_filter_data')->dt_busca]);
+
+    // ---------- compromisso em varias agendas ----------
+    $html = saida(function () { (new CompromissoForm([]))->show(); });
+    ok('compromisso novo: agendas com caixa de selecao', strpos($html, 'name="agendas[]"') !== false, substr(strip_tags($html), 0, 160));
+    $base = ['id' => '', 'tipo_compromisso_id' => (string) $tipoCompromisso, 'dt_inicio' => '15/01/2030 10:00', 'dt_final' => '15/01/2030 11:00', 'habilitar_repeticao' => 'N',
+             'convidado_compromisso_compromisso_id' => [''], 'convidado_compromisso_compromisso___row__id' => ['1'], 'convidado_compromisso_compromisso___row__data' => [''], 'convidado_compromisso_compromisso_agenda_id' => ['']];
+    post($base + ['agendas' => [(string) $a1, (string) $a2], 'observacao' => MARCA_AV . ' compromisso']);
+    $s = saida(function () { (new CompromissoForm($_POST))->onSave($_POST); });
+    igual('compromisso: um em cada agenda marcada', [$a1, $a2], array_map('intval', array_column(q("SELECT agenda_id FROM compromisso WHERE observacao = '" . MARCA_AV . " compromisso' ORDER BY agenda_id"), 'agenda_id')));
+    ok('compromisso: aviso de quantos foram salvos', strpos($s, '2 compromissos salvos') !== false, substr(strip_tags($s), 0, 200));
+    post($base + ['agendas' => [], 'observacao' => MARCA_AV . ' sem agenda']);
+    $s = saida(function () { (new CompromissoForm($_POST))->onSave($_POST); });
+    ok('compromisso: sem agenda marcada e recusado', strpos($s, 'Marque pelo menos uma agenda') !== false && !q("SELECT 1 FROM compromisso WHERE observacao = '" . MARCA_AV . " sem agenda'"), substr(strip_tags($s), 0, 200));
+    $id = (int) q("SELECT id FROM compromisso WHERE observacao = '" . MARCA_AV . " compromisso' ORDER BY id LIMIT 1")[0]['id'];
+    $html = saida(function () use ($id) { $t = new CompromissoForm(['key' => $id]); $t->onEdit(['key' => $id]); $t->show(); });
+    ok('compromisso existente: edita com a agenda unica dele', strpos($html, 'name="agenda_id"') !== false && strpos($html, 'name="agendas[]"') === false);
+
+    // ---------- bloqueio em varias agendas ----------
+    post(['id' => '', 'dt_inicio' => '16/01/2030 08:00', 'dt_final' => '16/01/2030 12:00', 'habilitar_repeticao' => 'N', 'agendas' => [(string) $a1, (string) $a2], 'observacao' => MARCA_AV . ' bloqueio']);
+    $s = saida(function () { (new BloqueioForm($_POST))->onSave($_POST); });
+    igual('bloqueio: um em cada agenda marcada', [$a1, $a2], array_map('intval', array_column(q("SELECT agenda_id FROM bloqueio WHERE observacao = '" . MARCA_AV . " bloqueio' ORDER BY agenda_id"), 'agenda_id')), substr(strip_tags($s), 0, 200));
+
+    // ---------- excecao (agendamento) em varias agendas ----------
+    x("INSERT INTO pessoa (nome, tipo_pessoa_id) VALUES ('" . MARCA_AV . " CLIENTE', 1)");
+    $cliente = (int) q("SELECT id FROM pessoa WHERE nome = '" . MARCA_AV . " CLIENTE'")[0]['id'];
+    $html = saida(function () { (new AgendamentoExcecao([]))->show(); });
+    ok('excecao nova: agendas com caixa de selecao', strpos($html, 'name="agendas[]"') !== false, substr(strip_tags($html), 0, 160));
+    post(['id' => '', 'cliente_id' => (string) $cliente, 'especialidade_id' => '', 'dt_inicial' => '17/01/2030 09:00', 'dt_final' => '17/01/2030 09:30', 'online' => 'F', 'habilitar_repeticao' => 'N',
+          'observacao' => MARCA_AV, 'agendas' => [(string) $a1, (string) $a2],
+          'agendamento_procedimento_agendamento_id' => [''], 'agendamento_procedimento_agendamento___row__id' => ['1'], 'agendamento_procedimento_agendamento___row__data' => [''],
+          'agendamento_procedimento_agendamento_parceiro_id' => [(string) $proc['parceiro_id']], 'agendamento_procedimento_agendamento_procedimento_id' => [(string) $proc['procedimento_id']],
+          'agendamento_procedimento_agendamento_valor' => ['100,00'], 'agendamento_procedimento_agendamento_quantidade' => ['1,00'], 'agendamento_procedimento_agendamento_valor_total' => ['100,00']]);
+    $s = saida(function () { (new AgendamentoExcecao($_POST))->onSave($_POST); });
+    $criados = q("SELECT a.agenda_id, (SELECT count(*) FROM agendamento_procedimento p WHERE p.agendamento_id = a.id) procs FROM agendamento a WHERE a.cliente_id = {$cliente} ORDER BY a.agenda_id");
+    igual('excecao: um agendamento em cada agenda, com os procedimentos', [[$a1, 1], [$a2, 1]], array_map(function ($r) { return [(int) $r['agenda_id'], (int) $r['procs']]; }, $criados), substr(strip_tags($s), 0, 300));
+} finally {
+    limparAgendaMulti();
+    FiltroLista::limparSessao('AgendamentosFilterForm');
+}
+igual('sem sobras do teste', 0, count(q("SELECT 1 FROM compromisso WHERE observacao LIKE '" . MARCA_AV . "%' UNION ALL SELECT 1 FROM bloqueio WHERE observacao LIKE '" . MARCA_AV . "%' UNION ALL SELECT 1 FROM pessoa WHERE nome LIKE '" . MARCA_AV . "%'")));
+fim();

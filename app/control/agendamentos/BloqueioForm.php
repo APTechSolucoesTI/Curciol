@@ -61,7 +61,6 @@ class BloqueioForm extends TPage
         $dt_inicio->setExitAction(new TAction([$this,'onChangeDate']));
         $repetir_ate->setExitAction(new TAction([$this,'changeDataRepeticao']));
 
-        $agenda_id->addValidation("Agenda", new TRequiredValidator()); 
         $dt_inicio->addValidation("Início", new TRequiredValidator()); 
         $dt_final->addValidation("Fim", new TRequiredValidator()); 
         $observacao->addValidation("Observação", new TRequiredValidator()); 
@@ -116,8 +115,20 @@ class BloqueioForm extends TPage
         $row1 = $this->form->addFields([new TLabel("Código:", null, '14px', null, '100%'),$id]);
         $row1->layout = ['col-sm-6'];
 
-        $row2 = $this->form->addFields([new TLabel("Agenda:", '#ff0000', '14px', null, '100%'),$agenda_id],[new TLabel("Início:", '#ff0000', '14px', null, '100%'),$dt_inicio],[new TLabel("Fim:", '#ff0000', '14px', null, '100%'),$dt_final]);
-        $row2->layout = [' col-sm-6',' col-sm-3',' col-sm-3'];
+        // Curciol (29/10/2026): bloqueio novo pode ir para varias agendas (um por agenda marcada); editando, a agenda dele
+        if (AgendaSelecaoMultipla::editando($param))
+        {
+            $agenda_id->addValidation("Agenda", new TRequiredValidator());
+            $row2 = $this->form->addFields([new TLabel("Agenda:", '#ff0000', '14px', null, '100%'),$agenda_id],[new TLabel("Início:", '#ff0000', '14px', null, '100%'),$dt_inicio],[new TLabel("Fim:", '#ff0000', '14px', null, '100%'),$dt_final]);
+            $row2->layout = [' col-sm-6',' col-sm-3',' col-sm-3'];
+        }
+        else
+        {
+            $rowAgendas = $this->form->addFields([new TLabel("Agendas:", '#ff0000', '14px', null, '100%'), AgendaSelecaoMultipla::campo($criteria_agenda_id)]);
+            $rowAgendas->layout = [' col-sm-12'];
+            $row2 = $this->form->addFields([new TLabel("Início:", '#ff0000', '14px', null, '100%'),$dt_inicio],[new TLabel("Fim:", '#ff0000', '14px', null, '100%'),$dt_final]);
+            $row2->layout = [' col-sm-3',' col-sm-3'];
+        }
 
         $row3 = $this->form->addFields([new TLabel("Observação:", '#FF0000', '14px', null, '100%'),$observacao]);
         $row3->layout = [' col-sm-12'];
@@ -252,23 +263,28 @@ class BloqueioForm extends TPage
 
             $this->form->validate(); // validate form data
 
-            $object = new Bloqueio(); // create an empty object 
-
             $data = $this->form->getData(); // get form data as array
-            $object->fromArray( (array) $data); // load the object with data
+            $new = empty($data->id) || empty(Bloqueio::find($data->id));
 
-            $new = empty($object->id) || empty(Bloqueio::find($object->id));
-
-            if(!$data->id){
-                $object->criacao_user_id = TSession::getValue('userid');
-            }else{
-                $object->modificacao_user_id = TSession::getValue('userid');
-            }
-            $object->store(); // save the object 
-
-            if ($new)
+            // novo: um bloqueio em cada agenda marcada; editando: o proprio
+            $agendas = $new ? AgendaSelecaoMultipla::marcadas($data) : [null];
+            foreach ($agendas as $agendaMarcada)
             {
-                $this->clonar($object, $data);
+                $object = new Bloqueio(); // create an empty object
+                $object->fromArray( (array) $data); // load the object with data
+                if ($agendaMarcada) { $object->agenda_id = $agendaMarcada; }
+
+                if(!$data->id){
+                    $object->criacao_user_id = TSession::getValue('userid');
+                }else{
+                    $object->modificacao_user_id = TSession::getValue('userid');
+                }
+                $object->store(); // save the object
+
+                if ($new)
+                {
+                    $this->clonar($object, $data);
+                }
             }
 
             // get the generated {PRIMARY_KEY}
@@ -277,7 +293,7 @@ class BloqueioForm extends TPage
             $this->form->setData($data); // fill form data
             TTransaction::close(); // close the transaction
 
-            TToast::show('success', "Registro salvo", 'topRight', 'far:check-circle'); 
+            TToast::show('success', AgendaSelecaoMultipla::mensagem('bloqueios', count($agendas)), 'topRight', 'far:check-circle');
 
             TScript::create("$('#agendamentos').data('fullcalendar').refetchEvents()");
                         TScript::create("Template.closeRightPanel();"); 

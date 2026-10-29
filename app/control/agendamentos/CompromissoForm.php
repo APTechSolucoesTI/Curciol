@@ -91,7 +91,6 @@ class CompromissoForm extends TPage
         $repetir_ate->setExitAction(new TAction([$this,'changeDataRepeticao']));
 
         $tipo_compromisso_id->addValidation("Tipo compromisso id", new TRequiredValidator()); 
-        $agenda_id->addValidation("Agenda", new TRequiredValidator()); 
         $dt_inicio->addValidation("Início", new TRequiredValidator()); 
         $dt_final->addValidation("Fim", new TRequiredValidator()); 
 
@@ -154,8 +153,20 @@ class CompromissoForm extends TPage
         $row2 = $this->form->addFields([new TLabel("Tipo de compromisso:", '#ff0000', '14px', null, '100%'),$tipo_compromisso_id]);
         $row2->layout = [' col-sm-6'];
 
-        $row3 = $this->form->addFields([new TLabel("Agenda:", '#ff0000', '14px', null, '100%'),$agenda_id],[new TLabel("Início:", '#ff0000', '14px', null, '100%'),$dt_inicio],[new TLabel("Fim:", '#ff0000', '14px', null, '100%'),$dt_final]);
-        $row3->layout = [' col-sm-6',' col-sm-3',' col-sm-3'];
+        // Curciol (29/10/2026): compromisso novo pode ir para varias agendas (um por agenda marcada); editando, a agenda dele
+        if (AgendaSelecaoMultipla::editando($param))
+        {
+            $agenda_id->addValidation("Agenda", new TRequiredValidator());
+            $row3 = $this->form->addFields([new TLabel("Agenda:", '#ff0000', '14px', null, '100%'),$agenda_id],[new TLabel("Início:", '#ff0000', '14px', null, '100%'),$dt_inicio],[new TLabel("Fim:", '#ff0000', '14px', null, '100%'),$dt_final]);
+            $row3->layout = [' col-sm-6',' col-sm-3',' col-sm-3'];
+        }
+        else
+        {
+            $rowAgendas = $this->form->addFields([new TLabel("Agendas:", '#ff0000', '14px', null, '100%'), AgendaSelecaoMultipla::campo($criteria_agenda_id)]);
+            $rowAgendas->layout = [' col-sm-12'];
+            $row3 = $this->form->addFields([new TLabel("Início:", '#ff0000', '14px', null, '100%'),$dt_inicio],[new TLabel("Fim:", '#ff0000', '14px', null, '100%'),$dt_final]);
+            $row3->layout = [' col-sm-3',' col-sm-3'];
+        }
 
         $row4 = $this->form->addFields([new TLabel("Observação:", null, '14px', null, '100%'),$observacao]);
         $row4->layout = [' col-sm-12'];
@@ -294,12 +305,16 @@ class CompromissoForm extends TPage
 
             $this->form->validate(); // validate form data
 
-            $object = new Compromisso(); // create an empty object 
-
             $data = $this->form->getData(); // get form data as array
-            $object->fromArray( (array) $data); // load the object with data
+            $new = empty($data->id) || empty(Compromisso::find($data->id));
 
-            $new = empty($object->id) || empty(Compromisso::find($object->id));
+            // novo: um compromisso em cada agenda marcada (com os mesmos convidados); editando: o proprio
+            $agendas = $new ? AgendaSelecaoMultipla::marcadas($data) : [null];
+            foreach ($agendas as $agendaMarcada)
+            {
+            $object = new Compromisso(); // create an empty object 
+            $object->fromArray( (array) $data); // load the object with data
+            if ($agendaMarcada) { $object->agenda_id = $agendaMarcada; }
 
             if(!$data->id){
                 $object->criacao_user_id = TSession::getValue('userid');
@@ -326,6 +341,7 @@ class CompromissoForm extends TPage
             {
                 $this->clonar($object, $data);
             }
+            }
 
             // get the generated {PRIMARY_KEY}
             $data->id = $object->id; 
@@ -333,7 +349,7 @@ class CompromissoForm extends TPage
             $this->form->setData($data); // fill form data
             TTransaction::close(); // close the transaction
 
-            TToast::show('success', "Registro salvo", 'topRight', 'far:check-circle');
+            TToast::show('success', AgendaSelecaoMultipla::mensagem('compromissos', count($agendas)), 'topRight', 'far:check-circle');
             TApplication::loadPage('AgendamentosFilterForm', 'onShow', $loadPageParam); 
 
             TScript::create("$('#agendamentos').data('fullcalendar').refetchEvents()");

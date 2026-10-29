@@ -1,7 +1,9 @@
 <?php
 /**
- * AgendamentoCalendarForm Form
- * @author  <your name here>
+ * Calendario da agenda (tela Agendamentos > Agendamentos, dentro de AgendamentosFilterForm).
+ * Curciol (29/10/2026): visual repaginado (AgendaVisual): horarios na cor da agenda (agendamento com fundo claro,
+ * compromisso tracejado, bloqueio listrado), faixa com as agendas para mostrar/esconder e "Calendario e legenda".
+ * Filtros (sessao agendamentos_filter_data): varios clientes, varias agendas e periodo (inicio e fim).
  */
 class AgendamentoCalendarFormView extends TPage
 {
@@ -14,46 +16,44 @@ class AgendamentoCalendarFormView extends TPage
     {
         parent::__construct();
 
+        if (!empty($param['target_container']))
+        {
+            $this->adianti_target_container = $param['target_container'];
+        }
+
         TSession::setValue(__CLASS__.'load_filter_agenda_id', null);
         TSession::setValue(__CLASS__.'load_filter_cliente_id', null);
 
         $this->fc = new TFullCalendar(date('Y-m-d'), 'month');
         $this->fc->enableDays([0,1,2,3,4,5,6]);
         $this->fc->setReloadAction(new TAction(array($this, 'getEvents'), $param));
-        $this->fc->setEventClickAction(new TAction(array('AgendamentoCalendarForm', 'onEdit')));
         $this->fc->setCurrentView('agendaWeek');
         $this->fc->setTimeRange('08:00', '23:00');
         $this->fc->enablePopover('', "{detalhe_html}");
         $this->fc->setOption('slotTime', "00:30:00");
         $this->fc->setOption('slotDuration', "00:30:00");
         $this->fc->setOption('slotLabelInterval', 30);
+        $this->fc->setOption('nowIndicator', true);
 
         $agendas_id = TSession::getValue('agendamentos_filter_agenda_id');
 
-        $param['agenda_id']=$agendas_id[0] ?? NULL;
         $this->fc->enableFullHeight();
         $this->fc->setEventClickAction(new TAction(array($this, 'onClick')));
-        //$this->fc->setDayClickAction(new TAction(array('AgendamentoCalendarForm', 'onStartEdit'), $param));
         $this->fc->id = 'agendamentos';
 
+        TTransaction::open('escritorio');
         if ($agendas_id)
         {
-            TTransaction::open('escritorio');
-
             foreach($agendas_id as  $key=>$agenda_id){
 
-                $duracao = array();
-
                 $agenda = Agenda::find($agenda_id);
-
-                $visualizacao_inicial[$key] = $agenda->visualizacao_inicial;
+                if (!$agenda) { continue; }
 
                 $horario_inicial[$key] =   $agenda->horario_inicial;
                 $strohra_inicial[$key] = strtotime($horario_inicial[$key]);
                 $horario_final[$key] =   $agenda->horario_final;
                 $strohra_final[$key] = strtotime($horario_final[$key]);
 
-                $duracao[$key] = $agenda->duracao;
                 if(count($agendas_id)>1){
                     $this->fc->setCurrentView('agendaWeek');
                     $duracao=60;
@@ -63,20 +63,39 @@ class AgendamentoCalendarFormView extends TPage
                 }
             }
 
-            $keyInicial = array_search((min($strohra_inicial)), $strohra_inicial);
-            $keyFinal = array_search((max($strohra_final)), $strohra_final);
+            if (!empty($strohra_inicial))
+            {
+                $keyInicial = array_search((min($strohra_inicial)), $strohra_inicial);
+                $keyFinal = array_search((max($strohra_final)), $strohra_final);
 
-            $this->fc->setTimeRange($horario_inicial[$keyInicial], $horario_final[$keyFinal]);
+                $this->fc->setTimeRange($horario_inicial[$keyInicial], $horario_final[$keyFinal]);
 
-            $time = date('H:i:s', strtotime("2000-01-01 +{$duracao} minutes"));
+                $time = date('H:i:s', strtotime("2000-01-01 +{$duracao} minutes"));
 
-            $this->fc->setOption('slotTime', $time);
-            $this->fc->setOption('slotDuration', $time);
-            $this->fc->setOption('slotLabelInterval', $duracao);
-            TTransaction::close();
+                $this->fc->setOption('slotTime', $time);
+                $this->fc->setOption('slotDuration', $time);
+                $this->fc->setOption('slotLabelInterval', $duracao);
+            }
         }
 
+        // faixa: as agendas filtradas (sem filtro, todas as da unidade) e a legenda dos estados
+        $agendas = $agendas_id
+            ? Agenda::where('id', 'in', $agendas_id)->orderBy('nome')->load()
+            : Agenda::where('escritorio_id', 'in', "(SELECT id FROM escritorio WHERE system_unit_id = '" . (int) TSession::getValue('userunitid') . "')")->orderBy('nome')->load();
+        $estados = EstadoAgenda::where('id', '>', 0)->orderBy('id')->load();
+        TTransaction::close();
+
+        parent::add(AgendaVisual::estilo());
+        parent::add(AgendaVisual::faixa($agendas ?: [], $estados ?: []));
         parent::add( $this->fc );
+        parent::add(TScript::create(AgendaVisual::script(), false));
+    }
+
+    /** Ids do filtro da sessao (aceita o formato antigo, um id so). */
+    private static function ids($valor): array
+    {
+        $lista = is_array($valor) ? $valor : (($valor === null || $valor === '') ? [] : [$valor]);
+        return array_values(array_filter(array_map('intval', $lista)));
     }
 
     /**
@@ -103,62 +122,48 @@ class AgendamentoCalendarFormView extends TPage
             $filterVar = "T";
             $criteria->add(new TFilter('ativo', '=', $filterVar)); 
             if(!empty($param['profissional_id']))
-        {
-            TSession::setValue(__CLASS__.'load_filter_agenda_id', $param['profissional_id']);
-        }
-        $filterVar = TSession::getValue(__CLASS__.'load_filter_agenda_id');
+            {
+                TSession::setValue(__CLASS__.'load_filter_agenda_id', $param['profissional_id']);
+            }
+            $filterVar = TSession::getValue(__CLASS__.'load_filter_agenda_id');
 
             if (isset($filterVar) AND ( (is_scalar($filterVar) AND $filterVar !== '') OR (is_array($filterVar) AND (!empty($filterVar)))))
             {
-                $criteria->add(new TFilter('agenda_id', 'in', "(SELECT id FROM agenda WHERE profissional_id = '{$filterVar}')")); 
+                $criteria->add(new TFilter('agenda_id', 'in', "(SELECT id FROM agenda WHERE profissional_id = '" . (int) $filterVar . "')"));
             }
             if(!empty($param['cliente_id']))
-        {
-            TSession::setValue(__CLASS__.'load_filter_cliente_id', $param['cliente_id']);
-        }
-        $filterVar = TSession::getValue(__CLASS__.'load_filter_cliente_id');
+            {
+                TSession::setValue(__CLASS__.'load_filter_cliente_id', $param['cliente_id']);
+            }
+            $filterVar = TSession::getValue(__CLASS__.'load_filter_cliente_id');
             if (isset($filterVar) AND ( (is_scalar($filterVar) AND $filterVar !== '') OR (is_array($filterVar) AND (!empty($filterVar)))))
             {
-                $criteria->add(new TFilter('cliente_id', '=', $filterVar)); 
+                $criteria->add(new TFilter('cliente_id', '=', (int) $filterVar));
             }
 
-            // --------------------- AGENDAMENTO ---------------------------------------------------------------------------------------------------------
-            if(!empty(TSession::getValue('agendamentos_filter_data'))){
-                if(TSession::getValue('agendamentos_filter_agenda_id')!=NULL){
-                    $criteria->add(new TFilter('agenda_id', 'in', TSession::getValue('agendamentos_filter_agenda_id')));
-                }
-                //if(TSession::getValue('agendamentos_filter_data')->profissional_id!=''){
-                //    $agenda = Agenda::where('profissional_id','=',(int) TSession::getValue('agendamentos_filter_data')->profissional_id)->first();
-                //    if($agenda){
-                //        $criteria->add(new TFilter('agenda_id', '=', $agenda->id));
-                //    }
-                //}
-
-                if(TSession::getValue('agendamentos_filter_data')->dt_busca!=''){
-                    $dataInicial = TSession::getValue('agendamentos_filter_data')->dt_busca . " 00:00:00";
-                    $dataFinal = TSession::getValue('agendamentos_filter_data')->dt_busca . " 23:59:59";
-                    $criteria->add(new TFilter('dt_inicial', '>=', $dataInicial));
-                    $criteria->add(new TFilter('dt_final', '<=', $dataFinal));
+            // --------------------- FILTROS DA TELA (varios clientes, varias agendas, periodo) -------------------------
+            $filtro = TSession::getValue('agendamentos_filter_data');
+            if(!empty($filtro)){
+                if(TSession::getValue('agendamentos_filter_agenda_id')){
+                    $criteria->add(new TFilter('agenda_id', 'in', self::ids(TSession::getValue('agendamentos_filter_agenda_id'))));
                 }
 
-                if(TSession::getValue('agendamentos_filter_data')->cliente_id!=''){
-                    $criteria->add(new TFilter('cliente_id', '=', TSession::getValue('agendamentos_filter_data')->cliente_id));
+                $de = SqlSeguro::data($filtro->dt_busca ?? '');
+                $ate = SqlSeguro::data($filtro->dt_busca_fim ?? '') ?: $de;
+                if($de){
+                    $criteria->add(new TFilter('dt_inicial', '>=', "{$de} 00:00:00"));
+                    $criteria->add(new TFilter('dt_final', '<=', "{$ate} 23:59:59"));
+                }
+
+                $clientes = self::ids($filtro->cliente_id ?? null);
+                if($clientes){
+                    $criteria->add(new TFilter('cliente_id', 'in', $clientes));
                 }
             }
             $filterVar = TSession::getValue("userunitid");
-            $criteria->add(new TFilter('agenda_id', 'in', "(SELECT agenda.id FROM agenda, escritorio WHERE escritorio_id = escritorio.id AND system_unit_id = '{$filterVar}')")); 
+            $criteria->add(new TFilter('agenda_id', 'in', "(SELECT agenda.id FROM agenda, escritorio WHERE escritorio_id = escritorio.id AND system_unit_id = '" . (int) $filterVar . "')"));
 
-            $filterVar = TSession::getValue("userid");
-
-            $criteriaAcesso = new TCriteria;
-            // está como um profissional relacionado com a agenda
-            $criteriaAcesso->add(new TFilter('agenda_id', 'in', "(SELECT agenda.id FROM agenda, agenda_profissional, pessoa WHERE pessoa.id = agenda_profissional.profissional_id AND agenda.id = agenda_profissional.agenda_id AND system_users_id = '{$filterVar}')"));
-            // oyu é o profissional responsável da agenda
-            $criteriaAcesso->add(new TFilter('agenda_id', 'in', "(SELECT agenda.id FROM agenda, pessoa WHERE pessoa.id = agenda.profissional_id AND system_users_id = '{$filterVar}')"), TExpression::OR_OPERATOR); 
-
-            //$criteria->add($criteriaAcesso);
-
-            $agenda_id = TSession::getValue('agendamentos_filter_agenda_id');
+            $agenda_id = self::ids(TSession::getValue('agendamentos_filter_agenda_id'));
 
             if ($agenda_id)
             {
@@ -172,8 +177,6 @@ class AgendamentoCalendarFormView extends TPage
                     // get dias off
                     if ($agenda->dias)
                     {
-
-                        $end = new DateTime($param['end']);
 
                         $semanaTrabalho = [1=>1,2=>2,3=>3,4=>4,5=>5,6=>6,0=>0];
 
@@ -207,7 +210,7 @@ class AgendamentoCalendarFormView extends TPage
                                 'display' => 'background',
                                 'color' => '#fff',
                                 'start' => $start->format('Y-m-d') .'T'. $agenda->horario_inicial,
-                                 'end' =>  $start->format('Y-m-d') .'T'. $agenda->horario_final
+                                'end' =>  $start->format('Y-m-d') .'T'. $agenda->horario_final
                             ];
 
                         }
@@ -227,18 +230,18 @@ class AgendamentoCalendarFormView extends TPage
                                 $start = $start->modify("+{$d} day");  
                             }
 
-                            $event_array = [];
-                            $event_array['start'] = $start->format('Y-m-d') .'T'. $agenda->horario_inicial;
-                            $event_array['end'] =  $start->format('Y-m-d') .'T'. $agenda->horario_final;
-                            $event_array['title'] = 'Não atende';
-                            $event_array['id'] = 'nao-trabalha-'.uniqid();
-                            $event_array['color'] = '#f2f7f6';
-                            //$event_array['color'] = '#b8fffe';
-                            $event_array['overlap'] = true;
-                            $event_array['rendering'] = 'block';
-                            $event_array['display'] = 'background';
-
-                            $return[] = $event_array;
+                            $return[] = [
+                                'start' => $start->format('Y-m-d') .'T'. $agenda->horario_inicial,
+                                'end' =>  $start->format('Y-m-d') .'T'. $agenda->horario_final,
+                                'title' => 'Não atende',
+                                'id' => 'nao-trabalha-'.uniqid(),
+                                'overlap' => true,
+                                'rendering' => 'block',
+                                'display' => 'background',
+                                'classNames' => ['agd-fundo'],
+                                'fundo' => true,
+                                'agenda_id' => (string) $agenda->id,
+                            ];
                         }
                     }
 
@@ -258,11 +261,13 @@ class AgendamentoCalendarFormView extends TPage
 
                             $return[] = [
                                 'type' => 'feriado',
-                                'title' =>"<p style='color:#333;'>Intervalo</p>",
+                                'title' => 'Intervalo',
                                 'overlap' => true,
                                 'rendering' => "block",
                                 'display' => 'background',
-                                'color' => '#f2f7f6',
+                                'classNames' => ['agd-fundo'],
+                                'fundo' => true,
+                                'agenda_id' => (string) $agenda->id,
                                 'start' => $start->format('Y-m-d') .'T'. $agenda->horario_inicio_intervalo,
                                 'end' =>  $start->format('Y-m-d') .'T'. $agenda->horario_fim_intervalo
                             ];
@@ -277,13 +282,6 @@ class AgendamentoCalendarFormView extends TPage
             $criteriaBloqueio = new TCriteria;
             $criteriaBloqueio->add(new TFilter('dt_inicio', '<=', substr($param['end'], 0, 10).' 23:59:59'));
             $criteriaBloqueio->add(new TFilter('dt_final', '>=', substr($param['start'], 0, 10).' 00:00:00'));
-
-                if(TSession::getValue('agendamentos_filter_data')->dt_busca!=''){
-                    $dataInicial = TSession::getValue('agendamentos_filter_data')->dt_busca . " 00:00:00";
-                    $dataFinal = TSession::getValue('agendamentos_filter_data')->dt_busca . " 23:59:59";
-                    $criteria->add(new TFilter('dt_inicial', '>=', $dataInicial));
-                    $criteria->add(new TFilter('dt_final', '<=', $dataFinal));
-                }
 
             if (! empty($agenda_id))
             {
@@ -305,13 +303,12 @@ class AgendamentoCalendarFormView extends TPage
                     $event_array = [];
                     $event_array['start'] = str_replace( ' ', 'T', $bloqueio->dt_inicio);
                     $event_array['end'] = str_replace( ' ', 'T', $bloqueio->dt_final);
-                    $event_array['title'] = "<div style='display: flex; flex-direction: revert; justify-content: flex-start; align-items: center; gap: 5px;'>
-                            <span title='{$agenda->profissional->nome}' class='estado_agendamento' style='background-color: {$agenda->cor}  ' ></span>
-                    <span style='color:#333;'><b>Horário bloqueado</b><br>" .nl2br($bloqueio->observacao). "</span></div>";
+                    $event_array['title'] = "<div class='agd-ev'><span class='agd-ev-l1'><i class='fas fa-lock'></i> <span class='agd-ev-texto'>Bloqueado"
+                        . ($agenda ? ' · ' . htmlspecialchars((string) $agenda->nome) : '') . "</span></span>"
+                        . (trim((string) $bloqueio->observacao) !== '' ? "<span class='agd-ev-l2'><span class='agd-ev-texto'>" . htmlspecialchars((string) $bloqueio->observacao) . "</span></span>" : '') . "</div>";
                     $event_array['id'] = 'bloqueio-'.$bloqueio->id;
-                    $event_array['color'] = '#f2f7f6';
 
-                    $return[] = $event_array;
+                    $return[] = AgendaVisual::estilizar($event_array, 'bloqueio', $agenda->cor ?? null, $bloqueio->agenda_id);
                 }
             }
 
@@ -340,13 +337,11 @@ class AgendamentoCalendarFormView extends TPage
                     $event_array = [];
                     $event_array['start'] = str_replace( ' ', 'T', $compromisso->dt_inicio);
                     $event_array['end'] = str_replace( ' ', 'T', $compromisso->dt_final);
-                    $event_array['title'] = "<div style='display: flex; flex-direction: revert; justify-content: flex-start; align-items: center; gap: 5px;'>
-                            <span title='{$agenda->profissional->nome}' class='estado_agendamento' style='background-color: {$agenda->cor}  ' ></span>
-                    <span style='color:#333;'><b>Compromisso agendado</b><br>" .nl2br( 'Compromisso: '.$compromisso->tipo_compromisso->nome.'<br>')."</span></div>";
+                    $event_array['title'] = "<div class='agd-ev'><span class='agd-ev-l1'><i class='fas fa-briefcase'></i> " . htmlspecialchars((string) ($compromisso->tipo_compromisso->nome ?? 'Compromisso')) . "</span>"
+                        . "<span class='agd-ev-l2'>Compromisso" . ($agenda ? ' · ' . htmlspecialchars((string) $agenda->nome) : '') . "</span></div>";
                     $event_array['id'] = 'compromisso-'.$compromisso->id;
-                    $event_array['color'] = '#f2f7f6';
 
-                    $return[] = $event_array;
+                    $return[] = AgendaVisual::estilizar($event_array, 'compromisso', $agenda->cor ?? null, $compromisso->agenda_id);
                 }
             }
 
@@ -369,19 +364,19 @@ class AgendamentoCalendarFormView extends TPage
                     {
                         continue;
                     }
+                    $agendaConvidada = Agenda::find($convidado->agenda_id);
                     $event_array = [];
                     $event_array['start'] = str_replace( ' ', 'T', $convidado->agendamento->dt_inicial);
                     $event_array['end'] = str_replace( ' ', 'T', $convidado->agendamento->dt_final);
                     $event_array['id'] = $convidado->agendamento->id;
-                    $event_array['color'] = '#f00';
-                    $event_array['title'] = TFullCalendar::renderPopover($convidado->render("<div style='display: flex; flex-direction: revert; justify-content: flex-start; align-items: center; gap: 5px;'>
-                    <span title='{agendamento->estado_agenda->nome}' class='estado_agendamento' style='background-color: {agenda->cor}  ' ></span>  
-                    {agendamento->cliente->nome_formatado}
+                    $event_array['title'] = TFullCalendar::renderPopover($convidado->render("<div class='agd-ev'><span class='agd-ev-l1'>
+                    <span title='{agendamento->estado_agenda->nome}' class='agd-ev-est' style='background-color: {agendamento->estado_agenda->cor}'></span>
+                    {agendamento->cliente->nome_formatado}</span><span class='agd-ev-l2'>Convidado por {agendamento->agenda->profissional->nome_formatado}</span>
                     </div> "), $convidado->render(""), $convidado->render("<div>
                     <b>Data:</b><br/>{agendamento->dt_inicial}<br/><b>Agendamento #{agendamento->id}</b><br/><b>Convidado por:</b><br/>{agendamento->agenda->profissional->nome_formatado}<br/><br/></div>
                     "));
 
-                    $return[] = $event_array;
+                    $return[] = AgendaVisual::estilizar($event_array, 'agendamento', $agendaConvidada->cor ?? null, $convidado->agenda_id);
                 }
             }
 
@@ -410,13 +405,11 @@ class AgendamentoCalendarFormView extends TPage
                         $event_array = [];
                         $event_array['start'] = str_replace( ' ', 'T', $compromisso->dt_inicio);
                         $event_array['end'] = str_replace( ' ', 'T', $compromisso->dt_final);
-                        $event_array['title'] = "<div style='display: flex; flex-direction: revert; justify-content: flex-start; align-items: center; gap: 5px;'>
-                                <span title='{$agenda->profissional->nome}' class='estado_agendamento' style='background-color: {$agenda->cor}  ' ></span>
-                        <span style='color:#333;'><b>Compromisso convidado</b><br>" .nl2br( 'Compromisso: '.$compromisso->tipo_compromisso->nome.'<br>')."</span></div>";
+                        $event_array['title'] = "<div class='agd-ev'><span class='agd-ev-l1'><i class='fas fa-briefcase'></i> " . htmlspecialchars((string) ($compromisso->tipo_compromisso->nome ?? 'Compromisso')) . "</span>"
+                            . "<span class='agd-ev-l2'>Compromisso convidado · " . htmlspecialchars((string) $agenda->nome) . "</span></div>";
                         $event_array['id'] = 'compromisso-'.$compromisso->id;
-                        $event_array['color'] = '#f2f7f6';
 
-                        $return[] = $event_array;
+                        $return[] = AgendaVisual::estilizar($event_array, 'compromisso', $agenda->cor, $compromissoConvidado->agenda_id);
                     }
                 }
             }
@@ -425,30 +418,28 @@ class AgendamentoCalendarFormView extends TPage
 
             if ($events)
             {
+                // procedimentos de todos os agendamentos numa consulta so (segunda linha do cartao)
+                $procedimentos = [];
+                $ids = implode(',', array_map(function ($e) { return (int) $e->id; }, $events));
+                $st = TTransaction::get()->query("SELECT ap.agendamento_id, string_agg(p.nome, ', ' ORDER BY ap.id) AS nomes FROM agendamento_procedimento ap JOIN procedimento p ON p.id = ap.procedimento_id WHERE ap.agendamento_id IN ({$ids}) GROUP BY ap.agendamento_id");
+                foreach ($st->fetchAll(PDO::FETCH_OBJ) as $p) { $procedimentos[(int) $p->agendamento_id] = $p->nomes; }
+
                 foreach ($events as $event)
                 {
                     $event_array = $event->toArray();
                     $event_array['start'] = str_replace( ' ', 'T', $event_array['dt_inicial']);
                     $event_array['end'] = str_replace( ' ', 'T', $event_array['dt_final']);
                     $event_array['id'] = $event->id;
-                    $event_array['color'] = $event->render("{agenda->cor}");
 
-                    if($event_array['online']!='F'){
-                        $formatacao = "<div style='display: flex; flex-direction: revert; justify-content: flex-start; align-items: center; gap: 5px;'>
-                            <span title='{estado_agenda->nome}' class='estado_agendamento' style='background-color: {estado_agenda->cor}  ' ></span>
-                            {cliente->nome_formatado}
-                            <span style='border-radius:2px; background-color:#ff0000;'> Online </span>
-                            </div>";
-
-                    }else{
-                        $formatacao = "<div style='display: flex; flex-direction: revert; justify-content: flex-start; align-items: center; gap: 5px;'>
-                            <span title='{estado_agenda->nome}' class='estado_agendamento' style='background-color: {estado_agenda->cor}  ' ></span>
-                            {cliente->nome_formatado}
-                            </div>";
-                    }
+                    $online = ($event_array['online'] != 'F') ? " <span class='agd-ev-online'>online</span>" : '';
+                    $detalhe = trim(implode(' · ', array_filter([$procedimentos[(int) $event->id] ?? '', (string) ($event->estado_agenda->nome ?? '')])));
+                    $formatacao = "<div class='agd-ev'><span class='agd-ev-l1'>"
+                        . "<span title='{estado_agenda->nome}' class='agd-ev-est' style='background-color: {estado_agenda->cor}'></span>"
+                        . "{cliente->nome_formatado}{$online}</span>"
+                        . "<span class='agd-ev-l2'>" . htmlspecialchars($detalhe) . "</span></div>";
                     $event_array['title'] = TFullCalendar::renderPopover($event->render($formatacao), $event->render(""), $event->render("{detalhe_html}"));
 
-                    $return[] = $event_array;
+                    $return[] = AgendaVisual::estilizar($event_array, 'agendamento', $event->render("{agenda->cor}"), $event->agenda_id);
                 }
             }
             TTransaction::close();
@@ -501,26 +492,17 @@ class AgendamentoCalendarFormView extends TPage
         }
     }
 
+    /** Periodo filtrado: abre no inicio dele (um dia: Dia; ate 7 dias: Semana; mais: Mes). */
     public function onShow($param){
 
-         $filterData = TSession::getValue('agendamentos_filter_data');
-
-            if (!empty($filterData->dt_busca)) {
-                $dt_busca = $filterData->dt_busca;
-
-                // converte se vier em d/m/Y
-                if (strpos($dt_busca, '/') !== false) {
-                    $date = DateTime::createFromFormat('d/m/Y', $dt_busca);
-                    $dt_busca = $date ? $date->format('Y-m-d') : $dt_busca;
-                }
-
-                // define visualização como "Dia"
-                $this->fc->setCurrentView('agendaDay');
-
-                // define a data atual da visualização
-                $this->fc->setCurrentDate($dt_busca);
-            }
+        $filterData = TSession::getValue('agendamentos_filter_data');
+        $de = SqlSeguro::data($filterData->dt_busca ?? '');
+        if ($de) {
+            $ate = SqlSeguro::data($filterData->dt_busca_fim ?? '') ?: $de;
+            $dias = (int) round((strtotime($ate) - strtotime($de)) / 86400) + 1;
+            $this->fc->setCurrentView($dias <= 1 ? 'agendaDay' : ($dias <= 7 ? 'agendaWeek' : 'month'));
+            $this->fc->setCurrentDate($de);
+        }
     }
 
 }
-
