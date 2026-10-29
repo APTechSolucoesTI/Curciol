@@ -39,7 +39,6 @@ class LevantamentoFinanceiroView extends TWindow
                 throw new Exception('Este pagamento não tem financeiro gerado.');
             }
             $d = self::carregarFicha($etapa3Id);
-            $motivo = LevantamentoFinanceiroService::podeDesfazer($etapa3Id);
 
             $form = new BootstrapFormBuilder(self::$formName);
             $form->setFormTitle('');
@@ -60,12 +59,8 @@ class LevantamentoFinanceiroView extends TWindow
 
             if (!LevantamentoFinanceiroForm::podeGerar()) {
                 // so consulta: desfazer e do Financeiro
-            } elseif ($motivo !== null) {
-                $aviso = new TElement('div');
-                $aviso->class = 'lf-linha-bloqueio';
-                $aviso->add('<b>Não é possível desfazer:</b> ' . htmlspecialchars($motivo));
-                $form->addContent([$aviso]);
             } else {
+                // bloqueado (ex.: conta a receber quitada), o botao continua e o clique mostra o aviso com o motivo
                 $botao = $form->addAction('Desfazer financeiro',
                     new TAction([__CLASS__, 'onConfirmarDesfazer'], ['static' => '1', 'etapa3_id' => $etapa3Id,
                                 'origem' => $param['origem'] ?? '', 'url_recarga' => $param['url_recarga'] ?? '',
@@ -87,6 +82,11 @@ class LevantamentoFinanceiroView extends TWindow
         try {
             if (!LevantamentoFinanceiroForm::podeGerar()) { throw new Exception('Somente o Financeiro pode gerar ou desfazer o financeiro.'); }
             $etapa3Id = (int) ($param['etapa3_id'] ?? 0);
+            $motivo = LevantamentoFinanceiroService::podeDesfazer($etapa3Id);
+            if ($motivo !== null) {
+                new TMessage('warning', '<b>Não é possível desfazer o financeiro.</b><br>' . htmlspecialchars($motivo));
+                return;
+            }
             $d = self::carregarFicha($etapa3Id);
             $f = $d->ficha;
             $mensagem = 'Desfazer o financeiro deste pagamento? A baixa de ' . LevantamentoFinanceiroForm::moeda($f->valor_levantado)

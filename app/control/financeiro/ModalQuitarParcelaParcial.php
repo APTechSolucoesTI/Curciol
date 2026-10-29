@@ -96,7 +96,7 @@ class ModalQuitarParcelaParcial extends TWindow
         $row6->layout = [' col-sm-12'];
 
         // create the form actions
-        $btn_onpagar = $this->form->addAction("Quitar Parcialmente", new TAction([$this, 'onPagar']), 'fas:check-circle #ffffff');
+        $btn_onpagar = $this->form->addAction("Quitar Parcialmente", new TAction([$this, 'onPagar'], ['static' => '1']), 'fas:check-circle #ffffff');
         $this->btn_onpagar = $btn_onpagar;
         $btn_onpagar->addStyleClass('btn-success'); 
 
@@ -137,29 +137,26 @@ class ModalQuitarParcelaParcial extends TWindow
         }
     }
 
-    public function onPagar($param = null) 
+    // estatico: a janela nao e montada de novo, entao num erro o aviso aparece por cima e o que foi preenchido continua
+    public static function onPagar($param = null)
     {
         try
         {
             TTransaction::open('escritorio');
 
-            $this->form->validate();
-            $object = $this->form->getData();
+            $object = self::dadosDoFormulario($param);
 
             if(empty($object->id)){
                 throw new Exception("Lançamento não informado.");
             }
 
-            if(empty($object->conta_caixa_id)){
-                throw new Exception("O campo Conta caixa é obrigatório.");
-            }
-
-            if(empty($object->tipo_pagamento_id)){
-                throw new Exception("O campo Tipo de pagamento é obrigatório.");
-            }
-
-            if(empty($object->dt_pagamento)){
-                throw new Exception("O campo Data da baixa é obrigatório.");
+            $faltam = [];
+            if (empty($object->conta_caixa_id)) { $faltam[] = 'Conta caixa'; }
+            if (trim(str_replace(['R$', ' '], '', $object->valor)) === '') { $faltam[] = 'Valor'; }
+            if (empty($object->tipo_pagamento_id)) { $faltam[] = 'Tipo de pagamento'; }
+            if (empty($object->dt_pagamento)) { $faltam[] = 'Data da baixa'; }
+            if ($faltam) {
+                throw new Exception('Preencha ' . (count($faltam) > 1 ? 'os campos' : 'o campo') . ': <b>' . implode('</b>, <b>', $faltam) . '</b>.');
             }
 
             $lancamento = Lancamento::find($object->id);
@@ -315,6 +312,20 @@ class ModalQuitarParcelaParcial extends TWindow
             TTransaction::rollback();
             new TMessage('error', $e->getMessage());
         }
+    }
+
+    /** Campos da janela como o getData() devolveria (data da baixa em aaaa-mm-dd; invalida vira vazia). */
+    private static function dadosDoFormulario($param): stdClass
+    {
+        $object = new stdClass;
+        foreach (['id', 'conta_caixa_id', 'valor', 'tipo_pagamento_id', 'dt_pagamento', 'compensado', 'cheque_numero', 'cheque_banco_id', 'historico'] as $campo)
+        {
+            $valor = $param[$campo] ?? '';
+            $object->$campo = is_scalar($valor) ? trim((string) $valor) : '';
+        }
+        $data = DateTime::createFromFormat('!d/m/Y', $object->dt_pagamento);
+        $object->dt_pagamento = ($data && $data->format('d/m/Y') === $object->dt_pagamento) ? $data->format('Y-m-d') : '';
+        return $object;
     }
 
     public function onShow($param = null)

@@ -136,7 +136,7 @@ class ModalQuitarParcela extends TWindow
         $rowProfissionalAjuste->layout = [' col-sm-12'];
 
         // create the form actions
-        $btn_onpagar = $this->form->addAction("Quitar", new TAction([$this, 'onPagar']), 'fas:check-circle #ffffff');
+        $btn_onpagar = $this->form->addAction("Quitar", new TAction([$this, 'onPagar'], ['static' => '1']), 'fas:check-circle #ffffff');
         $this->btn_onpagar = $btn_onpagar;
         $btn_onpagar->addStyleClass('btn-success'); 
 
@@ -204,7 +204,8 @@ class ModalQuitarParcela extends TWindow
         }
     }
 
-    public function onPagar($param = null) 
+    // estatico: a janela nao e montada de novo, entao num erro o aviso aparece por cima e o que foi preenchido continua
+    public static function onPagar($param = null)
     {
         try
         {   
@@ -252,12 +253,10 @@ class ModalQuitarParcela extends TWindow
             if($dadosConfirmacao){
                 $object = (object) $dadosConfirmacao['object'];
             }else{
-                $object = $this->form->getData();
+                $object = self::dadosDoFormulario($param);
             }
 
-            if(!$object->conta_caixa_id){
-                throw new Exception("O campo Conta caixa é obrigatório.");
-            }
+            self::exigirCamposObrigatorios($object);
 
             // se teve pagamento parcial, aplica os ajustes sobre o saldo
             $valorBaseLancamento = $lancamento->valor_total !== null && $lancamento->valor_total !== ''
@@ -304,14 +303,13 @@ class ModalQuitarParcela extends TWindow
                         'object' => (array) $object
                     ]);
 
-                    $acaoSim = new TAction([$this, 'onPagar']);
+                    $acaoSim = new TAction([__CLASS__, 'onPagar'], ['static' => '1']);
                     $acaoSim->setParameter('confirmar_profissional_negativo', '1');
                     $acaoSim->setParameter('token_confirmacao_negativo', $tokenConfirmacao);
 
                     $mensagem = self::montarMensagemProfissionaisNegativos($profissionaisNegativos);
 
-                    self::restaurarFormularioConfirmacaoNegativo($lancamento, $object);
-
+                    // a janela continua aberta como estava (onPagar e estatico): nada a restaurar
                     TTransaction::close();
 
                     new TQuestion($mensagem, $acaoSim, null);
@@ -437,8 +435,35 @@ class ModalQuitarParcela extends TWindow
         }
         catch (Exception $e)
         {
+            if (TTransaction::get()) { TTransaction::rollback(); }
             new TMessage('error', $e->getMessage());
-            TScript::create("$(\"[page_name='ModalQuitarParcela']\").remove()");
+        }
+    }
+
+    /** Campos da janela como o getData() devolveria (data da baixa em aaaa-mm-dd; invalida vira vazia). */
+    private static function dadosDoFormulario($param): stdClass
+    {
+        $object = new stdClass;
+        foreach (['id', 'conta_caixa_id', 'acrescimo', 'desconto', 'tipo_pagamento_id', 'dt_pagamento', 'compensado',
+                  'cheque_numero', 'cheque_banco_id', 'historico', 'distribuicao_ajuste', 'lancamento_profissional_id'] as $campo)
+        {
+            $valor = $param[$campo] ?? '';
+            $object->$campo = is_scalar($valor) ? trim((string) $valor) : '';
+        }
+        $data = DateTime::createFromFormat('!d/m/Y', $object->dt_pagamento);
+        $object->dt_pagamento = ($data && $data->format('d/m/Y') === $object->dt_pagamento) ? $data->format('Y-m-d') : '';
+        return $object;
+    }
+
+    /** Um aviso so, com todos os campos obrigatorios que faltam. */
+    private static function exigirCamposObrigatorios($object): void
+    {
+        $faltam = [];
+        if (empty($object->conta_caixa_id)) { $faltam[] = 'Conta caixa'; }
+        if (empty($object->tipo_pagamento_id)) { $faltam[] = 'Tipo de pagamento'; }
+        if (empty($object->dt_pagamento)) { $faltam[] = 'Data da baixa'; }
+        if ($faltam) {
+            throw new Exception('Preencha ' . (count($faltam) > 1 ? 'os campos' : 'o campo') . ': <b>' . implode('</b>, <b>', $faltam) . '</b>.');
         }
     }
 
@@ -482,6 +507,11 @@ class ModalQuitarParcela extends TWindow
 
             TCombo::disableField(self::$formName, 'lancamento_profissional_id');
             BootstrapFormBuilder::hideField(self::$formName, 'lancamento_profissional_id');
+
+            // so conta a receber com repasse tem profissionais na parcela; com um so (ou nenhum) nao ha o que escolher
+            if (count($opcoesProfissionais) < 2) {
+                BootstrapFormBuilder::hideField(self::$formName, 'distribuicao_ajuste');
+            }
 
             if ($lancamento->dt_pagamento)
             {
@@ -590,7 +620,8 @@ class ModalQuitarParcela extends TWindow
             return;
         }
 
-        $tipoDistribuicao = $object->distribuicao_ajuste ?? null;
+        // um profissional so: a escolha nem aparece e tudo vai para ele (proporcional)
+        $tipoDistribuicao = count($lancamentosProfissionais) > 1 ? ($object->distribuicao_ajuste ?? null) : 'T';
 
         if(!in_array($tipoDistribuicao, ['T', 'U'])){
             throw new Exception("Informe como o desconto ou acréscimo deve ser distribuído entre os profissionais.");
@@ -734,7 +765,8 @@ class ModalQuitarParcela extends TWindow
             return [];
         }
 
-        $tipoDistribuicao = $object->distribuicao_ajuste ?? null;
+        // um profissional so: a escolha nem aparece e tudo vai para ele (proporcional)
+        $tipoDistribuicao = count($lancamentosProfissionais) > 1 ? ($object->distribuicao_ajuste ?? null) : 'T';
         $ajustesAplicados = [];
 
         if($tipoDistribuicao == 'U'){
@@ -943,73 +975,4 @@ class ModalQuitarParcela extends TWindow
         }
     }
 
-    private static function restaurarFormularioConfirmacaoNegativo($lancamento, $object)
-    {
-        $opcoesProfissionais = [];
-
-        $lancamentosProfissionais = LancamentoProfissional::where('lancamento_id', '=', $lancamento->id)
-            ->orderBy('id')
-            ->load();
-
-        foreach($lancamentosProfissionais as $lancamentoProfissional){
-            $profissional = Pessoa::find($lancamentoProfissional->pessoa_id);
-
-            if(!$profissional){
-                continue;
-            }
-
-            $percentual = number_format((float) $lancamentoProfissional->percentual, 2, ',', '.');
-            $valorProfissional = number_format((float) $lancamentoProfissional->valor, 2, ',', '.');
-
-            $opcoesProfissionais[$lancamentoProfissional->id] = "{$profissional->nome} - {$percentual}% - R$ {$valorProfissional}";
-        }
-
-        TCombo::reload(
-            self::$formName,
-            'lancamento_profissional_id',
-            $opcoesProfissionais,
-            true
-        );
-
-        if(($object->distribuicao_ajuste ?? 'T') == 'U'){
-            BootstrapFormBuilder::showField(
-                self::$formName,
-                'lancamento_profissional_id'
-            );
-
-            TCombo::enableField(
-                self::$formName,
-                'lancamento_profissional_id'
-            );
-        }else{
-            TCombo::disableField(
-                self::$formName,
-                'lancamento_profissional_id'
-            );
-
-            BootstrapFormBuilder::hideField(
-                self::$formName,
-                'lancamento_profissional_id'
-            );
-        }
-
-        if(($object->tipo_pagamento_id ?? null) == TipoPagamento::CHEQUE){
-            BootstrapFormBuilder::showField(self::$formName, 'cheque_numero');
-            BootstrapFormBuilder::showField(self::$formName, 'cheque_banco_id');
-        }else{
-            BootstrapFormBuilder::hideField(self::$formName, 'cheque_numero');
-            BootstrapFormBuilder::hideField(self::$formName, 'cheque_banco_id');
-        }
-
-        $object->id = $lancamento->id;
-
-        TForm::sendData(
-            self::$formName,
-            $object,
-            false,
-            false
-        );
-    }
-
 }
-

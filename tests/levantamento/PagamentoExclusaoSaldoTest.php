@@ -89,6 +89,7 @@ try {
     ok('clique no botao: aviso com o motivo, sem pergunta', strpos($s, 'Não é possível excluir este pagamento') !== false && strpos($s, 'onExcluirConfirmado') === false, $s);
 
     igual('requisicao estava Quitado', 7, (int) valor('SELECT status_requisicao_pagamento_id FROM requisicao_pagamento_cliente WHERE id = ?', [$f['rpc_id']]));
+    Fixtures::desquitarRecebimento((int) $f['etapa3_id']); // o desfazer exige o recebimento estornado
     LevantamentoFinanceiroService::desfazer($f['etapa3_id']);
     igual('desfeito o financeiro: pode excluir', null, $E::motivoBloqueio($f['etapa3_id']));
     $E::excluir($f['etapa3_id']);

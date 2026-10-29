@@ -13,11 +13,22 @@ $dados = function ($f) {
             'tipo_pagamento_id'=>TipoPagamento::TRANSFERENCIA, 'compensado'=>'S', 'vencimento_cliente'=>'2026-02-15',
             'categoria_conta_id'=>24, 'tipo_documento_receber_id'=>6, 'tipo_documento_pagar_id'=>8];
 };
+// a conta a receber nasce quitada: o desfazer so passa depois de desquitar o recebimento (29/10/2026)
+$desquitarReceber = function ($etapa3Id) { return Fixtures::desquitarRecebimento((int) $etapa3Id); };
 $saldo = function ($ccId) { TTransaction::open('escritorio'); $c = new ContaCaixa($ccId); TTransaction::close(); return [round((float) $c->saldo_instantaneo, 2), round((float) $c->saldo_nao_compensado, 2)]; };
 
 $f = Fixtures::criar();
 try {
     $S::gerar($f['etapa3_id'], $dados($f));
+    $motivo = (string) $S::podeDesfazer($f['etapa3_id']);
+    ok('quitada: motivo pede estornar/desquitar', strpos($motivo, 'Estorne/desquite o recebimento') !== false, $motivo);
+    lanca('quitada: desfazer recusado', function () use ($S, $f) { $S::desfazer($f['etapa3_id']); }, 'Estorne/desquite');
+    ok('quitada: ficha continua', $S::existePara($f['etapa3_id']) !== null);
+    TSession::setValue('programs', ['LevantamentoFinanceiroForm' => true]); // usuario do grupo Financeiro
+    ob_start(); LevantamentoFinanceiroView::onConfirmarDesfazer(['etapa3_id' => $f['etapa3_id']]); $tela = ob_get_clean();
+    ok('quitada: clique no botao mostra o aviso, sem pergunta', strpos($tela, 'Estorne/desquite') !== false && strpos($tela, 'onDesfazer') === false, $tela);
+    $desquitarReceber($f['etapa3_id']);
+    igual('desquitada: pode desfazer', null, $S::podeDesfazer($f['etapa3_id']));
     $S::desfazer($f['etapa3_id']);
     igual('desfazer devolve o saldo compensado', [0.0, 0.0], $saldo($f['conta_caixa_id']));
     igual('ficha removida', null, $S::existePara($f['etapa3_id']));
@@ -37,6 +48,7 @@ try {
     $ex = new Extrato($lf->extrato_id); $ex->compensado = 'N'; $ex->store();
     $cc = new ContaCaixa($f2['conta_caixa_id']); $cc->saldo_instantaneo -= 12019.57; $cc->saldo_nao_compensado += 12019.57; $cc->store();
     TTransaction::close();
+    $desquitarReceber($f2['etapa3_id']);
     $S::desfazer($f2['etapa3_id']);
     igual('descompensado: devolve do nao compensado', [0.0, 0.0], $saldo($f2['conta_caixa_id']));
 } finally { Fixtures::limpar($f2); }
@@ -59,6 +71,7 @@ try {
     $d4 = ['compensado' => 'N'] + $dados($f4);
     $S::gerar($f4['etapa3_id'], $d4);
     igual('nao compensado: saldo apos gerar', [0.0, 12019.57], $saldo($f4['conta_caixa_id']));
+    $desquitarReceber($f4['etapa3_id']);
     $S::desfazer($f4['etapa3_id']);
     igual('nao compensado: devolve do nao compensado', [0.0, 0.0], $saldo($f4['conta_caixa_id']));
 } finally { Fixtures::limpar($f4); }

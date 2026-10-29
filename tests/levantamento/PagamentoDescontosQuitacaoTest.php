@@ -112,6 +112,7 @@ try {
     TTransaction::open('escritorio'); RequisicaoQuitacaoService::aplicarEscolha($rpc, 8, 8); TTransaction::close();
     igual('salvar sem trocar o status reaplica o Quitado automatico', ['s' => $quitado, 'a' => 8], $status($rpc));
 
+    Fixtures::desquitarRecebimento((int) $f['etapa3_id']); // o desfazer exige o recebimento estornado
     LevantamentoFinanceiroService::desfazer($f['etapa3_id']);
     igual('financeiro desfeito: volta ao status anterior', ['s' => 8, 'a' => null], $status($rpc));
 

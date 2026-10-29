@@ -577,7 +577,10 @@ class LevantamentoFinanceiroService
         }
     }
 
-    /** Apaga o financeiro gerado e devolve o saldo da(s) conta(s)-caixa conforme o estado atual de cada extrato. */
+    /**
+     * Apaga o financeiro gerado e devolve o saldo da(s) conta(s)-caixa conforme o estado atual de cada extrato.
+     * So com a conta a receber desquitada (a conta nasce quitada: o recebimento e estornado antes, ver motivoBloqueio).
+     */
     public static function desfazer(int $etapa3Id): void
     {
         TTransaction::open('escritorio');
@@ -710,7 +713,7 @@ class LevantamentoFinanceiroService
 
     private static function motivoBloqueio(PDO $c, int $etapa3Id): ?string
     {
-        $st = $c->prepare('SELECT id, conta_pagar_id FROM levantamento_financeiro WHERE requisicao_pagamento_etapa3_id = ?');
+        $st = $c->prepare('SELECT id, conta_pagar_id, conta_receber_id FROM levantamento_financeiro WHERE requisicao_pagamento_etapa3_id = ?');
         $st->execute([$etapa3Id]);
         $ficha = $st->fetch(PDO::FETCH_OBJ);
         if (!$ficha) { return 'Este pagamento não tem financeiro gerado.'; }
@@ -719,6 +722,11 @@ class LevantamentoFinanceiroService
             if (self::contaComPagamento($c, $pagar)) {
                 return 'A conta a pagar ao cliente já foi paga (total ou parcialmente). Estorne o pagamento ao cliente antes de desfazer.';
             }
+        }
+        // nenhum financeiro se desfaz com a conta a receber quitada (29/10/2026): primeiro estorna o recebimento
+        if (!empty($ficha->conta_receber_id) && self::contaComPagamento($c, (int) $ficha->conta_receber_id)) {
+            return 'A conta a receber nº ' . (int) $ficha->conta_receber_id . ' deste levantamento está quitada (total ou parcialmente). '
+                . 'Estorne/desquite o recebimento da conta a receber antes de desfazer o financeiro.';
         }
         $st = $c->prepare('SELECT DISTINCT r.extrato_recebimento_id FROM repasse_colaborador r JOIN levantamento_financeiro lf ON lf.id = r.levantamento_financeiro_id WHERE lf.requisicao_pagamento_etapa3_id = ?');
         $st->execute([$etapa3Id]);

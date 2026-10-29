@@ -185,6 +185,27 @@ class Fixtures
         }
     }
 
+    /**
+     * Desquita a conta a receber do financeiro do pagamento pela tela (ContaFormView::onDesquitar): ela nasce quitada
+     * e o "Desfazer financeiro" so passa depois disso (29/10/2026). Devolve a saida da tela.
+     */
+    public static function desquitarRecebimento(int $etapa3Id): string
+    {
+        TTransaction::open('escritorio');
+        $st = TTransaction::get()->prepare('SELECT lf.conta_receber_id, (SELECT l.id FROM lancamento l WHERE l.conta_id = lf.conta_receber_id ORDER BY l.parcela LIMIT 1)
+                                              FROM levantamento_financeiro lf WHERE lf.requisicao_pagamento_etapa3_id = ?');
+        $st->execute([$etapa3Id]);
+        [$contaId, $lanc] = $st->fetch(PDO::FETCH_NUM) ?: [0, 0];
+        TTransaction::close();
+        $tela = (new ReflectionClass('ContaFormView'))->newInstanceWithoutConstructor();
+        ob_start();
+        try { $tela->onDesquitar(['id' => (int) $lanc, 'key' => (int) $contaId, 'confirmado' => 1]); }
+        catch (Throwable $e) { echo 'EXCECAO: ' . $e->getMessage(); }
+        $saida = ob_get_clean();
+        while (TTransaction::get()) { TTransaction::rollback(); }
+        return $saida;
+    }
+
     /** Linhas com a marca que ainda existem (para o smoke de limpeza). tabela => quantidade, só o que for > 0. */
     public static function sobras(): array
     {
