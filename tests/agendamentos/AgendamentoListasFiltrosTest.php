@@ -42,7 +42,7 @@ $naUnidade = "agenda_id IN (SELECT id FROM agenda WHERE escritorio_id IN (SELECT
 
 // ---------- Listagem (AgendaAgendamentoList) ----------
 FiltroLista::limparSessao('AgendaAgendamentoList');
-$html = saida(function () { (new AgendaAgendamentoList([]))->onReload([]); });
+$html = saida(function () { $p = new AgendaAgendamentoList([]); $p->onReload([]); $p->show(); });
 ok('listagem: filtro no topo de data, inicio e fim', strpos($html, 'data_col') !== false && strpos($html, 'inicio_col') !== false && strpos($html, 'fim_col') !== false, substr(strip_tags($html), 0, 200));
 
 post(['data_col' => $diaBr, 'data_col_fim' => $diaBr, 'inicio_col' => '', 'fim_col' => '', 'cliente_col' => '', 'especialidade_descricao' => '', 'is_online' => '', 'estado_agenda_nome' => '']);
@@ -70,7 +70,7 @@ ok('listagem: Limpar filtros manda a faixa vazia', strpos($html, 'curciolFaixaFi
 
 // ---------- Atendimento (TodosAgendamentoList) ----------
 FiltroLista::limparSessao('TodosAgendamentoList');
-$html = saida(function () { (new TodosAgendamentoList([]))->onReload([]); });
+$html = saida(function () { $p = new TodosAgendamentoList([]); $p->onReload([]); $p->show(); });
 ok('atendimento: filtro no topo dos codigos, inicio e fim', strpos($html, 'id_col') !== false && strpos($html, 'atendimento_col') !== false && strpos($html, 'inicio_col') !== false && strpos($html, 'fim_col') !== false, substr(strip_tags($html), 0, 200));
 
 $vazio = ['id_col' => '', 'atendimento_col' => '', 'inicio_col' => '', 'inicio_col_fim' => '', 'fim_col' => '', 'fim_col_fim' => '', 'cliente_col' => '', 'especialidade_descricao' => '', 'agenda_nome' => '', 'estado_agenda_nome' => ''];
