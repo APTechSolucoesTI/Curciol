@@ -57,6 +57,27 @@ class TodosAgendamentoList extends TPage
         $especialidade_descricao = new TDBCombo('especialidade_descricao', 'escritorio', 'Especialidade', 'id', '{descricao}','descricao asc' , $criteria_especialidade_descricao );
         $agenda_nome = new TDBCombo('agenda_nome', 'escritorio', 'Agenda', 'id', '{nome}','nome asc' , $criteria_agenda_nome );
         $estado_agenda_nome = new TDBCombo('estado_agenda_nome', 'escritorio', 'EstadoAgenda', 'id', '{nome}','nome asc' , $criteria_estado_agenda_nome );
+        // Curciol (29/10/2026): filtro no topo de todas as colunas (codigos, inicio e fim tambem)
+        $id_col = new TEntry('id_col');
+        $id_col->placeholder = 'Nº';
+        $id_col->exitOnEnter();
+        $id_col->setExitAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
+        $id_col->setSize('100%');
+        $atendimento_col = new TEntry('atendimento_col');
+        $atendimento_col->placeholder = 'Nº';
+        $atendimento_col->exitOnEnter();
+        $atendimento_col->setExitAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
+        $atendimento_col->setSize('100%');
+        $inicio_col = new BDateRange('inicio_col', 'inicio_col_fim');
+        $inicio_col->setMask('dd/mm/yyyy');
+        $inicio_col->setDatabaseMask('yyyy-mm-dd');
+        $inicio_col->setExitAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
+        $inicio_col->setSize(220);
+        $fim_col = new BDateRange('fim_col', 'fim_col_fim');
+        $fim_col->setMask('dd/mm/yyyy');
+        $fim_col->setDatabaseMask('yyyy-mm-dd');
+        $fim_col->setExitAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
+        $fim_col->setSize(220);
 
 
         $cliente_col->setChangeAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
@@ -215,24 +236,24 @@ class TodosAgendamentoList extends TPage
         {
             $tr->add(TElement::tag('td', ''));
         }
-        $td_empty = TElement::tag('td', "");
-        $tr->add($td_empty);
-        $td_empty = TElement::tag('td', "");
-        $tr->add($td_empty);
+        $tr->add(TElement::tag('td', $id_col));
+        $tr->add(TElement::tag('td', $atendimento_col));
         $td_cliente_col = TElement::tag('td', $cliente_col);
         $tr->add($td_cliente_col);
         $td_especialidade_descricao = TElement::tag('td', $especialidade_descricao);
         $tr->add($td_especialidade_descricao);
         $td_agenda_nome = TElement::tag('td', $agenda_nome);
         $tr->add($td_agenda_nome);
-        $td_empty = TElement::tag('td', "");
-        $tr->add($td_empty);
-        $td_empty = TElement::tag('td', "");
-        $tr->add($td_empty);
+        $tr->add(TElement::tag('td', $inicio_col));
+        $tr->add(TElement::tag('td', $fim_col));
         $td_estado_agenda_nome = TElement::tag('td', $estado_agenda_nome);
         $tr->add($td_estado_agenda_nome);
         $tr->add(TElement::tag('td', ''));
 
+        $this->datagrid_form->addField($id_col);
+        $this->datagrid_form->addField($atendimento_col);
+        $this->datagrid_form->addField($inicio_col);
+        $this->datagrid_form->addField($fim_col);
         $this->datagrid_form->addField($cliente_col);
         $this->datagrid_form->addField($especialidade_descricao);
         $this->datagrid_form->addField($agenda_nome);
@@ -662,6 +683,19 @@ class TodosAgendamentoList extends TPage
         {
 
             $filters[] = new TFilter('estado_agenda_id', '=', $data->estado_agenda_nome);// create the filter 
+        }
+
+        if (ctype_digit(trim((string) ($data->id_col ?? '')))) {
+            $filters[] = new TFilter('id', '=', (int) $data->id_col);
+        }
+        if (ctype_digit(trim((string) ($data->atendimento_col ?? '')))) {
+            $filters[] = new TFilter('id', 'in', '(SELECT agendamento_id FROM atendimento WHERE id = ' . (int) $data->atendimento_col . ')');
+        }
+        foreach (['inicio_col' => 'dt_inicial', 'fim_col' => 'dt_final'] as $campo => $coluna) {
+            $de = SqlSeguro::data($data->$campo ?? '');
+            $ate = SqlSeguro::data($data->{$campo . '_fim'} ?? '');
+            if ($de) { $filters[] = new TFilter($coluna, '>=', "{$de} 00:00:00"); }
+            if ($ate) { $filters[] = new TFilter($coluna, '<=', "{$ate} 23:59:59"); }
         }
 
         if (isset($data->cliente_col) && !empty($data->cliente_col)) {

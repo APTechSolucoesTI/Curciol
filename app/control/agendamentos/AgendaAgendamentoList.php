@@ -64,6 +64,24 @@ class AgendaAgendamentoList extends TPage
         $especialidade_descricao = new TDBCombo('especialidade_descricao', 'escritorio', 'Especialidade', 'id', '{descricao}','descricao asc' , $criteria_especialidade_descricao );
         $is_online = new TCombo('is_online');
         $estado_agenda_nome = new TDBCombo('estado_agenda_nome', 'escritorio', 'EstadoAgenda', 'id', '{nome}','nome asc' , $criteria_estado_agenda_nome );
+        // Curciol (29/10/2026): filtro no topo de todas as colunas (data, inicio e fim tambem)
+        $data_col = new BDateRange('data_col', 'data_col_fim');
+        $data_col->setMask('dd/mm/yyyy');
+        $data_col->setDatabaseMask('yyyy-mm-dd');
+        $data_col->setExitAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
+        $data_col->setSize(220);
+        $inicio_col = new TEntry('inicio_col');
+        $inicio_col->setMask('99:99');
+        $inicio_col->placeholder = 'a partir de';
+        $inicio_col->exitOnEnter();
+        $inicio_col->setExitAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
+        $inicio_col->setSize('100%');
+        $fim_col = new TEntry('fim_col');
+        $fim_col->setMask('99:99');
+        $fim_col->placeholder = 'até';
+        $fim_col->exitOnEnter();
+        $fim_col->setExitAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
+        $fim_col->setSize('100%');
 
 
         $cliente_col->setChangeAction(new TAction([$this, 'onSearch'], ['static'=>'1']));
@@ -253,12 +271,9 @@ class AgendaAgendamentoList extends TPage
         }
         $td_empty = TElement::tag('td', "");
         $tr->add($td_empty);
-        $td_empty = TElement::tag('td', "");
-        $tr->add($td_empty);
-        $td_empty = TElement::tag('td', "");
-        $tr->add($td_empty);
-        $td_empty = TElement::tag('td', "");
-        $tr->add($td_empty);
+        $tr->add(TElement::tag('td', $data_col));
+        $tr->add(TElement::tag('td', $inicio_col));
+        $tr->add(TElement::tag('td', $fim_col));
         $td_cliente_col = TElement::tag('td', $cliente_col);
         $tr->add($td_cliente_col);
         $td_especialidade_descricao = TElement::tag('td', $especialidade_descricao);
@@ -269,6 +284,9 @@ class AgendaAgendamentoList extends TPage
         $tr->add($td_estado_agenda_nome);
         $tr->add(TElement::tag('td', ''));
 
+        $this->datagrid_form->addField($data_col);
+        $this->datagrid_form->addField($inicio_col);
+        $this->datagrid_form->addField($fim_col);
         $this->datagrid_form->addField($cliente_col);
         $this->datagrid_form->addField($especialidade_descricao);
         $this->datagrid_form->addField($is_online);
@@ -601,17 +619,11 @@ class AgendaAgendamentoList extends TPage
     }
     public function onClearFilters($param = null) 
     {
-        $objeto = (TSession::getValue(__CLASS__.'_filter_data')) ?? new stdClass;
-
-        $objeto->cliente_id = null;
-        $objeto->especialidade_id = null;
-        $objeto->agenda_id = null;
-        $objeto->estado_agenda_id = null;
-        $objeto->dt_inicial = null;
-        $objeto->dt_final = null;
-
-        TSession::setValue(__CLASS__.'_filter_data',$objeto);
-        TSession::setValue(__CLASS__.'_filters',NULL);
+        // limpa tudo: cortina, cabecalho das colunas e a faixa "Filtros aplicados" (antes o cabecalho continuava)
+        TSession::setValue(__CLASS__.'_filter_data', NULL);
+        TSession::setValue(__CLASS__.'_filters', NULL);
+        if (!empty($this->form)) { $this->form->clear(); }
+        if (!empty($this->datagrid_form)) { $this->datagrid_form->clear(); }
 
         $this->onReload(['offset' => 0, 'first_page' => 1]);
     }
@@ -718,6 +730,17 @@ class AgendaAgendamentoList extends TPage
         if ($countFiltros)
         {
             $this->button_filtros->setLabel('Filtros'. "<span class='badge badge-success' style='position: absolute'>{$countFiltros}<span>");
+        }
+
+        $dataDe = SqlSeguro::data($data->data_col ?? '');
+        $dataAte = SqlSeguro::data($data->data_col_fim ?? '');
+        if ($dataDe) { $filters[] = new TFilter('dt_inicial', '>=', "{$dataDe} 00:00:00"); }
+        if ($dataAte) { $filters[] = new TFilter('dt_inicial', '<=', "{$dataAte} 23:59:59"); }
+        if (preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', trim((string) ($data->inicio_col ?? '')))) {
+            $filters[] = new TFilter('CAST(dt_inicial AS TIME)', '>=', trim($data->inicio_col) . ':00');
+        }
+        if (preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', trim((string) ($data->fim_col ?? '')))) {
+            $filters[] = new TFilter('CAST(dt_final AS TIME)', '<=', trim($data->fim_col) . ':00');
         }
 
         if (isset($data->cliente_col) && !empty($data->cliente_col)) {
