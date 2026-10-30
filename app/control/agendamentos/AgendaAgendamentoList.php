@@ -157,13 +157,17 @@ class AgendaAgendamentoList extends TPage
         $column_is_online_transformed = new TDataGridColumn('is_online', "Online", 'left');
         $column_estado_agenda_nome_transformed = new TDataGridColumn('estado_agenda->nome', "Estado", 'left' , '150px');
 
+        // bolinha na cor da agenda (como na agenda-calendario); o nome da agenda aparece ao passar o mouse nela (30/10/2026)
         $column_estado_agenda_cor_transformed->setTransformer(function($value, $object, $row, $cell = null, $last_row = null)
         {
-            if ($value)
+            $agenda = $object->agenda;
+            if (!$agenda)
             {
-                return "<div style='position: relative;text-align: center;'><span class='estado_agendamento' style='background-color: {$value}'></span></div>";
+                return '';
             }
-            return '';
+            $cor = AgendaVisual::cores($agenda->cor)['cor'];
+            $nome = htmlspecialchars('Agenda: ' . $agenda->nome, ENT_QUOTES, 'UTF-8');
+            return "<div style='position: relative;text-align: center;'><span class='estado_agendamento' title='{$nome}' style='background-color: {$cor}; cursor: help'></span></div>";
         });
 
         $column_dt_inicial_transformed->setTransformer(function($value, $object, $row, $cell = null, $last_row = null)
@@ -418,100 +422,52 @@ class AgendaAgendamentoList extends TPage
 
     }
 
+    /**
+     * Botoes Dia, Semana (domingo a sabado) e Mes: so trocam o periodo (Data: de / ate, na cortina) e somam com os
+     * demais filtros (FiltroLista); o profissional logado continua vendo a agenda dele. (30/10/2026: antes trocavam
+     * todos os filtros e a faixa mostrava a data com hora.)
+     */
     public function onFilterDia($param = null) 
     {
-        try 
-        {
-            $data = TSession::getValue(__CLASS__.'_filter_data') ?? new stdClass;
-            $data->dt_inicial = date('Y-m-d 00:00:00');
-            $data->dt_final = date('Y-m-d 23:59:59');
-
-            $filters = [];
-
-            $data->agenda_id = self::getProfissionalLogado() ?? '';
-
-            if($data->agenda_id!='' && $data->agenda_id!=null)
-                $filters[] = new TFilter('agenda_id', '=', $data->agenda_id);
-
-            $filters[] = new TFilter('dt_inicial', '>=', date('Y-m-d 00:00:00'));
-            $filters[] = new TFilter('dt_final', '<=', date('Y-m-d 23:59:59'));
-
-            TSession::setValue(__CLASS__.'_filters', $filters);
-            TSession::setValue(__CLASS__.'_filter_data', $data);
-
-            $this->onReload(['offset' => 0, 'first_page' => 1]);
-
-            //</autoCode>
-        }
-        catch (Exception $e) 
-        {
-            new TMessage('error', $e->getMessage());    
-        }
+        $this->filtrarPeriodo(date('Y-m-d'), date('Y-m-d'));
     }
     public function onFilterSemana($param = null) 
     {
+        $domingo = date('Y-m-d', strtotime('-' . date('w') . ' days'));
+        $this->filtrarPeriodo($domingo, date('Y-m-d', strtotime($domingo . ' +6 days')));
+    }
+    public function onFilterMes($param = null)
+    {
+        $this->filtrarPeriodo(date('Y-m-01'), date('Y-m-t'));
+    }
+
+    private function filtrarPeriodo(string $de, string $ate): void
+    {
         try 
         {
-            $firstday = date('Y-m-d', strtotime("this week"));
-            $lastday = date('Y-m-d', strtotime("+7 days",strtotime($firstday))); 
-
-            $data = TSession::getValue(__CLASS__.'_filter_data') ?? new stdClass;
-            $data->dt_inicial = $firstday;
-            $data->dt_final = $lastday;
-
-            $filters = [];
-
-            $data->agenda_id = self::getProfissionalLogado() ?? '';
-
-            if($data->agenda_id!='' && $data->agenda_id!=null)
-                $filters[] = new TFilter('agenda_id', '=', $data->agenda_id);
-
-            $filters[] = new TFilter('dt_inicial', '>=', $firstday);
-            $filters[] = new TFilter('dt_final', '<=', $lastday);
-
-            TSession::setValue(__CLASS__.'_filters', $filters);
-            TSession::setValue(__CLASS__.'_filter_data', $data);
-
-            $this->onReload(['offset' => 0, 'first_page' => 1]);
-
-            //</autoCode>
+            $extra = ['dt_inicial' => $de, 'dt_final' => $ate];
+            $agenda = self::agendaDoProfissionalLogado();
+            if ($agenda) { $extra['agenda_id'] = $agenda; }
+            $this->onSearch(['__sem_formulario' => 1, '__filtros_extra' => $extra]);
         }
         catch (Exception $e) 
         {
             new TMessage('error', $e->getMessage());    
         }
     }
-    public function onFilterMes($param = null) 
+
+    /** Agenda do usuario logado, se ele for profissional com agenda (senao null). */
+    private static function agendaDoProfissionalLogado(): ?int
     {
-        try 
-        {
-            $diasMesAtual = date("t");
-
-            $data = TSession::getValue(__CLASS__.'_filter_data') ?? new stdClass;
-            $data->dt_inicial = date('Y-m-01 00:00:00');
-            $data->dt_final = date("Y-m-$diasMesAtual 23:59:59");
-
-            $filters = [];
-
-            $data->agenda_id = self::getProfissionalLogado() ?? '';
-
-            if($data->agenda_id!='' && $data->agenda_id!=null)
-                $filters[] = new TFilter('agenda_id', '=', $data->agenda_id);
-
-            $filters[] = new TFilter('dt_inicial', '>=', date('Y-m-01 00:00:00'));
-            $filters[] = new TFilter('dt_final', '<=', date("Y-m-$diasMesAtual 23:59:59"));
-
-            TSession::setValue(__CLASS__.'_filters', $filters);
-            TSession::setValue(__CLASS__.'_filter_data', $data);
-
-            $this->onReload(['offset' => 0, 'first_page' => 1]);
-
-            //</autoCode>
+        TTransaction::open(self::$database);
+        $agenda = null;
+        $profissional = Pessoa::where('system_users_id', '=', TSession::getValue('userid'))->first();
+        if ($profissional && PessoaGrupo::where('grupo_id', '=', Grupo::PROFISSIONAL)->where('pessoa_id', '=', $profissional->id)->count() > 0) {
+            $a = Agenda::where('profissional_id', '=', $profissional->id)->first();
+            $agenda = $a ? (int) $a->id : null;
         }
-        catch (Exception $e) 
-        {
-            new TMessage('error', $e->getMessage());    
-        }
+        TTransaction::close();
+        return $agenda;
     }
     public function onExportPdf($param = null) 
     {
@@ -703,7 +659,9 @@ class AgendaAgendamentoList extends TPage
         if (isset($data->dt_final) AND ( (is_scalar($data->dt_final) AND $data->dt_final !== '') OR (is_array($data->dt_final) AND (!empty($data->dt_final)) )) )
         {
 
-            $filters[] = new TFilter('dt_inicial', '<=', $data->dt_final);// create the filter 
+            // so a data (cortina e botoes Dia/Semana/Mes): ate o fim do dia
+            $ateFim = (strlen((string) $data->dt_final) === 10) ? $data->dt_final . ' 23:59:59' : $data->dt_final;
+            $filters[] = new TFilter('dt_inicial', '<=', $ateFim);// create the filter
         }
 
         if (isset($data->especialidade_descricao) AND ( (is_scalar($data->especialidade_descricao) AND $data->especialidade_descricao !== '') OR (is_array($data->especialidade_descricao) AND (!empty($data->especialidade_descricao)) )) )

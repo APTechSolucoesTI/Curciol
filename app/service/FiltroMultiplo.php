@@ -54,6 +54,8 @@ class FiltroMultiplo
     {
         return '<style>
             .fm { position: relative; width: 100%; }
+            /* nos formularios o Adianti encolhe o campo ao tamanho do texto: aqui ele ocupa a coluna */
+            .fb-inline-field-container:has(.fm) { width: 100%; float: none; }
             .fm .fm-campo { position: relative; }
             .fm .fm-busca { width: 100%; height: 28px; box-sizing: border-box; padding: 0 26px 0 8px; border: 1px solid #dfe4ed; border-radius: 5px; background: #fff; }
             .fm .fm-busca:focus { outline: none; border-color: #556372; }

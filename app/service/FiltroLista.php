@@ -159,9 +159,9 @@ class FiltroLista
 
     private static function textoRotulo(TLabel $rotulo): string
     {
-        ob_start();
-        $rotulo->show();
-        $html = ob_get_clean();
+        // le o valor sem desenhar: o show() do TLabel acrescenta o texto de novo a cada chamada e o rotulo saia
+        // dobrado na tela e na faixa ("ateate", 30/10/2026)
+        $html = (string) $rotulo->getValue();
         return trim(rtrim(trim(html_entity_decode(strip_tags($html), ENT_QUOTES, 'UTF-8')), ':'));
     }
 

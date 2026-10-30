@@ -124,7 +124,7 @@ class BloqueioForm extends TPage
         }
         else
         {
-            $rowAgendas = $this->form->addFields([new TLabel("Agendas:", '#ff0000', '14px', null, '100%'), AgendaSelecaoMultipla::campo($criteria_agenda_id)]);
+            $rowAgendas = $this->form->addFields([new TLabel("Agendas:", '#ff0000', '14px', null, '100%'), AgendaSelecaoMultipla::campo($criteria_agenda_id, '', $param)]);
             $rowAgendas->layout = [' col-sm-12'];
             $row2 = $this->form->addFields([new TLabel("Início:", '#ff0000', '14px', null, '100%'),$dt_inicio],[new TLabel("Fim:", '#ff0000', '14px', null, '100%'),$dt_final]);
             $row2->layout = [' col-sm-3',' col-sm-3'];
@@ -267,7 +267,7 @@ class BloqueioForm extends TPage
             $new = empty($data->id) || empty(Bloqueio::find($data->id));
 
             // novo: um bloqueio em cada agenda marcada; editando: o proprio
-            $agendas = $new ? AgendaSelecaoMultipla::marcadas($data) : [null];
+            $agendas = $new ? AgendaSelecaoMultipla::marcadas($param) : [null];
             foreach ($agendas as $agendaMarcada)
             {
                 $object = new Bloqueio(); // create an empty object

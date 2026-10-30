@@ -63,6 +63,34 @@ class AgendaVisual
         return date('Y-m-d', $i) === date('Y-m-d', $f) ? date('H:i', $i) . ' – ' . date('H:i', $f) : date('d/m H:i', $i) . ' – ' . date('d/m H:i', $f);
     }
 
+    /** Texto do resumo: "30/10/2026 14:30 às 15:00"; em datas diferentes, a data nas duas pontas. */
+    public static function horarioTexto($inicio, $fim): string
+    {
+        $i = strtotime(str_replace('T', ' ', (string) $inicio));
+        $f = strtotime(str_replace('T', ' ', (string) $fim));
+        if (!$i) { return ''; }
+        if (!$f) { return date('d/m/Y H:i', $i); }
+        return date('d/m/Y', $i) === date('d/m/Y', $f)
+            ? date('d/m/Y H:i', $i) . ' às ' . date('H:i', $f)
+            : date('d/m/Y H:i', $i) . ' às ' . date('d/m/Y H:i', $f);
+    }
+
+    /**
+     * Cartao com o resumo ao passar o mouse (popover do FullCalendar), como o do agendamento: titulo e os itens
+     * preenchidos ("Horario", "Agenda", "Observacao"...). Os textos vao escapados (o popover fica em atributo).
+     */
+    public static function resumo(string $cartao, string $titulo, array $itens): string
+    {
+        $e = function ($v) { return htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8'); };
+        $conteudo = '<div>';
+        foreach ($itens as $rotulo => $valor) {
+            if (trim((string) $valor) === '') { continue; }
+            $conteudo .= '<b>' . $e($rotulo) . ':</b><br/>' . nl2br($e(trim((string) $valor))) . '<br/>';
+        }
+        $conteudo .= '</div>';
+        return TFullCalendar::renderPopover($cartao, $e($titulo), $conteudo);
+    }
+
     /** Bloqueio ou compromisso "de dia inteiro": de varios dias ou com 8 horas ou mais (vai para a faixa Dia inteiro). */
     public static function diaInteiro(array $e): bool
     {
@@ -134,7 +162,7 @@ class AgendaVisual
                 if ($camada === 2) { $e['backgroundColor'] = $e['cor_fundo'] ?? '#ffffff'; }
             } else {
                 $e['display'] = 'background';
-                $e['fundo'] = true;
+                $e['fundo_na_grade'] = true; // no mes e na lista vira item normal (scriptCalendario)
                 $e['classNames'][] = 'agd-de-fundo';
             }
         }
@@ -232,6 +260,12 @@ class AgendaVisual
             #agendamentos .fc-daygrid-event .agd-ev { flex-direction: row; align-items: center; gap: 6px; }
             #agendamentos .fc-daygrid-event .agd-ev-l2 { display: none; }
             #agendamentos .fc-mesHoje-view .agd-ev-hora, #agendamentos .fc-list .agd-ev-hora { display: none; }
+            /* aba Agenda (lista): a linha inteira na cor da agenda (scriptCalendario), sem a bolinha */
+            #agendamentos .fc-list-event-dot, #agendamentos .fc-list-event-graphic { display: none; }
+            #agendamentos .fc-list-event td { background: transparent; border-color: rgba(255,255,255,.7); }
+            #agendamentos .fc-list-event:hover { filter: brightness(.96); }
+            #agendamentos .fc-list-event .agd-ev { flex-direction: row; gap: 8px; align-items: baseline; }
+            #agendamentos .fc-list-event .agd-ev-l2 { display: inline; }
 
             /* bloqueio listrado e compromisso tracejado, na cor da agenda */
             #agendamentos .fc-event.agd-bloqueio, #agendamentos .fc-bg-event.agd-bloqueio { background-image: repeating-linear-gradient(135deg, rgba(255,255,255,.55) 0 7px, rgba(255,255,255,0) 7px 14px); }
@@ -282,7 +316,21 @@ JS;
     (function quandoPronto() {
         var cal = $('#agendamentos').data('fullcalendar');
         if (!cal) { if (tentativas++ < 60) { setTimeout(quandoPronto, 100); } return; }
+        function naGrade() { return !!(cal.view && String(cal.view.type).indexOf('timeGrid') === 0); }
+        var gradeAntes = naGrade();
+        cal.setOption('eventDataTransform', function (e) {
+            if (e.fundo_na_grade && !naGrade()) { delete e.display; }
+            return e;
+        });
+        cal.on('datesSet', function () {
+            if (naGrade() !== gradeAntes) { gradeAntes = naGrade(); cal.refetchEvents(); }
+        });
         cal.setOption('eventDidMount', function (info) {
+            if (info.el.classList.contains('fc-list-event')) {
+                info.el.style.backgroundColor = info.event.backgroundColor || '';
+                info.el.style.color = info.event.textColor || '';
+                return;
+            }
             if (info.event.display !== 'background' || !/^(bloqueio|compromisso)-\d+$/.test(String(info.event.id))) { return; }
             info.el.addEventListener('click', function (e) {
                 e.stopPropagation();

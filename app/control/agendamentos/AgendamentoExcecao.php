@@ -174,8 +174,9 @@ class AgendamentoExcecao extends TPage
         {
             $criteriaAgendasUnidade = new TCriteria();
             $criteriaAgendasUnidade->add(new TFilter('escritorio_id', 'in', "(SELECT id FROM escritorio WHERE system_unit_id = '" . (int) TSession::getValue('userunitid') . "')"));
-            $agendas = AgendaSelecaoMultipla::campo($criteriaAgendasUnidade);
-            $agendas->setChangeAction(new TAction([$this,'onChange']));
+            // ao fechar a lista de agendas: profissional, especialidade e procedimento da primeira (onChange)
+            $agendas = AgendaSelecaoMultipla::campo($criteriaAgendasUnidade,
+                "$.post('engine.php?class=AgendamentoExcecao&method=onChange&static=1', $('form[name=form_AgendamentoExcecao]').serialize(), function (r) { __adianti_parse_html(r); });", $param);
             $rowAgendas = $this->form->addFields([new TLabel("Agendas:", '#ff0000', '14px', null, '100%'), $agendas]);
             $rowAgendas->layout = [' col-sm-12'];
             $row2 = $this->form->addFields([new TLabel("Profissional:", null, '14px', null, '100%'),$agenda_profissional_nome],[new TLabel("Especialidade:", null, '14px', null, '100%'),$especialidade_id]);
@@ -465,7 +466,7 @@ class AgendamentoExcecao extends TPage
             $new = empty($data->id) || empty(Agendamento::find($data->id));
 
             // nova: um agendamento em cada agenda marcada (mesmo cliente, horario e procedimentos); editando: o proprio
-            $agendasMarcadas = $new ? AgendaSelecaoMultipla::marcadas($data) : [null];
+            $agendasMarcadas = $new ? AgendaSelecaoMultipla::marcadas($param) : [null];
             foreach ($agendasMarcadas as $agendaMarcada)
             {
             $object = new Agendamento(); // create an empty object 

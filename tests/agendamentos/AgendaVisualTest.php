@@ -97,7 +97,7 @@ try {
 
     // ---------- compromisso em varias agendas ----------
     $html = saida(function () { (new CompromissoForm([]))->show(); });
-    ok('compromisso novo: agendas com caixa de selecao', strpos($html, 'name="agendas[]"') !== false, substr(strip_tags($html), 0, 160));
+    ok('compromisso novo: agendas no mesmo campo do filtro (lista com Todas e cor)', strpos($html, 'data-nome="agendas"') !== false && strpos($html, 'Todas as agendas') !== false && preg_match('/class="fm-item" data-id="' . $a1 . '"[^>]*data-cor="#[0-9a-f]{6}"/', $html) === 1, substr(strip_tags($html), 0, 160));
     $base = ['id' => '', 'tipo_compromisso_id' => (string) $tipoCompromisso, 'dt_inicio' => '15/01/2030 10:00', 'dt_final' => '15/01/2030 11:00', 'habilitar_repeticao' => 'N',
              'convidado_compromisso_compromisso_id' => [''], 'convidado_compromisso_compromisso___row__id' => ['1'], 'convidado_compromisso_compromisso___row__data' => [''], 'convidado_compromisso_compromisso_agenda_id' => ['']];
     post($base + ['agendas' => [(string) $a1, (string) $a2], 'observacao' => MARCA_AV . ' compromisso']);
@@ -109,7 +109,7 @@ try {
     ok('compromisso: sem agenda marcada e recusado', strpos($s, 'Marque pelo menos uma agenda') !== false && !q("SELECT 1 FROM compromisso WHERE observacao = '" . MARCA_AV . " sem agenda'"), substr(strip_tags($s), 0, 200));
     $id = (int) q("SELECT id FROM compromisso WHERE observacao = '" . MARCA_AV . " compromisso' ORDER BY id LIMIT 1")[0]['id'];
     $html = saida(function () use ($id) { $t = new CompromissoForm(['key' => $id]); $t->onEdit(['key' => $id]); $t->show(); });
-    ok('compromisso existente: edita com a agenda unica dele', strpos($html, 'name="agenda_id"') !== false && strpos($html, 'name="agendas[]"') === false);
+    ok('compromisso existente: edita com a agenda unica dele', strpos($html, 'name="agenda_id"') !== false && strpos($html, 'data-nome="agendas"') === false);
 
     // ---------- bloqueio em varias agendas ----------
     post(['id' => '', 'dt_inicio' => '16/01/2030 08:00', 'dt_final' => '16/01/2030 12:00', 'habilitar_repeticao' => 'N', 'agendas' => [(string) $a1, (string) $a2], 'observacao' => MARCA_AV . ' bloqueio']);
@@ -120,7 +120,7 @@ try {
     x("INSERT INTO pessoa (nome, tipo_pessoa_id) VALUES ('" . MARCA_AV . " CLIENTE', 1)");
     $cliente = (int) q("SELECT id FROM pessoa WHERE nome = '" . MARCA_AV . " CLIENTE'")[0]['id'];
     $html = saida(function () { (new AgendamentoExcecao([]))->show(); });
-    ok('excecao nova: agendas com caixa de selecao', strpos($html, 'name="agendas[]"') !== false, substr(strip_tags($html), 0, 160));
+    ok('excecao nova: agendas no mesmo campo do filtro, que atualiza o profissional ao fechar', strpos($html, 'data-nome="agendas"') !== false && strpos($html, 'method=onChange') !== false, substr(strip_tags($html), 0, 160));
     post(['id' => '', 'cliente_id' => (string) $cliente, 'especialidade_id' => '', 'dt_inicial' => '17/01/2030 09:00', 'dt_final' => '17/01/2030 09:30', 'online' => 'F', 'habilitar_repeticao' => 'N',
           'observacao' => MARCA_AV, 'agendas' => [(string) $a1, (string) $a2],
           'agendamento_procedimento_agendamento_id' => [''], 'agendamento_procedimento_agendamento___row__id' => ['1'], 'agendamento_procedimento_agendamento___row__data' => [''],
@@ -156,6 +156,9 @@ try {
     $mesmoDia = $ag->horario_texto;
     $ag->dt_final = '2030-01-02 01:00:00';
     igual('resumo ao passar o mouse: inicio e fim (data duas vezes se mudar o dia)', ['01/01/2030 14:30 às 15:00', '01/01/2030 14:30 às 02/01/2030 01:00'], [$mesmoDia, $ag->horario_texto]);
+    $cartao = AgendaVisual::resumo("<div class='agd-ev'>X</div>", 'Bloqueio', ['Horário' => AgendaVisual::horarioTexto('2030-01-01 08:00', '2030-01-01 12:00'), 'Agenda' => "Dra. O'Neil", 'Observação' => '']);
+    ok('resumo ao passar o mouse tambem no bloqueio/compromisso (horario, agenda; vazio nao aparece; aspas escapadas)', strpos($cartao, "data-popover='true'") !== false && strpos($cartao, '01/01/2030 08:00 às 12:00') !== false
+        && strpos($cartao, 'O&#039;Neil') !== false && strpos($cartao, 'Observação') === false, $cartao);
     $org = AgendaVisual::organizar([
         ['id' => 'ag', 'camada' => 1, 'start' => '2030-01-01T09:00:00', 'end' => '2030-01-01T10:00:00', 'classNames' => ['agd-agendamento']],
         ['id' => 'bl', 'camada' => 3, 'start' => '2030-01-01T13:00:00', 'end' => '2030-01-01T15:00:00', 'classNames' => ['agd-bloqueio']],

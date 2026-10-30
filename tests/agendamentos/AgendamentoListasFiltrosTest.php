@@ -68,6 +68,24 @@ $html = saida(function () { (new AgendaAgendamentoList([]))->onClearFilters([]);
 igual('listagem: Limpar filtros zera a sessao (cortina e cabecalho)', [null, null], [TSession::getValue('AgendaAgendamentoList_filter_data'), TSession::getValue('AgendaAgendamentoList_filters')]);
 ok('listagem: Limpar filtros manda a faixa vazia', strpos($html, 'curciolFaixaFiltros') !== false && strpos($html, '[]') !== false && strpos($html, 'EXCECAO') === false, substr($html, 0, 300));
 
+// botoes Dia/Semana/Mes: so o periodo, somando com os demais; a faixa mostra "de ate" uma vez so (30/10/2026)
+FiltroLista::limparSessao('AgendaAgendamentoList');
+post(['estado_agenda_id' => '999999']);
+saida(function () { (new AgendaAgendamentoList([]))->onSearch($_POST); });
+$html = saida(function () { $p = new AgendaAgendamentoList([]); $p->onFilterDia([]); $p->show(); });
+$d = (array) TSession::getValue('AgendaAgendamentoList_filter_data');
+igual('Dia: periodo de hoje e o filtro anterior continua', [date('Y-m-d'), date('Y-m-d'), '999999'], [$d['dt_inicial'] ?? null, $d['dt_final'] ?? null, $d['estado_agenda_id'] ?? null]);
+$hojeJson = str_replace('/', '\/', date('d/m/Y'));
+ok('Dia: faixa com a data uma vez de cada lado (sem "ateate")', strpos($html, $hojeJson . ' até ' . $hojeJson) !== false && strpos($html, 'atéaté') === false, substr($html, 0, 200));
+saida(function () { $p = new AgendaAgendamentoList([]); $p->onFilterSemana([]); });
+$d = (array) TSession::getValue('AgendaAgendamentoList_filter_data');
+$domingo = date('Y-m-d', strtotime('-' . date('w') . ' days'));
+igual('Semana: de domingo a sabado', [$domingo, date('Y-m-d', strtotime($domingo . ' +6 days'))], [$d['dt_inicial'] ?? null, $d['dt_final'] ?? null]);
+FiltroLista::limparSessao('AgendaAgendamentoList');
+$html = saida(function () { $p = new AgendaAgendamentoList([]); $p->onReload([]); $p->show(); });
+ok('listagem: bolinha na cor da agenda com o nome ao passar o mouse', strpos($html, "title='Agenda: ") !== false, substr(strip_tags($html), 0, 200));
+FiltroLista::limparSessao('AgendaAgendamentoList');
+
 // ---------- Atendimento (TodosAgendamentoList) ----------
 FiltroLista::limparSessao('TodosAgendamentoList');
 $html = saida(function () { $p = new TodosAgendamentoList([]); $p->onReload([]); $p->show(); });

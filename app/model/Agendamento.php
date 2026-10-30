@@ -826,13 +826,7 @@ class Agendamento extends TRecord
      */
     public function get_horario_texto()
     {
-        $i = strtotime((string) $this->dt_inicial);
-        $f = strtotime((string) $this->dt_final);
-        if (!$i) { return ''; }
-        if (!$f) { return date('d/m/Y H:i', $i); }
-        return date('d/m/Y', $i) === date('d/m/Y', $f)
-            ? date('d/m/Y H:i', $i) . ' às ' . date('H:i', $f)
-            : date('d/m/Y H:i', $i) . ' às ' . date('d/m/Y H:i', $f);
+        return AgendaVisual::horarioTexto($this->dt_inicial, $this->dt_final);
     }
 
     public function get_is_online()

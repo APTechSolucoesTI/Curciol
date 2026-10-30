@@ -162,7 +162,7 @@ class CompromissoForm extends TPage
         }
         else
         {
-            $rowAgendas = $this->form->addFields([new TLabel("Agendas:", '#ff0000', '14px', null, '100%'), AgendaSelecaoMultipla::campo($criteria_agenda_id)]);
+            $rowAgendas = $this->form->addFields([new TLabel("Agendas:", '#ff0000', '14px', null, '100%'), AgendaSelecaoMultipla::campo($criteria_agenda_id, '', $param)]);
             $rowAgendas->layout = [' col-sm-12'];
             $row3 = $this->form->addFields([new TLabel("Início:", '#ff0000', '14px', null, '100%'),$dt_inicio],[new TLabel("Fim:", '#ff0000', '14px', null, '100%'),$dt_final]);
             $row3->layout = [' col-sm-3',' col-sm-3'];
@@ -309,7 +309,7 @@ class CompromissoForm extends TPage
             $new = empty($data->id) || empty(Compromisso::find($data->id));
 
             // novo: um compromisso em cada agenda marcada (com os mesmos convidados); editando: o proprio
-            $agendas = $new ? AgendaSelecaoMultipla::marcadas($data) : [null];
+            $agendas = $new ? AgendaSelecaoMultipla::marcadas($param) : [null];
             foreach ($agendas as $agendaMarcada)
             {
             $object = new Compromisso(); // create an empty object 

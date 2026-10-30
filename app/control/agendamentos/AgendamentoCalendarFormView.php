@@ -319,6 +319,9 @@ class AgendamentoCalendarFormView extends TPage
                         . ($agenda ? ' · ' . htmlspecialchars((string) $agenda->nome) : '') . "</span></span>"
                         . "<span class='agd-ev-l2'>" . (trim((string) $bloqueio->observacao) !== '' ? "<span class='agd-ev-texto'>" . htmlspecialchars((string) $bloqueio->observacao) . '</span>' : '') . "</span></div>";
                     $event_array['id'] = 'bloqueio-'.$bloqueio->id;
+                    // resumo ao passar o mouse, como no agendamento (30/10/2026)
+                    $event_array['title'] = AgendaVisual::resumo($event_array['title'], 'Bloqueio', ['Horário' => AgendaVisual::horarioTexto($bloqueio->dt_inicio, $bloqueio->dt_final),
+                        'Agenda' => $agenda->nome ?? '', 'Observação' => $bloqueio->observacao]);
 
                     $return[] = AgendaVisual::estilizar($event_array, 'bloqueio', $agenda->cor ?? null, $bloqueio->agenda_id);
                 }
@@ -353,6 +356,8 @@ class AgendamentoCalendarFormView extends TPage
                         . "<span class='agd-ev-l2'>Compromisso" . ($agenda ? ' · ' . htmlspecialchars((string) $agenda->nome) : '')
                         . (trim((string) $compromisso->observacao) !== '' ? ' · ' . htmlspecialchars((string) $compromisso->observacao) : '') . "</span></div>";
                     $event_array['id'] = 'compromisso-'.$compromisso->id;
+                    $event_array['title'] = AgendaVisual::resumo($event_array['title'], 'Compromisso', ['Horário' => AgendaVisual::horarioTexto($compromisso->dt_inicio, $compromisso->dt_final),
+                        'Tipo' => $compromisso->tipo_compromisso->nome ?? '', 'Agenda' => $agenda->nome ?? '', 'Observação' => $compromisso->observacao]);
 
                     $return[] = AgendaVisual::estilizar($event_array, 'compromisso', $agenda->cor ?? null, $compromisso->agenda_id);
                 }
@@ -421,6 +426,8 @@ class AgendamentoCalendarFormView extends TPage
                         $event_array['title'] = "<div class='agd-ev'><span class='agd-ev-l1'><i class='fas fa-briefcase'></i> " . htmlspecialchars((string) ($compromisso->tipo_compromisso->nome ?? 'Compromisso')) . "</span>"
                             . "<span class='agd-ev-l2'>Compromisso convidado · " . htmlspecialchars((string) $agenda->nome) . "</span></div>";
                         $event_array['id'] = 'compromisso-'.$compromisso->id;
+                        $event_array['title'] = AgendaVisual::resumo($event_array['title'], 'Compromisso (agenda convidada)', ['Horário' => AgendaVisual::horarioTexto($compromisso->dt_inicio, $compromisso->dt_final),
+                            'Tipo' => $compromisso->tipo_compromisso->nome ?? '', 'Agenda' => $agenda->nome, 'Observação' => $compromisso->observacao]);
 
                         $return[] = AgendaVisual::estilizar($event_array, 'compromisso', $agenda->cor, $compromissoConvidado->agenda_id);
                     }
