@@ -195,6 +195,30 @@ try {
     ok('excecao: sobre bloqueio continua recusada', strpos($livre($a1, $meio, $mais($meio, 30), true), 'Já existe um bloqueio') !== false);
     ok('compromisso: sobre bloqueio e recusado', strpos($livreCompromisso($a1, $meio, $mais($meio, 30)), 'Já existe um bloqueio') !== false);
     igual('compromisso: no atendimento e fora de bloqueio pode', '', $livreCompromisso($a1, $abre, $mais($abre, 30)));
+    if ($folga) {
+        ok('compromisso curto: no dia em que a agenda nao atende e recusado', strpos($livreCompromisso($a1, "{$folga} 10:00", "{$folga} 10:30"), 'não atende em') !== false);
+        igual('compromisso longo (dia todo ou varios dias): pode pegar o nao atende e o intervalo, como o bloqueio', ['', ''],
+            [$livreCompromisso($a1, "{$folga} 08:00", "{$folga} 18:00"), $livreCompromisso($a1, "{$folga} 08:00", $mais("{$folga} 18:00", 24 * 60))]);
+    }
+
+    // ---------- "Nao atende" no dia certo (30/10/2026: com a semana de domingo, caia um dia adiantado) ----------
+    saida(function () use ($a1) { AgendamentosFilterForm::onFilter(['agenda_id' => [(string) $a1], 'dt_busca' => '', 'dt_busca_fim' => '']); });
+    $naoAtende = function (string $de, string $ate) {
+        $ev = json_decode(saida(function () use ($de, $ate) { AgendamentoCalendarFormView::getEvents(['start' => "{$de}T00:00:00", 'end' => "{$ate}T00:00:00"]); }), true) ?: [];
+        $dias = array_map(function ($e) { return substr($e['start'], 0, 10); }, array_filter($ev, function ($e) { return ($e['title'] ?? '') === 'Não atende'; }));
+        sort($dias);
+        return array_values(array_unique($dias));
+    };
+    $esperado = [];
+    for ($d = 0; $d < 7; $d++) { $dia = date('Y-m-d', strtotime("2030-01-20 +{$d} days")); if (!in_array((int) date('w', strtotime($dia)), $diasA1, true)) { $esperado[] = $dia; } }
+    igual('Nao atende: semana (domingo a sabado) so nos dias em que a agenda nao atende', $esperado, $naoAtende('2030-01-20', '2030-01-27'));
+    igual('Nao atende: no dia em que a agenda atende, nada (visao Dia)', [], $naoAtende($util, date('Y-m-d', strtotime("{$util} +1 day"))));
+    if ($folga) {
+        igual('Nao atende: no dia em que nao atende (visao Dia)', [$folga], $naoAtende($folga, date('Y-m-d', strtotime("{$folga} +1 day"))));
+    }
+    $html = (string) file_get_contents('app/control/agendamentos/AgendamentoCalendarForm.php');
+    ok('editar agenda ou parceria: abre o agendamento na aba Financeiro (so quem pode gerar)', strpos($html, "if ($mudouAgendaParceria && AgendamentoFinanceiroForm::podeGerar())") !== false
+        && strpos($html, "TApplication::loadPage('AgendamentoFormView', 'onShow', ['key' => $object->id, 'current_tab' => 2]);") !== false);
 
     // ---------- procedimentos sem a coluna Parceiro (30/10/2026) ----------
     TTransaction::open('escritorio');

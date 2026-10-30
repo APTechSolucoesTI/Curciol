@@ -8,7 +8,8 @@
  *
  * Horario de atendimento (30/10/2026): agendamento e compromisso novos (ou mudando agenda/horario) so dentro do
  * atendimento da agenda: em dia que ela atende, dentro do horario e fora do intervalo. A excecao existe para marcar
- * agendamento no intervalo ou quando a agenda nao atende (nunca sobre bloqueio).
+ * agendamento no intervalo ou quando a agenda nao atende (nunca sobre bloqueio). Compromisso longo (de varios dias ou
+ * de 8 horas ou mais, o "dia inteiro" da agenda) pode pegar intervalo e nao atende, como o bloqueio.
  */
 class AgendaConflitoService
 {
@@ -48,7 +49,7 @@ class AgendaConflitoService
         if ($r = $st->fetch(PDO::FETCH_OBJ)) { throw new Exception(self::mensagem('um compromisso', $nomeAgenda, $r)); }
     }
 
-    /** Compromisso: so no horario de atendimento da agenda e fora de bloqueio. */
+    /** Compromisso: fora de bloqueio e, se nao for longo, so no horario de atendimento da agenda. */
     public static function exigirLivreCompromisso(int $agendaId, string $inicio, string $fim): void
     {
         if ($agendaId <= 0 || trim($inicio) === '' || trim($fim) === '') { return; }
@@ -56,7 +57,9 @@ class AgendaConflitoService
         $fim = self::minuto($fim);
         if ($fim <= $inicio) { throw new Exception('O fim do horário tem que ser depois do início.'); }
         $agenda = Agenda::find($agendaId);
-        self::exigirAtendimento($agendaId, $inicio, $fim);
+        if (!self::longo($inicio, $fim)) {
+            self::exigirAtendimento($agendaId, $inicio, $fim);
+        }
         self::exigirSemBloqueio($agendaId, $inicio, $fim, $agenda ? ' na agenda ' . $agenda->nome : '');
     }
 
@@ -105,6 +108,14 @@ class AgendaConflitoService
                                              WHERE agenda_id = :agenda AND dt_inicio < :fim AND dt_final > :inicio ORDER BY dt_inicio LIMIT 1");
         $st->execute([':agenda' => $agendaId, ':fim' => $fim, ':inicio' => $inicio]);
         if ($r = $st->fetch(PDO::FETCH_OBJ)) { throw new Exception(self::mensagem('um bloqueio', $nomeAgenda, $r)); }
+    }
+
+    /** De varios dias ou com 8 horas ou mais (mesmo criterio de AgendaVisual::diaInteiro). */
+    public static function longo(string $inicio, string $fim): bool
+    {
+        $i = strtotime(self::minuto($inicio));
+        $f = strtotime(self::minuto($fim));
+        return date('Y-m-d', $i) !== date('Y-m-d', $f - 1) || ($f - $i) >= 8 * 3600;
     }
 
     /** "2026-10-30T14:30:00" -> "2026-10-30 14:30" */

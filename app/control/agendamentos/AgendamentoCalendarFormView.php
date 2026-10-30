@@ -184,77 +184,55 @@ class AgendamentoCalendarFormView extends TPage
 
                 foreach ($agendas as &$agenda) {
 
-                    // dias em que esta agenda nao atende (comeca vazio a cada agenda: antes herdava da anterior)
+                    // dias em que esta agenda nao atende (dia da semana 0-6; comeca vazio a cada agenda)
                     $semanaTrabalho = [];
 
-                    // get dias off
+                    // Curciol (30/10/2026): pela data de cada dia da visao (antes contava a partir do primeiro dia como se
+                    // fosse segunda; com a semana de domingo a sabado o "Nao atende" caia um dia adiantado: sexta riscada)
                     if ($agenda->dias)
                     {
-
-                        $semanaTrabalho = [1=>1,2=>2,3=>3,4=>4,5=>5,6=>6,0=>0];
-
-                        $dias = explode(',',$agenda->dias);
-
-                        foreach($dias as $dia)
+                        $atende = array_map('intval', explode(',', $agenda->dias));
+                        for ($w = 0; $w <= 6; $w++)
                         {
-                            $start = new DateTime($param['start']);
-
-                            if($dia > 0)
+                            if (!in_array($w, $atende, true))
                             {
-                                $d = $dia - 1;
-                                $start = $start->modify("+{$d} day");    
+                                $semanaTrabalho[$w] = $w;
                             }
-                            else
-                            {
-                                $d = 6;
-                                $start = $start->modify("+{$d} day");  
-                            }
-
-                            if(isset($semanaTrabalho[$dia]))
-                            {
-                                unset($semanaTrabalho[$dia]);
-                            }
-
-                            $return[] = [
-                                'type' => 'disponivel',
-                                'title' => '',
-                                'overlap' => false,
-                                'rendering' => "background",
-                                'display' => 'background',
-                                'color' => '#fff',
-                                'start' => $start->format('Y-m-d') .'T'. $agenda->horario_inicial,
-                                'end' =>  $start->format('Y-m-d') .'T'. $agenda->horario_final
-                            ];
-
                         }
 
-                        foreach($semanaTrabalho as $naoTrabalho)
+                        $dia = new DateTime(substr($param['start'], 0, 10));
+                        $ultimo = new DateTime(substr($param['end'], 0, 10));
+                        while ($dia < $ultimo)
                         {
-                            $start = new DateTime($param['start']);
-
-                            if($naoTrabalho > 0)
+                            if (isset($semanaTrabalho[(int) $dia->format('w')]))
                             {
-                                $d = $naoTrabalho - 1;
-                                $start = $start->modify("+{$d} day");    
+                                $return[] = [
+                                    'start' => $dia->format('Y-m-d') .'T'. $agenda->horario_inicial,
+                                    'end' =>  $dia->format('Y-m-d') .'T'. $agenda->horario_final,
+                                    'title' => 'Não atende',
+                                    'id' => 'nao-trabalha-'.uniqid(),
+                                    'overlap' => true,
+                                    'rendering' => 'block',
+                                    'display' => 'background',
+                                    'classNames' => ['agd-fundo'],
+                                    'fundo' => true,
+                                    'agenda_id' => (string) $agenda->id,
+                                ];
                             }
                             else
                             {
-                                $d = 6;
-                                $start = $start->modify("+{$d} day");  
+                                $return[] = [
+                                    'type' => 'disponivel',
+                                    'title' => '',
+                                    'overlap' => false,
+                                    'rendering' => "background",
+                                    'display' => 'background',
+                                    'color' => '#fff',
+                                    'start' => $dia->format('Y-m-d') .'T'. $agenda->horario_inicial,
+                                    'end' =>  $dia->format('Y-m-d') .'T'. $agenda->horario_final
+                                ];
                             }
-
-                            $return[] = [
-                                'start' => $start->format('Y-m-d') .'T'. $agenda->horario_inicial,
-                                'end' =>  $start->format('Y-m-d') .'T'. $agenda->horario_final,
-                                'title' => 'Não atende',
-                                'id' => 'nao-trabalha-'.uniqid(),
-                                'overlap' => true,
-                                'rendering' => 'block',
-                                'display' => 'background',
-                                'classNames' => ['agd-fundo'],
-                                'fundo' => true,
-                                'agenda_id' => (string) $agenda->id,
-                            ];
+                            $dia->modify('+1 day');
                         }
                     }
 

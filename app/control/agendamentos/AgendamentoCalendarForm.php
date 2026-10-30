@@ -493,6 +493,8 @@ class AgendamentoCalendarForm extends TPage
             {
                 AgendaConflitoService::exigirLivre((int) $object->agenda_id, (string) $object->dt_inicial, (string) $object->dt_final, (int) $object->id);
             }
+            $mudouAgendaParceria = $antes && ((int) $antes->agenda_id !== (int) $object->agenda_id
+                || (int) $antes->parceria_levantamento_id !== (int) $object->parceria_levantamento_id);
 
             if ($object->aceita_agendamento_online == 'F')
             {
@@ -555,6 +557,12 @@ class AgendamentoCalendarForm extends TPage
             TToast::show('success', "Registro salvo", 'topRight', 'far:check-circle'); 
 
             TScript::create("$('#agendamentos').data('fullcalendar').refetchEvents()");
+            // Curciol (30/10/2026): trocou agenda ou parceria e pode gerar o financeiro: abre o agendamento na aba Financeiro
+            if ($mudouAgendaParceria && AgendamentoFinanceiroForm::podeGerar())
+            {
+                TApplication::loadPage('AgendamentoFormView', 'onShow', ['key' => $object->id, 'current_tab' => 2]);
+                return;
+            }
                         TScript::create("Template.closeRightPanel();");
             TForm::sendData(self::$formName, (object)['id' => $object->id]);
 
