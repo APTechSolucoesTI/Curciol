@@ -802,11 +802,9 @@ class Agendamento extends TRecord
 
     public function get_detalhe_html()
     {
-        $inicio = TDateTime::convertToMask($this->dt_inicial, 'yyyy-mm-dd hh:ii:ss','dd/mm/yyyy hh:ii');
-    
         $html = new TElement('div');
-        $html->add("<b>Data:</b><br/>");
-        $html->add($inicio);
+        $html->add("<b>Horário:</b><br/>");
+        $html->add($this->get_horario_texto());
         $html->add("<br/><b>Profissional:</b><br/>");
         $html->add($this->get_agenda()->profissional->nome_formatado);
         $html->add("<br/><b>Cliente:</b><br/>");
@@ -820,6 +818,21 @@ class Agendamento extends TRecord
         }
     
         return $html;
+    }
+
+    /**
+     * Inicio e fim para o resumo ao passar o mouse na agenda (30/10/2026): "30/10/2026 14:30 às 15:00"; em datas
+     * diferentes, a data nas duas pontas ("30/10/2026 22:00 às 31/10/2026 01:00").
+     */
+    public function get_horario_texto()
+    {
+        $i = strtotime((string) $this->dt_inicial);
+        $f = strtotime((string) $this->dt_final);
+        if (!$i) { return ''; }
+        if (!$f) { return date('d/m/Y H:i', $i); }
+        return date('d/m/Y', $i) === date('d/m/Y', $f)
+            ? date('d/m/Y H:i', $i) . ' às ' . date('H:i', $f)
+            : date('d/m/Y H:i', $i) . ' às ' . date('d/m/Y H:i', $f);
     }
 
     public function get_is_online()

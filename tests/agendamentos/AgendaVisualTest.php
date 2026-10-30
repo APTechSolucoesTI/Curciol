@@ -151,6 +151,11 @@ try {
     // ---------- cartoes e sobreposicao (30/10/2026) ----------
     $ev = AgendaVisual::estilizar(['title' => "<div class='agd-ev'><span class='agd-ev-l1'>NOME</span><span class='agd-ev-l2'>DETALHE</span></div>", 'start' => '2030-01-01T09:00:00', 'end' => '2030-01-01T09:30:00'], 'agendamento', '#2563eb', 1);
     ok('cartao: nome, depois sempre o horario de inicio e fim, depois o detalhe', strpos($ev['title'], "NOME</span><span class='agd-ev-hora'>09:00 – 09:30</span><span class='agd-ev-l2'>DETALHE") !== false, $ev['title']);
+    $ag = new Agendamento();
+    $ag->dt_inicial = '2030-01-01 14:30:00'; $ag->dt_final = '2030-01-01 15:00:00';
+    $mesmoDia = $ag->horario_texto;
+    $ag->dt_final = '2030-01-02 01:00:00';
+    igual('resumo ao passar o mouse: inicio e fim (data duas vezes se mudar o dia)', ['01/01/2030 14:30 às 15:00', '01/01/2030 14:30 às 02/01/2030 01:00'], [$mesmoDia, $ag->horario_texto]);
     $org = AgendaVisual::organizar([
         ['id' => 'ag', 'camada' => 1, 'start' => '2030-01-01T09:00:00', 'end' => '2030-01-01T10:00:00', 'classNames' => ['agd-agendamento']],
         ['id' => 'bl', 'camada' => 3, 'start' => '2030-01-01T13:00:00', 'end' => '2030-01-01T15:00:00', 'classNames' => ['agd-bloqueio']],

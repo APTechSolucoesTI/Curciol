@@ -386,7 +386,7 @@ class AgendamentoCalendarFormView extends TPage
                     <span title='{agendamento->estado_agenda->nome}' class='agd-ev-est' style='background-color: {agendamento->estado_agenda->cor}'></span>
                     {agendamento->cliente->nome_formatado}</span><span class='agd-ev-l2'>Convidado por {agendamento->agenda->profissional->nome_formatado}</span>
                     </div> "), $convidado->render(""), $convidado->render("<div>
-                    <b>Data:</b><br/>{agendamento->dt_inicial}<br/><b>Agendamento #{agendamento->id}</b><br/><b>Convidado por:</b><br/>{agendamento->agenda->profissional->nome_formatado}<br/><br/></div>
+                    <b>Horário:</b><br/>{agendamento->horario_texto}<br/><b>Agendamento #{agendamento->id}</b><br/><b>Convidado por:</b><br/>{agendamento->agenda->profissional->nome_formatado}<br/><br/></div>
                     "));
 
                     $return[] = AgendaVisual::estilizar($event_array, 'agendamento', $agendaConvidada->cor ?? null, $convidado->agenda_id);
