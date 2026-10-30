@@ -184,6 +184,9 @@ class AgendamentoCalendarFormView extends TPage
 
                 foreach ($agendas as &$agenda) {
 
+                    // dias em que esta agenda nao atende (comeca vazio a cada agenda: antes herdava da anterior)
+                    $semanaTrabalho = [];
+
                     // get dias off
                     if ($agenda->dias)
                     {
@@ -263,7 +266,8 @@ class AgendamentoCalendarFormView extends TPage
 
                         while($start->format('Y-m-d') <= $end->format('Y-m-d'))
                         {
-                            if (! empty($semanaTrabalho[$start->format('w')]))
+                            // isset: o domingo (0) tambem e dia sem atendimento (com empty o intervalo aparecia no domingo)
+                            if (isset($semanaTrabalho[$start->format('w')]))
                             {
                                 $start = $start->modify('+1 day');
                                 continue;
