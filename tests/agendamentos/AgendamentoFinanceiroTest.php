@@ -3,6 +3,8 @@
 // Gerar financeiro do agendamento (29/10/2026): conta a receber com a parceria de repasse (so fixa), quitada na hora
 // gera os repasses, em aberto gera quando quitar; nao desquita com repasse pago; nao cancela/exclui com financeiro;
 // desfazer so sem recebimento; conta gerada so muda pelo desfazer; coluna Origem mostra so a origem.
+// 30/10/2026: parcerias so as do colaborador da agenda; com financeiro, agenda e parceria travadas; aba Financeiro so
+// para quem gera (grupos Financeiro e Financeiro do agendamento, com a Vania).
 // Grava de verdade na homologacao (agendamentos de teste) e apaga tudo no fim.
 require __DIR__ . '/../bootstrap.php';
 if (!class_exists('TApplication')) { class TApplication extends AdiantiCoreApplication {} }
@@ -191,6 +193,39 @@ try {
     igual('gerar usa a parceria do agendamento (nao a enviada)', $parceria, (int) $ficha4->parceria_levantamento_id);
     $conta4 = q("SELECT c.quitada, x.compensado FROM conta c JOIN lancamento l ON l.conta_id = c.id LEFT JOIN extrato x ON x.id = l.extrato_id WHERE c.id = {$ficha4->conta_receber_id}")[0];
     igual('Sim, ja quitado: quitada e a compensar', ['S', 'N'], [$conta4['quitada'], $conta4['compensado']]);
+
+    // ---------- agenda e parceria (30/10/2026) ----------
+    $troca = function (int $ag, int $agenda, int $parc) {
+        TTransaction::open('escritorio');
+        try { AgendamentoFinanceiroService::exigirAgendaParceria($ag, $agenda, $parc); return ''; } catch (Throwable $e) { return $e->getMessage(); } finally { TTransaction::rollback(); }
+    };
+    $outraAgenda = (int) q("SELECT id FROM agenda WHERE id <> {$agendaId} ORDER BY id LIMIT 1")[0]['id'];
+    ok('com financeiro: trocar a agenda pede para desfazer o financeiro antes', strpos($troca($a4, $outraAgenda, $parceria), 'Para alterar a agenda, desfaça o financeiro antes') !== false, $troca($a4, $outraAgenda, $parceria));
+    ok('com financeiro: trocar a parceria pede para desfazer o financeiro antes', strpos($troca($a4, $agendaId, $outra), 'Para alterar a parceria, desfaça o financeiro antes') !== false);
+    igual('com financeiro: salvar sem trocar agenda nem parceria passa', '', $troca($a4, $agendaId, $parceria));
+    $html = saida(function () use ($a4) { $t = new AgendamentoCalendarForm([]); $t->onEdit(['key' => $a4]); $t->show(); });
+    ok('edicao com financeiro: agenda e parceria travadas, com o aviso', strpos($html, 'agp_aviso_form_') !== false && strpos($html, 'desfaça o financeiro antes') !== false, substr(strip_tags($html), 0, 200));
+    $doColaborador = "SELECT parceria_levantamento_id FROM parceria_levantamento_participante WHERE pessoa_id = (SELECT profissional_id FROM agenda WHERE id = {$agendaId})";
+    $esperadas = array_map('intval', array_column(q("SELECT id FROM parceria_levantamento WHERE ativo = 'S' AND tipo = 'FIXA' AND id IN ({$doColaborador}) ORDER BY nome"), 'id'));
+    igual('parcerias do agendamento: so as fixas de que o colaborador da agenda participa', $esperadas, array_keys(AgendamentoFinanceiroService::parceriasFixas($agendaId)));
+    $alheia = (int) (q("SELECT id FROM parceria_levantamento WHERE ativo = 'S' AND tipo = 'FIXA' AND id NOT IN ({$doColaborador}) ORDER BY id LIMIT 1")[0]['id'] ?? 0);
+    if ($alheia > 0) {
+        ok('parceria sem o colaborador da agenda e recusada no cadastro', strpos($troca(0, $agendaId, $alheia), 'não tem o colaborador da agenda') !== false);
+        $a5 = $novoAgendamento('ALHEIA', 50);
+        lanca('gerar com parceria sem o colaborador da agenda: recusado', function () use ($a5, $dados, $alheia) { AgendamentoFinanceiroService::gerar($a5, $dados(['parceria_levantamento_id' => $alheia])); }, 'colaborador da agenda');
+        $html = saida(function () use ($a5) { (new AgendamentoFinanceiroForm(['agendamento_id' => $a5]))->show(); });
+        ok('janela do gerar: so as parcerias do colaborador da agenda', !preg_match('/<option[^>]*value="' . $alheia . '"/', $html) && preg_match('/<option[^>]*value="' . $parceria . '"/', $html) === 1);
+    }
+
+    // ---------- aba Financeiro so para quem gera (30/10/2026) ----------
+    TSession::setValue('programs', []);
+    $html = saida(function () use ($a4) { (new AgendamentoFormView(['key' => $a4]))->show(); });
+    ok('sem a permissao: a aba Financeiro nao aparece', strpos($html, 'Parceria de repasse') === false && strpos($html, 'Conta a receber nº') === false && strpos($html, 'Desfazer financeiro') === false, substr(strip_tags($html), 0, 160));
+    TSession::setValue('programs', ['AgendamentoFinanceiroForm' => true]);
+    $grupo = q("SELECT (SELECT string_agg(p.controller, ',') FROM system_group_program gp JOIN system_program p ON p.id = gp.system_program_id WHERE gp.system_group_id = g.id) programas,
+                       (SELECT string_agg(ug.system_user_id::text, ',') FROM system_user_group ug WHERE ug.system_group_id = g.id) usuarios
+                  FROM system_group g WHERE g.name = 'Financeiro do agendamento'")[0] ?? [];
+    igual('grupo Financeiro do agendamento: so a janela de gerar e a Vania (23)', ['AgendamentoFinanceiroForm', '23'], [$grupo['programas'] ?? null, $grupo['usuarios'] ?? null]);
 
     ok('Confirmar nao gera mais conta a receber', strpos((string) file_get_contents('app/control/agendamentos/AgendamentoFormView.php'), 'AtendimentoService::gerarContaReceber') === false);
     igual('coluna Origem: requisicao mostra so a requisicao (mesmo com contrato)', 0, substr_count(ContaListaColunas::origem((object) ['requisicao_pagamento_id' => 1, 'contrato_id' => 2]), 'Contrato'));

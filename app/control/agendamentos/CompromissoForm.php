@@ -322,6 +322,16 @@ class CompromissoForm extends TPage
                 $object->modificacao_user_id = TSession::getValue('userid');
             }
 
+            // Curciol (30/10/2026): compromisso so no atendimento da agenda (dia que atende, horario, fora do intervalo) e
+            // fora de bloqueio; editando sem mudar agenda nem horario, nao confere
+            $antes = $new ? null : Compromisso::find((int) $object->id);
+            if (!$antes || (int) $antes->agenda_id !== (int) $object->agenda_id
+                || substr((string) $antes->dt_inicio, 0, 16) !== substr(str_replace('T', ' ', (string) $object->dt_inicio), 0, 16)
+                || substr((string) $antes->dt_final, 0, 16) !== substr(str_replace('T', ' ', (string) $object->dt_final), 0, 16))
+            {
+                AgendaConflitoService::exigirLivreCompromisso((int) $object->agenda_id, (string) $object->dt_inicio, (string) $object->dt_final);
+            }
+
             $object->store(); // save the object 
 
             $loadPageParam = [];
@@ -599,6 +609,8 @@ private function clonar($object, $data)
         $newObject->dt_final = date('Y-m-d H:i:s', strtotime("{$newObject->dt_inicio} +{$minutesDiff} minutes"));
         //$newObject->agendamento_original_id = $object->id;
 
+        // Curciol (30/10/2026): a repeticao tambem so no atendimento da agenda e fora de bloqueio
+        AgendaConflitoService::exigirLivreCompromisso((int) $newObject->agenda_id, (string) $newObject->dt_inicio, (string) $newObject->dt_final);
         $newObject->store();
 
     }

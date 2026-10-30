@@ -32,7 +32,6 @@ class AgendamentoExcecao extends TPage
         $criteria_agenda_id = new TCriteria();
         $criteria_especialidade_id = new TCriteria();
         $criteria_cliente_id = new TCriteria();
-        $criteria_agendamento_procedimento_agendamento_parceiro_id = new TCriteria();
         $criteria_agendamento_procedimento_agendamento_procedimento_id = new TCriteria();
 
         $id = new TEntry('id');
@@ -46,7 +45,8 @@ class AgendamentoExcecao extends TPage
         $agendamento_procedimento_agendamento_id = new THidden('agendamento_procedimento_agendamento_id[]');
         $agendamento_procedimento_agendamento___row__id = new THidden('agendamento_procedimento_agendamento___row__id[]');
         $agendamento_procedimento_agendamento___row__data = new THidden('agendamento_procedimento_agendamento___row__data[]');
-        $agendamento_procedimento_agendamento_parceiro_id = new TDBCombo('agendamento_procedimento_agendamento_parceiro_id[]', 'escritorio', 'Parceiro', 'id', '{nome}','nome asc' , $criteria_agendamento_procedimento_agendamento_parceiro_id );
+        // Curciol (30/10/2026): sem a coluna Parceiro; o parceiro do item e gravado sozinho (AgendamentoProcedimentoPadrao)
+        $agendamento_procedimento_agendamento_parceiro_id = new THidden('agendamento_procedimento_agendamento_parceiro_id[]');
         $agendamento_procedimento_agendamento_procedimento_id = new TDBCombo('agendamento_procedimento_agendamento_procedimento_id[]', 'escritorio', 'Procedimento', 'id', '{nome}','nome asc' , $criteria_agendamento_procedimento_agendamento_procedimento_id );
         $agendamento_procedimento_agendamento_valor = new TNumeric('agendamento_procedimento_agendamento_valor[]', '2', ',', '.' );
         $agendamento_procedimento_agendamento_quantidade = new TNumeric('agendamento_procedimento_agendamento_quantidade[]', '2', ',', '.' );
@@ -61,11 +61,11 @@ class AgendamentoExcecao extends TPage
         $this->fieldList_procedimentos->addField(null, $agendamento_procedimento_agendamento_id, []);
         $this->fieldList_procedimentos->addField(null, $agendamento_procedimento_agendamento___row__id, ['uniqid' => true]);
         $this->fieldList_procedimentos->addField(null, $agendamento_procedimento_agendamento___row__data, []);
-        $this->fieldList_procedimentos->addField(new TLabel("Parceiro", null, '14px', null), $agendamento_procedimento_agendamento_parceiro_id, ['width' => '20%']);
-        $this->fieldList_procedimentos->addField(new TLabel("Procedimento", null, '14px', null), $agendamento_procedimento_agendamento_procedimento_id, ['width' => '30%']);
+        $this->fieldList_procedimentos->addField(null, $agendamento_procedimento_agendamento_parceiro_id, []);
+        $this->fieldList_procedimentos->addField(new TLabel("Procedimento", null, '14px', null), $agendamento_procedimento_agendamento_procedimento_id, ['width' => '40%']);
         $this->fieldList_procedimentos->addField(new TLabel("Valor", null, '14px', null), $agendamento_procedimento_agendamento_valor, ['width' => '20%']);
-        $this->fieldList_procedimentos->addField(new TLabel("Quantidade", null, '14px', null), $agendamento_procedimento_agendamento_quantidade, ['width' => '20%']);
-        $this->fieldList_procedimentos->addField(new TLabel("Valor total", null, '14px', null), $agendamento_procedimento_agendamento_valor_total, ['width' => '20%','sum' => true]);
+        $this->fieldList_procedimentos->addField(new TLabel("Quantidade", null, '14px', null), $agendamento_procedimento_agendamento_quantidade, ['width' => '15%']);
+        $this->fieldList_procedimentos->addField(new TLabel("Valor total", null, '14px', null), $agendamento_procedimento_agendamento_valor_total, ['width' => '25%','sum' => true]);
 
         $this->fieldList_procedimentos->width = '100%';
         $this->fieldList_procedimentos->setFieldPrefix('agendamento_procedimento_agendamento');
@@ -86,7 +86,6 @@ class AgendamentoExcecao extends TPage
         $this->fieldList_procedimentos->setRemoveAction(null, 'fas:times #dd5a43', "Excluír");
 
         $agenda_id->setChangeAction(new TAction([$this,'onChange']));
-        $agendamento_procedimento_agendamento_parceiro_id->setChangeAction(new TAction([$this,'onChangeConvenio']));
         $agendamento_procedimento_agendamento_procedimento_id->setChangeAction(new TAction([$this,'onChangeProcedimento']));
         $habilitar_repeticao->setChangeAction(new TAction([$this,'onChangeRepeticao']));
 
@@ -97,7 +96,6 @@ class AgendamentoExcecao extends TPage
         $cliente_id->addValidation("Cliente", new TRequiredValidator()); 
         $dt_inicial->addValidation("Início ", new TRequiredValidator()); 
         $dt_final->addValidation("Fim", new TRequiredValidator()); 
-        $agendamento_procedimento_agendamento_parceiro_id->addValidation("Parceiro", new TRequiredListValidator()); 
         $agendamento_procedimento_agendamento_procedimento_id->addValidation("Procedimento", new TRequiredListValidator()); 
         $agendamento_procedimento_agendamento_quantidade->addValidation("Quantidade", new TRequiredListValidator()); 
 
@@ -133,7 +131,6 @@ class AgendamentoExcecao extends TPage
         $agenda_id->enableSearch();
         $tipo_repeticao->enableSearch();
         $especialidade_id->enableSearch();
-        $agendamento_procedimento_agendamento_parceiro_id->enableSearch();
         $agendamento_procedimento_agendamento_procedimento_id->enableSearch();
 
         $id->setSize(100);
@@ -151,7 +148,6 @@ class AgendamentoExcecao extends TPage
         $agenda_profissional_nome->setSize('100%');
         $agendamento_procedimento_agendamento_valor->setSize('100%');
         $agendamento_procedimento_agendamento_quantidade->setSize('100%');
-        $agendamento_procedimento_agendamento_parceiro_id->setSize('100%');
         $agendamento_procedimento_agendamento_valor_total->setSize('100%');
         $agendamento_procedimento_agendamento_procedimento_id->setSize('100%');
 
@@ -322,7 +318,6 @@ class AgendamentoExcecao extends TPage
 
                 $agenda = Agenda::find($agendaId);
 
-                $parceiros = EscritorioParceiro::where('escritorio_id', '=', $agenda->escritorio_id)->getIndexedArray('parceiro_id', 'parceiro_id')??[];
                 $especialidades = PessoaEspecialidade::where('pessoa_id', '=', $agenda->profissional_id)->getIndexedArray('especialidade_id', '{especialidade->descricao}');
 
                 $object = new stdClass();
@@ -342,7 +337,6 @@ class AgendamentoExcecao extends TPage
                 }
 
                 $obj = new stdClass;
-                $obj->agendamento_procedimento_agendamento_parceiro_id = [ array_shift($parceiros) ];
                 $obj->agendamento_procedimento_agendamento_procedimento_id =[ $agenda->procedimento_id];
                 $obj->agendamento_procedimento_agendamento_quantidade = ['1,00'];
 
@@ -363,24 +357,6 @@ class AgendamentoExcecao extends TPage
         }
     }
 
-    public static function onChangeConvenio($param = null) 
-    {
-        try 
-        {
-            $field_id = explode('_', $param['_field_id']);
-            $field_id = end($field_id);
-            $row = json_decode($param['_field_data_json'], true)['row'];
-
-            $param['key'] = $param["agendamento_procedimento_agendamento_procedimento_id"][$row];
-            self::onChangeProcedimento($param);
-
-        }
-        catch (Exception $e) 
-        {
-            new TMessage('error', $e->getMessage());    
-        }
-    }
-
     public static function onChangeProcedimento($param = null) 
     {
         try 
@@ -388,33 +364,20 @@ class AgendamentoExcecao extends TPage
             $field_id = explode('_', $param['_field_id']);
             $field_id = end($field_id);
 
-            $row = json_decode($param['_field_data_json'], true)['row'];
-
-            if(empty($param["agendamento_procedimento_agendamento_parceiro_id"][$row]))
-            {
-                $object = new stdClass();
-                $object->{"agendamento_procedimento_agendamento_procedimento_id_{$field_id}"} = '';
-
-                TForm::sendData(self::$formName, $object, false, false, false);
-
-                throw new Exception('Antes de escolher uma procedimento, preencha o Convênio');
-            }
-
             if(!empty($param['key']))
             {
                 TTransaction::open(self::$database);
 
-                $procedimentoPreco = ProcedimentoPreco::where('parceiro_id', '=', $param["agendamento_procedimento_agendamento_parceiro_id"][$row])
-                                                      ->where('procedimento_id', '=', $param['key'])
-                                                      ->first();
+                // Curciol (30/10/2026): valor padrao do cadastro do procedimento, qualquer que seja a agenda (editavel)
+                $valor = AgendamentoProcedimentoPadrao::valor((int) $param['key']);
                 $object = new stdClass();
                 $object->{"agendamento_procedimento_agendamento_quantidade_{$field_id}"} = 1;
-                $object->{"agendamento_procedimento_agendamento_valor_{$field_id}"} = TextService::toBRL($procedimentoPreco->valor);
+                $object->{"agendamento_procedimento_agendamento_valor_{$field_id}"} = TextService::toBRL($valor);
 
                 TForm::sendData(self::$formName, $object, false, false, false);
 
                 $object = new stdClass();
-                $object->{"agendamento_procedimento_agendamento_valor_total_{$field_id}"} = TextService::toBRL($procedimentoPreco->valor);
+                $object->{"agendamento_procedimento_agendamento_valor_total_{$field_id}"} = TextService::toBRL($valor);
 
                 TForm::sendData(self::$formName, $object);
 
@@ -511,8 +474,9 @@ class AgendamentoExcecao extends TPage
                 $object->link_atendimento_online = implode('', [bin2hex(random_bytes(4)),bin2hex(random_bytes(2)),bin2hex(chr((ord(random_bytes(1)) & 0x0F) | 0x40)) . bin2hex(random_bytes(1)),bin2hex(chr((ord(random_bytes(1)) & 0x3F) | 0x80)) . bin2hex(random_bytes(1)),bin2hex(random_bytes(6))]);
             }
 
-            // Curciol (30/10/2026): horario livre na agenda (sem agendamento, bloqueio ou compromisso no mesmo horario)
-            AgendaConflitoService::exigirLivre((int) $object->agenda_id, (string) $object->dt_inicial, (string) $object->dt_final, (int) $object->id);
+            // Curciol (30/10/2026): horario livre na agenda (sem agendamento, bloqueio ou compromisso no mesmo horario); a
+            // excecao pode cair no intervalo e quando a agenda nao atende, nunca sobre bloqueio
+            AgendaConflitoService::exigirLivre((int) $object->agenda_id, (string) $object->dt_inicial, (string) $object->dt_final, (int) $object->id, true);
             $object->store(); // save the object 
 
             if ($new)
@@ -532,11 +496,7 @@ class AgendamentoExcecao extends TPage
             }
             else
             {
-            $agendamento_procedimento_agendamento_items = $this->storeItems('AgendamentoProcedimento', 'agendamento_id', $object, $this->fieldList_procedimentos, function($masterObject, $detailObject){ 
-
-                //code here
-
-            }, $this->criteria_fieldList_procedimentos); 
+            $agendamento_procedimento_agendamento_items = $this->storeItems('AgendamentoProcedimento', 'agendamento_id', $object, $this->fieldList_procedimentos, ['AgendamentoProcedimentoPadrao', 'completar'], $this->criteria_fieldList_procedimentos);
             }
 
             if ($new)
@@ -764,13 +724,9 @@ class AgendamentoExcecao extends TPage
         $newObject->dt_final = date('Y-m-d H:i:s', strtotime("{$newObject->dt_inicial} +{$minutesDiff} minutes"));
         $newObject->agendamento_original_id = $object->id;
 
-        if (! $newObject->validate()) 
-        {
-            throw new Exception('Verifique o horário. Existem bloqueios ou horarios de intervalo sobrepostos');
-        }
-
-        // Curciol (30/10/2026): a repeticao tambem nao pode cair sobre agendamento, bloqueio ou compromisso da agenda
-        AgendaConflitoService::exigirLivre((int) $newObject->agenda_id, (string) $newObject->dt_inicial, (string) $newObject->dt_final);
+        // Curciol (30/10/2026): a repeticao tambem nao pode cair sobre agendamento, bloqueio ou compromisso da agenda; como
+        // excecao, pode cair no intervalo e quando a agenda nao atende (antes o validate() recusava)
+        AgendaConflitoService::exigirLivre((int) $newObject->agenda_id, (string) $newObject->dt_inicial, (string) $newObject->dt_final, 0, true);
         $newObject->store();
 
         // preenche procedimentos

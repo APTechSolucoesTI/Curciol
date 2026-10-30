@@ -2,6 +2,8 @@
 // tests/agendamentos/AgendaVisualTest.php
 // Agenda repaginada (29/10/2026): cores pela agenda, faixa das agendas e legenda, filtros com varios clientes/agendas e
 // periodo; compromisso, bloqueio e excecao novos em varias agendas (um registro por agenda marcada).
+// 30/10/2026: agendamento e compromisso so no atendimento da agenda (excecao pode no intervalo e quando nao atende,
+// nunca sobre bloqueio); selo e resumo de presencial/online; valor padrao pelo procedimento, sem a coluna Parceiro.
 // Grava na homologacao (registros marcados com MARCA_AV, em 2030) e apaga tudo no fim.
 require __DIR__ . '/../bootstrap.php';
 if (!class_exists('TApplication')) { class TApplication extends AdiantiCoreApplication {} }
@@ -135,21 +137,90 @@ try {
     igual('excecao: um agendamento em cada agenda, com os procedimentos', [[$a1, 1], [$a2, 1]], array_map(function ($r) { return [(int) $r['agenda_id'], (int) $r['procs']]; }, $criados), substr(strip_tags($s), 0, 300));
 
     // ---------- horario livre na agenda (30/10/2026) ----------
-    $livre = function (int $agenda, string $ini, string $fim) {
+    $livre = function (int $agenda, string $ini, string $fim, bool $excecao = false) {
         TTransaction::open('escritorio');
-        try { AgendaConflitoService::exigirLivre($agenda, $ini, $fim); TTransaction::close(); return ''; }
+        try { AgendaConflitoService::exigirLivre($agenda, $ini, $fim, 0, $excecao); TTransaction::close(); return ''; }
         catch (Throwable $e) { TTransaction::rollback(); return $e->getMessage(); }
     };
+    $livreCompromisso = function (int $agenda, string $ini, string $fim) {
+        TTransaction::open('escritorio');
+        try { AgendaConflitoService::exigirLivreCompromisso($agenda, $ini, $fim); TTransaction::close(); return ''; }
+        catch (Throwable $e) { TTransaction::rollback(); return $e->getMessage(); }
+    };
+    $mais = function (string $quando, int $minutos) { return date('Y-m-d H:i', strtotime("{$quando} {$minutos} minutes")); };
     $choque = q("SELECT fl_permite_choque_horario f FROM agenda WHERE id = {$a1}")[0]['f'];
     if ($choque !== 'T') {
         ok('conflito: outro agendamento no mesmo horario', strpos($livre($a1, '2030-01-17 09:15', '2030-01-17 09:45'), 'Já existe um agendamento') !== false);
         $s = saida(function () { (new AgendamentoExcecao($_POST))->onSave($_POST); });
         ok('conflito: a excecao de novo no mesmo horario e recusada, com o motivo', strpos($s, 'Já existe um agendamento') !== false && count(q("SELECT 1 FROM agendamento WHERE cliente_id = {$cliente}")) === 2, substr(strip_tags($s), 0, 300));
     }
-    $m = $livre($a1, '2030-01-16 11:00', '2030-01-16 13:00');
+    $m = $livre($a1, '2030-01-16 11:00', '2030-01-16 12:00');
     ok('conflito: bloqueio no horario (com data e horas na mensagem)', strpos($m, 'Já existe um bloqueio') !== false && strpos($m, '16/01/2030 das 08:00 às 12:00') !== false, $m);
     ok('conflito: compromisso no horario', strpos($livre($a2, '2030-01-15 10:30', '2030-01-15 10:45'), 'Já existe um compromisso') !== false);
-    igual('conflito: encostar (comeca quando o bloqueio termina) pode', '', $livre($a1, '2030-01-16 12:00', '2030-01-16 12:30'));
+    igual('conflito: encostar (comeca quando o bloqueio termina) pode', '', $livre($a2, '2030-01-16 12:00', '2030-01-16 12:30'));
+
+    // ---------- horario de atendimento (30/10/2026) ----------
+    $cfg = q("SELECT dias, horario_inicial hi, horario_inicio_intervalo ii, horario_fim_intervalo fi FROM agenda WHERE id = {$a1}")[0];
+    $diasA1 = trim((string) $cfg['dias']) === '' ? range(0, 6) : array_map('intval', explode(',', $cfg['dias']));
+    $folga = null; $util = null;
+    for ($d = 0; $d < 7; $d++) {
+        $dia = date('Y-m-d', strtotime("2030-01-20 +{$d} days"));
+        if (in_array((int) date('w', strtotime($dia)), $diasA1, true)) { $util = $util ?? $dia; } else { $folga = $folga ?? $dia; }
+    }
+    $abre = $util . ' ' . substr($cfg['hi'], 0, 5);
+    if ($folga) {
+        $ini = $folga . ' ' . substr($cfg['hi'], 0, 5);
+        $m = $livre($a1, $ini, $mais($ini, 30));
+        ok('atendimento: dia em que a agenda nao atende e recusado (e sugere a excecao)', strpos($m, 'não atende em') !== false && strpos($m, 'Exceção') !== false, $m);
+        igual('atendimento: a excecao pode no dia em que a agenda nao atende', '', $livre($a1, $ini, $mais($ini, 30), true));
+    }
+    $m = $livre($a1, $mais($abre, -60), $mais($abre, -30));
+    ok('atendimento: antes do horario da agenda e recusado', strpos($m, 'fora do atendimento') !== false, $m);
+    igual('atendimento: comecando quando a agenda abre pode', '', $livre($a1, $abre, $mais($abre, 30)));
+    if (!empty($cfg['ii']) && !empty($cfg['fi'])) {
+        $ii = $mais($util . ' ' . substr($cfg['ii'], 0, 5), 0);
+        $m = $livre($a1, $ii, $mais($ii, 30));
+        ok('atendimento: no intervalo da agenda e recusado', strpos($m, 'intervalo da agenda') !== false, $m);
+        igual('atendimento: a excecao pode no intervalo', '', $livre($a1, $ii, $mais($ii, 30), true));
+        $m = $livreCompromisso($a1, $ii, $mais($ii, 30));
+        ok('compromisso: no intervalo da agenda e recusado', strpos($m, 'intervalo da agenda') !== false, $m);
+        post(['id' => '', 'tipo_compromisso_id' => (string) $tipoCompromisso, 'dt_inicio' => date('d/m/Y H:i', strtotime($ii)), 'dt_final' => date('d/m/Y H:i', strtotime($mais($ii, 30))), 'habilitar_repeticao' => 'N',
+              'convidado_compromisso_compromisso_id' => [''], 'convidado_compromisso_compromisso___row__id' => ['1'], 'convidado_compromisso_compromisso___row__data' => [''], 'convidado_compromisso_compromisso_agenda_id' => [''],
+              'agendas' => [(string) $a1], 'observacao' => MARCA_AV . ' no intervalo']);
+        $s = saida(function () { (new CompromissoForm($_POST))->onSave($_POST); });
+        ok('compromisso: a tela recusa no intervalo, com o motivo', strpos($s, 'intervalo da agenda') !== false && !q("SELECT 1 FROM compromisso WHERE observacao = '" . MARCA_AV . " no intervalo'"), substr(strip_tags($s), 0, 200));
+    }
+    $meio = $mais($abre, 60);
+    x("INSERT INTO bloqueio (agenda_id, dt_inicio, dt_final, observacao) VALUES ({$a1}, '{$meio}', '" . $mais($meio, 60) . "', '" . MARCA_AV . " bloqueio atendimento')");
+    ok('excecao: sobre bloqueio continua recusada', strpos($livre($a1, $meio, $mais($meio, 30), true), 'Já existe um bloqueio') !== false);
+    ok('compromisso: sobre bloqueio e recusado', strpos($livreCompromisso($a1, $meio, $mais($meio, 30)), 'Já existe um bloqueio') !== false);
+    igual('compromisso: no atendimento e fora de bloqueio pode', '', $livreCompromisso($a1, $abre, $mais($abre, 30)));
+
+    // ---------- procedimentos sem a coluna Parceiro (30/10/2026) ----------
+    TTransaction::open('escritorio');
+    $consulta = (int) TTransaction::get()->query("SELECT id FROM procedimento WHERE nome = 'CONSULTA'")->fetchColumn();
+    $retorno = (int) TTransaction::get()->query("SELECT id FROM procedimento WHERE nome = 'RETORNO'")->fetchColumn();
+    igual('valor padrao pelo procedimento: consulta R$ 300 e retorno R$ 0', [300.0, 0.0], [AgendamentoProcedimentoPadrao::valor($consulta), AgendamentoProcedimentoPadrao::valor($retorno)]);
+    $item = (object) ['procedimento_id' => $consulta, 'parceiro_id' => ''];
+    AgendamentoProcedimentoPadrao::completar(null, $item);
+    ok('o parceiro do item e gravado sozinho', (int) $item->parceiro_id > 0);
+    TTransaction::close();
+    foreach (['AgendamentoFormBtn', 'AgendamentoCalendarForm', 'AgendamentoExcecao'] as $tela) {
+        $html = saida(function () use ($tela) { (new $tela([]))->show(); });
+        ok("{$tela}: sem a coluna Parceiro nos procedimentos", strpos($html, '>Parceiro<') === false && strpos($html, 'Procedimento') !== false, substr(strip_tags($html), 0, 160));
+    }
+
+    // ---------- presencial / online (30/10/2026) ----------
+    $idExc = (int) q("SELECT id FROM agendamento WHERE cliente_id = {$cliente} ORDER BY id LIMIT 1")[0]['id'];
+    TTransaction::open('escritorio');
+    $agx = new Agendamento($idExc);
+    $presencial = strip_tags((string) $agx->render('{detalhe_html}'));
+    $agx->online = 'T';
+    $online = strip_tags((string) $agx->render('{detalhe_html}'));
+    TTransaction::rollback();
+    ok('resumo do cartao: presencial ou online', strpos($presencial, 'Atendimento:Presencial') !== false && strpos($online, 'Atendimento:Online') !== false, $presencial);
+    ok('selo do online: pilula com a camera (sem a caixa com borda)', strpos(AgendaVisual::estilo(), 'agd-ev-online { display: inline-flex') !== false
+        && strpos((string) file_get_contents('app/control/agendamentos/AgendamentoCalendarFormView.php'), "<i class='fas fa-video'></i>Online") !== false);
     ok('conflito: fim antes do inicio e recusado', strpos($livre($a1, '2030-01-16 13:00', '2030-01-16 12:30'), 'depois do início') !== false);
 
     // ---------- cartoes e sobreposicao (30/10/2026) ----------

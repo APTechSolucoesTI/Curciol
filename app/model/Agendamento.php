@@ -805,6 +805,8 @@ class Agendamento extends TRecord
         $html = new TElement('div');
         $html->add("<b>Horário:</b><br/>");
         $html->add($this->get_horario_texto());
+        $html->add("<br/><b>Atendimento:</b><br/>");
+        $html->add($this->online === 'T' ? 'Online' : 'Presencial');
         $html->add("<br/><b>Profissional:</b><br/>");
         $html->add($this->get_agenda()->profissional->nome_formatado);
         $html->add("<br/><b>Cliente:</b><br/>");

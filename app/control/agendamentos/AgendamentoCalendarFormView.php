@@ -454,7 +454,8 @@ class AgendamentoCalendarFormView extends TPage
                     $event_array['end'] = str_replace( ' ', 'T', $event_array['dt_final']);
                     $event_array['id'] = $event->id;
 
-                    $online = ($event_array['online'] != 'F') ? " <span class='agd-ev-online'>online</span>" : '';
+                    // atendimento online: selo com a camera (presencial e o normal, sem selo; o resumo mostra os dois)
+                    $online = ($event_array['online'] === 'T') ? "<span class='agd-ev-online' title='Atendimento online'><i class='fas fa-video'></i>Online</span>" : '';
                     $detalhe = trim(implode(' · ', array_filter([$procedimentos[(int) $event->id] ?? '', (string) ($event->estado_agenda->nome ?? '')])));
                     $formatacao = "<div class='agd-ev'><span class='agd-ev-l1'>"
                         . "<span title='{estado_agenda->nome}' class='agd-ev-est' style='background-color: {estado_agenda->cor}'></span>"

@@ -32,7 +32,6 @@ class AgendamentoFormBtn extends TPage
         $criteria_agenda_id = new TCriteria();
         $criteria_especialidade_id = new TCriteria();
         $criteria_cliente_id = new TCriteria();
-        $criteria_agendamento_procedimento_agendamento_parceiro_id = new TCriteria();
         $criteria_agendamento_procedimento_agendamento_procedimento_id = new TCriteria();
         $criteria_convidado_agendamento_agenda_id = new TCriteria();
 
@@ -55,7 +54,8 @@ class AgendamentoFormBtn extends TPage
         $agendamento_procedimento_agendamento_id = new THidden('agendamento_procedimento_agendamento_id[]');
         $agendamento_procedimento_agendamento___row__id = new THidden('agendamento_procedimento_agendamento___row__id[]');
         $agendamento_procedimento_agendamento___row__data = new THidden('agendamento_procedimento_agendamento___row__data[]');
-        $agendamento_procedimento_agendamento_parceiro_id = new TDBCombo('agendamento_procedimento_agendamento_parceiro_id[]', 'escritorio', 'Parceiro', 'id', '{nome}','nome asc' , $criteria_agendamento_procedimento_agendamento_parceiro_id );
+        // Curciol (30/10/2026): sem a coluna Parceiro; o parceiro do item e gravado sozinho (AgendamentoProcedimentoPadrao)
+        $agendamento_procedimento_agendamento_parceiro_id = new THidden('agendamento_procedimento_agendamento_parceiro_id[]');
         $agendamento_procedimento_agendamento_procedimento_id = new TDBCombo('agendamento_procedimento_agendamento_procedimento_id[]', 'escritorio', 'Procedimento', 'id', '{nome}','nome asc' , $criteria_agendamento_procedimento_agendamento_procedimento_id );
         $agendamento_procedimento_agendamento_valor = new TNumeric('agendamento_procedimento_agendamento_valor[]', '2', ',', '.' );
         $agendamento_procedimento_agendamento_quantidade = new TNumeric('agendamento_procedimento_agendamento_quantidade[]', '2', ',', '.' );
@@ -75,11 +75,11 @@ class AgendamentoFormBtn extends TPage
         $this->fieldList_procedimentos->addField(null, $agendamento_procedimento_agendamento_id, []);
         $this->fieldList_procedimentos->addField(null, $agendamento_procedimento_agendamento___row__id, ['uniqid' => true]);
         $this->fieldList_procedimentos->addField(null, $agendamento_procedimento_agendamento___row__data, []);
-        $this->fieldList_procedimentos->addField(new TLabel("Parceiro", null, '14px', null), $agendamento_procedimento_agendamento_parceiro_id, ['width' => '25%']);
-        $this->fieldList_procedimentos->addField(new TLabel("Procedimento", null, '14px', null), $agendamento_procedimento_agendamento_procedimento_id, ['width' => '25%']);
-        $this->fieldList_procedimentos->addField(new TLabel("Valor", null, '14px', null), $agendamento_procedimento_agendamento_valor, ['width' => '15%']);
-        $this->fieldList_procedimentos->addField(new TLabel("Quantidade", null, '14px', null), $agendamento_procedimento_agendamento_quantidade, ['width' => '12%']);
-        $this->fieldList_procedimentos->addField(new TLabel("Valor total", null, '14px', null), $agendamento_procedimento_agendamento_valor_total, ['width' => '15%']);
+        $this->fieldList_procedimentos->addField(null, $agendamento_procedimento_agendamento_parceiro_id, []);
+        $this->fieldList_procedimentos->addField(new TLabel("Procedimento", null, '14px', null), $agendamento_procedimento_agendamento_procedimento_id, ['width' => '40%']);
+        $this->fieldList_procedimentos->addField(new TLabel("Valor", null, '14px', null), $agendamento_procedimento_agendamento_valor, ['width' => '20%']);
+        $this->fieldList_procedimentos->addField(new TLabel("Quantidade", null, '14px', null), $agendamento_procedimento_agendamento_quantidade, ['width' => '15%']);
+        $this->fieldList_procedimentos->addField(new TLabel("Valor total", null, '14px', null), $agendamento_procedimento_agendamento_valor_total, ['width' => '25%']);
 
         $this->fieldList_procedimentos->width = '100%';
         $this->fieldList_procedimentos->setFieldPrefix('agendamento_procedimento_agendamento');
@@ -119,7 +119,6 @@ class AgendamentoFormBtn extends TPage
         $this->fieldList_convidados->setRemoveAction(null, 'fas:times #dd5a43', "Excluír");
 
         $agenda_id->setChangeAction(new TAction([$this,'onChange']));
-        $agendamento_procedimento_agendamento_parceiro_id->setChangeAction(new TAction([$this,'onChangeParceiro']));
         $agendamento_procedimento_agendamento_procedimento_id->setChangeAction(new TAction([$this,'onChangeProcedimento']));
         $habilitar_repeticao->setChangeAction(new TAction([$this,'onChangeRepeticao']));
         $convidado_agendamento_agenda_id->setChangeAction(new TAction([$this,'verificaConvidado']));
@@ -130,7 +129,6 @@ class AgendamentoFormBtn extends TPage
 
         $agenda_id->addValidation("Agenda", new TRequiredValidator()); 
         $cliente_id->addValidation("Cliente", new TRequiredValidator()); 
-        $agendamento_procedimento_agendamento_parceiro_id->addValidation("Parceiro", new TRequiredListValidator()); 
         $agendamento_procedimento_agendamento_procedimento_id->addValidation("Procedimento", new TRequiredListValidator()); 
         $agendamento_procedimento_agendamento_quantidade->addValidation("Quantidade", new TRequiredListValidator()); 
 
@@ -171,7 +169,6 @@ class AgendamentoFormBtn extends TPage
         $tipo_repeticao->enableSearch();
         $especialidade_id->enableSearch();
         $convidado_agendamento_agenda_id->enableSearch();
-        $agendamento_procedimento_agendamento_parceiro_id->enableSearch();
         $agendamento_procedimento_agendamento_procedimento_id->enableSearch();
 
         $id->setEditable(false);
@@ -200,7 +197,6 @@ class AgendamentoFormBtn extends TPage
         $convidado_agendamento_agenda_id->setSize('100%');
         $agendamento_procedimento_agendamento_valor->setSize('100%');
         $agendamento_procedimento_agendamento_quantidade->setSize('100%');
-        $agendamento_procedimento_agendamento_parceiro_id->setSize('100%');
         $agendamento_procedimento_agendamento_valor_total->setSize('100%');
         $agendamento_procedimento_agendamento_procedimento_id->setSize('100%');
 
@@ -357,7 +353,6 @@ class AgendamentoFormBtn extends TPage
 
                 $agenda = Agenda::find($param['agenda_id']);
 
-                $parceiros = EscritorioParceiro::where('escritorio_id', '=', $agenda->escritorio_id)->getIndexedArray('parceiro_id', 'parceiro_id')??[];
                 $especialidades = PessoaEspecialidade::where('pessoa_id', '=', $agenda->profissional_id)->getIndexedArray('especialidade_id', '{especialidade->descricao}');
 
                 $object = new stdClass();
@@ -376,8 +371,10 @@ class AgendamentoFormBtn extends TPage
                     TScript::create('$("[name=online]").closest(".tformrow").hide()');
                 }
 
+                // Curciol (30/10/2026): parcerias de que o colaborador da agenda participa
+                AgendamentoParceriaCampo::recarregar(self::$formName, (int) $agenda->id, $param['parceria_levantamento_id'] ?? null);
+
                 $obj = new stdClass;
-                $obj->agendamento_procedimento_agendamento_parceiro_id = [ array_shift($parceiros) ];
                 $obj->agendamento_procedimento_agendamento_procedimento_id =[ $agenda->procedimento_id];
                 $obj->agendamento_procedimento_agendamento_quantidade = ['1,00'];
 
@@ -401,24 +398,6 @@ class AgendamentoFormBtn extends TPage
         }
     }
 
-    public static function onChangeParceiro($param = null) 
-    {
-        try 
-        {
-            $field_id = explode('_', $param['_field_id']);
-            $field_id = end($field_id);
-            $row = json_decode($param['_field_data_json'], true)['row'];
-
-            $param['key'] = $param["agendamento_procedimento_agendamento_procedimento_id"][$row];
-            self::onChangeProcedimento($param);
-
-        }
-        catch (Exception $e) 
-        {
-            new TMessage('error', $e->getMessage());    
-        }
-    }
-
     public static function onChangeProcedimento($param = null) 
     {
         try 
@@ -426,33 +405,20 @@ class AgendamentoFormBtn extends TPage
             $field_id = explode('_', $param['_field_id']);
             $field_id = end($field_id);
 
-            $row = json_decode($param['_field_data_json'], true)['row'];
-
-            if(empty($param["agendamento_procedimento_agendamento_parceiro_id"][$row]))
-            {
-                $object = new stdClass();
-                $object->{"agendamento_procedimento_agendamento_procedimento_id_{$field_id}"} = '';
-
-                TForm::sendData(self::$formName, $object, false, false, false);
-
-                throw new Exception('Antes de escolher uma procedimento, preencha o Convênio');
-            }
-
             if(!empty($param['key']))
             {
                 TTransaction::open(self::$database);
 
-                $procedimentoPreco = ProcedimentoPreco::where('parceiro_id', '=', $param["agendamento_procedimento_agendamento_parceiro_id"][$row])
-                                                      ->where('procedimento_id', '=', $param['key'])
-                                                      ->first();
+                // Curciol (30/10/2026): valor padrao do cadastro do procedimento, qualquer que seja a agenda (editavel)
+                $valor = AgendamentoProcedimentoPadrao::valor((int) $param['key']);
                 $object = new stdClass();
                 $object->{"agendamento_procedimento_agendamento_quantidade_{$field_id}"} = 1;
-                $object->{"agendamento_procedimento_agendamento_valor_{$field_id}"} = TextService::toBRL($procedimentoPreco->valor);
+                $object->{"agendamento_procedimento_agendamento_valor_{$field_id}"} = TextService::toBRL($valor);
 
                 TForm::sendData(self::$formName, $object, false, false, false);
 
                 $object = new stdClass();
-                $object->{"agendamento_procedimento_agendamento_valor_total_{$field_id}"} = TextService::toBRL($procedimentoPreco->valor);
+                $object->{"agendamento_procedimento_agendamento_valor_total_{$field_id}"} = TextService::toBRL($valor);
 
                 TForm::sendData(self::$formName, $object);
 
@@ -538,7 +504,9 @@ class AgendamentoFormBtn extends TPage
                 $object->link_atendimento_online = implode('', [bin2hex(random_bytes(4)),bin2hex(random_bytes(2)),bin2hex(chr((ord(random_bytes(1)) & 0x0F) | 0x40)) . bin2hex(random_bytes(1)),bin2hex(chr((ord(random_bytes(1)) & 0x3F) | 0x80)) . bin2hex(random_bytes(1)),bin2hex(random_bytes(6))]);
             }
 
-            // Curciol (30/10/2026): horario livre na agenda (sem agendamento, bloqueio ou compromisso no mesmo horario)
+            // Curciol (30/10/2026): parceria do colaborador da agenda; horario livre na agenda (sem agendamento, bloqueio ou
+            // compromisso no mesmo horario) e dentro do atendimento dela (dia que atende, horario, fora do intervalo)
+            AgendamentoFinanceiroService::exigirAgendaParceria((int) $object->id, (int) $object->agenda_id, (int) $object->parceria_levantamento_id);
             AgendaConflitoService::exigirLivre((int) $object->agenda_id, (string) $object->dt_inicial, (string) $object->dt_final, (int) $object->id);
             $object->store(); // save the object 
 
@@ -565,11 +533,7 @@ class AgendamentoFormBtn extends TPage
             }
             else
             {
-            $agendamento_procedimento_agendamento_items = $this->storeItems('AgendamentoProcedimento', 'agendamento_id', $object, $this->fieldList_procedimentos, function($masterObject, $detailObject){ 
-
-                //code here
-
-            }, $this->criteria_fieldList_procedimentos); 
+            $agendamento_procedimento_agendamento_items = $this->storeItems('AgendamentoProcedimento', 'agendamento_id', $object, $this->fieldList_procedimentos, ['AgendamentoProcedimentoPadrao', 'completar'], $this->criteria_fieldList_procedimentos);
             }
             if ($new)
             {
@@ -840,12 +804,8 @@ class AgendamentoFormBtn extends TPage
         $newObject->dt_final = date('Y-m-d H:i:s', strtotime("{$newObject->dt_inicial} +{$minutesDiff} minutes"));
         $newObject->agendamento_original_id = $object->id;
 
-        if (! $newObject->validate()) 
-        {
-            throw new Exception('Verifique o horário. Existem bloqueios ou horarios de intervalo sobrepostos');
-        }
-
-        // Curciol (30/10/2026): a repeticao tambem nao pode cair sobre agendamento, bloqueio ou compromisso da agenda
+        // Curciol (30/10/2026): a repeticao tambem nao pode cair sobre agendamento, bloqueio ou compromisso da agenda, nem
+        // fora do atendimento dela (dia que nao atende, fora do horario, intervalo)
         AgendaConflitoService::exigirLivre((int) $newObject->agenda_id, (string) $newObject->dt_inicial, (string) $newObject->dt_final);
         $newObject->store();
 

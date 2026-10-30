@@ -255,7 +255,7 @@ class AgendamentoFormView extends TPage
 
         $this->form->addContent([$panel]);
 
-        // Curciol (29/10/2026): financeiro do agendamento numa aba propria (gerar/desfazer so grupo Financeiro)
+        // Curciol (29/10/2026): financeiro do agendamento numa aba propria (30/10/2026: so para quem gera o financeiro)
         $this->adicionarFinanceiro($agendamento);
 
         $this->form->appendPage("Histórico");
@@ -512,12 +512,14 @@ class AgendamentoFormView extends TPage
     /**
      * Aba "Financeiro" (separada do atendimento): parceria de repasse do agendamento e a divisao por colaborador; sem
      * financeiro, o botao "Gerar financeiro" (janela AgendamentoFinanceiroForm); com financeiro, a conta a receber gerada
-     * (situacao e link) e o "Desfazer financeiro". Gerar/desfazer so para quem tem a janela (grupo Financeiro).
+     * (situacao e link) e o "Desfazer financeiro". A aba (30/10/2026) so aparece para quem gera o financeiro (quem tem a
+     * janela: grupos Financeiro e Financeiro do agendamento).
      */
     private function adicionarFinanceiro(Agendamento $agendamento): void
     {
-        $ficha = AgendamentoFinanceiroService::ficha((int) $agendamento->id);
         $pode = AgendamentoFinanceiroForm::podeGerar();
+        if (!$pode) { return; }
+        $ficha = AgendamentoFinanceiroService::ficha((int) $agendamento->id);
 
         $this->form->appendPage("Financeiro");
 
@@ -569,9 +571,13 @@ class AgendamentoFormView extends TPage
         $texto->style = 'font-size:14px; padding:6px 0';
         $texto->add('Conta a receber nº ' . (int) $ficha->conta_receber_id . ' - R$ ' . number_format((float) $ficha->valor, 2, ',', '.') . ' ' . $situacao);
 
-        $ver = new TActionLink(" Ver conta a receber", new TAction(['ContaFormView', 'onShow'], ['key' => (int) $ficha->conta_receber_id]), '#1565C0', '14px', 'B', 'fas:file-invoice-dollar #1565C0');
-        $ver->class = 'btn btn-default';
-        $campos = [$texto, $ver];
+        $campos = [$texto];
+        // a conta a receber so abre para quem tem a tela (grupo Financeiro)
+        if (SystemPermission::checkPermission('ContaFormView')) {
+            $ver = new TActionLink(" Ver conta a receber", new TAction(['ContaFormView', 'onShow'], ['key' => (int) $ficha->conta_receber_id]), '#1565C0', '14px', 'B', 'fas:file-invoice-dollar #1565C0');
+            $ver->class = 'btn btn-default';
+            $campos[] = $ver;
+        }
         if ($pode) {
             $desfazer = new TActionLink(" Desfazer financeiro", new TAction(['AgendamentoFinanceiroForm', 'onDesfazer'], ['key' => $agendamento->id]), '#F44336', '14px', 'B', 'fas:undo #F44336');
             $desfazer->class = 'btn btn-default';

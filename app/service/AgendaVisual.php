@@ -300,7 +300,8 @@ class AgendaVisual
             #agendamentos .agd-ev-l2 { display: block; font-size: 11px; opacity: .85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
             #agendamentos .fc-timeGridDay-view .fc-timegrid-event .agd-ev-l2 { white-space: normal; }
             #agendamentos .agd-ev-est { width: 7px; height: 7px; border-radius: 50%; display: inline-block; vertical-align: middle; margin: -2px 4px 0 0; box-shadow: 0 0 0 1.5px #fff; }
-            #agendamentos .agd-ev-online { font-size: 10px; font-weight: 600; border: 1px solid currentColor; border-radius: 3px; padding: 0 3px; margin-left: 4px; }
+            #agendamentos .agd-ev-online { display: inline-flex; align-items: center; gap: 3px; font-size: 10px; font-weight: 600; line-height: 1; padding: 2px 6px; border-radius: 9px; margin-left: 6px; background: rgba(255,255,255,.75); vertical-align: 1px; }
+            #agendamentos .agd-ev-online i { font-size: 9px; }
 
             /* mes e faixa "Dia inteiro": uma linha (nome cortado e horario); no mes fica o horario de inicio do FullCalendar */
             #agendamentos .fc-daygrid-event .fc-event-main { display: flex; align-items: center; gap: 4px; padding: 1px 6px; min-width: 0; }

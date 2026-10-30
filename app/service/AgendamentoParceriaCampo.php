@@ -1,14 +1,15 @@
 <?php
 /**
- * Parceria de repasse no cadastro/edicao do agendamento (29/10/2026): fica junto dos procedimentos (onde esta a coluna
- * Parceiro, que continua so para o preco). Abaixo, a divisao por colaborador (so leitura): porcentagem da parceria e o
+ * Parceria de repasse no cadastro/edicao do agendamento (29/10/2026): fica junto dos procedimentos. Abaixo, a divisao por colaborador (so leitura): porcentagem da parceria e o
  * valor sobre o total dos procedimentos, recalculados na tela a cada mudanca (mesma regra de centavos do financeiro:
  * a diferenca fica com quem a parceria indica). O Gerar financeiro do agendamento usa esta parceria.
+ * 30/10/2026: so as parcerias de que o colaborador dono da agenda participa (recarregadas ao trocar a agenda); a coluna
+ * Parceiro saiu dos procedimentos. Com financeiro gerado, agenda e parceria ficam travadas (desfazer o financeiro antes).
  */
 class AgendamentoParceriaCampo
 {
     /** Acrescenta a linha "Parceria de repasse" e a tabela de divisao ao formulario. Usa a transacao aberta ou abre a propria. */
-    public static function adicionar(BootstrapFormBuilder $form, string $formName): TCombo
+    public static function adicionar(BootstrapFormBuilder $form, string $formName, int $agendaId = 0): TCombo
     {
         $parcerias = AgendamentoFinanceiroService::parceriasFixas();
         $dados = [];
@@ -19,7 +20,7 @@ class AgendamentoParceriaCampo
         }
 
         $combo = new TCombo('parceria_levantamento_id');
-        $combo->addItems($parcerias);
+        $combo->addItems($agendaId > 0 ? AgendamentoFinanceiroService::parceriasFixas($agendaId) : []);
         $combo->enableSearch();
         $combo->setSize('100%');
 
@@ -28,7 +29,11 @@ class AgendamentoParceriaCampo
         $div->id = $alvo;
         $div->class = 'agp-divisao';
 
-        $row = $form->addFields([new TLabel('Parceria de repasse:', null, '14px', null, '100%'), $combo], [new TLabel('Divisão por colaborador:', null, '14px', null, '100%'), $div]);
+        $aviso = new TElement('div');
+        $aviso->id = 'agp_aviso_' . $formName;
+        $aviso->style = 'display:none; color:#a15c00; font-size:12px; margin-top:4px';
+
+        $row = $form->addFields([new TLabel('Parceria de repasse:', null, '14px', null, '100%'), $combo, $aviso], [new TLabel('Divisão por colaborador:', null, '14px', null, '100%'), $div]);
         $row->layout = ['col-sm-4', 'col-sm-8'];
 
         $form->addContent([TScript::create(self::script($formName, $alvo, $dados), false)]);
@@ -41,6 +46,26 @@ class AgendamentoParceriaCampo
             .agp-divisao .agp-vazio { color: #6f7d92; padding: 6px 0; }
         </style>']);
         return $combo;
+    }
+
+    /** Opcoes da parceria para a agenda escolhida; a atual fica so se continuar valendo. */
+    public static function recarregar(string $formName, int $agendaId, $atual = null): void
+    {
+        $opcoes = $agendaId > 0 ? AgendamentoFinanceiroService::parceriasFixas($agendaId) : [];
+        TCombo::reload($formName, 'parceria_levantamento_id', $opcoes, true, false);
+        if ($atual && isset($opcoes[(int) $atual])) {
+            TForm::sendData($formName, (object) ['parceria_levantamento_id' => (int) $atual], false, false);
+        }
+    }
+
+    /** Com financeiro gerado: agenda e parceria so leitura, com o aviso. */
+    public static function travar(BootstrapFormBuilder $form, string $formName, int $contaReceberId): void
+    {
+        foreach (['agenda_id', 'parceria_levantamento_id'] as $campo) {
+            if ($form->getField($campo)) { $form->getField($campo)->setEditable(false); }
+        }
+        $texto = json_encode('Financeiro gerado (conta a receber nº ' . $contaReceberId . '): para trocar a agenda ou a parceria, desfaça o financeiro antes (aba Financeiro do agendamento).', JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_APOS);
+        TScript::create("$('#agp_aviso_{$formName}').text({$texto}).show();");
     }
 
     private static function script(string $formName, string $alvo, array $dados): string

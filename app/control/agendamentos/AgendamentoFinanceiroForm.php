@@ -4,7 +4,8 @@
  * Conta a receber do cliente com a parceria de repasse do agendamento (so as de percentual fixo; agendamento sem
  * parceria escolhe aqui). "Valor já quitado?" (Sim / Sim e compensado) registra o recebimento na conta-caixa e gera os
  * repasses na hora; "Não, ainda a quitar": os repasses saem quando a conta for quitada.
- * Esta tela (e o desfazer) so para o grupo Financeiro (permissao do programa AgendamentoFinanceiroForm).
+ * Esta tela (e o desfazer) so para os grupos Financeiro e Financeiro do agendamento (a Vania; 30/10/2026), pela
+ * permissao do programa AgendamentoFinanceiroForm. Sem ela, nem a aba Financeiro do agendamento aparece.
  * Regras em AgendamentoFinanceiroService.
  */
 class AgendamentoFinanceiroForm extends TWindow
@@ -41,7 +42,7 @@ class AgendamentoFinanceiroForm extends TWindow
     {
     }
 
-    /** Gerar e desfazer o financeiro do agendamento: so quem tem esta tela (grupo Financeiro). */
+    /** Gerar e desfazer o financeiro do agendamento (e ver a aba Financeiro): so quem tem esta tela. */
     public static function podeGerar(): bool
     {
         return SystemPermission::checkPermission(__CLASS__);
@@ -61,7 +62,7 @@ class AgendamentoFinanceiroForm extends TWindow
         $pagamentos = self::opcoes("SELECT id, nome FROM tipo_pagamento WHERE COALESCE(ativo, 'S') <> 'N' ORDER BY nome");
         $categorias = self::opcoes("SELECT id, nome FROM categoria_conta WHERE tipo_conta_id IN ('1', '3') ORDER BY nome");
         $documentos = self::opcoes("SELECT id, nome FROM tipo_documento_financeiro WHERE tipo_conta_id IN ('1', '3') ORDER BY nome");
-        $parcerias  = AgendamentoFinanceiroService::parceriasFixas();
+        $parcerias  = AgendamentoFinanceiroService::parceriasFixas((int) $agendamento->agenda_id);
 
         // --- origem
         $this->form->addContent([LevantamentoFinanceiroForm::titulo('Agendamento')]);

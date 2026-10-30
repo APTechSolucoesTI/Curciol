@@ -57,16 +57,45 @@ class AgendamentoFinanceiroService
         });
     }
 
-    /** Parcerias que podem ser usadas no agendamento: ativas e de percentual fixo. [id => nome] */
-    public static function parceriasFixas(): array
+    /**
+     * Parcerias que podem ser usadas no agendamento: ativas e de percentual fixo. [id => nome]
+     * Com a agenda (30/10/2026), so as parcerias de que o colaborador dono dela participa.
+     */
+    public static function parceriasFixas(int $agendaId = 0): array
     {
-        return self::comTransacao(function (PDO $c) {
-            $st = $c->prepare("SELECT id, nome FROM parceria_levantamento WHERE ativo = 'S' AND tipo = ? ORDER BY nome");
-            $st->execute([ParceriaLevantamento::TIPO_FIXA]);
+        return self::comTransacao(function (PDO $c) use ($agendaId) {
+            $sql = "SELECT id, nome FROM parceria_levantamento WHERE ativo = 'S' AND tipo = ?";
+            $args = [ParceriaLevantamento::TIPO_FIXA];
+            if ($agendaId > 0) {
+                $sql .= ' AND id IN (SELECT pp.parceria_levantamento_id FROM parceria_levantamento_participante pp JOIN agenda a ON a.profissional_id = pp.pessoa_id WHERE a.id = ?)';
+                $args[] = $agendaId;
+            }
+            $st = $c->prepare($sql . ' ORDER BY nome');
+            $st->execute($args);
             $r = [];
             foreach ($st->fetchAll(PDO::FETCH_OBJ) as $p) { $r[(int) $p->id] = $p->nome; }
             return $r;
         });
+    }
+
+    /**
+     * Agenda ou parceria de agendamento com financeiro gerado nao muda (a conta a receber foi gerada com elas): desfazer
+     * o financeiro antes. A parceria escolhida tem que ser uma das do colaborador da agenda. Usa a transacao aberta.
+     */
+    public static function exigirAgendaParceria(int $agendamentoId, int $agendaId, int $parceriaId): void
+    {
+        $antes = $agendamentoId > 0 ? Agendamento::find($agendamentoId) : null;
+        $mudouAgenda = $antes && (int) $antes->agenda_id !== $agendaId;
+        $mudouParceria = $antes && (int) $antes->parceria_levantamento_id !== $parceriaId;
+        if (($mudouAgenda || $mudouParceria) && ($ficha = self::ficha($agendamentoId))) {
+            throw new Exception('Este agendamento já tem financeiro gerado (conta a receber nº ' . (int) $ficha->conta_receber_id . '). '
+                . 'Para alterar a ' . ($mudouAgenda ? 'agenda' : 'parceria') . ', desfaça o financeiro antes (aba Financeiro do agendamento).');
+        }
+        if ($parceriaId > 0 && (!$antes || $mudouAgenda || $mudouParceria) && !isset(self::parceriasFixas($agendaId)[$parceriaId])) {
+            $nome = ParceriaLevantamento::find($parceriaId)->nome ?? '';
+            $agenda = Agenda::find($agendaId);
+            throw new Exception("A parceria {$nome} não tem o colaborador da agenda " . ($agenda->nome ?? '') . '. Escolha uma parceria de que ele participe.');
+        }
     }
 
     /**
@@ -166,6 +195,9 @@ class AgendamentoFinanceiroService
             $parceria = ParceriaLevantamento::find($parceriaId);
             if (!$parceria || $parceria->ativo !== 'S') { throw new Exception('Escolha a parceria de repasse.'); }
             if ($parceria->tipo !== ParceriaLevantamento::TIPO_FIXA) { throw new Exception('No agendamento só valem parcerias de percentual fixo.'); }
+            if (!$agendamento->parceria_levantamento_id && !isset(self::parceriasFixas((int) $agendamento->agenda_id)[$parceriaId])) {
+                throw new Exception('Escolha uma parceria de que o colaborador da agenda participe.');
+            }
 
             $ccId = (int) ($d['conta_caixa_id'] ?? 0);
             $st = $c->prepare('SELECT ativo, nome, dt_inicial FROM conta_caixa WHERE id = ? FOR UPDATE');
