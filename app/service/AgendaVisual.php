@@ -22,6 +22,7 @@ class AgendaVisual
             'fundo' => $mistura([255, 255, 255], 0.85),
             'texto' => $mistura([0, 0, 0], 0.6),
             'lista' => $mistura([255, 255, 255], 0.65),
+            'borda' => $mistura([255, 255, 255], 0.45),
         ];
     }
 
@@ -30,42 +31,52 @@ class AgendaVisual
 
     /**
      * Aplica ao evento do FullCalendar o estilo do tipo (agendamento, compromisso, bloqueio) na cor da agenda e poe o
-     * horario real dentro do cartao (o recorte das camadas muda o tamanho do bloco, nao o horario mostrado).
+     * horario real como segunda linha do cartao (o recorte das camadas muda o tamanho do bloco, nao o horario mostrado).
      */
     public static function estilizar(array $evento, string $tipo, ?string $corAgenda, $agendaId): array
     {
         $c = self::cores($corAgenda);
         $evento['textColor'] = $c['texto'];
-        $evento['borderColor'] = $c['cor'];
+        $evento['borderColor'] = $c['borda'];
         $evento['backgroundColor'] = ($tipo === 'compromisso') ? '#ffffff' : $c['fundo'];
         $evento['classNames'] = ['agd-' . $tipo];
         $evento['agenda_id'] = (string) $agendaId;
         $evento['camada'] = self::CAMADAS[$tipo] ?? 1;
+        $evento['cor_fundo'] = $c['fundo'];
         unset($evento['color']);
         if (!empty($evento['title']) && !empty($evento['start']) && !empty($evento['end'])) {
-            $hora = "<span class='agd-ev-hora'>" . self::hora((string) $evento['start'], (string) $evento['end']) . "</span> ";
-            $p = strpos($evento['title'], "<span class='agd-ev-l1'>");
+            $hora = "<span class='agd-ev-hora'>" . self::hora((string) $evento['start'], (string) $evento['end']) . "</span>";
+            $p = strpos($evento['title'], "<span class='agd-ev-l2'>");
             if ($p !== false) {
-                $p += strlen("<span class='agd-ev-l1'>");
                 $evento['title'] = substr($evento['title'], 0, $p) . $hora . substr($evento['title'], $p);
             }
         }
         return $evento;
     }
 
-    /** "14:30–15:00" (mesmo dia) ou "27/10 08:00 – 29/10 17:00". */
+    /** "14:30 – 15:00" (mesmo dia) ou "27/10 08:00 – 29/10 17:00". */
     public static function hora(string $inicio, string $fim): string
     {
         $i = strtotime(str_replace('T', ' ', $inicio));
         $f = strtotime(str_replace('T', ' ', $fim));
         if (!$i || !$f) { return ''; }
-        return date('Y-m-d', $i) === date('Y-m-d', $f) ? date('H:i', $i) . '–' . date('H:i', $f) : date('d/m H:i', $i) . ' – ' . date('d/m H:i', $f);
+        return date('Y-m-d', $i) === date('Y-m-d', $f) ? date('H:i', $i) . ' – ' . date('H:i', $f) : date('d/m H:i', $i) . ' – ' . date('d/m H:i', $f);
+    }
+
+    /** Bloqueio ou compromisso "de dia inteiro": de varios dias ou com 8 horas ou mais (vai para a faixa Dia inteiro). */
+    public static function diaInteiro(array $e): bool
+    {
+        if (!in_array((int) ($e['camada'] ?? 0), [2, 3], true) || empty($e['start']) || empty($e['end'])) { return false; }
+        $i = strtotime(str_replace('T', ' ', (string) $e['start']));
+        $f = strtotime(str_replace('T', ' ', (string) $e['end']));
+        return date('Y-m-d', $i) !== date('Y-m-d', $f - 1) || ($f - $i) >= 8 * 3600;
     }
 
     /**
      * Sobreposicao na mesma agenda: intervalo > bloqueio > compromisso > agendamento. O trecho de um horario coberto por
-     * outro de camada maior (da mesma agenda) sai do bloco; coberto todo, o bloco nao aparece. Agendas diferentes
-     * continuam lado a lado. Os eventos sem camada (fundo "Disponivel", "Nao atende") passam como estao.
+     * outro de camada maior (da mesma agenda) sai do bloco; coberto todo, o bloco nao aparece. O bloqueio/compromisso de
+     * dia inteiro (vai para a faixa do topo) nao e cortado, mas cobre os de baixo. Agendas diferentes: ver organizar().
+     * Os eventos sem camada (fundo "Disponivel", "Nao atende") passam como estao.
      */
     public static function camadas(array $eventos): array
     {
@@ -78,7 +89,7 @@ class AgendaVisual
         $saida = [];
         foreach ($eventos as $e) {
             $camada = (int) ($e['camada'] ?? 0);
-            if ($camada <= 0 || $camada >= 4 || !isset($e['agenda_id']) || empty($e['start']) || empty($e['end'])) { $saida[] = $e; continue; }
+            if ($camada <= 0 || $camada >= 4 || !isset($e['agenda_id']) || empty($e['start']) || empty($e['end']) || self::diaInteiro($e)) { $saida[] = $e; continue; }
             $pedacos = [[$ts($e['start']), $ts($e['end'])]];
             foreach ($cobertura[(string) $e['agenda_id']] ?? [] as $outra => $intervalos) {
                 if ($outra <= $camada) { continue; }
@@ -100,6 +111,35 @@ class AgendaVisual
             }
         }
         return $saida;
+    }
+
+    /**
+     * Agendas diferentes (30/10/2026): agendamento por cima de compromisso, por cima de bloqueio, por cima de intervalo.
+     * Bloqueio e compromisso de dia inteiro vao para a faixa "Dia inteiro" do topo; os curtos ficam numa camada de fundo
+     * da coluna (nao espremem os cartoes; continuam clicaveis, scriptCalendario), com o compromisso acima do bloqueio.
+     * Agendamentos ficam por cima de tudo, lado a lado entre si.
+     */
+    public static function organizar(array $eventos): array
+    {
+        foreach ($eventos as &$e) {
+            $camada = (int) ($e['camada'] ?? 0);
+            if (!in_array($camada, [2, 3], true)) { continue; }
+            if (self::diaInteiro($e)) {
+                $i = strtotime(str_replace('T', ' ', (string) $e['start']));
+                $f = strtotime(str_replace('T', ' ', (string) $e['end']));
+                $e['start'] = date('Y-m-d', $i);
+                $e['end'] = date('Y-m-d', strtotime(date('Y-m-d', $f - 1) . ' +1 day'));
+                $e['allDay'] = true;
+                $e['classNames'][] = 'agd-dia-inteiro';
+                if ($camada === 2) { $e['backgroundColor'] = $e['cor_fundo'] ?? '#ffffff'; }
+            } else {
+                $e['display'] = 'background';
+                $e['fundo'] = true;
+                $e['classNames'][] = 'agd-de-fundo';
+            }
+        }
+        unset($e);
+        return $eventos;
     }
 
     /** Legenda (estados e tipos de horario), recolhivel; o botao que abre fica nos filtros (botaoLegenda). */
@@ -157,32 +197,57 @@ class AgendaVisual
             .agd-am-comp { background: #fff; border: 1.5px dashed var(--agd-cor); }
             .agd-am-bloq { border: 1px solid var(--agd-cor); background: repeating-linear-gradient(135deg, var(--agd-lista) 0 4px, var(--agd-fundo) 4px 8px); }
             .agd-am-fundo { background: repeating-linear-gradient(135deg, #e3e6ea 0 3px, #f8f9fa 3px 7px); }
-            #agendamentos .fc-event.agd-agendamento, #agendamentos .fc-event.agd-compromisso, #agendamentos .fc-event.agd-bloqueio { border-radius: 4px; font-size: 12px; }
-            /* linhas de horario mais altas e o conteudo do bloco preso dentro dele (antes vazava do agendamento curto) */
+            /* grade (30/10/2026): linhas cinza-claras entre os dias e nas horas (meia hora tracejada); hoje em azul claro */
+            #agendamentos { --fc-border-color: #e3e7ec; --fc-today-bg-color: #eef5fc; --fc-now-indicator-color: #dd5a43; --fc-neutral-bg-color: #fafbfc; }
+            #agendamentos td, #agendamentos th, #agendamentos .fc-scrollgrid { border-color: #e3e7ec; }
             #agendamentos .fc-timegrid-slot { height: 30px; }
-            #agendamentos .fc-timegrid-event .agd-ev-l2 { line-height: 12px; }
-            #agendamentos .fc-timegrid-event { overflow: hidden; }
-            /* o horario vai dentro do cartao (agd-ev-hora): no dia/semana some o do FullCalendar; no mes e na lista, o nosso */
-            #agendamentos .fc-timegrid-event .fc-event-time { display: none; }
-            #agendamentos .fc-daygrid-event .agd-ev-hora, #agendamentos .fc-list-event .agd-ev-hora { display: none; }
-            #agendamentos .agd-ev-hora { font-size: 11px; font-weight: 600; opacity: .9; margin-right: 2px; }
-            #agendamentos .fc-timegrid-event .fc-event-main { padding: 2px 5px; }
-            #agendamentos .fc-timegrid-event-harness { margin-right: 2px; }
-            #agendamentos .fc-timegrid-event .fc-event-title-container, #agendamentos .fc-timegrid-event .fc-event-title { overflow: hidden; line-height: 15px; }
-            #agendamentos .fc-timegrid-event .agd-ev-l1 { display: block; }
-            /* no dia ha espaco: o detalhe (procedimento, estado, observacao) quebra linha em vez de cortar */
+            #agendamentos .fc-timegrid-slot-minor { border-top-style: dashed; border-top-color: #eef0f3; }
+            #agendamentos .fc-timegrid-slot-label-cushion, #agendamentos .fc-timegrid-axis-cushion { font-size: 11px; color: #6f7d92; }
+            #agendamentos .fc-col-header-cell { text-align: left; background: #fafbfc; }
+            #agendamentos .fc-col-header-cell-cushion { display: inline-block; margin: 4px 6px; padding: 2px 4px; font-size: 12px; font-weight: 600; color: #516283; }
+            #agendamentos .fc-col-header-cell.fc-day-today .fc-col-header-cell-cushion { background: #528bb7; color: #fff; border-radius: 11px; padding: 2px 9px; }
+            #agendamentos .fc-daygrid-day.fc-day-today .fc-daygrid-day-number { background: #528bb7; color: #fff; border-radius: 11px; padding: 1px 7px; margin: 3px; }
+            #agendamentos .fc-mesHoje-view .fc-daygrid-day-frame { min-height: 105px; }
+
+            /* cartoes: respiro entre eles e ate a linha do dia, cantos arredondados, sombra ao passar o mouse */
+            #agendamentos .fc-timegrid-col-events { margin: 0 4px 0 2px; }
+            #agendamentos .fc-timegrid-event-harness > .fc-timegrid-event { top: 1px; bottom: 1px; right: 3px; }
+            #agendamentos .fc-timegrid-event, #agendamentos .fc-daygrid-event { border-radius: 6px; font-size: 12px; overflow: hidden; transition: box-shadow .15s, filter .15s; }
+            #agendamentos .fc-timegrid-event:hover, #agendamentos .fc-daygrid-event:hover { filter: brightness(.97); box-shadow: 0 2px 6px rgba(18,47,78,.18); }
+            #agendamentos .fc-timegrid-event .fc-event-main { padding: 3px 6px; }
+            /* nome (cortado), horario de inicio e fim sempre, depois o detalhe: o horario do FullCalendar some no dia/semana */
+            #agendamentos .fc-timegrid-event .fc-event-time, #agendamentos .fc-bg-event .fc-event-time { display: none; }
+            #agendamentos .agd-ev { display: flex; flex-direction: column; gap: 1px; line-height: 15px; overflow: hidden; }
+            #agendamentos .agd-ev-l1 { display: block; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+            #agendamentos .agd-ev-hora { display: block; font-size: 11px; opacity: .8; white-space: nowrap; }
+            #agendamentos .agd-ev-l2 { display: block; font-size: 11px; opacity: .85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
             #agendamentos .fc-timeGridDay-view .fc-timegrid-event .agd-ev-l2 { white-space: normal; }
-            #agendamentos .fc-timegrid-event .agd-ev-est { display: inline-block; vertical-align: middle; margin-right: 4px; }
+            #agendamentos .agd-ev-est { width: 7px; height: 7px; border-radius: 50%; display: inline-block; vertical-align: middle; margin: -2px 4px 0 0; box-shadow: 0 0 0 1.5px #fff; }
+            #agendamentos .agd-ev-online { font-size: 10px; font-weight: 600; border: 1px solid currentColor; border-radius: 3px; padding: 0 3px; margin-left: 4px; }
+
+            /* mes e faixa "Dia inteiro": uma linha (nome cortado e horario); no mes fica o horario de inicio do FullCalendar */
+            #agendamentos .fc-daygrid-event .fc-event-main { display: flex; align-items: center; gap: 4px; padding: 1px 6px; min-width: 0; }
+            #agendamentos .fc-daygrid-event .fc-event-title-container { flex: 1 1 auto; min-width: 0; order: 1; }
+            #agendamentos .fc-daygrid-event .fc-event-time { order: 2; flex-shrink: 0; font-size: 11px; opacity: .75; }
+            #agendamentos .fc-daygrid-event .agd-ev { flex-direction: row; align-items: center; gap: 6px; }
+            #agendamentos .fc-daygrid-event .agd-ev-l2 { display: none; }
+            #agendamentos .fc-mesHoje-view .agd-ev-hora, #agendamentos .fc-list .agd-ev-hora { display: none; }
+
+            /* bloqueio listrado e compromisso tracejado, na cor da agenda */
+            #agendamentos .fc-event.agd-bloqueio, #agendamentos .fc-bg-event.agd-bloqueio { background-image: repeating-linear-gradient(135deg, rgba(255,255,255,.55) 0 7px, rgba(255,255,255,0) 7px 14px); }
             #agendamentos .fc-event.agd-compromisso { border-style: dashed; border-width: 1.5px; }
-            #agendamentos .fc-event.agd-bloqueio { background-image: repeating-linear-gradient(135deg, rgba(255,255,255,.55) 0 7px, rgba(255,255,255,0) 7px 14px); }
-            #agendamentos .fc-event.agd-bloqueio .agd-ev-texto { background: rgba(255,255,255,.85); border-radius: 3px; padding: 0 3px; }
+            #agendamentos .agd-ev-texto { background: rgba(255,255,255,.85); border-radius: 3px; padding: 0 3px; }
+
+            /* agendas diferentes: bloqueio e compromisso curtos ficam no fundo da coluna, por baixo dos agendamentos
+               (compromisso acima do bloqueio, acima do intervalo); continuam clicaveis */
+            #agendamentos .fc-bg-event.agd-de-fundo { opacity: 1; border-radius: 4px; cursor: pointer; color: #334155; }
+            #agendamentos .fc-bg-event.agd-compromisso { outline: 1.5px dashed rgba(18,47,78,.35); outline-offset: -2px; }
+            #agendamentos .fc-bg-event.agd-de-fundo .agd-ev { padding: 3px 6px; }
+            #agendamentos .fc-timegrid-bg-harness:has(> .agd-fundo) { z-index: 1; }
+            #agendamentos .fc-timegrid-bg-harness:has(> .agd-bloqueio) { z-index: 2; }
+            #agendamentos .fc-timegrid-bg-harness:has(> .agd-compromisso) { z-index: 3; }
             #agendamentos .fc-bg-event.agd-fundo { background: repeating-linear-gradient(135deg, #e3e6ea 0 3px, #f8f9fa 3px 7px); opacity: 1; }
             #agendamentos .fc-bg-event.agd-fundo .fc-event-title { color: #6f7d92; font-size: 11px; font-weight: 600; font-style: normal; }
-            #agendamentos .agd-ev { display: flex; flex-direction: column; gap: 1px; line-height: 1.25; }
-            #agendamentos .agd-ev-l1 { display: flex; align-items: center; gap: 5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-            #agendamentos .agd-ev-l2 { font-size: 11px; opacity: .85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-            #agendamentos .agd-ev-est { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; box-shadow: 0 0 0 1.5px #fff; }
-            #agendamentos .agd-ev-online { font-size: 10px; font-weight: 600; border: 1px solid currentColor; border-radius: 3px; padding: 0 3px; }
         </style>';
     }
 
@@ -201,6 +266,31 @@ class AgendaVisual
         try { localStorage.setItem('curciol_agenda_legenda', aberta ? '1' : '0'); } catch (e) {}
     });
     try { mostrar(localStorage.getItem('curciol_agenda_legenda') === '1'); } catch (e) {}
+})();
+JS;
+    }
+
+    /**
+     * Bloqueio e compromisso que ficam no fundo da coluna (organizar) nao recebem o clique do FullCalendar: o clique
+     * neles abre o cadastro, como nos demais (AgendamentoCalendarFormView::onClick).
+     */
+    public static function scriptCalendario(): string
+    {
+        return <<<'JS'
+(function () {
+    var tentativas = 0;
+    (function quandoPronto() {
+        var cal = $('#agendamentos').data('fullcalendar');
+        if (!cal) { if (tentativas++ < 60) { setTimeout(quandoPronto, 100); } return; }
+        cal.setOption('eventDidMount', function (info) {
+            if (info.event.display !== 'background' || !/^(bloqueio|compromisso)-\d+$/.test(String(info.event.id))) { return; }
+            info.el.addEventListener('click', function (e) {
+                e.stopPropagation();
+                __adianti_load_page('index.php?class=AgendamentoCalendarFormView&method=onClick&static=1&key=' + encodeURIComponent(info.event.id) + '&id=' + encodeURIComponent(info.event.id));
+            });
+        });
+        if (cal.getEvents().length) { cal.refetchEvents(); }
+    })();
 })();
 JS;
     }

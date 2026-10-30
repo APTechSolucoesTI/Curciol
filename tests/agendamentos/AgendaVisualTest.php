@@ -49,7 +49,7 @@ try {
     igual('cores: a cor da agenda, fundo claro e texto escuro', ['#2563eb', '#dee8fc', '#0f285e'], [$c['cor'], $c['fundo'], $c['texto']]);
     igual('cores: cor invalida usa a padrao', '#528bb7', AgendaVisual::cores('azul')['cor']);
     $ev = AgendaVisual::estilizar(['title' => 'x', 'color' => '#f00'], 'compromisso', '#2563eb', 7);
-    igual('compromisso: fundo branco, contorno na cor da agenda, classe tracejada', ['#ffffff', '#2563eb', ['agd-compromisso'], '7', false], [$ev['backgroundColor'], $ev['borderColor'], $ev['classNames'], $ev['agenda_id'], isset($ev['color'])]);
+    igual('compromisso: fundo branco, borda um tom mais escuro que o fundo, classe tracejada', ['#ffffff', '#87a9f4', ['agd-compromisso'], '7', false], [$ev['backgroundColor'], $ev['borderColor'], $ev['classNames'], $ev['agenda_id'], isset($ev['color'])]);
 
     // ---------- tela e filtros ----------
     $html = saida(function () { (new AgendamentosFilterForm([]))->show(); });
@@ -77,8 +77,10 @@ try {
 
     $html = saida(function () { (new AgendamentoCalendarFormView([]))->show(); });
     ok('calendario: abre na semana, altura natural (rola com a pagina) e hora atual', strpos($html, 'timeGridWeek') !== false && strpos($html, '"height":"auto"') !== false && strpos($html, 'nowIndicator') !== false && strpos($html, 'agd-faixa') === false, substr(strip_tags($html), 0, 200));
-    ok('calendario: semana de domingo a sabado; Mes e Agenda comecam hoje', strpos($html, '"firstDay":0') !== false && strpos($html, '"mesHoje":{"type":"dayGrid"') !== false
-        && strpos($html, '"agendaHoje":{"type":"list"') !== false && substr_count($html, '"dateAlignment":"day"') === 2 && strpos($html, 'timeGridDay,timeGridWeek,mesHoje,agendaHoje') !== false);
+    ok('calendario: semana de domingo a sabado; Mes da semana atual em diante; Agenda comeca hoje; faixa Dia inteiro', strpos($html, '"firstDay":0') !== false
+        && strpos($html, '"mesHoje":{"type":"dayGrid","duration":{"weeks":5},"dateAlignment":"week"') !== false
+        && strpos($html, '"agendaHoje":{"type":"list","duration":{"weeks":1},"dateAlignment":"day"') !== false && strpos($html, 'timeGridDay,timeGridWeek,mesHoje,agendaHoje') !== false
+        && strpos($html, '"allDaySlot":true') !== false && strpos($html, 'eventDidMount') !== false);
     ok('legenda: botao "Expandir legenda" com a largura da legenda aberta', strpos(AgendaVisual::botaoLegenda(), 'Expandir legenda') !== false && strpos(AgendaVisual::estilo(), '.agd-filtro-legenda { margin-left: auto; align-items: flex-start; width: 470px;') !== false);
 
     // eventos: so as agendas e o periodo filtrados (sem filtro de cliente, para ter o que contar)
@@ -147,8 +149,17 @@ try {
     ok('conflito: fim antes do inicio e recusado', strpos($livre($a1, '2030-01-16 13:00', '2030-01-16 12:30'), 'depois do início') !== false);
 
     // ---------- cartoes e sobreposicao (30/10/2026) ----------
-    $ev = AgendaVisual::estilizar(['title' => "<div class='agd-ev'><span class='agd-ev-l1'>NOME</span></div>", 'start' => '2030-01-01T09:00:00', 'end' => '2030-01-01T09:30:00'], 'agendamento', '#2563eb', 1);
-    ok('cartao: horario real dentro do cartao', strpos($ev['title'], "<span class='agd-ev-hora'>09:00–09:30</span> NOME") !== false, $ev['title']);
+    $ev = AgendaVisual::estilizar(['title' => "<div class='agd-ev'><span class='agd-ev-l1'>NOME</span><span class='agd-ev-l2'>DETALHE</span></div>", 'start' => '2030-01-01T09:00:00', 'end' => '2030-01-01T09:30:00'], 'agendamento', '#2563eb', 1);
+    ok('cartao: nome, depois sempre o horario de inicio e fim, depois o detalhe', strpos($ev['title'], "NOME</span><span class='agd-ev-hora'>09:00 – 09:30</span><span class='agd-ev-l2'>DETALHE") !== false, $ev['title']);
+    $org = AgendaVisual::organizar([
+        ['id' => 'ag', 'camada' => 1, 'start' => '2030-01-01T09:00:00', 'end' => '2030-01-01T10:00:00', 'classNames' => ['agd-agendamento']],
+        ['id' => 'bl', 'camada' => 3, 'start' => '2030-01-01T13:00:00', 'end' => '2030-01-01T15:00:00', 'classNames' => ['agd-bloqueio']],
+        ['id' => 'cg', 'camada' => 2, 'start' => '2030-01-02T08:00:00', 'end' => '2030-01-03T17:00:00', 'classNames' => ['agd-compromisso'], 'cor_fundo' => '#dee8fc'],
+        ['id' => 'b9', 'camada' => 3, 'start' => '2030-01-04T08:00:00', 'end' => '2030-01-04T17:00:00', 'classNames' => ['agd-bloqueio']],
+    ]);
+    igual('agendas diferentes: agendamento por cima; bloqueio/compromisso curto no fundo; de varios dias ou 8h+ na faixa Dia inteiro',
+        [[null, null, '2030-01-01T09:00:00'], ['background', null, '2030-01-01T13:00:00'], [null, true, '2030-01-02', '2030-01-04'], [null, true, '2030-01-04', '2030-01-05']],
+        array_map(function ($e) { return array_merge([$e['display'] ?? null, $e['allDay'] ?? null, $e['start']], isset($e['allDay']) ? [$e['end']] : []); }, $org));
     $camadas = AgendaVisual::camadas([
         ['id' => 'ag', 'agenda_id' => '1', 'camada' => 1, 'start' => '2030-01-01T09:00:00', 'end' => '2030-01-01T11:00:00'],
         ['id' => 'bl', 'agenda_id' => '1', 'camada' => 3, 'start' => '2030-01-01T10:00:00', 'end' => '2030-01-01T12:00:00'],

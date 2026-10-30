@@ -37,7 +37,10 @@ class AgendamentoCalendarFormView extends TPage
         // semana de domingo a sabado; Mes e Agenda (lista) comecam no dia de hoje (29/10/2026)
         $this->fc->setOption('firstDay', 0);
         $this->fc->setOption('views', [
-            'mesHoje'    => ['type' => 'dayGrid', 'duration' => ['weeks' => 5], 'dateAlignment' => 'day', 'dateIncrement' => ['months' => 1], 'buttonText' => 'Mês'],
+            // mes: do primeiro dia (domingo) da semana atual em diante, 5 semanas
+            'mesHoje'    => ['type' => 'dayGrid', 'duration' => ['weeks' => 5], 'dateAlignment' => 'week', 'dateIncrement' => ['months' => 1], 'buttonText' => 'Mês',
+                             'dayHeaderFormat' => ['weekday' => 'short'], 'dayMaxEventRows' => 3],
+            'timeGrid'   => ['dayHeaderFormat' => ['weekday' => 'short', 'day' => '2-digit']],
             'agendaHoje' => ['type' => 'list', 'duration' => ['weeks' => 1], 'dateAlignment' => 'day', 'buttonText' => 'Agenda'],
         ]);
         $this->fc->setOption('headerToolbar', ['left' => 'prev,next today', 'center' => 'title', 'right' => 'timeGridDay,timeGridWeek,mesHoje,agendaHoje']);
@@ -50,6 +53,9 @@ class AgendamentoCalendarFormView extends TPage
         $this->fc->setOption('stickyHeaderDates', false);
         $this->fc->setOption('slotEventOverlap', false);
         $this->fc->setOption('eventMinHeight', 28);
+        // bloqueio/compromisso de dia inteiro ou de varios dias vao para a faixa do topo (AgendaVisual::organizar)
+        $this->fc->setOption('allDaySlot', true);
+        $this->fc->setOption('allDayText', 'Dia inteiro');
         $this->fc->setEventClickAction(new TAction(array($this, 'onClick')));
         $this->fc->id = 'agendamentos';
 
@@ -93,6 +99,7 @@ class AgendamentoCalendarFormView extends TPage
 
         parent::add(AgendaVisual::estilo());
         parent::add( $this->fc );
+        parent::add(TScript::create(AgendaVisual::scriptCalendario(), false));
     }
 
     /** Ids do filtro da sessao (aceita o formato antigo, um id so). */
@@ -310,7 +317,7 @@ class AgendamentoCalendarFormView extends TPage
                     $event_array['end'] = str_replace( ' ', 'T', $bloqueio->dt_final);
                     $event_array['title'] = "<div class='agd-ev'><span class='agd-ev-l1'><i class='fas fa-lock'></i> <span class='agd-ev-texto'>Bloqueado"
                         . ($agenda ? ' · ' . htmlspecialchars((string) $agenda->nome) : '') . "</span></span>"
-                        . (trim((string) $bloqueio->observacao) !== '' ? "<span class='agd-ev-l2'><span class='agd-ev-texto'>" . htmlspecialchars((string) $bloqueio->observacao) . "</span></span>" : '') . "</div>";
+                        . "<span class='agd-ev-l2'>" . (trim((string) $bloqueio->observacao) !== '' ? "<span class='agd-ev-texto'>" . htmlspecialchars((string) $bloqueio->observacao) . '</span>' : '') . "</span></div>";
                     $event_array['id'] = 'bloqueio-'.$bloqueio->id;
 
                     $return[] = AgendaVisual::estilizar($event_array, 'bloqueio', $agenda->cor ?? null, $bloqueio->agenda_id);
@@ -450,7 +457,8 @@ class AgendamentoCalendarFormView extends TPage
             }
             TTransaction::close();
             // na mesma agenda: intervalo > bloqueio > compromisso > agendamento (o de cima corta o de baixo)
-            echo json_encode(AgendaVisual::camadas($return));
+            // agendas diferentes: agendamento > compromisso > bloqueio > intervalo (fundo da coluna e faixa Dia inteiro)
+            echo json_encode(AgendaVisual::organizar(AgendaVisual::camadas($return)));
         }
         catch (Exception $e)
         {
