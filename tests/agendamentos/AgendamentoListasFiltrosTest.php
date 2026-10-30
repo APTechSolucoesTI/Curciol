@@ -75,8 +75,9 @@ saida(function () { (new AgendaAgendamentoList([]))->onSearch($_POST); });
 $html = saida(function () { $p = new AgendaAgendamentoList([]); $p->onFilterDia([]); $p->show(); });
 $d = (array) TSession::getValue('AgendaAgendamentoList_filter_data');
 igual('Dia: periodo de hoje e o filtro anterior continua', [date('Y-m-d'), date('Y-m-d'), '999999'], [$d['dt_inicial'] ?? null, $d['dt_final'] ?? null, $d['estado_agenda_id'] ?? null]);
-$hojeJson = str_replace('/', '\/', date('d/m/Y'));
-ok('Dia: faixa com a data uma vez de cada lado (sem "ateate")', strpos($html, $hojeJson . ' até ' . $hojeJson) !== false && strpos($html, 'atéaté') === false, substr($html, 0, 200));
+$json = function ($t) { return trim(json_encode($t), '"'); }; // a faixa vai em json (acento e barra escapados)
+ok('Dia: faixa com a data uma vez de cada lado (sem "ateate")', strpos($html, $json(date('d/m/Y') . ' até ' . date('d/m/Y'))) !== false && strpos($html, $json('atéaté')) === false,
+    substr($html, (int) strpos($html, 'curciolFaixaFiltros('), 500));
 saida(function () { $p = new AgendaAgendamentoList([]); $p->onFilterSemana([]); });
 $d = (array) TSession::getValue('AgendaAgendamentoList_filter_data');
 $domingo = date('Y-m-d', strtotime('-' . date('w') . ' days'));
