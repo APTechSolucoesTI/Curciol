@@ -114,71 +114,112 @@ class AgendaVisual
     /**
      * Sobreposicao na mesma agenda: intervalo > bloqueio > compromisso > agendamento. O trecho de um horario coberto por
      * outro de camada maior (da mesma agenda) sai do bloco; coberto todo, o bloco nao aparece. O bloqueio/compromisso de
-     * dia inteiro (vai para a faixa do topo) nao e cortado, mas cobre os de baixo. Agendas diferentes: ver organizar().
-     * Os eventos sem camada (fundo "Disponivel", "Nao atende") passam como estao.
+     * dia inteiro nao e cortado aqui (organizar() o divide por dia e corta cada dia), mas cobre os de baixo. Agendas
+     * diferentes: ver organizar(). Os eventos sem camada (fundo "Disponivel", "Nao atende") passam como estao.
      */
     public static function camadas(array $eventos): array
     {
-        $ts = function ($v) { return strtotime(str_replace('T', ' ', (string) $v)); };
-        $cobertura = []; // agenda => camada => [[ini, fim], ...]
-        foreach ($eventos as $e) {
-            if (empty($e['camada']) || !isset($e['agenda_id']) || empty($e['start']) || empty($e['end'])) { continue; }
-            $cobertura[(string) $e['agenda_id']][(int) $e['camada']][] = [$ts($e['start']), $ts($e['end'])];
-        }
+        $cobertura = self::cobertura($eventos);
         $saida = [];
         foreach ($eventos as $e) {
             $camada = (int) ($e['camada'] ?? 0);
             if ($camada <= 0 || $camada >= 4 || !isset($e['agenda_id']) || empty($e['start']) || empty($e['end']) || self::diaInteiro($e)) { $saida[] = $e; continue; }
-            $pedacos = [[$ts($e['start']), $ts($e['end'])]];
-            foreach ($cobertura[(string) $e['agenda_id']] ?? [] as $outra => $intervalos) {
-                if ($outra <= $camada) { continue; }
-                foreach ($intervalos as [$ci, $cf]) {
-                    $novos = [];
-                    foreach ($pedacos as [$pi, $pf]) {
-                        if ($cf <= $pi || $ci >= $pf) { $novos[] = [$pi, $pf]; continue; }
-                        if ($ci > $pi) { $novos[] = [$pi, $ci]; }
-                        if ($cf < $pf) { $novos[] = [$cf, $pf]; }
-                    }
-                    $pedacos = $novos;
+            foreach (self::recortar($e, $cobertura) as $x) { $saida[] = $x; }
+        }
+        return $saida;
+    }
+
+    /** Horarios ocupados por agenda e camada: agenda => camada => [[ini, fim], ...] (timestamps). */
+    private static function cobertura(array $eventos): array
+    {
+        $ts = function ($v) { return strtotime(str_replace('T', ' ', (string) $v)); };
+        $cobertura = [];
+        foreach ($eventos as $e) {
+            if (empty($e['camada']) || !isset($e['agenda_id']) || empty($e['start']) || empty($e['end']) || !empty($e['allDay'])) { continue; }
+            $cobertura[(string) $e['agenda_id']][(int) $e['camada']][] = [$ts($e['start']), $ts($e['end'])];
+        }
+        return $cobertura;
+    }
+
+    /** O evento sem os trechos cobertos por camadas maiores da mesma agenda (0, 1 ou mais pedacos). */
+    private static function recortar(array $e, array $cobertura): array
+    {
+        $ts = function ($v) { return strtotime(str_replace('T', ' ', (string) $v)); };
+        $camada = (int) ($e['camada'] ?? 0);
+        $pedacos = [[$ts($e['start']), $ts($e['end'])]];
+        foreach ($cobertura[(string) ($e['agenda_id'] ?? '')] ?? [] as $outra => $intervalos) {
+            if ($outra <= $camada) { continue; }
+            foreach ($intervalos as [$ci, $cf]) {
+                $novos = [];
+                foreach ($pedacos as [$pi, $pf]) {
+                    if ($cf <= $pi || $ci >= $pf) { $novos[] = [$pi, $pf]; continue; }
+                    if ($ci > $pi) { $novos[] = [$pi, $ci]; }
+                    if ($cf < $pf) { $novos[] = [$cf, $pf]; }
                 }
+                $pedacos = $novos;
             }
-            foreach ($pedacos as [$pi, $pf]) {
-                $x = $e;
-                $x['start'] = date('Y-m-d\TH:i:s', $pi);
-                $x['end'] = date('Y-m-d\TH:i:s', $pf);
-                $saida[] = $x;
-            }
+        }
+        $saida = [];
+        foreach ($pedacos as [$pi, $pf]) {
+            $x = $e;
+            $x['start'] = date('Y-m-d\TH:i:s', $pi);
+            $x['end'] = date('Y-m-d\TH:i:s', $pf);
+            $saida[] = $x;
         }
         return $saida;
     }
 
     /**
      * Agendas diferentes (30/10/2026): agendamento por cima de compromisso, por cima de bloqueio, por cima de intervalo.
-     * Bloqueio e compromisso de dia inteiro vao para a faixa "Dia inteiro" do topo; os curtos ficam numa camada de fundo
-     * da coluna (nao espremem os cartoes; continuam clicaveis, scriptCalendario), com o compromisso acima do bloqueio.
-     * Agendamentos ficam por cima de tudo, lado a lado entre si.
+     * Bloqueio e compromisso ficam numa camada de fundo da coluna no dia/semana (nao espremem os cartoes; continuam
+     * clicaveis, scriptCalendario), com o compromisso acima do bloqueio; agendamentos por cima de tudo, lado a lado.
+     * O de dia inteiro (varios dias ou 8h+): no dia/semana, um bloco por dia, do comeco ao fim daquele dia e cortado pelo
+     * intervalo da agenda (so_na_grade); no mes e na aba Agenda, uma barra so de ponta a ponta (so_fora_da_grade).
+     * O scriptCalendario esconde em cada visao o que nao e dela. $de/$ate: periodo pedido pelo calendario (so os dias dele).
      */
-    public static function organizar(array $eventos): array
+    public static function organizar(array $eventos, ?string $de = null, ?string $ate = null): array
     {
-        foreach ($eventos as &$e) {
+        $cobertura = self::cobertura($eventos);
+        $saida = [];
+        foreach ($eventos as $e) {
             $camada = (int) ($e['camada'] ?? 0);
-            if (!in_array($camada, [2, 3], true)) { continue; }
-            if (self::diaInteiro($e)) {
-                $i = strtotime(str_replace('T', ' ', (string) $e['start']));
-                $f = strtotime(str_replace('T', ' ', (string) $e['end']));
-                $e['start'] = date('Y-m-d', $i);
-                $e['end'] = date('Y-m-d', strtotime(date('Y-m-d', $f - 1) . ' +1 day'));
-                $e['allDay'] = true;
-                $e['classNames'][] = 'agd-dia-inteiro';
-                if ($camada === 2) { $e['backgroundColor'] = $e['cor_fundo'] ?? '#ffffff'; }
-            } else {
+            if (!in_array($camada, [2, 3], true)) { $saida[] = $e; continue; }
+            if (!self::diaInteiro($e)) {
                 $e['display'] = 'background';
                 $e['fundo_na_grade'] = true; // no mes e na lista vira item normal (scriptCalendario)
                 $e['classNames'][] = 'agd-de-fundo';
+                $saida[] = $e;
+                continue;
+            }
+            $i = strtotime(str_replace('T', ' ', (string) $e['start']));
+            $f = strtotime(str_replace('T', ' ', (string) $e['end']));
+
+            $barra = $e;
+            $barra['start'] = date('Y-m-d', $i);
+            $barra['end'] = date('Y-m-d', strtotime(date('Y-m-d', $f - 1) . ' +1 day'));
+            $barra['allDay'] = true;
+            $barra['so_fora_da_grade'] = true;
+            $barra['classNames'][] = 'agd-dia-inteiro';
+            if ($camada === 2) { $barra['backgroundColor'] = $e['cor_fundo'] ?? '#ffffff'; }
+            $saida[] = $barra;
+
+            $primeiro = strtotime(date('Y-m-d', $i));
+            if ($de && strtotime(substr($de, 0, 10)) > $primeiro) { $primeiro = strtotime(substr($de, 0, 10)); }
+            $limite = $ate ? min($f, strtotime(substr($ate, 0, 10) . ' +1 day')) : $f;
+            for ($dia = $primeiro; $dia < $limite; $dia = strtotime(date('Y-m-d', $dia) . ' +1 day')) {
+                $amanha = strtotime(date('Y-m-d', $dia) . ' +1 day');
+                $pedaco = $e;
+                $pedaco['start'] = date('Y-m-d\TH:i:s', max($i, $dia));
+                $pedaco['end'] = date('Y-m-d\TH:i:s', min($f, $amanha));
+                foreach (self::recortar($pedaco, $cobertura) as $x) {
+                    $x['display'] = 'background';
+                    $x['so_na_grade'] = true;
+                    $x['classNames'][] = 'agd-de-fundo';
+                    $saida[] = $x;
+                }
             }
         }
-        unset($e);
-        return $eventos;
+        return $saida;
     }
 
     /** Legenda (estados e tipos de horario), recolhivel; o botao que abre fica nos filtros (botaoLegenda). */
@@ -335,6 +376,8 @@ JS;
         function naGrade() { return !!(cal.view && String(cal.view.type).indexOf('timeGrid') === 0); }
         var gradeAntes = naGrade();
         cal.setOption('eventDataTransform', function (e) {
+            if (e.so_na_grade) { if (!naGrade()) { e.display = 'none'; } return e; }
+            if (e.so_fora_da_grade) { if (naGrade()) { e.display = 'none'; } return e; }
             if (e.fundo_na_grade && !naGrade()) { delete e.display; }
             return e;
         });

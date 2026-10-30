@@ -53,9 +53,8 @@ class AgendamentoCalendarFormView extends TPage
         $this->fc->setOption('stickyHeaderDates', false);
         $this->fc->setOption('slotEventOverlap', false);
         $this->fc->setOption('eventMinHeight', 28);
-        // bloqueio/compromisso de dia inteiro ou de varios dias vao para a faixa do topo (AgendaVisual::organizar)
-        $this->fc->setOption('allDaySlot', true);
-        $this->fc->setOption('allDayText', 'Dia inteiro');
+        // sem faixa Dia inteiro no dia/semana: bloqueio/compromisso longo vira um bloco por dia na grade (AgendaVisual::organizar)
+        $this->fc->setOption('allDaySlot', false);
         $this->fc->setEventClickAction(new TAction(array($this, 'onClick')));
         $this->fc->id = 'agendamentos';
 
@@ -465,7 +464,7 @@ class AgendamentoCalendarFormView extends TPage
             TTransaction::close();
             // na mesma agenda: intervalo > bloqueio > compromisso > agendamento (o de cima corta o de baixo)
             // agendas diferentes: agendamento > compromisso > bloqueio > intervalo (fundo da coluna e faixa Dia inteiro)
-            echo json_encode(AgendaVisual::organizar(AgendaVisual::camadas($return)));
+            echo json_encode(AgendaVisual::organizar(AgendaVisual::camadas($return), $param['start'] ?? null, $param['end'] ?? null));
         }
         catch (Exception $e)
         {

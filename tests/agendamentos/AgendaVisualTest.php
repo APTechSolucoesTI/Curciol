@@ -80,7 +80,7 @@ try {
     ok('calendario: semana de domingo a sabado; Mes da semana atual em diante; Agenda comeca hoje; faixa Dia inteiro', strpos($html, '"firstDay":0') !== false
         && strpos($html, '"mesHoje":{"type":"dayGrid","duration":{"weeks":5},"dateAlignment":"week"') !== false
         && strpos($html, '"agendaHoje":{"type":"list","duration":{"weeks":1},"dateAlignment":"day"') !== false && strpos($html, 'timeGridDay,timeGridWeek,mesHoje,agendaHoje') !== false
-        && strpos($html, '"allDaySlot":true') !== false && strpos($html, 'eventDidMount') !== false);
+        && strpos($html, '"allDaySlot":false') !== false && strpos($html, 'eventDidMount') !== false);
     ok('legenda: botao "Expandir legenda" com a largura da legenda aberta', strpos(AgendaVisual::botaoLegenda(), 'Expandir legenda') !== false && strpos(AgendaVisual::estilo(), '.agd-filtro-legenda { margin-left: auto; align-items: flex-start; width: 470px;') !== false);
 
     // eventos: so as agendas e o periodo filtrados (sem filtro de cliente, para ter o que contar)
@@ -166,12 +166,22 @@ try {
     $org = AgendaVisual::organizar([
         ['id' => 'ag', 'camada' => 1, 'start' => '2030-01-01T09:00:00', 'end' => '2030-01-01T10:00:00', 'classNames' => ['agd-agendamento']],
         ['id' => 'bl', 'camada' => 3, 'start' => '2030-01-01T13:00:00', 'end' => '2030-01-01T15:00:00', 'classNames' => ['agd-bloqueio']],
-        ['id' => 'cg', 'camada' => 2, 'start' => '2030-01-02T08:00:00', 'end' => '2030-01-03T17:00:00', 'classNames' => ['agd-compromisso'], 'cor_fundo' => '#dee8fc'],
+        ['id' => 'cg', 'agenda_id' => '1', 'camada' => 2, 'start' => '2030-01-02T08:00:00', 'end' => '2030-01-03T17:00:00', 'classNames' => ['agd-compromisso'], 'cor_fundo' => '#dee8fc'],
+        ['id' => 'in', 'agenda_id' => '1', 'camada' => 4, 'display' => 'background', 'start' => '2030-01-03T12:00:00', 'end' => '2030-01-03T13:00:00'],
         ['id' => 'b9', 'camada' => 3, 'start' => '2030-01-04T08:00:00', 'end' => '2030-01-04T17:00:00', 'classNames' => ['agd-bloqueio']],
     ]);
-    igual('agendas diferentes: agendamento por cima; bloqueio/compromisso curto no fundo; de varios dias ou 8h+ na faixa Dia inteiro',
-        [[null, null, '2030-01-01T09:00:00'], ['background', null, '2030-01-01T13:00:00'], [null, true, '2030-01-02', '2030-01-04'], [null, true, '2030-01-04', '2030-01-05']],
-        array_map(function ($e) { return array_merge([$e['display'] ?? null, $e['allDay'] ?? null, $e['start']], isset($e['allDay']) ? [$e['end']] : []); }, $org));
+    $resumoOrg = array_map(function ($e) {
+        $onde = !empty($e['so_na_grade']) ? 'grade' : (!empty($e['so_fora_da_grade']) ? 'mes/lista' : 'todas');
+        return $e['id'] . ' ' . ($e['display'] ?? '-') . ' ' . $onde . ' ' . $e['start'] . '/' . $e['end'];
+    }, $org);
+    igual('dia/semana: longo vira um bloco por dia (do comeco ao fim do dia, cortado pelo intervalo da agenda); mes/agenda: uma barra so',
+        ['ag - todas 2030-01-01T09:00:00/2030-01-01T10:00:00', 'bl background todas 2030-01-01T13:00:00/2030-01-01T15:00:00',
+         'cg - mes/lista 2030-01-02/2030-01-04', 'cg background grade 2030-01-02T08:00:00/2030-01-03T00:00:00',
+         'cg background grade 2030-01-03T00:00:00/2030-01-03T12:00:00', 'cg background grade 2030-01-03T13:00:00/2030-01-03T17:00:00',
+         'in background todas 2030-01-03T12:00:00/2030-01-03T13:00:00',
+         'b9 - mes/lista 2030-01-04/2030-01-05', 'b9 background grade 2030-01-04T08:00:00/2030-01-04T17:00:00'],
+        $resumoOrg);
+    ok('script: cada visao esconde o que nao e dela', strpos(AgendaVisual::scriptCalendario(), 'e.so_na_grade') !== false && strpos(AgendaVisual::scriptCalendario(), 'e.so_fora_da_grade') !== false);
     $camadas = AgendaVisual::camadas([
         ['id' => 'ag', 'agenda_id' => '1', 'camada' => 1, 'start' => '2030-01-01T09:00:00', 'end' => '2030-01-01T11:00:00'],
         ['id' => 'bl', 'agenda_id' => '1', 'camada' => 3, 'start' => '2030-01-01T10:00:00', 'end' => '2030-01-01T12:00:00'],
