@@ -178,12 +178,12 @@ try {
         $onde = !empty($e['so_na_grade']) ? 'grade' : (!empty($e['so_fora_da_grade']) ? 'mes/lista' : 'todas');
         return $e['id'] . ' ' . ($e['display'] ?? '-') . ' ' . $onde . ' ' . $e['start'] . '/' . $e['end'];
     }, $org);
-    igual('dia/semana: longo vira um bloco por dia (do comeco ao fim do dia, cortado pelo intervalo da agenda); mes/agenda: uma barra so',
-        ['ag - todas 2030-01-01T09:00:00/2030-01-01T10:00:00', 'bl background todas 2030-01-01T13:00:00/2030-01-01T15:00:00',
-         'cg - mes/lista 2030-01-02/2030-01-04', 'cg background grade 2030-01-02T08:00:00/2030-01-03T00:00:00',
-         'cg background grade 2030-01-03T00:00:00/2030-01-03T12:00:00', 'cg background grade 2030-01-03T13:00:00/2030-01-03T17:00:00',
+    igual('cartoes lado a lado (nada no fundo); dia/semana: longo vira um cartao por dia, cortado pelo intervalo da agenda; mes/agenda: uma barra so',
+        ['ag - todas 2030-01-01T09:00:00/2030-01-01T10:00:00', 'bl - todas 2030-01-01T13:00:00/2030-01-01T15:00:00',
+         'cg - mes/lista 2030-01-02/2030-01-04', 'cg - grade 2030-01-02T08:00:00/2030-01-03T00:00:00',
+         'cg - grade 2030-01-03T00:00:00/2030-01-03T12:00:00', 'cg - grade 2030-01-03T13:00:00/2030-01-03T17:00:00',
          'in background todas 2030-01-03T12:00:00/2030-01-03T13:00:00',
-         'b9 - mes/lista 2030-01-04/2030-01-05', 'b9 background grade 2030-01-04T08:00:00/2030-01-04T17:00:00'],
+         'b9 - mes/lista 2030-01-04/2030-01-05', 'b9 - grade 2030-01-04T08:00:00/2030-01-04T17:00:00'],
         $resumoOrg);
     ok('script: cada visao esconde o que nao e dela', strpos(AgendaVisual::scriptCalendario(), 'e.so_na_grade') !== false && strpos(AgendaVisual::scriptCalendario(), 'e.so_fora_da_grade') !== false);
     $camadas = AgendaVisual::camadas([

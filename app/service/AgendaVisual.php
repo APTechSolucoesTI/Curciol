@@ -170,11 +170,11 @@ class AgendaVisual
     }
 
     /**
-     * Agendas diferentes (30/10/2026): agendamento por cima de compromisso, por cima de bloqueio, por cima de intervalo.
-     * Bloqueio e compromisso ficam numa camada de fundo da coluna no dia/semana (nao espremem os cartoes; continuam
-     * clicaveis, scriptCalendario), com o compromisso acima do bloqueio; agendamentos por cima de tudo, lado a lado.
-     * O de dia inteiro (varios dias ou 8h+): no dia/semana, um bloco por dia, do comeco ao fim daquele dia e cortado pelo
-     * intervalo da agenda (so_na_grade); no mes e na aba Agenda, uma barra so de ponta a ponta (so_fora_da_grade).
+     * Agendas diferentes (30/10/2026, revisto): nada fica por cima de nada; cartoes no mesmo horario (agendamento,
+     * compromisso ou bloqueio, de qualquer agenda) dividem a largura da coluna lado a lado (slotEventOverlap false).
+     * O de dia inteiro (varios dias ou 8h+): no dia/semana, um cartao por dia, do comeco ao fim daquele dia e cortado
+     * pelo intervalo da agenda (so_na_grade: fica alto e fino ao lado dos outros); no mes e na aba Agenda, uma barra so
+     * de ponta a ponta (so_fora_da_grade).
      * O scriptCalendario esconde em cada visao o que nao e dela. $de/$ate: periodo pedido pelo calendario (so os dias dele).
      */
     public static function organizar(array $eventos, ?string $de = null, ?string $ate = null): array
@@ -184,13 +184,7 @@ class AgendaVisual
         foreach ($eventos as $e) {
             $camada = (int) ($e['camada'] ?? 0);
             if (!in_array($camada, [2, 3], true)) { $saida[] = $e; continue; }
-            if (!self::diaInteiro($e)) {
-                $e['display'] = 'background';
-                $e['fundo_na_grade'] = true; // no mes e na lista vira item normal (scriptCalendario)
-                $e['classNames'][] = 'agd-de-fundo';
-                $saida[] = $e;
-                continue;
-            }
+            if (!self::diaInteiro($e)) { $saida[] = $e; continue; }
             $i = strtotime(str_replace('T', ' ', (string) $e['start']));
             $f = strtotime(str_replace('T', ' ', (string) $e['end']));
 
@@ -212,9 +206,7 @@ class AgendaVisual
                 $pedaco['start'] = date('Y-m-d\TH:i:s', max($i, $dia));
                 $pedaco['end'] = date('Y-m-d\TH:i:s', min($f, $amanha));
                 foreach (self::recortar($pedaco, $cobertura) as $x) {
-                    $x['display'] = 'background';
                     $x['so_na_grade'] = true;
-                    $x['classNames'][] = 'agd-de-fundo';
                     $saida[] = $x;
                 }
             }
@@ -325,18 +317,11 @@ class AgendaVisual
             #agendamentos .fc-list-event .agd-ev-l2 { display: inline; }
 
             /* bloqueio listrado e compromisso tracejado, na cor da agenda */
-            #agendamentos .fc-event.agd-bloqueio, #agendamentos .fc-bg-event.agd-bloqueio { background-image: repeating-linear-gradient(135deg, rgba(255,255,255,.55) 0 7px, rgba(255,255,255,0) 7px 14px); }
+            #agendamentos .fc-event.agd-bloqueio { background-image: repeating-linear-gradient(135deg, rgba(255,255,255,.55) 0 7px, rgba(255,255,255,0) 7px 14px); }
             #agendamentos .fc-event.agd-compromisso { border-style: dashed; border-width: 1.5px; }
             #agendamentos .agd-ev-texto { background: rgba(255,255,255,.85); border-radius: 3px; padding: 0 3px; }
 
-            /* agendas diferentes: bloqueio e compromisso curtos ficam no fundo da coluna, por baixo dos agendamentos
-               (compromisso acima do bloqueio, acima do intervalo); continuam clicaveis */
-            #agendamentos .fc-bg-event.agd-de-fundo { opacity: 1; border-radius: 4px; cursor: pointer; color: #334155; }
-            #agendamentos .fc-bg-event.agd-compromisso { outline: 1.5px dashed rgba(18,47,78,.35); outline-offset: -2px; }
-            #agendamentos .fc-bg-event.agd-de-fundo .agd-ev { padding: 3px 6px; }
-            #agendamentos .fc-timegrid-bg-harness:has(> .agd-fundo) { z-index: 1; }
-            #agendamentos .fc-timegrid-bg-harness:has(> .agd-bloqueio) { z-index: 2; }
-            #agendamentos .fc-timegrid-bg-harness:has(> .agd-compromisso) { z-index: 3; }
+            /* intervalo e "nao atende" da agenda: hachurado cinza no fundo da coluna */
             #agendamentos .fc-bg-event.agd-fundo { background: repeating-linear-gradient(135deg, #e3e6ea 0 3px, #f8f9fa 3px 7px); opacity: 1; }
             #agendamentos .fc-bg-event.agd-fundo .fc-event-title { color: #6f7d92; font-size: 11px; font-weight: 600; font-style: normal; }
         </style>';
@@ -362,8 +347,8 @@ JS;
     }
 
     /**
-     * Bloqueio e compromisso que ficam no fundo da coluna (organizar) nao recebem o clique do FullCalendar: o clique
-     * neles abre o cadastro, como nos demais (AgendamentoCalendarFormView::onClick).
+     * No calendario: em cada visao, so o que e dela (bloco por dia na grade / barra no mes e na lista), o resumo ao
+     * passar o mouse junto do cursor e a linha da aba Agenda na cor da agenda.
      */
     public static function scriptCalendario(): string
     {
@@ -378,7 +363,6 @@ JS;
         cal.setOption('eventDataTransform', function (e) {
             if (e.so_na_grade) { if (!naGrade()) { e.display = 'none'; } return e; }
             if (e.so_fora_da_grade) { if (naGrade()) { e.display = 'none'; } return e; }
-            if (e.fundo_na_grade && !naGrade()) { delete e.display; }
             return e;
         });
         cal.on('datesSet', function () {
@@ -413,13 +397,7 @@ JS;
             if (info.el.classList.contains('fc-list-event')) {
                 info.el.style.backgroundColor = info.event.backgroundColor || '';
                 info.el.style.color = info.event.textColor || '';
-                return;
             }
-            if (info.event.display !== 'background' || !/^(bloqueio|compromisso)-\d+$/.test(String(info.event.id))) { return; }
-            info.el.addEventListener('click', function (e) {
-                e.stopPropagation();
-                __adianti_load_page('index.php?class=AgendamentoCalendarFormView&method=onClick&static=1&key=' + encodeURIComponent(info.event.id) + '&id=' + encodeURIComponent(info.event.id));
-            });
         });
         if (cal.getEvents().length) { cal.refetchEvents(); }
     })();
