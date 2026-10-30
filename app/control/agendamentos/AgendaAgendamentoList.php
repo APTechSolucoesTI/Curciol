@@ -166,8 +166,8 @@ class AgendaAgendamentoList extends TPage
                 return '';
             }
             $cor = AgendaVisual::cores($agenda->cor)['cor'];
-            $nome = htmlspecialchars('Agenda: ' . $agenda->nome, ENT_QUOTES, 'UTF-8');
-            return "<div style='position: relative;text-align: center;'><span class='estado_agendamento' title='{$nome}' style='background-color: {$cor}; cursor: help'></span></div>";
+            $nome = htmlspecialchars((string) $agenda->nome, ENT_QUOTES, 'UTF-8');
+            return "<div style='position: relative;text-align: center;'><span class='estado_agendamento' title='{$nome}' style='background-color: {$cor}'></span></div>";
         });
 
         $column_dt_inicial_transformed->setTransformer(function($value, $object, $row, $cell = null, $last_row = null)

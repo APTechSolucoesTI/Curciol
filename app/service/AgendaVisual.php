@@ -88,7 +88,18 @@ class AgendaVisual
             $conteudo .= '<b>' . $e($rotulo) . ':</b><br/>' . nl2br($e(trim((string) $valor))) . '<br/>';
         }
         $conteudo .= '</div>';
-        return TFullCalendar::renderPopover($cartao, $e($titulo), $conteudo);
+        return self::comResumo($cartao, $e($titulo), $conteudo);
+    }
+
+    /**
+     * Cartao + resumo ao passar o mouse (30/10/2026): no lugar do popover do Bootstrap (so era ligado em alguns
+     * momentos e se posicionava pelo texto cortado dentro do cartao: aparecia longe ou nao aparecia), o resumo vai
+     * em base64 no cartao e o scriptCalendario o mostra junto do cursor, ligado em cada evento desenhado.
+     * $titulo e $conteudo sao HTML ja escapado.
+     */
+    public static function comResumo(string $cartao, string $titulo, string $conteudo): string
+    {
+        return "<div class='agd-resumo-alvo' data-resumo-titulo='" . base64_encode($titulo) . "' data-resumo='" . base64_encode($conteudo) . "'>{$cartao}</div>";
     }
 
     /** Bloqueio ou compromisso "de dia inteiro": de varios dias ou com 8 horas ou mais (vai para a faixa Dia inteiro). */
@@ -245,6 +256,11 @@ class AgendaVisual
             #agendamentos .fc-timegrid-event .fc-event-main { padding: 3px 6px; }
             /* nome (cortado), horario de inicio e fim sempre, depois o detalhe: o horario do FullCalendar some no dia/semana */
             #agendamentos .fc-timegrid-event .fc-event-time, #agendamentos .fc-bg-event .fc-event-time { display: none; }
+            /* resumo ao passar o mouse (scriptCalendario): junto do cursor, por cima de tudo */
+            #agendamentos .agd-resumo-alvo { display: block; }
+            #agd-resumo { display: none; position: fixed; z-index: 3000; max-width: 320px; background: #fff; border: 1px solid #d0d4da; border-radius: 6px; box-shadow: 0 6px 18px rgba(18,47,78,.2); font-size: 12px; color: #122f4e; pointer-events: none; }
+            #agd-resumo .agd-resumo-titulo { background: #f3f5f6; border-bottom: 1px solid #e3e7ec; border-radius: 6px 6px 0 0; padding: 6px 10px; font-weight: 600; }
+            #agd-resumo .agd-resumo-corpo { padding: 8px 10px; line-height: 1.45; }
             #agendamentos .agd-ev { display: flex; flex-direction: column; gap: 1px; line-height: 15px; overflow: hidden; }
             #agendamentos .agd-ev-l1 { display: block; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
             #agendamentos .agd-ev-hora { display: block; font-size: 11px; opacity: .8; white-space: nowrap; }
@@ -325,7 +341,32 @@ JS;
         cal.on('datesSet', function () {
             if (naGrade() !== gradeAntes) { gradeAntes = naGrade(); cal.refetchEvents(); }
         });
+        var dica = document.getElementById('agd-resumo');
+        if (!dica) { dica = document.createElement('div'); dica.id = 'agd-resumo'; document.body.appendChild(dica); }
+        function decod(b) { try { return decodeURIComponent(escape(atob(b || ''))); } catch (e) { return ''; } }
+        function posicionar(ev) {
+            var m = 14, w = dica.offsetWidth, h = dica.offsetHeight, x = ev.clientX + m, y = ev.clientY + m;
+            if (x + w > window.innerWidth - 8) { x = ev.clientX - w - m; }
+            if (y + h > window.innerHeight - 8) { y = ev.clientY - h - m; }
+            dica.style.left = Math.max(8, x) + 'px';
+            dica.style.top = Math.max(8, y) + 'px';
+        }
+        function esconder() { dica.style.display = 'none'; }
+        $(window).off('scroll.agdresumo').on('scroll.agdresumo', esconder);
+        cal.on('datesSet', esconder);
+        cal.setOption('eventWillUnmount', esconder);
         cal.setOption('eventDidMount', function (info) {
+            var alvo = info.el.querySelector('.agd-resumo-alvo');
+            if (alvo) {
+                var titulo = decod(alvo.getAttribute('data-resumo-titulo')), conteudo = decod(alvo.getAttribute('data-resumo'));
+                info.el.addEventListener('mouseenter', function (ev) {
+                    dica.innerHTML = (titulo ? '<div class="agd-resumo-titulo">' + titulo + '</div>' : '') + '<div class="agd-resumo-corpo">' + conteudo + '</div>';
+                    dica.style.display = 'block';
+                    posicionar(ev);
+                });
+                info.el.addEventListener('mousemove', posicionar);
+                info.el.addEventListener('mouseleave', esconder);
+            }
             if (info.el.classList.contains('fc-list-event')) {
                 info.el.style.backgroundColor = info.event.backgroundColor || '';
                 info.el.style.color = info.event.textColor || '';

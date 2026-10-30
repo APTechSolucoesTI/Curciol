@@ -157,8 +157,12 @@ try {
     $ag->dt_final = '2030-01-02 01:00:00';
     igual('resumo ao passar o mouse: inicio e fim (data duas vezes se mudar o dia)', ['01/01/2030 14:30 às 15:00', '01/01/2030 14:30 às 02/01/2030 01:00'], [$mesmoDia, $ag->horario_texto]);
     $cartao = AgendaVisual::resumo("<div class='agd-ev'>X</div>", 'Bloqueio', ['Horário' => AgendaVisual::horarioTexto('2030-01-01 08:00', '2030-01-01 12:00'), 'Agenda' => "Dra. O'Neil", 'Observação' => '']);
-    ok('resumo ao passar o mouse tambem no bloqueio/compromisso (horario, agenda; vazio nao aparece; aspas escapadas)', strpos($cartao, "data-popover='true'") !== false && strpos($cartao, '01/01/2030 08:00 às 12:00') !== false
-        && strpos($cartao, 'O&#039;Neil') !== false && strpos($cartao, 'Observação') === false, $cartao);
+    preg_match("/data-resumo-titulo='([^']*)' data-resumo='([^']*)'/", $cartao, $m);
+    $conteudo = base64_decode($m[2] ?? '');
+    ok('resumo ao passar o mouse tambem no bloqueio/compromisso (horario, agenda; vazio nao aparece; aspas escapadas; sem popover do bootstrap)',
+        strpos($cartao, 'data-popover') === false && base64_decode($m[1] ?? '') === 'Bloqueio' && strpos($conteudo, '01/01/2030 08:00 às 12:00') !== false
+        && strpos($conteudo, 'O&#039;Neil') !== false && strpos($conteudo, 'Observação') === false && strpos($cartao, "<div class='agd-ev'>X</div>") !== false, $cartao);
+    ok('resumo: o calendario mostra junto do cursor (eventDidMount)', strpos(AgendaVisual::scriptCalendario(), "getElementById('agd-resumo')") !== false && strpos(AgendaVisual::scriptCalendario(), 'mousemove') !== false);
     $org = AgendaVisual::organizar([
         ['id' => 'ag', 'camada' => 1, 'start' => '2030-01-01T09:00:00', 'end' => '2030-01-01T10:00:00', 'classNames' => ['agd-agendamento']],
         ['id' => 'bl', 'camada' => 3, 'start' => '2030-01-01T13:00:00', 'end' => '2030-01-01T15:00:00', 'classNames' => ['agd-bloqueio']],

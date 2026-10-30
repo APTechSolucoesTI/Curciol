@@ -387,10 +387,10 @@ class AgendamentoCalendarFormView extends TPage
                     $event_array['start'] = str_replace( ' ', 'T', $convidado->agendamento->dt_inicial);
                     $event_array['end'] = str_replace( ' ', 'T', $convidado->agendamento->dt_final);
                     $event_array['id'] = $convidado->agendamento->id;
-                    $event_array['title'] = TFullCalendar::renderPopover($convidado->render("<div class='agd-ev'><span class='agd-ev-l1'>
+                    $event_array['title'] = AgendaVisual::comResumo($convidado->render("<div class='agd-ev'><span class='agd-ev-l1'>
                     <span title='{agendamento->estado_agenda->nome}' class='agd-ev-est' style='background-color: {agendamento->estado_agenda->cor}'></span>
                     {agendamento->cliente->nome_formatado}</span><span class='agd-ev-l2'>Convidado por {agendamento->agenda->profissional->nome_formatado}</span>
-                    </div> "), $convidado->render(""), $convidado->render("<div>
+                    </div> "), 'Agendamento (agenda convidada)', $convidado->render("<div>
                     <b>Horário:</b><br/>{agendamento->horario_texto}<br/><b>Agendamento #{agendamento->id}</b><br/><b>Convidado por:</b><br/>{agendamento->agenda->profissional->nome_formatado}<br/><br/></div>
                     "));
 
@@ -457,7 +457,7 @@ class AgendamentoCalendarFormView extends TPage
                         . "<span title='{estado_agenda->nome}' class='agd-ev-est' style='background-color: {estado_agenda->cor}'></span>"
                         . "{cliente->nome_formatado}{$online}</span>"
                         . "<span class='agd-ev-l2'>" . htmlspecialchars($detalhe) . "</span></div>";
-                    $event_array['title'] = TFullCalendar::renderPopover($event->render($formatacao), $event->render(""), $event->render("{detalhe_html}"));
+                    $event_array['title'] = AgendaVisual::comResumo($event->render($formatacao), 'Agendamento', $event->render("{detalhe_html}"));
 
                     $return[] = AgendaVisual::estilizar($event_array, 'agendamento', $event->render("{agenda->cor}"), $event->agenda_id);
                 }

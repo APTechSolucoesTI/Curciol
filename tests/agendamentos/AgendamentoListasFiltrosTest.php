@@ -84,7 +84,7 @@ $domingo = date('Y-m-d', strtotime('-' . date('w') . ' days'));
 igual('Semana: de domingo a sabado', [$domingo, date('Y-m-d', strtotime($domingo . ' +6 days'))], [$d['dt_inicial'] ?? null, $d['dt_final'] ?? null]);
 FiltroLista::limparSessao('AgendaAgendamentoList');
 $html = saida(function () { $p = new AgendaAgendamentoList([]); $p->onReload([]); $p->show(); });
-ok('listagem: bolinha na cor da agenda com o nome ao passar o mouse', strpos($html, "title='Agenda: ") !== false, substr(strip_tags($html), 0, 200));
+ok('listagem: bolinha na cor da agenda so com o nome ao passar o mouse (cursor normal)', strpos($html, "class='estado_agendamento' title='") !== false && strpos($html, "title='Agenda: ") === false && strpos($html, 'cursor: help') === false, substr(strip_tags($html), 0, 200));
 FiltroLista::limparSessao('AgendaAgendamentoList');
 
 // ---------- Atendimento (TodosAgendamentoList) ----------
