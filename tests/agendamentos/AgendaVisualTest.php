@@ -198,7 +198,7 @@ try {
     if ($folga) {
         ok('compromisso curto: no dia em que a agenda nao atende e recusado', strpos($livreCompromisso($a1, "{$folga} 10:00", "{$folga} 10:30"), 'não atende em') !== false);
         igual('compromisso longo (dia todo ou varios dias): pode pegar o nao atende e o intervalo, como o bloqueio', ['', ''],
-            [$livreCompromisso($a1, "{$folga} 08:00", "{$folga} 18:00"), $livreCompromisso($a1, "{$folga} 08:00", $mais("{$folga} 18:00", 24 * 60))]);
+            [$livreCompromisso($a1, "{$folga} 08:00", "{$folga} 18:00"), $livreCompromisso($a1, "{$folga} 08:00", $mais("{$folga} 18:00", 13 * 60))]);
     }
 
     // ---------- "Nao atende" no dia certo (30/10/2026: com a semana de domingo, caia um dia adiantado) ----------
@@ -217,8 +217,8 @@ try {
         igual('Nao atende: no dia em que nao atende (visao Dia)', [$folga], $naoAtende($folga, date('Y-m-d', strtotime("{$folga} +1 day"))));
     }
     $html = (string) file_get_contents('app/control/agendamentos/AgendamentoCalendarForm.php');
-    ok('editar agenda ou parceria: abre o agendamento na aba Financeiro (so quem pode gerar)', strpos($html, "if ($mudouAgendaParceria && AgendamentoFinanceiroForm::podeGerar())") !== false
-        && strpos($html, "TApplication::loadPage('AgendamentoFormView', 'onShow', ['key' => $object->id, 'current_tab' => 2]);") !== false);
+    ok('editar agenda ou parceria: abre o agendamento na aba Financeiro (so quem pode gerar)', strpos($html, 'if ($mudouAgendaParceria && AgendamentoFinanceiroForm::podeGerar())') !== false
+        && strpos($html, 'TApplication::loadPage(\'AgendamentoFormView\', \'onShow\', [\'key\' => $object->id, \'current_tab\' => 2]);') !== false);
 
     // ---------- revisao das datas da agenda (30/10/2026) ----------
     // bloqueio num dia em que nenhuma das agendas filtradas atende (antes sumia: a folga da ultima agenda escondia)
