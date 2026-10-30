@@ -124,7 +124,7 @@ class AgendamentosFilterForm extends TPage
         $row3->layout = [' col-sm-12'];
 
         // create the form actions
-        $btn_onshow = $this->form->addHeaderAction("Visualizar como listagem", new TAction(['AgendaAgendamentoList', 'onShow']), 'fas:list-ul #009688');
+        $btn_onshow = $this->form->addHeaderAction("Visualizar como listagem", new TAction([__CLASS__, 'onVerListagem'], ['static' => '1']), 'fas:list-ul #009688');
         $this->btn_onshow = $btn_onshow;
 
         // compromisso, bloqueio e excecao juntos num menu
@@ -278,6 +278,12 @@ JS;
     private static function recarregarCalendario(): void
     {
         TApplication::loadPage('AgendamentoCalendarFormView', 'onShow', ['target_container' => 'pageAgendaFormView', 'register_state' => 'false', 'show_loading' => 'false']);
+    }
+
+    /** Vai para a Listagem pelo item do menu (aba, endereco e menu mudam juntos; 30/10/2026). */
+    public static function onVerListagem($param = null)
+    {
+        TScript::create("curciolAbrirPeloMenu('AgendaAgendamentoList', 'index.php?class=AgendaAgendamentoList&method=onShow');");
     }
 
     public function onAtualiza($param = null) 

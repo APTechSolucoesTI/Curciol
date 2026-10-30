@@ -60,6 +60,10 @@ try {
     ok('tela: Limpar filtros entre Novo agendamento e Atualizar', $pos('Novo agendamento') > 0 && $pos('Novo agendamento') < $pos('Limpar filtros') && $pos('Limpar filtros') < $pos('Atualizar'));
     ok('tela: filtros numa linha so (clientes, agendas, periodo) e a legenda no canto direito', $pos('class="agd-filtros"') > 0 && $pos('agd-filtro-largo') < $pos('agd-filtro-periodo') && $pos('agd-filtro-periodo') < $pos('agd-filtro-legenda') && $pos('agd-filtro-legenda') < $pos('id="agd-legenda"'));
     ok('tela: periodo vem com hoje e hoje', substr_count($html, 'value="' . date('d/m/Y') . '"') >= 2);
+    ok('Visualizar como listagem e Agenda (na listagem) abrem a outra tela pelo menu (aba, endereco e menu)', strpos($html, 'method=onVerListagem') !== false
+        && strpos(saida(function () { AgendamentosFilterForm::onVerListagem([]); }), "curciolAbrirPeloMenu('AgendaAgendamentoList'") !== false
+        && strpos(saida(function () { AgendaAgendamentoList::onVerAgenda([]); }), "curciolAbrirPeloMenu('AgendamentosFilterForm'") !== false
+        && strpos((string) file_get_contents('app/lib/include/curciol-navegacao.js'), 'window.curciolAbrirPeloMenu') !== false);
     ok('tela: agendas na lista com a cor e "Todas" no topo', strpos($html, 'Todas as agendas') !== false && preg_match('/class="fm-item" data-id="\d+"[^>]*data-cor="#[0-9a-f]{6}"/', $html) === 1);
 
     $json = saida(function () { AgendamentosFilterForm::onBuscarClientes(['q' => 'sil']); });

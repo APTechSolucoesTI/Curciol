@@ -349,7 +349,7 @@ class AgendaAgendamentoList extends TPage
         $this->datagrid_form->addField($button_mes);
 
         $button_agenda = new TButton('button_button_agenda');
-        $button_agenda->setAction(new TAction(['AgendamentosFilterForm', 'onShow']), "Agenda");
+        $button_agenda->setAction(new TAction([__CLASS__, 'onVerAgenda'], ['static' => '1']), "Agenda");
         $button_agenda->addStyleClass('btn-default');
         $button_agenda->setImage('fas:calendar-alt #FF9800');
 
@@ -427,6 +427,12 @@ class AgendaAgendamentoList extends TPage
      * demais filtros (FiltroLista); o profissional logado continua vendo a agenda dele. (30/10/2026: antes trocavam
      * todos os filtros e a faixa mostrava a data com hora.)
      */
+    /** Vai para a Agenda pelo item do menu (aba, endereco e menu mudam juntos; 30/10/2026). */
+    public static function onVerAgenda($param = null)
+    {
+        TScript::create("curciolAbrirPeloMenu('AgendamentosFilterForm', 'index.php?class=AgendamentosFilterForm&method=onShow');");
+    }
+
     public function onFilterDia($param = null) 
     {
         $this->filtrarPeriodo(date('Y-m-d'), date('Y-m-d'));

@@ -93,4 +93,14 @@
         Template.onAfterPost = Template.onAfterLoad;
     }
     $(function () { setTimeout(ajustar, 300); });
+
+    // botoes que levam a outra tela do menu (ex.: Agenda <-> Listagem, 30/10/2026): abre pelo item do menu, como se o
+    // usuario clicasse nele (aba, endereco e item marcado no menu mudam juntos); sem o item no menu, carrega a pagina
+    window.curciolAbrirPeloMenu = function (pagina, reserva) {
+        var link = $('a[href*="class=' + pagina + '"]').not('.tbreadcrumb a').filter(function () {
+            var href = $(this).attr('href') || '';
+            return classe(href) === pagina && href.indexOf('adianti_open_tab') >= 0;
+        }).first();
+        if (link.length) { link[0].click(); } else { __adianti_load_page(reserva || ('index.php?class=' + pagina)); }
+    };
 })();
