@@ -810,7 +810,7 @@ class Agendamento extends TRecord
         $html->add("<br/><b>Profissional:</b><br/>");
         $html->add($this->get_agenda()->profissional->nome_formatado);
         $html->add("<br/><b>Cliente:</b><br/>");
-        $html->add($this->cliente->nome_formatado);
+        $html->add($this->get_cliente()->nome_formatado); // pelo getter: sozinho, o resumo nao achava o cliente carregado
         $html->add('<br/><b>Procedimentos</b><br/>');
         $html->add($this->get_agendamento_procedimento_procedimento_to_string());
         if ($this->observacoes)

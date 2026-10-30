@@ -214,7 +214,9 @@ try {
         $a5 = $novoAgendamento('ALHEIA', 50);
         lanca('gerar com parceria sem o colaborador da agenda: recusado', function () use ($a5, $dados, $alheia) { AgendamentoFinanceiroService::gerar($a5, $dados(['parceria_levantamento_id' => $alheia])); }, 'colaborador da agenda');
         $html = saida(function () use ($a5) { (new AgendamentoFinanceiroForm(['agendamento_id' => $a5]))->show(); });
-        ok('janela do gerar: so as parcerias do colaborador da agenda', !preg_match('/<option[^>]*value="' . $alheia . '"/', $html) && preg_match('/<option[^>]*value="' . $parceria . '"/', $html) === 1);
+        preg_match('#<select[^>]*name="parceria_levantamento_id".*?</select>#s', $html, $combo);
+        $combo = $combo[0] ?? '';
+        ok('janela do gerar: so as parcerias do colaborador da agenda', $combo !== '' && strpos($combo, 'value="' . $alheia . '"') === false && strpos($combo, 'value="' . $parceria . '"') !== false, $combo);
     }
 
     // ---------- aba Financeiro so para quem gera (30/10/2026) ----------
