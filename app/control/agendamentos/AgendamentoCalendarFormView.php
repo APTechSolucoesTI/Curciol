@@ -182,7 +182,8 @@ class AgendamentoCalendarFormView extends TPage
                                  ->orderBy('id')
                                  ->load();
 
-                foreach ($agendas as &$agenda) {
+                // sem referencia (&): o $agenda dos lacos de bloqueio/compromisso abaixo sobrescrevia a ultima agenda da lista
+                foreach ($agendas as $agenda) {
 
                     // dias em que esta agenda nao atende (dia da semana 0-6; comeca vazio a cada agenda)
                     $semanaTrabalho = [];
@@ -271,6 +272,9 @@ class AgendamentoCalendarFormView extends TPage
                 }
             }
 
+            // Curciol (30/10/2026): bloqueio, compromisso e convite aparecem em qualquer dia. Antes sumiam quando comecavam
+            // num dia em que a ULTIMA agenda filtrada nao atende (folga de uma agenda escondia o das outras; o domingo
+            // escapava pelo empty), e o compromisso longo agora pode pegar o nao atende.
             // --------------------- BLOQUEIO ---------------------------------------------------------------------------------------------------------
             $criteriaBloqueio = new TCriteria;
             $criteriaBloqueio->add(new TFilter('dt_inicio', '<=', substr($param['end'], 0, 10).' 23:59:59'));
@@ -288,10 +292,6 @@ class AgendamentoCalendarFormView extends TPage
             {
                 foreach($bloqueios as $bloqueio)
                 {
-                    if (! empty($semanaTrabalho[date('w', strtotime($bloqueio->dt_inicio))]))
-                    {
-                        continue;
-                    }
                     $agenda = Agenda::find($bloqueio->agenda_id);
                     $event_array = [];
                     $event_array['start'] = str_replace( ' ', 'T', $bloqueio->dt_inicio);
@@ -325,10 +325,6 @@ class AgendamentoCalendarFormView extends TPage
             {
                 foreach($compromissos as $compromisso)
                 {
-                    if (! empty($semanaTrabalho[date('w', strtotime($compromisso->dt_inicio))]))
-                    {
-                        continue;
-                    }
                     $agenda = Agenda::find($compromisso->agenda_id);
                     $event_array = [];
                     $event_array['start'] = str_replace( ' ', 'T', $compromisso->dt_inicio);
@@ -359,10 +355,6 @@ class AgendamentoCalendarFormView extends TPage
             {
                 foreach($convidados as $convidado)
                 {
-                    if (! empty($semanaTrabalho[date('w', strtotime($convidado->agendamento->dt_inicial))]))
-                    {
-                        continue;
-                    }
                     $agendaConvidada = Agenda::find($convidado->agenda_id);
                     $event_array = [];
                     $event_array['start'] = str_replace( ' ', 'T', $convidado->agendamento->dt_inicial);
@@ -396,11 +388,6 @@ class AgendamentoCalendarFormView extends TPage
                     $compromisso = $compromissoConvidado->compromisso;
                     $agenda = Agenda::find($compromissoConvidado->agenda_id);
                     if($compromisso && $agenda){
-                        if (! empty($semanaTrabalho[date('w', strtotime($compromisso->dt_inicio))]))
-                        {
-                            continue;
-                        }
-
                         $event_array = [];
                         $event_array['start'] = str_replace( ' ', 'T', $compromisso->dt_inicio);
                         $event_array['end'] = str_replace( ' ', 'T', $compromisso->dt_final);

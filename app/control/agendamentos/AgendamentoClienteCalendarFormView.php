@@ -91,75 +91,55 @@ class AgendamentoClienteCalendarFormView extends TPage
             {
                 $agenda = Agenda::find($agenda_id);
 
-                // get dias off
+                // dias da semana (0-6) em que a agenda nao atende
+                $semanaTrabalho = [];
+
+                // Curciol (30/10/2026): pela data de cada dia da visao. Antes contava a partir do primeiro dia como se fosse
+                // segunda (a semana do calendario comeca no domingo: o "Nao atende" caia um dia adiantado) e so marcava a
+                // primeira semana do periodo (no mes, as outras ficavam sem marcacao).
                 if ($agenda->dias)
                 {
-
-                    $end = new DateTime($param['end']);
-
-                    $semanaTrabalho = [1=>1,2=>2,3=>3,4=>4,5=>5,6=>6,0=>0];
-
-                    $dias = explode(',',$agenda->dias);
-
-                    foreach($dias as $dia)
+                    $atende = array_map('intval', explode(',', $agenda->dias));
+                    for ($w = 0; $w <= 6; $w++)
                     {
-                        $start = new DateTime($param['start']);
-
-                        if($dia > 0)
+                        if (!in_array($w, $atende, true))
                         {
-                            $d = $dia - 1;
-                            $start = $start->modify("+{$d} day");    
+                            $semanaTrabalho[$w] = $w;
                         }
-                        else
-                        {
-                            $d = 6;
-                            $start = $start->modify("+{$d} day");  
-                        }
-
-                        if(isset($semanaTrabalho[$dia]))
-                        {
-                            unset($semanaTrabalho[$dia]);
-                        }
-
-                        $return[] = [
-                            'type' => 'disponivel',
-                            'title' =>'Disponível',
-                            'overlap' => false,
-                            'rendering' => "background",
-                            'display' => 'background',
-                            'color' => '#00cec9',
-                            'start' => $start->format('Y-m-d') .'T'. $agenda->horario_inicial,
-                             'end' =>  $start->format('Y-m-d') .'T'. $agenda->horario_final
-                        ];
-
                     }
 
-                    foreach($semanaTrabalho as $naoTrabalho)
+                    $dia = new DateTime(substr($param['start'], 0, 10));
+                    $ultimo = new DateTime(substr($param['end'], 0, 10));
+                    while ($dia < $ultimo)
                     {
-                        $start = new DateTime($param['start']);
-
-                        if($naoTrabalho > 0)
+                        if (isset($semanaTrabalho[(int) $dia->format('w')]))
                         {
-                            $d = $naoTrabalho - 1;
-                            $start = $start->modify("+{$d} day");    
+                            $event_array = [];
+                            $event_array['start'] = $dia->format('Y-m-d') .'T'. $agenda->horario_inicial;
+                            $event_array['end'] =  $dia->format('Y-m-d') .'T'. $agenda->horario_final;
+                            $event_array['title'] = 'Não atende';
+                            $event_array['id'] = 'nao-trabalha-'.uniqid();
+                            $event_array['color'] = '#0000004a';
+                            $event_array['overlap'] = true;
+                            $event_array['rendering'] = 'block';
+                            $event_array['display'] = 'block';
+
+                            $return[] = $event_array;
                         }
                         else
                         {
-                            $d = 6;
-                            $start = $start->modify("+{$d} day");  
+                            $return[] = [
+                                'type' => 'disponivel',
+                                'title' =>'Disponível',
+                                'overlap' => false,
+                                'rendering' => "background",
+                                'display' => 'background',
+                                'color' => '#00cec9',
+                                'start' => $dia->format('Y-m-d') .'T'. $agenda->horario_inicial,
+                                'end' =>  $dia->format('Y-m-d') .'T'. $agenda->horario_final
+                            ];
                         }
-
-                        $event_array = [];
-                        $event_array['start'] = $start->format('Y-m-d') .'T'. $agenda->horario_inicial;
-                        $event_array['end'] =  $start->format('Y-m-d') .'T'. $agenda->horario_final;
-                        $event_array['title'] = 'Não atende';
-                        $event_array['id'] = 'nao-trabalha-'.uniqid();
-                        $event_array['color'] = '#0000004a';
-                        $event_array['overlap'] = true;
-                        $event_array['rendering'] = 'block';
-                        $event_array['display'] = 'block';
-
-                        $return[] = $event_array;
+                        $dia->modify('+1 day');
                     }
                 }
 
@@ -171,7 +151,8 @@ class AgendamentoClienteCalendarFormView extends TPage
 
                     while($start->format('Y-m-d') <= $end->format('Y-m-d'))
                     {
-                        if (! empty($semanaTrabalho[$start->format('w')]))
+                        // isset: o domingo (0) tambem e dia sem atendimento (com empty o intervalo aparecia no domingo)
+                        if (isset($semanaTrabalho[(int) $start->format('w')]))
                         {
                             $start = $start->modify('+1 day');
                             continue;
@@ -211,11 +192,6 @@ class AgendamentoClienteCalendarFormView extends TPage
             {
                 foreach($bloqueios as $bloqueio)
                 {
-                    if (! empty($semanaTrabalho[date('w', strtotime($bloqueio->dt_inicio))]))
-                    {
-                        continue;
-                    }
-
                     $event_array = [];
                     $event_array['start'] = str_replace( ' ', 'T', $bloqueio->dt_inicio);
                     $event_array['end'] = str_replace( ' ', 'T', $bloqueio->dt_final);

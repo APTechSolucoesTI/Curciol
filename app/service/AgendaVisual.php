@@ -350,6 +350,8 @@ JS;
     /**
      * No calendario: em cada visao, so o que e dela (bloco por dia na grade / barra no mes e na lista), o resumo ao
      * passar o mouse junto do cursor e a linha da aba Agenda na cor da agenda.
+     * 30/10/2026: a grade do dia/semana mostra o horario das agendas filtradas; se algo visivel cai fora dele (excecao a
+     * noite, agendamento antigo fora do horario), a faixa de horas cresce ate caber e volta ao normal nas outras semanas.
      */
     public static function scriptCalendario(): string
     {
@@ -399,6 +401,27 @@ JS;
                 info.el.style.backgroundColor = info.event.backgroundColor || '';
                 info.el.style.color = info.event.textColor || '';
             }
+        });
+        function minutos(t) {
+            if (t && typeof t === 'object') { return (t.days || 0) * 1440 + Math.round((t.milliseconds || 0) / 60000); }
+            var p = String(t || '0:0').split(':'); return (parseInt(p[0], 10) || 0) * 60 + (parseInt(p[1], 10) || 0);
+        }
+        function hora(m) { var h = Math.floor(m / 60), x = m % 60; return (h < 10 ? '0' : '') + h + ':' + (x < 10 ? '0' : '') + x + ':00'; }
+        var base = { ini: minutos(cal.getOption('slotMinTime')), fim: minutos(cal.getOption('slotMaxTime')) || 1440 };
+        var aplicada = { ini: base.ini, fim: base.fim };
+        cal.on('eventsSet', function () {
+            if (!naGrade()) { return; }
+            var ini = base.ini, fim = base.fim, de = cal.view.activeStart, ate = cal.view.activeEnd;
+            cal.getEvents().forEach(function (e) {
+                if (e.display === 'background' || e.display === 'none' || e.allDay || !e.start || !e.end || e.extendedProps.so_na_grade) { return; }
+                if (e.end <= de || e.start >= ate) { return; }
+                var mi = e.start.getHours() * 60 + e.start.getMinutes();
+                var mf = e.end.toDateString() === e.start.toDateString() ? e.end.getHours() * 60 + e.end.getMinutes() : 1440;
+                ini = Math.min(ini, Math.floor(mi / 60) * 60);
+                fim = Math.max(fim, Math.ceil(mf / 60) * 60);
+            });
+            if (ini !== aplicada.ini) { aplicada.ini = ini; cal.setOption('slotMinTime', hora(ini)); }
+            if (fim !== aplicada.fim) { aplicada.fim = fim; cal.setOption('slotMaxTime', hora(fim)); }
         });
         if (cal.getEvents().length) { cal.refetchEvents(); }
     })();

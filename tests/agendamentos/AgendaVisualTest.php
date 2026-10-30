@@ -220,6 +220,37 @@ try {
     ok('editar agenda ou parceria: abre o agendamento na aba Financeiro (so quem pode gerar)', strpos($html, "if ($mudouAgendaParceria && AgendamentoFinanceiroForm::podeGerar())") !== false
         && strpos($html, "TApplication::loadPage('AgendamentoFormView', 'onShow', ['key' => $object->id, 'current_tab' => 2]);") !== false);
 
+    // ---------- revisao das datas da agenda (30/10/2026) ----------
+    // bloqueio num dia em que nenhuma das agendas filtradas atende (antes sumia: a folga da ultima agenda escondia)
+    $sabado = '2030-01-26';
+    x("INSERT INTO bloqueio (agenda_id, dt_inicio, dt_final, observacao) VALUES ({$a1}, '{$sabado} 09:00', '{$sabado} 10:00', '" . MARCA_AV . " bloqueio sabado')");
+    saida(function () use ($a1, $a2) { AgendamentosFilterForm::onFilter(['agenda_id' => [(string) $a1, (string) $a2], 'dt_busca' => '', 'dt_busca_fim' => '']); });
+    $ev = json_decode(saida(function () { AgendamentoCalendarFormView::getEvents(['start' => '2030-01-20T00:00:00', 'end' => '2030-01-27T00:00:00']); }), true) ?: [];
+    $idSab = (int) q("SELECT id FROM bloqueio WHERE observacao = '" . MARCA_AV . " bloqueio sabado'")[0]['id'];
+    ok('calendario: bloqueio aparece mesmo no dia em que as agendas nao atendem (com varias agendas filtradas)', (bool) array_filter($ev, function ($e) use ($idSab) { return ($e['id'] ?? '') === 'bloqueio-' . $idSab; }));
+    // calendario por agenda (AgendaCardList): "Nao atende" pela data, no mes inteiro (antes so a primeira semana, deslocada)
+    $mes = json_decode(saida(function () use ($a1) { AgendamentoClienteCalendarFormView::getEvents(['start' => '2030-01-27T00:00:00', 'end' => '2030-03-10T00:00:00', 'agenda_id' => $a1]); }), true) ?: [];
+    TSession::setValue('AgendamentoClienteCalendarFormViewload_filter_agenda_id', null);
+    $naoAtendeMes = array_values(array_unique(array_map(function ($e) { return substr($e['start'], 0, 10); }, array_filter($mes, function ($e) { return ($e['title'] ?? '') === 'Não atende'; }))));
+    sort($naoAtendeMes);
+    $esperadoMes = [];
+    for ($t = strtotime('2030-01-27'); $t < strtotime('2030-03-10'); $t = strtotime('+1 day', $t)) { if (!in_array((int) date('w', $t), $diasA1, true)) { $esperadoMes[] = date('Y-m-d', $t); } }
+    igual('calendario por agenda: Nao atende em todos os dias certos do mes', $esperadoMes, $naoAtendeMes);
+    // horarios disponiveis do Novo agendamento: a mesma regra do salvar (bloqueio e intervalo fora)
+    TSession::setValue('agenda_id', $a1);
+    TSession::setValue('formName', 'form_AgendamentoFormBtn');
+    $h = saida(function () use ($util) { ModalBuscarHorariosDisponiveis::onSelectDia(['btnRadioDia' => $util]); });
+    TSession::setValue('agenda_id', null);
+    $tem = function ($hora) use ($h) { return strpos($h, 'value="' . $hora . '"') !== false; };
+    $bl = date('H:i', strtotime($meio));
+    $livreMeio = date('H:i', strtotime($mais($abre, 0)));
+    ok('horarios disponiveis: oferece o horario livre e esconde o do bloqueio', $tem($livreMeio) && !$tem($bl), substr(strip_tags($h), 0, 300));
+    if (!empty($cfg['ii']) && !empty($cfg['fi'])) {
+        $noIntervalo = date('H:i', strtotime(substr($cfg['ii'], 0, 5)) - 60);
+        ok('horarios disponiveis: nada que encoste no intervalo', !$tem($noIntervalo) || $livre($a1, "{$util} {$noIntervalo}", $mais("{$util} {$noIntervalo}", 30)) === '');
+    }
+    ok('calendario: a grade cresce para mostrar o que cai fora do horario das agendas', strpos(AgendaVisual::scriptCalendario(), "cal.on('eventsSet'") !== false && strpos(AgendaVisual::scriptCalendario(), "setOption('slotMinTime'") !== false);
+
     // ---------- procedimentos sem a coluna Parceiro (30/10/2026) ----------
     TTransaction::open('escritorio');
     $consulta = (int) TTransaction::get()->query("SELECT id FROM procedimento WHERE nome = 'CONSULTA'")->fetchColumn();
