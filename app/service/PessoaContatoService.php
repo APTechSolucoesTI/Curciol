@@ -97,7 +97,7 @@ class PessoaContatoService
      */
     public static function estadoAtual($pessoaId): array
     {
-        $estado = ['novo' => true, 'telefone' => '', 'email' => '', 'principal_id' => null, 'principal_telefone' => '', 'principal_email' => '', 'principal_nome' => ''];
+        $estado = ['novo' => true, 'nome' => '', 'telefone' => '', 'email' => '', 'principal_id' => null, 'principal_telefone' => '', 'principal_email' => '', 'principal_nome' => ''];
         $pessoaId = (int) $pessoaId;
 
         if ($pessoaId <= 0)
@@ -108,10 +108,11 @@ class PessoaContatoService
         // trava a pessoa ate o fim do salvar: dois salvamentos ao mesmo tempo (ex.: duplo clique no Salvar) ficam um
         // depois do outro, em vez de os dois criarem o contato principal e o segundo bater no indice unico
         $conn = TTransaction::get();
-        $st = $conn->prepare('SELECT telefone, email FROM pessoa WHERE id = ? FOR UPDATE');
+        $st = $conn->prepare('SELECT nome, telefone, email FROM pessoa WHERE id = ? FOR UPDATE');
         $st->execute([$pessoaId]);
         if ($pessoa = $st->fetch(PDO::FETCH_ASSOC))
         {
+            $estado['nome'] = (string) $pessoa['nome'];
             $estado['novo'] = false;
             $estado['telefone'] = (string) $pessoa['telefone'];
             $estado['email'] = (string) $pessoa['email'];
@@ -226,9 +227,34 @@ class PessoaContatoService
     public static function aplicarPrincipal($pessoaId, array $antes): ?string
     {
         $aviso = self::acertarPrincipalComDados($pessoaId, $antes);
+        self::nomeDoPrincipalAcompanha((int) $pessoaId, $antes);
         self::propagarPrincipal($pessoaId, $antes);
 
         return $aviso;
+    }
+
+    /**
+     * O contato principal e a propria pessoa (03/11/2026): mudou o nome nos Dados cadastrais, o nome do principal
+     * acompanha - quando era o nome antigo ou estava vazio (nome dado de proposito, ex.: o responsavel numa empresa,
+     * fica). As copias do numero em outras pessoas acompanham em seguida (propagarPrincipal), e o envio leva ao APChat.
+     */
+    private static function nomeDoPrincipalAcompanha(int $pessoaId, array $antes): void
+    {
+        if (!empty($antes['novo']))
+        {
+            return;
+        }
+        $st = TTransaction::get()->prepare('SELECT nome FROM pessoa WHERE id = ?');
+        $st->execute([$pessoaId]);
+        $novo = trim((string) $st->fetchColumn());
+        $velho = trim((string) ($antes['nome'] ?? ''));
+        if ($novo === '' || mb_strtoupper($novo) === mb_strtoupper($velho))
+        {
+            return;
+        }
+        TTransaction::get()->prepare("UPDATE pessoa_contato SET nome = ?, updated_at = now()
+                                       WHERE pessoa_id = ? AND principal = 'S' AND (COALESCE(btrim(nome), '') = '' OR upper(btrim(nome)) = upper(?))")
+            ->execute([$novo, $pessoaId, $velho]);
     }
 
     /**

@@ -71,7 +71,7 @@ TSession::setValue('userunitid', (int) TTransaction::get()->query("SELECT system
 TTransaction::close();
 
 $ids = [];
-$numerosTeste = ['5511987660001', '5511987660002', '5511987660003', '5511987660004', '5511987660005', '5511987660006', '5511987660007', '5511987660008', '5511987660009', '5511987660010', '5511987660011', '5511987660012', '5511987660013'];
+$numerosTeste = ['5511987660001', '5511987660002', '5511987660003', '5511987660004', '5511987660005', '5511987660006', '5511987660007', '5511987660008', '5511987660009', '5511987660010', '5511987660011', '5511987660012', '5511987660013', '5511987660014', '5511987660015'];
 $novo = function (string $nome, string $telefone) use (&$ids) {
     TTransaction::open('escritorio');
     $p = new Pessoa();
@@ -204,6 +204,29 @@ try {
         [$r->situacao . '|' . $r->operacao, $apchat['chamadas'], (int) q("SELECT count(*) n FROM apchat_fila WHERE numero = '5511987660013'")[0]['n']]);
     igual('409 ja existe: idapchat e espelho do contato que ja existia', [80960, '551187660013'], [$idContato($h), $apchat['espelho'][80960]['numero'] ?? null]);
     $apchat['ocultar'] = [];
+
+    // ---------- nome mudou nos Dados: o principal acompanha e a copia em outro cadastro tambem (03/11) ----------
+    $i = $novo('I', '11987660014');
+    x("INSERT INTO pessoa_contato (pessoa_id, nome, descricao, telefone, principal) VALUES ({$b}, '" . MARCA_BANCO . " I', 'IRMA', '11987660014', 'N')");
+    TTransaction::open('escritorio');
+    $antes = PessoaContatoService::estadoAtual($i);
+    TTransaction::get()->exec("UPDATE pessoa SET nome = '" . MARCA_BANCO . " I RENOMEADA' WHERE id = {$i}");
+    PessoaContatoService::aplicarPrincipal($i, $antes);
+    TTransaction::close();
+    igual('nome mudou: principal e copia no outro cadastro acompanham (descricao da copia fica)',
+        [MARCA_BANCO . ' I RENOMEADA', [MARCA_BANCO . ' I RENOMEADA', 'IRMA']],
+        [q("SELECT nome FROM pessoa_contato WHERE pessoa_id = {$i} AND principal = 'S'")[0]['nome'] ?? null,
+         array_values(q("SELECT nome, descricao FROM pessoa_contato WHERE pessoa_id = {$b} AND telefone = '11987660014'")[0] ?? [])]);
+    APChatContactService::sincronizarPessoa($i, [], ApchatContatoLog::ORIGEM_CADASTRO);
+    igual('nome mudou: o APChat recebe o nome novo', MARCA_BANCO . ' I RENOMEADA', $apchat['contatos']['5511987660014']['name'] ?? null);
+    $j = $novo('J', '11987660015');
+    x("UPDATE pessoa_contato SET nome = 'RESPONSAVEL RH' WHERE pessoa_id = {$j} AND principal = 'S'");
+    TTransaction::open('escritorio');
+    $antes = PessoaContatoService::estadoAtual($j);
+    TTransaction::get()->exec("UPDATE pessoa SET nome = '" . MARCA_BANCO . " J RENOMEADA' WHERE id = {$j}");
+    PessoaContatoService::aplicarPrincipal($j, $antes);
+    TTransaction::close();
+    igual('nome mudou: nome dado de proposito ao principal fica', 'RESPONSAVEL RH', q("SELECT nome FROM pessoa_contato WHERE pessoa_id = {$j} AND principal = 'S'")[0]['nome'] ?? null);
 
     // ---------- tela "Contatos sem vinculo": vincular a um cadastro existente ----------
     $apchat['contatos']['5511987669001'] = ['id' => 80950, 'name' => '~Filho da D'];
