@@ -464,19 +464,34 @@ class ApchatContatoList extends TPage
     public static function onIniciarSincronizacao($param = null)
     {
         $offset = max(0, (int) ($param['offset'] ?? 0));
-        $total = count(APChatContactService::idsAutorizados());
+        $ids = APChatContactService::idsAutorizados();
+        $mapa = APChatContactService::numerosPorPessoa();
+        $feitos = count(self::numerosDe($ids, $mapa, $offset));
         TSession::setValue(__CLASS__ . '_inicio', microtime(true));
-        TSession::setValue(__CLASS__ . '_inicio_offset', $offset);
+        TSession::setValue(__CLASS__ . '_inicio_feitos', $feitos);
         if ($offset === 0) { TSession::setValue(__CLASS__ . '_lote', []); }
-        self::painelProgresso($offset, $total, (array) TSession::getValue(__CLASS__ . '_lote'), false);
+        self::painelProgresso($feitos, count(self::numerosDe($ids, $mapa, count($ids))), (array) TSession::getValue(__CLASS__ . '_lote'), false, $offset, count($ids));
         TScript::create("Adianti.waitMessage = false; __adianti_ajax_exec('class=ApchatContatoList&method=onSincronizarLote&offset={$offset}');");
     }
 
     /**
-     * Painel fixo no canto da tela com o andamento do "Sincronizar todos" (03/11/2026): quanto ja foi, quanto falta,
-     * tempo estimado e o resultado ate agora. Atualizado a cada lote.
+     * Contatos do APChat (numeros canonicos, com e sem o nono digito contam uma vez) das primeiras $ate pessoas da fila
+     * do "Sincronizar todos".
+     * @return array [numero => true]
      */
-    private static function painelProgresso(int $feitos, int $total, array $contagem, bool $fim): void
+    private static function numerosDe(array $ids, array $mapa, int $ate): array
+    {
+        $r = [];
+        foreach (array_slice($ids, 0, $ate) as $id) { $r += $mapa[$id] ?? []; }
+        return $r;
+    }
+
+    /**
+     * Painel fixo no canto da tela com o andamento do "Sincronizar todos" (03/11/2026): quanto ja foi, quanto falta,
+     * tempo estimado e o resultado ate agora, em CONTATOS do APChat (numeros; o mesmo numero em varios cadastros e um
+     * contato so, como no APChat). Atualizado a cada lote.
+     */
+    private static function painelProgresso(int $feitos, int $total, array $contagem, bool $fim, int $pessoasFeitas, int $pessoasTotal): void
     {
         $n = function ($v) { return number_format((int) $v, 0, ',', '.'); };
         $tempo = function (float $s) {
@@ -487,7 +502,7 @@ class ApchatContatoList extends TPage
         };
         $pct = $total > 0 ? (int) floor($feitos * 100 / $total) : 100;
         $decorrido = microtime(true) - (float) (TSession::getValue(__CLASS__ . '_inicio') ?: microtime(true));
-        $feitosAgora = $feitos - (int) TSession::getValue(__CLASS__ . '_inicio_offset');
+        $feitosAgora = $feitos - (int) TSession::getValue(__CLASS__ . '_inicio_feitos');
         $falta = max(0, $total - $feitos);
 
         $soma = function (string $prefixo) use ($contagem) {
@@ -499,7 +514,6 @@ class ApchatContatoList extends TPage
             ['Criados', $contagem['SUCESSO|CREATE'] ?? 0, '#2e7d32'],
             ['Atualizados', $contagem['SUCESSO|UPDATE'] ?? 0, '#1565c0'],
             ['Já iguais', $contagem['SUCESSO|NENHUMA'] ?? 0, '#607d8b'],
-            ['Sem telefone válido', $soma('IGNORADO|'), '#9e9e9e'],
             ['Com erro (na fila)', $soma('ERRO|'), '#c62828'],
         ];
         $linhas = '';
@@ -523,8 +537,9 @@ class ApchatContatoList extends TPage
 
         $html = '<div style="font-weight:600;margin-bottom:6px">' . $titulo . '</div>'
               . '<div style="background:#e3e8ef;border-radius:6px;height:14px;overflow:hidden"><div style="background:' . ($fim ? '#2e7d32' : '#1565c0') . ';height:100%;width:' . $pct . '%;transition:width .4s"></div></div>'
-              . '<div style="display:flex;justify-content:space-between;margin:4px 0 2px"><span><b>' . $n($feitos) . '</b> de ' . $n($total) . ' pessoas</span><b>' . $pct . '%</b></div>'
-              . '<div style="color:#555;margin-bottom:6px">' . ($fim ? '' : 'Faltam <b>' . $n($falta) . '</b> · ') . $previsao . '</div>'
+              . '<div style="display:flex;justify-content:space-between;margin:4px 0 2px"><span><b>' . $n($feitos) . '</b> de ' . $n($total) . ' contatos</span><b>' . $pct . '%</b></div>'
+              . '<div style="color:#555;margin-bottom:2px">' . ($fim ? '' : 'Faltam <b>' . $n($falta) . '</b> · ') . $previsao . '</div>'
+              . '<div style="color:#888;font-size:11px;margin-bottom:6px">' . $n($pessoasFeitas) . ' de ' . $n($pessoasTotal) . ' pessoas (o mesmo número em vários cadastros é um contato só no APChat)</div>'
               . '<div style="border-top:1px solid #e3e8ef;padding-top:6px">' . $linhas . '</div>' . $rodape;
 
         TScript::create("(function () { var d = document.getElementById('apchat-progresso'); if (!d) { d = document.createElement('div'); d.id = 'apchat-progresso';"
@@ -545,12 +560,21 @@ class ApchatContatoList extends TPage
             $offset = max(0, (int) ($param['offset'] ?? 0));
             $ids = APChatContactService::idsAutorizados();
             $total = count($ids);
+            $mapa = APChatContactService::numerosPorPessoa();
 
             $contagem = ($offset === 0) ? [] : (array) TSession::getValue(__CLASS__ . '_lote');
 
             // varios contatos ao mesmo tempo (o lote ja em andamento tambem passa por aqui no proximo pedido)
-            foreach (APChatContactService::sincronizarLote(array_slice($ids, $offset, self::TAMANHO_LOTE), ApchatContatoLog::ORIGEM_LOTE) as $r)
+            APChatContactService::sincronizarLote(array_slice($ids, $offset, self::TAMANHO_LOTE), ApchatContatoLog::ORIGEM_LOTE);
+
+            // resultado por CONTATO (numero), cada um uma vez: numero que ja passou num lote anterior (outra pessoa com o
+            // mesmo numero) nao conta de novo
+            $vistos = self::numerosDe($ids, $mapa, $offset);
+            foreach (APChatContactService::resultadosDoUltimoLote() as $numero => $r)
             {
+                $canonico = APChatContactService::numeroCanonico((string) $numero);
+                if (isset($vistos[$canonico])) { continue; }
+                $vistos[$canonico] = true;
                 $chave = $r->situacao . '|' . $r->operacao;
                 $contagem[$chave] = ($contagem[$chave] ?? 0) + 1;
             }
@@ -561,14 +585,17 @@ class ApchatContatoList extends TPage
             // ponto onde esta: se a aba for recarregada ou fechada, o "Sincronizar todos" oferece continuar daqui
             TSession::setValue(__CLASS__ . '_parou', $feitos);
 
+            $contatosFeitos = count(self::numerosDe($ids, $mapa, $feitos));
+            $contatosTotal = count(self::numerosDe($ids, $mapa, $total));
+
             if ($feitos < $total)
             {
-                self::painelProgresso($feitos, $total, $contagem, false);
+                self::painelProgresso($contatosFeitos, $contatosTotal, $contagem, false, $feitos, $total);
                 TScript::create("Adianti.waitMessage = false; __adianti_ajax_exec('class=ApchatContatoList&method=onSincronizarLote&offset={$feitos}');");
                 return;
             }
 
-            self::painelProgresso($feitos, $total, $contagem, true);
+            self::painelProgresso($contatosFeitos, $contatosTotal, $contagem, true, $feitos, $total);
             TSession::setValue(__CLASS__ . '_lote', null);
             TSession::setValue(__CLASS__ . '_parou', null);
 
@@ -577,7 +604,6 @@ class ApchatContatoList extends TPage
                 'SUCESSO|UPDATE'  => 'contatos atualizados',
                 'SUCESSO|NENHUMA' => 'já estavam iguais no APChat (sem chamada)',
                 'ERRO|NENHUMA'    => 'com erro (ficaram na fila e são refeitos sozinhos)',
-                'IGNORADO|NENHUMA'=> 'não sincronizados (telefone inválido ou vazio)',
             ];
 
             $linhas = [];
@@ -588,7 +614,7 @@ class ApchatContatoList extends TPage
                 $linhas[] = "<b>{$quantidade}</b> {$nome}";
             }
 
-            new TMessage('info', "Sincronização concluída: {$total} pessoas.<br><br>" . implode('<br>', $linhas) . "<br><br>O detalhe de cada um fica na coluna \"Detalhe\".");
+            new TMessage('info', "Sincronização concluída: {$contatosTotal} contatos no APChat ({$total} pessoas).<br><br>" . implode('<br>', $linhas) . "<br><br>O detalhe de cada um fica na coluna \"Detalhe\".");
 
             AdiantiCoreApplication::loadPage(__CLASS__, 'onReload');
         }

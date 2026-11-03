@@ -215,6 +215,7 @@ class APChatContactService
         $ids = array_values(array_unique(array_map('intval', $ids)));
         $resultados = [];
         $porId = [];
+        self::$ultimoLotePorNumero = [];
 
         try
         {
@@ -296,6 +297,7 @@ class APChatContactService
                 self::gravarIdApchatDoNumero((string) $numero, $r);
                 self::filaDoEnvio((string) $numero, $donoDoNumero[$numero] ?? null, $r);
             }
+            self::$ultimoLotePorNumero = $feitos;
 
             foreach ($numerosDe as $id => $numeros)
             {
@@ -393,6 +395,45 @@ class APChatContactService
         $st->execute([$pessoa_id]);
 
         return (string) $st->fetchColumn();
+    }
+
+    /** @var object[] [numero => resultado] do ultimo sincronizarLote (painel de progresso do "Sincronizar todos") */
+    private static $ultimoLotePorNumero = [];
+
+    public static function resultadosDoUltimoLote(): array
+    {
+        return self::$ultimoLotePorNumero;
+    }
+
+    /**
+     * O numero como o APChat o conta: com e sem o nono digito e o mesmo contato (fica a forma com o 9).
+     */
+    public static function numeroCanonico(string $numero): string
+    {
+        $maior = $numero;
+        foreach (self::variantes($numero) as $v) { if (strlen($v) > strlen($maior)) { $maior = $v; } }
+        return $maior;
+    }
+
+    /**
+     * Numeros validos (canonicos) de cada pessoa com algum contato de telefone valido - contagem de contatos do APChat
+     * no painel do "Sincronizar todos".
+     *
+     * @return array [pessoa_id => [numero canonico => true]]
+     */
+    public static function numerosPorPessoa(): array
+    {
+        TTransaction::open(self::$database);
+        $linhas = TTransaction::get()->query("SELECT pessoa_id, telefone FROM pessoa_contato WHERE COALESCE(telefone, '') <> ''")->fetchAll(PDO::FETCH_ASSOC);
+        TTransaction::close();
+
+        $r = [];
+        foreach ($linhas as $l)
+        {
+            $n = self::normalizarTelefone($l['telefone']);
+            if ($n !== '') { $r[(int) $l['pessoa_id']][self::numeroCanonico($n)] = true; }
+        }
+        return $r;
     }
 
     /**
