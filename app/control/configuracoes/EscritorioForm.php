@@ -54,16 +54,10 @@ class EscritorioForm extends TPage
         $escritorio_parceiro_escritorio___row__data = new THidden('escritorio_parceiro_escritorio___row__data[]');
         $escritorio_parceiro_escritorio_parceiro_id = new TDBCombo('escritorio_parceiro_escritorio_parceiro_id[]', 'escritorio', 'Parceiro', 'id', '{nome}','nome asc' , $criteria_escritorio_parceiro_escritorio_parceiro_id );
         $this->fieldList_60f6decfd616d = new TFieldList();
-        $api_key = new TPassword('api_key');
-        $whatsapp_config_id = new THidden('whatsapp_config_id');
-        $api_token = new TPassword('api_token');
+        $url_apchat = new TEntry('url_apchat');
         $token_apchat = new TPassword('token_apchat');
-        $phone = new TEntry('phone');
-        $status = new TEntry('status');
-        $device = new TEntry('device');
-        $button_gerar_qrcode = new TButton('button_gerar_qrcode');
-        $button_desconectar = new TButton('button_desconectar');
-        $button_testar = new TButton('button_testar');
+        $button_testar_apchat = new TButton('button_testar_apchat');
+        $button_enviar_teste_apchat = new TButton('button_enviar_teste_apchat');
         $host = new TEntry('host');
         $email_config_id = new THidden('email_config_id');
         $smtp_auth = new TCombo('smtp_auth');
@@ -115,8 +109,7 @@ class EscritorioForm extends TPage
         $cidade_id->setMinLength(3);
         $smtp_auth->addItems(["T"=>"Sim","N"=>"Não"]);
         $smtp_auth->enableSearch();
-        $api_key->enableToggleVisibility(true);
-        $api_token->enableToggleVisibility(true);
+        $token_apchat->enableToggleVisibility(true);
 
         $data_criacao->setDatabaseMask('yyyy-mm-dd hh:ii');
         $data_modificacao->setDatabaseMask('yyyy-mm-dd hh:ii');
@@ -128,27 +121,21 @@ class EscritorioForm extends TPage
         $cidade_id->setMask('{nome} - {estado->sigla}');
 
         $button_testar1->setAction(new TAction([$this, 'onTestarEnvioEmail']), "Testar");
-        $button_testar->setAction(new TAction([$this, 'onTestarEnvioWhatsapp']), "Testar");
-        $button_desconectar->setAction(new TAction([$this, 'onDesconectar']), "Desconectar");
+        $button_testar_apchat->setAction(new TAction([$this, 'onTestarApchat'], ['static' => 1]), "Testar conexão");
+        $button_enviar_teste_apchat->setAction(new TAction([$this, 'onEnviarTesteApchat'], ['static' => 1]), "Enviar teste");
         $button_buscar->setAction(new TAction([$this, 'onChangeCEP'],['static' => 1]), "Buscar");
-        $button_gerar_qrcode->setAction(new TAction([$this, 'onGenerateQrCode']), "Gerar qrcode");
 
         $button_buscar->addStyleClass('btn-default');
-        $button_testar->addStyleClass('btn-default');
         $button_testar1->addStyleClass('btn-default');
-        $button_desconectar->addStyleClass('btn-default');
-        $button_gerar_qrcode->addStyleClass('btn-default');
+        $button_testar_apchat->addStyleClass('btn-default');
+        $button_enviar_teste_apchat->addStyleClass('btn-default');
 
         $button_buscar->setImage('fas:search #2196F3');
-        $button_testar->setImage('fas:paper-plane #4CAF50');
-        $button_gerar_qrcode->setImage('fas:qrcode #4CAF50');
         $button_testar1->setImage('fas:paper-plane #4CAF50');
-        $button_desconectar->setImage('fas:power-off #F44336');
+        $button_testar_apchat->setImage('fas:plug #4CAF50');
+        $button_enviar_teste_apchat->setImage('fab:whatsapp #4CAF50');
 
         $id->setEditable(false);
-        $phone->setEditable(false);
-        $status->setEditable(false);
-        $device->setEditable(false);
         $data_criacao->setEditable(false);
         $data_modificacao->setEditable(false);
         $criacao_user_name->setEditable(false);
@@ -160,18 +147,13 @@ class EscritorioForm extends TPage
         $host->setSize('100%');
         $port->setSize('100%');
         $email->setSize('100%');
-        $phone->setSize('100%');
         $bairro->setSize('100%');
         $numero->setSize('100%');
-        $status->setSize('100%');
-        $device->setSize('100%');
-        $api_key->setSize('100%');
         $telefone->setSize('100%');
         $endereco->setSize('100%');
         $username->setSize('100%');
         $password->setSize('100%');
         $cidade_id->setSize('100%');
-        $api_token->setSize('100%');
         $smtp_auth->setSize('100%');
         $from_name->setSize('100%');
         $from_email->setSize('100%');
@@ -181,7 +163,6 @@ class EscritorioForm extends TPage
         $data_criacao->setSize('100%');
         $system_unit_id->setSize('100%');
         $logo_documento->setSize('100%');
-        $whatsapp_config_id->setSize(200);
         $data_modificacao->setSize('100%');
         $cep->setSize('calc(100% - 120px)');
         $criacao_user_name->setSize('100%');
@@ -234,24 +215,6 @@ class EscritorioForm extends TPage
 
         $this->form->appendPage("Configurações");
 
-        $whatsapp_container = new BContainer('whatsapp_container');
-        $this->whatsapp_container = $whatsapp_container;
-
-        $whatsapp_container->setTitle("Whatsapp", '#4CAF50', '13px', 'B', '#fff');
-        $whatsapp_container->setBorderColor('#4CAF50');
-
-        $row9 = $whatsapp_container->addFields([new TLabel("ID:", null, '14px', null),$api_key,$whatsapp_config_id],[new TLabel("Token:", null, '14px', null),$api_token]);
-        $row9->layout = ['col-sm-6','col-sm-6'];
-
-        $row10 = $whatsapp_container->addFields([new TLabel("Número:", null, '14px', null),$phone],[new TLabel("Status:", null, '14px', null),$status],[new TLabel("Device:", null, '14px', null),$device]);
-        $row10->layout = [' col-sm-4',' col-sm-4',' col-sm-4'];
-
-        $row11 = $whatsapp_container->addFields([new TLabel("Conexão:", null, '14px', null, '100%'),$button_gerar_qrcode,$button_desconectar,$button_testar]);
-        $row11->layout = [' col-sm-12'];
-
-        $row12 = $this->form->addFields([$whatsapp_container]);
-        $row12->layout = [' col-sm-12'];
-
         $mail_container = new BContainer('mail_container');
         $this->mail_container = $mail_container;
 
@@ -268,17 +231,23 @@ class EscritorioForm extends TPage
         $row15->layout = [' col-sm-12'];
 
         /*
-            APCHAT: token da API externa (Bearer), usado pela sincronizacao
-            dos clientes que autorizaram WhatsApp (APChatContactService).
+            APCHAT: endereco e token da API externa (Bearer), usados pela sincronizacao de contatos
+            (APChatContactService) e pelo envio de WhatsApp do agendamento (ApchatApiService). Trocar a URL
+            muda o canal do APChat por onde as mensagens saem.
         */
+        $url_apchat->setSize('100%');
         $token_apchat->setSize('100%');
+        $url_apchat->placeholder = ApchatApiService::URL_PADRAO;
 
         $apchat_container = new BContainer('apchat_container');
-        $apchat_container->setTitle("APChat", '#25D366', '13px', 'B', '#fff');
+        $apchat_container->setTitle("APChat (WhatsApp)", '#25D366', '13px', 'B', '#fff');
         $apchat_container->setBorderColor('#25D366');
 
-        $row15b = $apchat_container->addFields([new TLabel("Token da API:", null, '14px', null, '100%'), $token_apchat]);
-        $row15b->layout = [' col-sm-12'];
+        $row15b = $apchat_container->addFields([new TLabel("URL da API:", null, '14px', null, '100%'), $url_apchat],[new TLabel("Token da API:", null, '14px', null, '100%'), $token_apchat]);
+        $row15b->layout = [' col-sm-7',' col-sm-5'];
+
+        $row15d = $apchat_container->addFields([$button_testar_apchat, $button_enviar_teste_apchat]);
+        $row15d->layout = [' col-sm-12'];
 
         $row15c = $this->form->addFields([$apchat_container]);
         $row15c->layout = [' col-sm-12'];
@@ -340,104 +309,76 @@ class EscritorioForm extends TPage
         }
     }
 
-    public static function onGenerateQrCode($param = null) 
+    /**
+     * Confere a URL e o token da tela (antes de salvar) sem enviar mensagem.
+     */
+    public static function onTestarApchat($param = null)
     {
         try 
         {
-            TTransaction::open(self::$database);
+            ApchatApiService::testarConexao((string) ($param['url_apchat'] ?? ''), (string) ($param['token_apchat'] ?? ''));
 
-            if (empty($param['whatsapp_config_id']))
-            {
-                throw new Exception('Salve as configurações de whastapp antes');
-            }
-
-            $whatsappConfig = WhatsappConfig::find((int)$param['whatsapp_config_id']);
-            $cliente = new WhatsAppClient($whatsappConfig);
-
-            $image = $cliente->getQrCode();
-
-            $window = TWindow::create('QR Code', 500, null);
-            $window->add(TElement::tag('div', '', ['style' => "background-image: url({$image});", 'id' => 'qrcode']));
-            $window->setCloseAction(new TAction([__CLASS__, 'refreshStatus'], $param));
-            $window->show();
-
-            TTransaction::close();
-
+            new TMessage('info', 'Conexão com o APChat funcionando: URL e token aceitos.');
         }
         catch (Exception $e) 
         {
-            TTransaction::rollback();
             new TMessage('error', $e->getMessage());    
         }
     }
 
-    public static function onDesconectar($param = null) 
+    /**
+     * Envia uma mensagem de teste para o numero digitado, pela URL e token SALVOS (o token nao vai na acao do dialogo).
+     */
+    public static function onEnviarTesteApchat($param = null)
     {
         try 
         {
             TTransaction::open(self::$database);
 
-            if (empty($param['whatsapp_config_id']))
+            $escritorio = ApchatApiService::escritorio();
+            $url = ApchatApiService::url($escritorio);
+            $token = $escritorio ? trim((string) $escritorio->token_apchat) : '';
+
+            // botao da tela: o que esta na tela tem de ser o salvo (o dialogo nao manda URL nem token)
+            $urlTela = rtrim(trim((string) ($param['url_apchat'] ?? $url)), '/') ?: ApchatApiService::URL_PADRAO;
+            $tokenTela = trim((string) ($param['token_apchat'] ?? $token));
+
+            if ($urlTela !== $url || $tokenTela !== $token)
             {
-                throw new Exception('Salve as configurações de whastapp antes');
+                throw new Exception('A URL ou o token da tela não estão salvos. Salve antes de enviar o teste (o "Testar conexão" confere sem salvar).');
             }
 
-            $whatsappConfig = WhatsappConfig::find((int)$param['whatsapp_config_id']);
-            $cliente = new WhatsAppClient($whatsappConfig);
-
-            $image = $cliente->disconnect();
-            $data = (object) ['status' => 'Não conectado', 'phone' => ''];
-
-            TForm::sendData(self::$formName, $data);
-
-            TTransaction::close();
-
-        }
-        catch (Exception $e) 
-        {
-            TTransaction::rollback();
-            new TMessage('error', $e->getMessage());    
-        }
-    }
-
-    public static function onTestarEnvioWhatsapp($param = null) 
-    {
-        try 
-        {
-            TTransaction::open(self::$database);
-
-            if (empty($param['whatsapp_config_id']))
+            if (!empty($param['enviar']) && $param['enviar'] == 'T')
             {
-                throw new Exception('Salve as configurações de WhatsApp antes');
-            }
+                $numero = APChatContactService::normalizarTelefone($param['to'] ?? '');
 
-            $whastappConfig = WhatsappConfig::find((int)$param['whatsapp_config_id']);
+                if ($numero === '')
+                {
+                    throw new Exception('Número inválido. Use DDD + número.');
+                }
 
-            if (! empty($param['enviar']) && $param['enviar'] == 'T' && ! empty($param['to']))
-            {
-                $cliente = new WhatsAppClient($whastappConfig);
+                ApchatApiService::enviar($url, $token, APChatContactService::numeroCanonico($numero),
+                    'Teste de envio da Curciol pelo APChat em ' . date('d/m/Y H:i') . '. Pode ignorar esta mensagem.',
+                    'curciol-teste-' . date('YmdHis'));
 
-                $cliente->testarEnvio($param['to']);
-
-                TToast::show('success', 'Mensagem de teste enviada');
+                TToast::show('success', 'Mensagem de teste enviada para ' . PessoaContatoService::formatarTelefone($numero));
             }
             else
             {
+                ApchatApiService::testarConexao($url, $token);
+
                 $form = new BootstrapFormBuilder('input_form');
                 $form->setFieldSizes('100%');
-                $to  = new TEntry('to');
-                $to->placeholder = 'ex: ' . $whastappConfig->phone;
+                $to = new TEntry('to');
+                $to->placeholder = '(19) 99999-9999';
 
-                $form->addFields( [new TLabel('Número', null, null, null, '100%'), $to]);
-                $param['enviar'] = 'T';
-                $form->addAction('Enviar', new TAction([__CLASS__, 'onTestarEnvioWhatsapp'], $param), 'fas:paper-plane #4CAF50');
+                $form->addFields([new TLabel('Número que vai receber o teste', null, null, null, '100%'), $to]);
+                $form->addAction('Enviar', new TAction([__CLASS__, 'onEnviarTesteApchat'], ['enviar' => 'T']), 'fas:paper-plane #4CAF50');
 
-                // show the input dialog
-                new TInputDialog('Enviar teste', $form);
+                new TInputDialog('Enviar teste pelo APChat', $form);
             }
 
             TTransaction::close();
-
         }
         catch (Exception $e) 
         {
@@ -509,6 +450,8 @@ class EscritorioForm extends TPage
 
             $data->telefone = preg_replace('/[^0-9]/', '', $data->telefone);
             $data->cnpj = preg_replace('/[^0-9]/', '', $data->cnpj);
+            $data->url_apchat = rtrim(trim((string) $data->url_apchat), '/');
+            $data->token_apchat = trim((string) $data->token_apchat);
 
             $object->fromArray( (array) $data); // load the object with data
 
@@ -521,20 +464,14 @@ class EscritorioForm extends TPage
             }
             $object->store(); // save the object 
 
-            $whatsappConfig = new WhatsappConfig();
-            $whatsappConfig->id = $data->whatsapp_config_id??null;
-            $whatsappConfig->escritorio_id = $object->id;
-            $whatsappConfig->fromArray( (array) $data);
-            $whatsappConfig->store();
-
+            // fromArray traz o id do escritorio: o id da configuracao vem depois
             $emailConfig = new EmailConfig();
-            $emailConfig->id = $data->email_config_id??null;
-            $emailConfig->escritorio_id = $object->id;
             $emailConfig->fromArray( (array) $data);
+            $emailConfig->id = $data->email_config_id ?: null;
+            $emailConfig->escritorio_id = $object->id;
             $emailConfig->store();
 
             $data->email_config_id = $emailConfig->id;
-            $data->whatsapp_config_id = $whatsappConfig->id;
 
             $this->saveFile($object, $data, 'logo_documento', $logo_documento_dir);
             $loadPageParam = [];
@@ -599,39 +536,12 @@ class EscritorioForm extends TPage
 
                 $data = $object->toArray();
 
-                $whatsappConfig = WhatsappConfig::where('escritorio_id', '=', $id)->first();
                 $emailConfig = EmailConfig::where('escritorio_id', '=', $id)->first();
 
-                if ($whatsappConfig && $emailConfig)
+                if ($emailConfig)
                 {
-                    $data['whatsapp_config_id'] = $whatsappConfig->id;
+                    $data = array_merge($data, $emailConfig->toArray());
                     $data['email_config_id'] = $emailConfig->id;
-
-                    $whatsappConfig = WhatsappConfig::find($data['whatsapp_config_id']);
-
-                    if(!empty($whatsappConfig->api_token) && !empty($whatsappConfig->api_key))
-                    {
-                        try 
-                        {
-                            $cliente = new WhatsAppClient($whatsappConfig);
-
-                            $whatsappConfig->status = $cliente->getStatus();
-                            $whatsappConfig->phone = $cliente->getNumber();
-                            $whatsappConfig->store();    
-                        } 
-                        catch (Exception $e) 
-                        {
-                            $whatsappConfig->phone = '';
-                            $whatsappConfig->status = 'Não conectado';
-                            $whatsappConfig->store();
-                        }
-                    }
-
-                    $data = array_merge($data, $whatsappConfig->toArray(), $emailConfig->toArray());
-                }
-                else
-                {
-                    TScript::create("$('#qrcode').closest('.tformrow').hide()");
                 }
 
                 $data['id'] = $id;
@@ -683,34 +593,4 @@ class EscritorioForm extends TPage
         return self::$formName;
     }
 
-    public static function refreshStatus($param)
-    {
-        try
-        {
-            TTransaction::open(self::$database);
-
-            $wc = WhatsappConfig::find((int)$param['whatsapp_config_id']);
-            $cliente = new WhatsAppClient($wc);
-            $wc->status = $cliente->getStatus();
-            $wc->phone = $cliente->getNumber();
-            $wc->store();
-
-            $data = (object) ['status' => $wc->status, 'phone' => $wc->number];
-
-            TForm::sendData(self::$formName, $data);
-
-            TTransaction::close();
-        }
-        catch(Exception $e)
-        {
-            TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
-        }
-        finally
-        {
-            TWindow::closeWindow();
-        }
-    }
-
 }
-

@@ -17,7 +17,7 @@
  * API (confirmada em 09/10/2026)
  * -------------------------------
  * Todas as rotas sao POST com JSON e "Authorization: Bearer <token>"; o token
- * fica em escritorio.token_apchat.
+ * fica em escritorio.token_apchat e o endereco em escritorio.url_apchat (vazio = URL_BASE; ApchatApiService).
  *
  *   showcontact    {number}   200 {success:true, data:{id,...}}         encontrado
  *                             404 {success:false, error:ERR_CONTACT_NOT_FOUND}  nao existe
@@ -81,6 +81,9 @@ class APChatContactService
 
     /** Endereco da API (testes: um APChat falso local); null volta ao de verdade. */
     private static $urlBase = null;
+
+    /** Endereco do escritorio, lido junto com o token. */
+    private static $urlAtual = null;
 
     public static function usarUrlBase(?string $url): void
     {
@@ -719,7 +722,7 @@ class APChatContactService
 
     private static function novoHandle(string $rota, array $corpo, string $token)
     {
-        $ch = curl_init((self::$urlBase ?? self::URL_BASE) . $rota);
+        $ch = curl_init((self::$urlBase ?? self::$urlAtual ?? self::URL_BASE) . $rota);
 
         curl_setopt_array($ch, [
             CURLOPT_POST           => true,
@@ -1074,22 +1077,10 @@ class APChatContactService
      */
     private static function token(): string
     {
-        $unidade = (int) (TSession::getValue('userunitid') ?? 0);
+        $escritorio = ApchatApiService::escritorio();
 
-        $escritorio = null;
-
-        if ($unidade > 0)
-        {
-            $escritorio = Escritorio::where('system_unit_id', '=', $unidade)->first();
-        }
-
-        if (!$escritorio || trim((string) $escritorio->token_apchat) === '')
-        {
-            $escritorio = Escritorio::where('token_apchat', 'is not', null)
-                                    ->where('token_apchat', '<>', '')
-                                    ->orderBy('id')
-                                    ->first();
-        }
+        // o endereco vem junto do token (URL da API editavel no escritorio, 03/11/2026)
+        self::$urlAtual = ApchatApiService::url($escritorio) . '/';
 
         return $escritorio ? trim((string) $escritorio->token_apchat) : '';
     }

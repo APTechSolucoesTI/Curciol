@@ -93,10 +93,11 @@ class AgendamentoFormView extends TPage
 
         $enviar_email->setAction(new TAction(['EnviarMensagemForm', 'onShow'],['tipo' => 'EMAIL']), "Enviar e-mail manual");
         $enviar_whatsapp->setAction(new TAction(['EnviarMensagemForm', 'onShow'],['tipo' => 'WHATSAPP']), "Enviar whatsapp manual");
-        $EMAIL_LEMBRETE_CONSULTA->setAction(new TAction([$this, 'onEnviarEmailLembreteConsulta']), "Enviar e-mail de lembrete de consulta");
-        $EMAIL_CONFIRMACAO_AGENDAMENTO->setAction(new TAction([$this, 'onEnviarEmailConfirmacao']), "Enviar email de confirmação do agendamento");
-        $WHATSAPP_LEMBRETE_CONSULTA->setAction(new TAction([$this, 'onEnviarWhatsappLembreteConsulta']), "Enviar whatsapp de lembrete de consulta");
-        $WHATSAPP_CONFIRMACAO_AGENDAMENTO->setAction(new TAction([$this, 'onEnviaWhatsaapConfirmacao']), "Enviar whatsapp de confirmação do agendamento");
+        // todo envio abre a cortina antes (mensagem pronta e destino; 03/11/2026)
+        $EMAIL_LEMBRETE_CONSULTA->setAction(new TAction(['EnviarMensagemForm', 'onShow'], ['tipo' => 'EMAIL', 'chave' => 'EMAIL_LEMBRETE_CONSULTA']), "Enviar e-mail de lembrete de consulta");
+        $EMAIL_CONFIRMACAO_AGENDAMENTO->setAction(new TAction(['EnviarMensagemForm', 'onShow'], ['tipo' => 'EMAIL', 'chave' => 'EMAIL_CONFIRMACAO_AGENDAMENTO']), "Enviar email de confirmação do agendamento");
+        $WHATSAPP_LEMBRETE_CONSULTA->setAction(new TAction(['EnviarMensagemForm', 'onShow'], ['tipo' => 'WHATSAPP', 'chave' => 'WHATSAPP_LEMBRETE_CONSULTA']), "Enviar whatsapp de lembrete de consulta");
+        $WHATSAPP_CONFIRMACAO_AGENDAMENTO->setAction(new TAction(['EnviarMensagemForm', 'onShow'], ['tipo' => 'WHATSAPP', 'chave' => 'WHATSAPP_CONFIRMACAO_AGENDAMENTO']), "Enviar whatsapp de confirmação do agendamento");
 
         $enviar_email->addStyleClass('btn-default');
         $enviar_whatsapp->addStyleClass('btn-default');
@@ -123,17 +124,17 @@ class AgendamentoFormView extends TPage
         $enviar_email->getAction()->setParameter('agendamento_id', $agendamento->id);
         $enviar_whatsapp->getAction()->setParameter('agendamento_id', $agendamento->id);
 
-        $EMAIL_LEMBRETE_CONSULTA->getAction()->setParameter('id', $agendamento->id);
-        $EMAIL_CONFIRMACAO_AGENDAMENTO->getAction()->setParameter('id', $agendamento->id);
-        $WHATSAPP_LEMBRETE_CONSULTA->getAction()->setParameter('id', $agendamento->id);
-        $WHATSAPP_CONFIRMACAO_AGENDAMENTO->getAction()->setParameter('id', $agendamento->id);
+        $EMAIL_LEMBRETE_CONSULTA->getAction()->setParameter('agendamento_id', $agendamento->id);
+        $EMAIL_CONFIRMACAO_AGENDAMENTO->getAction()->setParameter('agendamento_id', $agendamento->id);
+        $WHATSAPP_LEMBRETE_CONSULTA->getAction()->setParameter('agendamento_id', $agendamento->id);
+        $WHATSAPP_CONFIRMACAO_AGENDAMENTO->getAction()->setParameter('agendamento_id', $agendamento->id);
 
         $EMAIL_LEMBRETE_CONSULTA->style = 'display: none';
         $EMAIL_CONFIRMACAO_AGENDAMENTO->style = 'display: none';
         $WHATSAPP_LEMBRETE_CONSULTA->style = 'display: none';
         $WHATSAPP_CONFIRMACAO_AGENDAMENTO->style = 'display: none';
 
-        if (MensagemService::canEnviarWhatsappLembreteConsulta($agendamento))
+        if (MensagemService::canEnviarEmailLembreteConsulta($agendamento))
         {
             $EMAIL_LEMBRETE_CONSULTA->style = 'display: block';
         }
@@ -141,7 +142,7 @@ class AgendamentoFormView extends TPage
         {
             $EMAIL_CONFIRMACAO_AGENDAMENTO->style = 'display: block';
         }
-        if (MensagemService::canEnviarEmailLembreteConsulta($agendamento))
+        if (MensagemService::canEnviarWhatsappLembreteConsulta($agendamento))
         {
             $WHATSAPP_LEMBRETE_CONSULTA->style = 'display: block';
         }
@@ -414,94 +415,6 @@ class AgendamentoFormView extends TPage
         $style->width = '85% !important';   
         $style->show(true);
 
-    }
-
-    public static function onEnviaWhatsaapConfirmacao($param = null) 
-    {
-        try 
-        {
-            TTransaction::open(self::$database);
-
-            $agendamento = Agendamento::find($param['id']);
-
-            MensagemService::enviarWhatsappConfirmacao($agendamento);
-
-            TTransaction::close();
-
-            TToast::show('success', 'WhatsApp enviado');
-
-        }
-        catch (Exception $e) 
-        {
-            TTransaction::rollback();
-            TToast::show('error', $e->getMessage());
-        }
-    }
-
-    public static function onEnviarEmailConfirmacao($param = null) 
-    {
-        try 
-        {
-            TTransaction::open(self::$database);
-
-            $agendamento = Agendamento::find($param['id']);
-
-            MensagemService::enviarEmailConfirmacao($agendamento);
-
-            TTransaction::close();
-
-            TToast::show('success', 'E-mail enviado');
-
-        }
-        catch (Exception $e) 
-        {
-            TTransaction::rollback();
-            TToast::show('error', $e->getMessage());
-        }
-    }
-
-    public static function onEnviarWhatsappLembreteConsulta($param = null) 
-    {
-        try 
-        {
-            TTransaction::open(self::$database);
-
-            $agendamento = Agendamento::find($param['id']);
-
-            MensagemService::enviarWhatsappLembreteConsulta($agendamento);
-
-            TTransaction::close();
-
-            TToast::show('success', 'WhatsApp enviado');
-
-        }
-        catch (Exception $e) 
-        {
-            TTransaction::rollback();
-            TToast::show('error', $e->getMessage());
-        }
-    }
-
-    public static function onEnviarEmailLembreteConsulta($param = null) 
-    {
-        try 
-        {
-            TTransaction::open(self::$database);
-
-            $agendamento = Agendamento::find($param['id']);
-
-            MensagemService::enviarEmailLembreteConsulta($agendamento);
-
-            TTransaction::close();
-
-            TToast::show('success', 'E-mail enviado');
-
-        }
-        catch (Exception $e) 
-        {
-            TTransaction::rollback();
-            TToast::show('error', $e->getMessage());
-        }
     }
 
     public function onShow($param = null)

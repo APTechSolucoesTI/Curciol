@@ -26,6 +26,8 @@ class Mensagem extends TRecord
         parent::addAttribute('template');
         parent::addAttribute('enviado_em');
         parent::addAttribute('tipo_mensagem');
+        parent::addAttribute('destino');
+        parent::addAttribute('retorno');
     
     }
 

@@ -1,133 +1,137 @@
 <?php
-
+/**
+ * Envio de WhatsApp (APChat) e e-mail do agendamento (03/11/2026).
+ *
+ * Com "chave" (botoes de confirmacao e lembrete): escolhe entre os templates daquela chave e mostra a mensagem pronta,
+ * com as variaveis trocadas, sem edicao. Sem chave (envio manual): texto escrito na hora, com a lista de variaveis
+ * para clicar; as variaveis sao trocadas no envio.
+ *
+ * Fora da producao o "Enviar para" e obrigatorio e nao aceita numero/e-mail do cliente (MensagemService).
+ */
 class EnviarMensagemForm extends TPage
 {
     protected $form;
-    private $formFields = [];
-    private static $database = '';
-    private static $activeRecord = '';
-    private static $primaryKey = '';
+    private static $database = 'escritorio';
     private static $formName = 'form_EnviarMensagemForm';
 
-    use BuilderMasterDetailFieldListTrait;
+    private $preview;
 
-    /**
-     * Form constructor
-     * @param $param Request
-     */
-    public function __construct( $param = null)
+    public function __construct($param = null)
     {
         parent::__construct();
 
-        if(!empty($param['target_container']))
+        if (!empty($param['target_container']))
         {
             $this->adianti_target_container = $param['target_container'];
         }
 
-        // creates the form
+        $tipo = ($param['tipo'] ?? '') === TemplateEscritorio::EMAIL ? TemplateEscritorio::EMAIL : TemplateEscritorio::WHATSAPP;
+        $chave = trim((string) ($param['chave'] ?? ''));
+        $ehEmail = $tipo === TemplateEscritorio::EMAIL;
+
         $this->form = new BootstrapFormBuilder(self::$formName);
-        // define the form title
-        $this->form->setFormTitle("Enviar mensagem");
+        $this->form->setFormTitle(($ehEmail ? 'Enviar e-mail' : 'Enviar WhatsApp') . ($chave === '' ? ' manual' : ''));
 
-        $criteria_template = new TCriteria();
+        $hTipo = new THidden('tipo');
+        $hChave = new THidden('chave');
+        $hAgendamento = new THidden('agendamento_id');
+        $hTipo->setValue($tipo);
+        $hChave->setValue($chave);
+        $hAgendamento->setValue($param['agendamento_id'] ?? null);
 
-        if(!empty($param['tipo']))
+        $destino = new TEntry('destino');
+        $destino->setSize('100%');
+        $destino->placeholder = $ehEmail ? 'e-mail' : '(19) 99999-9999';
+
+        $row = $this->form->addFields([new TLabel($ehEmail ? 'Enviar para (e-mail):' : 'Enviar para (WhatsApp):', '#ff0000', '14px', null, '100%'), $destino, $hTipo, $hChave, $hAgendamento]);
+        $row->layout = ['col-sm-6'];
+
+        if (!AmbienteService::producao())
         {
-            TSession::setValue(__CLASS__.'load_filter_tipo_template', $param['tipo']);
+            $aviso = new TElement('div');
+            $aviso->class = 'alert alert-warning';
+            $aviso->style = 'margin:0;padding:8px 12px;';
+            $aviso->add('<i class="fas fa-flask"></i> <b>Ambiente de teste:</b> digite ' . ($ehEmail ? 'o e-mail' : 'o número')
+                . ' que vai receber a mensagem. ' . ($ehEmail ? 'O e-mail' : 'O número') . ' do cliente é bloqueado.');
+            $this->form->addContent([$aviso]);
         }
-        $filterVar = TSession::getValue(__CLASS__.'load_filter_tipo_template');
-        $criteria_template->add(new TFilter('tipo_template', '=', $filterVar)); 
-        $filterVar = TSession::getValue("userunitid");
-        $criteria_template->add(new TFilter('escritorio_id', 'in', "(SELECT id FROM escritorio WHERE system_unit_id = '{$filterVar}')")); 
 
-        $template = new TDBCombo('template', 'escritorio', 'TemplateEscritorio', 'id', '{descricao}','descricao asc' , $criteria_template );
-        $tipo = new THidden('tipo');
-        $agendamento_id = new THidden('agendamento_id');
-        $titulo = new TEntry('titulo');
-        $content_whatsapp = new TText('content_whatsapp');
-        $content_email = new THtmlEditor('content_email');
-        $mensagem_acao_mensagem_id = new THidden('mensagem_acao_mensagem_id[]');
-        $mensagem_acao_mensagem___row__id = new THidden('mensagem_acao_mensagem___row__id[]');
-        $mensagem_acao_mensagem___row__data = new THidden('mensagem_acao_mensagem___row__data[]');
-        $mensagem_acao_mensagem_url = new TEntry('mensagem_acao_mensagem_url[]');
-        $mensagem_acao_mensagem_label = new TEntry('mensagem_acao_mensagem_label[]');
-        $this->fieldList_acoes = new TFieldList();
+        if ($chave !== '')
+        {
+            $template = new TCombo('template');
+            $template->setSize('100%');
+            $template->setDefaultOption(false);
+            $template->setChangeAction(new TAction([$this, 'onChangeTemplate'], ['static' => 1]));
 
-        $this->fieldList_acoes->addField(null, $mensagem_acao_mensagem_id, []);
-        $this->fieldList_acoes->addField(null, $mensagem_acao_mensagem___row__id, ['uniqid' => true]);
-        $this->fieldList_acoes->addField(null, $mensagem_acao_mensagem___row__data, []);
-        $this->fieldList_acoes->addField(new TLabel("Url", null, '14px', null), $mensagem_acao_mensagem_url, ['width' => '50%']);
-        $this->fieldList_acoes->addField(new TLabel("Label", null, '14px', null), $mensagem_acao_mensagem_label, ['width' => '50%']);
+            $row = $this->form->addFields([new TLabel('Template:', null, '14px', null, '100%'), $template]);
+            $row->layout = ['col-sm-6'];
 
-        $this->fieldList_acoes->width = '100%';
-        $this->fieldList_acoes->setFieldPrefix('mensagem_acao_mensagem');
-        $this->fieldList_acoes->name = 'fieldList_acoes';
+            $this->preview = new TElement('div');
+            $this->preview->id = 'mensagem_preview';
+            $this->preview->style = 'border:1px solid #ddd;border-radius:6px;padding:12px;background:#f7f7f7;min-height:80px;'
+                                  . ($ehEmail ? '' : 'white-space:pre-wrap;');
 
-        $this->criteria_fieldList_acoes = new TCriteria();
-        $this->default_item_fieldList_acoes = new stdClass();
+            $row = $this->form->addFields([new TLabel('Mensagem que será enviada:', null, '14px', null, '100%'), $this->preview]);
+            $row->layout = ['col-sm-12'];
+        }
+        else
+        {
+            if ($ehEmail)
+            {
+                $titulo = new TEntry('titulo');
+                $titulo->setSize('100%');
+                $row = $this->form->addFields([new TLabel('Título:', '#ff0000', '14px', null, '100%'), $titulo]);
+                $row->layout = ['col-sm-12'];
 
-        $this->form->addField($mensagem_acao_mensagem_id);
-        $this->form->addField($mensagem_acao_mensagem___row__id);
-        $this->form->addField($mensagem_acao_mensagem___row__data);
-        $this->form->addField($mensagem_acao_mensagem_url);
-        $this->form->addField($mensagem_acao_mensagem_label);
+                $texto = new THtmlEditor('content_email');
+                $texto->setSize('100%', 220);
+            }
+            else
+            {
+                $texto = new TText('content_whatsapp');
+                $texto->setSize('100%', 160);
+            }
 
-        $this->fieldList_acoes->setRemoveAction(null, 'fas:times #dd5a43', "Excluír");
+            $row = $this->form->addFields([new TLabel('Mensagem:', '#ff0000', '14px', null, '100%'), $texto]);
+            $row->layout = ['col-sm-12'];
 
-        $template->setChangeAction(new TAction([$this,'onChangeTemplate']));
+            $variaveis = new BContainer('bcontainer_variaveis');
+            $variaveis->setTitle('Variáveis (clique para inserir na mensagem)', '#333', '13px', '', '#fff');
+            $variaveis->setBorderColor('#c0c0c0');
 
-        $template->enableSearch();
-        $titulo->forceUpperCase();
-        $tipo->setValue($param['tipo']??null);
-        $agendamento_id->setValue($param['agendamento_id']??null);
+            $colunas = [[], [], []];
+            $i = 0;
+            foreach (MensagemService::variaveis() as $variavel => $descricao)
+            {
+                $colunas[$i++ % 3][] = new TLabel("<a href=\"#\" class=\"curciol-variavel\" data-variavel=\"{$variavel}\"><b>{$variavel}</b></a> {$descricao}", null, '12px', null, '100%');
+            }
+            $row = $variaveis->addFields($colunas[0], $colunas[1], $colunas[2]);
+            $row->layout = ['col-sm-4', 'col-sm-4', 'col-sm-4'];
 
-        $tipo->setSize(200);
-        $titulo->setSize('100%');
-        $template->setSize('100%');
-        $agendamento_id->setSize(200);
-        $content_email->setSize('100%', 180);
-        $content_whatsapp->setSize('100%', 100);
-        $mensagem_acao_mensagem_url->setSize('100%');
-        $mensagem_acao_mensagem_label->setSize('100%');
+            $this->form->addFields([$variaveis])->layout = ['col-sm-12'];
 
+            // insere no ponto do cursor (texto do WhatsApp ou editor do e-mail)
+            TScript::create("
+                var \$e = $('[name=content_email]');
+                if (\$e.length) { \$e.on('summernote.blur', function () { \$e.summernote('editor.saveRange'); }); }
+                $(document).off('click.curciolVariavel').on('click.curciolVariavel', '.curciol-variavel', function (ev) {
+                    ev.preventDefault();
+                    var v = $(this).data('variavel');
+                    var t = $('[name=content_whatsapp]')[0];
+                    if (t) {
+                        var a = t.selectionStart || 0, b = t.selectionEnd || 0;
+                        t.value = t.value.slice(0, a) + v + t.value.slice(b);
+                        t.focus(); t.selectionStart = t.selectionEnd = a + v.length;
+                        return;
+                    }
+                    var e = $('[name=content_email]');
+                    if (e.length) { e.summernote('editor.restoreRange'); e.summernote('editor.focus'); e.summernote('editor.insertText', v); }
+                });
+            ");
+        }
 
-        $row1 = $this->form->addFields([new TLabel("Template:", null, '14px', null, '100%'),$template,$tipo,$agendamento_id]);
-        $row1->layout = [' col-sm-12'];
-
-        $bcontainer_62e141a0065a9 = new BContainer('bcontainer_62e141a0065a9');
-        $this->bcontainer_62e141a0065a9 = $bcontainer_62e141a0065a9;
-
-        $bcontainer_62e141a0065a9->setTitle("Variáveis", '#333', '13px', '', '#fff');
-        $bcontainer_62e141a0065a9->setBorderColor('#c0c0c0');
-
-        $row2 = $bcontainer_62e141a0065a9->addFields([new TLabel("<b>{\$id}</b> Código do agendamento", null, '12px', null, '100%'),new TLabel("<b>{\$endereco_escritorio}</b> Endereço do escritório", null, '12px', null, '100%'),new TLabel("<b>{\$escritorio}</b> Nome do escritório", null, '12px', null, '100%'),new TLabel("<b>{\$estado}</b> Estado atual do agendamento", null, '12px', null, '100%')],[new TLabel("<b>{\$profissional}</b> Nome do profissional", null, '12px', null, '100%'),new TLabel("<b>{\$data_inicial}</b> Data do agendamento", null, '12px', null, '100%'),new TLabel("<b>{\$cliente}</b> Nome do cliente", null, '12px', null, '100%'),new TLabel("<b>{\$profissional_foto}</b> Foto do profissional", null, '12px', null, '100%')],[new TLabel("<b>{\$link_detalhe}</b> Link de detalhe do agendamento", null, '12px', null, '100%'),new TLabel("<b>{\$link_cancelamento}</b> Link para cancelar agendamento", null, '12px', null, '100%'),new TLabel("<b>{\$link_confirmacao}</b> Link para confirmar agendamento", null, '12px', null, '100%'),new TLabel("<b>{\$link_atendimento_online}</b> Link do atendimento online", null, '12px', null)]);
-        $row2->layout = [' col-sm-4',' col-sm-4',' col-sm-4'];
-
-        $row3 = $bcontainer_62e141a0065a9->addFields([new TLabel("<b>{\$telefone_escritorio}</b> Telefone do escritório", null, '12px', null, '100%'),new TLabel("<b>{\$email_escritorio}</b> E-mail do escritório", null, '12px', null, '100%')],[new TLabel("<b>{\$observacao}</b> Observação", null, '12px', null, '100%')],[]);
-        $row3->layout = [' col-sm-4',' col-sm-4',' col-sm-4'];
-
-        $row4 = $this->form->addFields([$bcontainer_62e141a0065a9]);
-        $row4->layout = [' col-sm-12'];
-
-        $row5 = $this->form->addFields([new TLabel("Título:", null, '14px', null, '100%'),$titulo]);
-        $row5->layout = [' col-sm-12'];
-
-        $row6 = $this->form->addFields([new TLabel("Template:", null, '14px', null),$content_whatsapp]);
-        $row6->layout = [' col-sm-12'];
-
-        $row7 = $this->form->addFields([new TLabel("Template:", null, '14px', null),$content_email]);
-        $row7->layout = [' col-sm-12'];
-
-        $row8 = $this->form->addFields([new TLabel("Ações", null, '14px', null)]);
-        $row8->layout = [' col-sm-12'];
-
-        $row9 = $this->form->addFields([$this->fieldList_acoes]);
-        $row9->layout = [' col-sm-12'];
-
-        // create the form actions
-        $btn_onsend = $this->form->addAction("Enviar", new TAction([$this, 'onSend']), 'fas:paper-plane #ffffff');
-        $this->btn_onsend = $btn_onsend;
-        $btn_onsend->addStyleClass('btn-primary'); 
+        $btn = $this->form->addAction('Enviar', new TAction([$this, 'onSend'], ['static' => 1]), 'fas:paper-plane #ffffff');
+        $btn->addStyleClass('btn-primary');
 
         parent::setTargetContainer('adianti_right_panel');
 
@@ -143,128 +147,53 @@ class EnviarMensagemForm extends TPage
         parent::add($this->form);
 
         $style = new TStyle('right-panel > .container-part[page-name=EnviarMensagemForm]');
-        $style->width = '75% !important';   
+        $style->width = '75% !important';
         $style->show(true);
-
     }
 
-    public static function onChangeTemplate($param = null) 
-    {
-        try 
-        {
-            TTransaction::open('escritorio');
-
-            $data = new stdClass;
-
-            if (! empty($param['key']))
-            {
-                $template = TemplateEscritorio::find($param['key']);
-
-                $data->content_whatsapp = $template->template;
-                $data->content_email = $template->template;
-                $data->titulo = $template->titulo;
-
-                $acoes = $template->getTemplateAcaos();
-
-                $labels = [];
-                $urls = [];
-                if ($acoes)
-                {
-                    foreach ($acoes as $acao)
-                    {
-                        $labels[] = $acao->label;
-                        $urls[] = $acao->url;
-                    }
-                }
-
-                $data->mensagem_acao_mensagem_label = $labels;
-                $data->mensagem_acao_mensagem_url = $urls;
-
-                TFieldList::clear('fieldList_acoes');
-                TFieldList::addRows('fieldList_acoes', count($labels) - 1);
-            }
-            else
-            {
-                $data->content_whatsapp = '';
-                $data->content_email = '';
-                $data->titulo = '';
-
-                TFieldList::clear('fieldList_acoes');
-            }
-
-            TForm::sendData(self::$formName, $data, false, false, 1000);
-
-            TTransaction::close();
-
-        }
-        catch (Exception $e) 
-        {
-            TTransaction::rollback();
-            new TMessage('error', $e->getMessage());    
-        }
-    }
-
-    public function onSend($param = null) 
+    public function onShow($param = null)
     {
         try
         {
-            TTransaction::open('escritorio');
-            $data = $this->form->getData();
+            TTransaction::open(self::$database);
 
-            $titulo = $data->titulo;
-            $template_id = $data->template;
-            $template = $data->tipo == TemplateEscritorio::EMAIL ? $data->content_email : $data->content_whatsapp;
-            $list_acoes = $this->fieldList_acoes->getPostData();
-            $acoes = [];
+            $agendamento = Agendamento::find((int) ($param['agendamento_id'] ?? 0));
 
-            if ($list_acoes)
+            if (!$agendamento)
             {
-                foreach($list_acoes as $acao)
+                throw new Exception('Agendamento não encontrado.');
+            }
+
+            $ehEmail = ($param['tipo'] ?? '') === TemplateEscritorio::EMAIL;
+            $data = new stdClass;
+
+            // producao: ja vem o do cliente (pode trocar); teste: vazio, o usuario digita
+            if (AmbienteService::producao())
+            {
+                $data->destino = $ehEmail ? (string) $agendamento->cliente->email
+                                          : PessoaContatoService::formatarTelefone($agendamento->cliente->telefone);
+            }
+
+            $chave = trim((string) ($param['chave'] ?? ''));
+
+            if ($chave !== '')
+            {
+                $templates = MensagemService::templatesDaChave($chave);
+
+                if (!$templates)
                 {
-                    if (empty($acao->url) || empty($acao->label))
-                    {
-                        continue;
-                    }
-
-                    $acoes[] = (object) ['label' => $acao->label, 'url' => $acao->url];
+                    throw new Exception('Nenhum template habilitado para esta mensagem. Veja Configurações › Template.');
                 }
+
+                $this->form->getField('template')->addItems($templates);
+                $data->template = array_key_first($templates);
+
+                $this->preview->add(self::previewHtml($agendamento, TemplateEscritorio::find($data->template)));
             }
 
-            if (empty($data->agendamento_id))
-            {
-                throw new Exception('Agendamento é obrigatório');
-            }
-
-            $agendamento = Agendamento::find($data->agendamento_id);
-
-            if (! in_array($data->tipo, [TemplateEscritorio::EMAIL, TemplateEscritorio::WHATSAPP]))
-            {
-                throw new Exception('Tipo inválido');
-            }
-
-            if (empty($titulo) && $data->tipo == TemplateEscritorio::EMAIL)
-            {
-                throw new Exception("Título é obrigátorio para envio de e-mail");
-            }
-
-            if (empty($template))
-            {
-                throw new Exception("Template é obrigátorio");
-            }
-
-            if ($data->tipo == TemplateEscritorio::EMAIL)
-            {
-                MensagemService::enviarEmail($agendamento, $titulo, $template, $template_id);
-            }
-            else
-            {
-                MensagemService::enviarWhatsapp($agendamento, $titulo, $template, $acoes, $template_id);
-            }
+            $this->form->setData($data);
 
             TTransaction::close();
-
-            TScript::create("Template.closeRightPanel();");
-            TToast::show("success", 'Envio realizado com sucesso!', "topRight", "fas:check");
         }
         catch (Exception $e)
         {
@@ -273,23 +202,107 @@ class EnviarMensagemForm extends TPage
         }
     }
 
-    public function onShow($param = null)
-    {               
-        $this->fieldList_acoes->addHeader();
-        $this->fieldList_acoes->addDetail($this->default_item_fieldList_acoes);
-
-        $this->fieldList_acoes->addCloneAction(null, 'fas:plus #69aa46', "Clonar");
-
-        if (! empty($param['tipo']) && $param['tipo'] == TemplateEscritorio::EMAIL)
+    public static function onChangeTemplate($param = null)
+    {
+        try
         {
-            TScript::create("$('[name=content_whatsapp]').closest('.tformrow').hide();");
-            TScript::create("$('[name=fieldList_acoes]').closest('.tformrow').hide().prev().hide();");
-        }
-        else
-        {
-            TScript::create("$('[name=content_email]').closest('.tformrow').hide();");
-        }
-    } 
+            TTransaction::open(self::$database);
 
+            $agendamento = Agendamento::find((int) ($param['agendamento_id'] ?? 0));
+            $template = self::templateDoEnvio($param);
+            $html = $agendamento && $template ? self::previewHtml($agendamento, $template) : '';
+
+            TTransaction::close();
+
+            TScript::create("$('#mensagem_preview').html(" . json_encode($html) . ");");
+        }
+        catch (Exception $e)
+        {
+            TTransaction::rollback();
+            new TMessage('error', $e->getMessage());
+        }
+    }
+
+    public static function onSend($param = null)
+    {
+        try
+        {
+            TTransaction::open(self::$database);
+
+            $agendamento = Agendamento::find((int) ($param['agendamento_id'] ?? 0));
+
+            if (!$agendamento)
+            {
+                throw new Exception('Agendamento é obrigatório');
+            }
+
+            $ehEmail = ($param['tipo'] ?? '') === TemplateEscritorio::EMAIL;
+            $templateId = null;
+
+            if (trim((string) ($param['chave'] ?? '')) !== '')
+            {
+                $template = self::templateDoEnvio($param);
+
+                if (!$template)
+                {
+                    throw new Exception('Escolha o template.');
+                }
+
+                $partes = MensagemService::textoDoTemplate($template);
+                $titulo = $partes['titulo'];
+                $texto = $partes['texto'];
+                $templateId = $template->id;
+            }
+            else
+            {
+                $titulo = $ehEmail ? (string) ($param['titulo'] ?? '') : null;
+                $texto = (string) ($ehEmail ? ($param['content_email'] ?? '') : ($param['content_whatsapp'] ?? ''));
+            }
+
+            $mensagem = $ehEmail
+                ? MensagemService::enviarEmail($agendamento, $titulo, $texto, $templateId, $param['destino'] ?? '')
+                : MensagemService::enviarWhatsapp($agendamento, $titulo, $texto, $templateId, $param['destino'] ?? '');
+
+            TTransaction::close();
+
+            $para = $ehEmail ? $mensagem->destino : PessoaContatoService::formatarTelefone($mensagem->destino);
+
+            TScript::create("Template.closeRightPanel();");
+            TToast::show('success', "Mensagem enviada para {$para}", 'topRight', 'fas:check');
+        }
+        catch (Exception $e)
+        {
+            TTransaction::rollback();
+            new TMessage('error', $e->getMessage());
+        }
+    }
+
+    /** Template escolhido, conferido contra a chave do botao (so os habilitados do escritorio). */
+    private static function templateDoEnvio(array $param): ?TemplateEscritorio
+    {
+        $id = (int) ($param['template'] ?? $param['key'] ?? 0);
+        $permitidos = MensagemService::templatesDaChave((string) ($param['chave'] ?? ''));
+
+        return isset($permitidos[$id]) ? TemplateEscritorio::find($id) : null;
+    }
+
+    /** A mensagem como sai: variaveis trocadas; WhatsApp em texto, e-mail com o assunto em cima. */
+    private static function previewHtml(Agendamento $agendamento, TemplateEscritorio $template): string
+    {
+        $partes = MensagemService::textoDoTemplate($template);
+        $texto = TemplateEscritorio::replace($agendamento, $partes['texto']);
+
+        if ($template->tipo_template == TemplateEscritorio::EMAIL)
+        {
+            $titulo = htmlspecialchars(TemplateEscritorio::replace($agendamento, $partes['titulo']));
+            return "<div style=\"margin-bottom:8px\"><b>Assunto:</b> {$titulo}</div><hr style=\"margin:8px 0\">{$texto}";
+        }
+
+        return htmlspecialchars(trim($texto));
+    }
+
+    public static function getFormName()
+    {
+        return self::$formName;
+    }
 }
-
