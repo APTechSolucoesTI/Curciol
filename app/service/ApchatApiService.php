@@ -6,6 +6,8 @@
  * pela tela para testar outro canal; a sincronizacao de contatos (APChatContactService) usa os mesmos.
  *
  * Envio (03/11/2026): POST no proprio endereco, JSON {number, body, externalKey, isClosed}, "Authorization: Bearer".
+ * A integracao deve ser do canal "Curciol - Coexistencia" (113): o oficial (112, WABA) recusa texto livre fora da
+ * janela de 24h (erro 131047) e o modo hibrido do APChat (oficial ligado ao 113) so desvia os envios feitos pela tela.
  * Teste de conexao: consulta de um numero que nao existe (showcontact) - nao envia nada nem altera o APChat:
  *   404 ERR_CONTACT_NOT_FOUND ou 200 = endereco e token certos; 403 = token recusado; 404 sem JSON = endereco errado.
  */
@@ -83,11 +85,14 @@ class ApchatApiService
      */
     public static function enviar(string $url, string $token, string $numero, string $texto, string $chave): string
     {
+        // isClosed: o atendimento que o envio abre no canal da integracao ja nasce fechado. Com a integracao no canal de
+        // coexistencia (nao oficial), o oficial recebe a copia da mensagem e a conversa (e a resposta) segue no
+        // atendimento do oficial; sem isso ficava um atendimento a toa aberto no nao oficial (teste de 03/11/2026).
         $resposta = self::chamar(rtrim(trim($url), '/'), [
             'number'      => $numero,
             'body'        => $texto,
             'externalKey' => $chave,
-            'isClosed'    => false,
+            'isClosed'    => true,
         ], trim($token));
 
         if ($resposta['status'] < 200 || $resposta['status'] >= 300)

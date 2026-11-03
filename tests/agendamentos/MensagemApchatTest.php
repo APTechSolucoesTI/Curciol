@@ -59,6 +59,7 @@ try {
     igual('envio: numero', '5519912340000', $chamadas[0]['corpo']['number']);
     igual('envio: variaveis trocadas', "Olá TESTE MENSAGEM APCHAT, agendamento {$idAg}", $chamadas[0]['corpo']['body']);
     igual('envio: chave externa', 'curciol-mensagem-' . $m->id, $chamadas[0]['corpo']['externalKey']);
+    igual('envio: atendimento do canal da integracao ja nasce fechado', true, $chamadas[0]['corpo']['isClosed']);
     $reg = $c->query("SELECT destino, retorno, tipo_mensagem, template FROM mensagem WHERE id = {$m->id}")->fetch(PDO::FETCH_ASSOC);
     igual('registro: destino', '5519912340000', $reg['destino']);
     igual('registro: retorno do APChat', '{"success":true}', $reg['retorno']);

@@ -80,6 +80,10 @@ try {
     foreach (['sim', 'Sim', 'SIM', ' sim ', 'Sim!', 'sim.', '*SIM*', 'Sim 👍'] as $t) { igual("SIM: '{$t}'", 'SIM', ApchatRespostaService::classificar($t)); }
     foreach (['não', 'nao', 'NÃO', 'Nao.', 'NAO!'] as $t) { igual("NAO: '{$t}'", 'NAO', ApchatRespostaService::classificar($t)); }
     foreach (['Sim, mas posso mudar o horário?', 'simm', 'sim sim', 's', 'ok', '', 'não posso'] as $t) { igual("OUTRA: '{$t}'", 'OUTRA', ApchatRespostaService::classificar($t)); }
+    // assinatura de quem responde por um sistema de atendimento (caso real do teste de 03/11/2026)
+    igual('assinatura: "*Henrique Rufino*:\n sim"', 'SIM', ApchatRespostaService::classificar("*Henrique Rufino*:\n sim"));
+    igual('assinatura: "*Ana*: Não!"', 'NAO', ApchatRespostaService::classificar('*Ana*: Não!'));
+    igual('assinatura com outra coisa', 'OUTRA', ApchatRespostaService::classificar("*Ana*:\n sim, mas depois"));
 
     ok('templates de resposta existem (migracao)', $confirmacaoId > 0 && count(q("SELECT 1 FROM template_escritorio WHERE chave IN ('WHATSAPP_RESPOSTA_SIM', 'WHATSAPP_RESPOSTA_NAO')")) >= 2);
 

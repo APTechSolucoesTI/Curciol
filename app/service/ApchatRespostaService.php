@@ -26,10 +26,14 @@ class ApchatRespostaService
 
     private static $database = 'escritorio';
 
-    /** SIM, NAO ou OUTRA: so a palavra conta (maiusculas, acento, espaco, pontuacao e emoji nao importam). */
+    /**
+     * SIM, NAO ou OUTRA: so a palavra conta (maiusculas, acento, espaco, pontuacao e emoji nao importam). A assinatura
+     * "*Nome*:" no comeco (cliente que responde por um sistema de atendimento, como o proprio APChat) nao conta.
+     */
     public static function classificar(?string $texto): string
     {
-        $t = mb_strtolower(trim((string) $texto));
+        $t = preg_replace('/^\s*\*[^*\n]{1,80}\*:\s*/u', '', (string) $texto);
+        $t = mb_strtolower(trim($t));
         $t = strtr($t, ['ã' => 'a', 'á' => 'a', 'à' => 'a', 'â' => 'a', 'í' => 'i', 'î' => 'i', 'õ' => 'o', 'ó' => 'o', 'ô' => 'o']);
         $t = preg_replace('/[^a-z0-9]/', '', $t);
 
