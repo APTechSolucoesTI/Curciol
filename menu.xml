@@ -47,7 +47,11 @@
         <menuitem label="Pessoas">
         <icon>fas:users fa-fw </icon>
         <action>PessoaList#method=onShow</action>
-        </menuitem>        
+        </menuitem>
+        <menuitem label="Contatos do APChat sem vínculo">
+        <icon>fab:whatsapp fa-fw </icon>
+        <action>ApchatContatoSemVinculoList#method=onShow</action>
+        </menuitem>
     </menu>
     </menuitem>
     <menuitem label="Documentos">
@@ -214,10 +218,6 @@
             <menuitem label="Integração Contatos APChat">
             <icon>fab:whatsapp fa-fw </icon>
             <action>ApchatContatoList#method=onShow</action>
-            </menuitem>
-            <menuitem label="Contatos do APChat sem vínculo">
-            <icon>fas:user-tag fa-fw </icon>
-            <action>ApchatContatoSemVinculoList#method=onShow</action>
             </menuitem>
             <menuitem label="Template">
             <icon>fab:html5 fa-fw </icon>

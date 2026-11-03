@@ -200,7 +200,7 @@ class ApchatContatoSemVinculoList extends TPage
         $container->style = 'width: 100%';
         if (empty($param['target_container']))
         {
-            $container->add(TBreadCrumb::create(["Configurações", "Contatos do APChat sem vínculo"]));
+            $container->add(TBreadCrumb::create(["Pessoas", "Contatos do APChat sem vínculo"]));
         }
         $container->add($panel);
         parent::add($container);
