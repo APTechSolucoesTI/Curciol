@@ -371,7 +371,7 @@ class ApchatContatoList extends TPage
         $container->style = 'width: 100%';
         if(empty($param['target_container']))
         {
-            $container->add(TBreadCrumb::create(["Configurações","Integração Contatos APChat"]));
+            $container->add(TBreadCrumb::create(["Configurações", "APChat", "Integração contatos"]));
         }
 
         $container->add($panel);

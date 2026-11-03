@@ -48,10 +48,6 @@
         <icon>fas:users fa-fw </icon>
         <action>PessoaList#method=onShow</action>
         </menuitem>
-        <menuitem label="Contatos do APChat sem vínculo">
-        <icon>fab:whatsapp fa-fw </icon>
-        <action>ApchatContatoSemVinculoList#method=onShow</action>
-        </menuitem>
     </menu>
     </menuitem>
     <menuitem label="Documentos">
@@ -215,10 +211,6 @@
             <icon>fas:id-card fa-fw </icon>
             <action>ParceirosHeaderList#method=onShow</action>
             </menuitem>
-            <menuitem label="Integração Contatos APChat">
-            <icon>fab:whatsapp fa-fw </icon>
-            <action>ApchatContatoList#method=onShow</action>
-            </menuitem>
             <menuitem label="Template">
             <icon>fab:html5 fa-fw </icon>
             <action>TemplateEscritorioHeaderList#method=onShow</action>
@@ -234,6 +226,19 @@
             <menuitem label="CEPs">
             <icon>fas:map-pin fa-fw </icon>
             <action>CepCacheHeaderList#method=onShow</action>
+            </menuitem>
+        </menu>
+        </menuitem>
+        <menuitem label="APChat">
+        <icon>fab:whatsapp fa-fw </icon>
+        <menu>
+            <menuitem label="Contatos sem vínculo">
+            <icon>fas:user-tag fa-fw </icon>
+            <action>ApchatContatoSemVinculoList#method=onShow</action>
+            </menuitem>
+            <menuitem label="Integração contatos">
+            <icon>fas:sync-alt fa-fw </icon>
+            <action>ApchatContatoList#method=onShow</action>
             </menuitem>
         </menu>
         </menuitem>
