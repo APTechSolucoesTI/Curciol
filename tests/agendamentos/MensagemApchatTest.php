@@ -81,7 +81,7 @@ try {
     AmbienteService::forcarProducao(null);
     ok('sem app/config/ambiente.php nesta maquina = ambiente de teste', !AmbienteService::producao() || is_file(AmbienteService::ARQUIVO));
 
-    // ---------- template do WhatsApp: acoes vao no fim do texto ----------
+    // ---------- template do WhatsApp: acoes (links) nao vao, so o texto ----------
     $t = new TemplateEscritorio();
     $t->escritorio_id = $escritorio['id'];
     $t->chave = 'TESTE_MENSAGEM_APCHAT';
@@ -95,7 +95,7 @@ try {
     $a->label = 'Confirmar';
     $a->url = '{$link_confirmacao}';
     $a->store();
-    igual('template: acao no fim do texto', "Confirma?\nConfirmar: {\$link_confirmacao}", MensagemService::textoDoTemplate($t)['texto']);
+    igual('template: sem os links das acoes', 'Confirma?', MensagemService::textoDoTemplate($t)['texto']);
     igual('templates habilitados da chave', [$t->id => 'Teste'], MensagemService::templatesDaChave('TESTE_MENSAGEM_APCHAT'));
 
     // ---------- teste de conexao ----------

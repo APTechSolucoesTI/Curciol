@@ -66,22 +66,11 @@ class EscritorioService
         $templateEscritorio->descricao = 'Confirmação de agendamento';
         $templateEscritorio->escritorio_id = $escritorio_id;
         $templateEscritorio->habilitado = 'T';
-        $templateEscritorio->template = 'Olá {$cliente}. Temos uma agendamento marcado para {$data_inicial}, com {$profissional}. Deseja:';
+        // sem links: o cliente responde SIM ou NAO na conversa do WhatsApp (03/11/2026)
+        $templateEscritorio->template = "Olá {\$cliente}. Temos agendado para {\$data_inicial}, com {\$profissional}.\n\nResponda *SIM* para confirmar ou *NÃO* para cancelar.";
         $templateEscritorio->titulo = 'Confirmação de agendamento';
         $templateEscritorio->tipo_template = 'WHATSAPP';
         $templateEscritorio->readonly = 'T';
         $templateEscritorio->store();
-        
-        $templateAcao = new TemplateAcao();
-        $templateAcao->url = '{$link_confirmacao}';
-        $templateAcao->label = 'Confirmar';
-        $templateAcao->template_escritorio_id = $templateEscritorio->id;
-        $templateAcao->store();
-        
-        $templateAcao = new TemplateAcao();
-        $templateAcao->url = '{$link_cancelamento}';
-        $templateAcao->label = 'Cancelar';
-        $templateAcao->template_escritorio_id = $templateEscritorio->id;
-        $templateAcao->store();
    }
 }

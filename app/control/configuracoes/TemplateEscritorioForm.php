@@ -196,8 +196,9 @@ class TemplateEscritorioForm extends TPage
             }
             else
             {
+                // acoes (links) nao vao mais na mensagem: o cliente responde SIM ou NAO (03/11/2026)
                 TScript::create("$('[name=template_whatsapp]').closest('.tformrow').show();");
-                TScript::create("$('[name=fieldList_acoes]').closest('.tformrow').show().prev().show();");
+                TScript::create("$('[name=fieldList_acoes]').closest('.tformrow').hide().prev().hide();");
 
                 TScript::create("$('[name=template]').closest('.tformrow').hide();");
             }
@@ -306,6 +307,7 @@ class TemplateEscritorioForm extends TPage
                 {
                     $object->template_whatsapp = $object->template;
                     TScript::create("$('[name=template]').closest('.tformrow').hide();");
+                    TScript::create("$('[name=fieldList_acoes]').closest('.tformrow').hide().prev().hide();");
                 }
 
                                 $object->criacao_user_name = $object->criacao_user->name;

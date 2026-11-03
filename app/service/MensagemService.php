@@ -164,25 +164,12 @@ class MensagemService
     }
     
     /**
-     * Titulo e texto de um template, ainda com as variaveis. No WhatsApp as acoes do template (botoes de link do
-     * envio antigo) vao no fim do texto; o APChat so envia texto.
+     * Titulo e texto de um template, ainda com as variaveis. As acoes do template (botoes de link do envio antigo pela
+     * Z-API) nao vao: o cliente responde SIM ou NAO na conversa (usuario, 03/11/2026: sem links).
      */
     public static function textoDoTemplate(TemplateEscritorio $template): array
     {
-        $texto = (string) $template->template;
-
-        if ($template->tipo_template == TemplateEscritorio::WHATSAPP)
-        {
-            foreach ($template->getTemplateAcaos() ?: [] as $acao)
-            {
-                if (trim((string) $acao->url) !== '')
-                {
-                    $texto .= "\n" . trim((string) $acao->label) . ': ' . trim((string) $acao->url);
-                }
-            }
-        }
-
-        return ['titulo' => (string) $template->titulo, 'texto' => $texto];
+        return ['titulo' => (string) $template->titulo, 'texto' => (string) $template->template];
     }
     
     /**
