@@ -41,7 +41,8 @@ SELECT p.id,
             WHEN r.com_id = r.numeros THEN 'SUCESSO'
             WHEN fila.erro IS NOT NULL THEN 'ERRO'
             ELSE NULL END AS situacao,
-       CASE WHEN r.numeros IS NULL THEN 'Nenhum contato com telefone válido.'
+       CASE WHEN r.numeros IS NULL AND NOT tt.tem_telefone THEN 'Telefone vazio.'
+            WHEN r.numeros IS NULL THEN 'Telefone inválido.'
             WHEN r.com_id = r.numeros THEN COALESCE(ult.mensagem, 'Contatos ligados ao APChat.')
             WHEN fila.erro IS NOT NULL THEN 'Na fila (refeito sozinho): ' || fila.erro
             WHEN r.com_id > 0 THEN r.com_id || ' de ' || r.numeros || ' números ligados ao APChat; falta enviar o resto.'
@@ -51,6 +52,11 @@ SELECT p.id,
        (r.numeros IS NOT NULL) AS telefone_valido
   FROM pessoa p
   LEFT JOIN resumo r ON r.pessoa_id = p.id
+  -- algum telefone preenchido (Dados ou aba Contatos), para a mensagem de quem nao tem telefone valido
+  CROSS JOIN LATERAL (
+        SELECT regexp_replace(COALESCE(p.telefone, ''), '\D', '', 'g') <> ''
+            OR EXISTS (SELECT 1 FROM pessoa_contato pc WHERE pc.pessoa_id = p.id AND regexp_replace(COALESCE(pc.telefone, ''), '\D', '', 'g') <> '') AS tem_telefone
+  ) tt
   LEFT JOIN LATERAL (
         SELECT COALESCE(f.ultimo_erro, '') AS erro
           FROM apchat_fila f
