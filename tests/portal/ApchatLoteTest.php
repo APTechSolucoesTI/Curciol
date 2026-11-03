@@ -123,8 +123,8 @@ try {
     $r = APChatContactService::sincronizarLote([$f], ApchatContatoLog::ORIGEM_LOTE);
     ok('tempo esgotado na criacao: nao repete (fica erro, sem duplicar)', $r[$f]->situacao === 'ERRO' && count(array_keys($falso['chamadas'], 'createContact')) === 1, json_encode($falso['chamadas']));
 
-    // telefone do principal mudou na Curciol: a copia na outra pessoa acompanha; no APChat o contato antigo e atualizado
-    // e fica pendente (a API nao troca numero), nada e criado
+    // telefone do principal mudou na Curciol: a copia na outra pessoa acompanha; no APChat o numero novo e um contato
+    // novo (03/11/2026: acabou o PENDENTE; com o banco do APChat o historico do antigo passa para ele - ApchatBancoTest)
     $copia = $soContato('B2 COPIA DA B', '11987650002', 'IRMAO');
     TTransaction::open('escritorio');
     $antes = PessoaContatoService::estadoAtual($b);
@@ -135,7 +135,8 @@ try {
         array_map('array_values', q("SELECT telefone, descricao FROM pessoa_contato WHERE pessoa_id = {$copia}")));
     $falso['chamadas'] = [];
     $r = APChatContactService::sincronizarPessoa($b, [], ApchatContatoLog::ORIGEM_CADASTRO);
-    ok('telefone mudou: fluxo completo, pendente, sem criar', $r->situacao === 'PENDENTE' && !in_array('createContact', $falso['chamadas'], true), json_encode($falso['chamadas']) . ' ' . $r->situacao);
+    ok('telefone mudou: o numero novo vira contato novo no APChat (sem PENDENTE)', $r->situacao === 'SUCESSO' && in_array('createContact', $falso['chamadas'], true), json_encode($falso['chamadas']) . ' ' . $r->situacao);
+    ok('telefone mudou: idapchat da copia e o do contato novo', $idContatos($copia) === [(int) ($falso['contatos']['5511987650099']['id'] ?? -1)], json_encode($idContatos($copia)));
 
     // ---------- sincronizacao interrompida: oferece continuar de onde parou (so a pergunta; nada e enviado) ----------
     TSession::setValue('ApchatContatoList_parou', 120);

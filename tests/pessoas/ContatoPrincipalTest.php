@@ -304,9 +304,17 @@ try {
     igual('Cliente editado: trocou o principal na aba e os Dados acompanharam (sem e-mail no novo principal)', ['1932340102', null, $casa],
         [q("SELECT telefone FROM pessoa WHERE id = {$cid}")[0]['telefone'], q("SELECT email FROM pessoa WHERE id = {$cid}")[0]['email'], (int) (q("SELECT id FROM pessoa_contato WHERE pessoa_id = {$cid} AND principal = 'S'")[0]['id'] ?? 0)]);
 
-    // Cliente editado: mudar so o telefone e o e-mail dos Dados muda o contato principal
+    // Cliente editado: mudar so o telefone e o e-mail dos Dados muda o contato principal. E troca de numero (03/11/2026):
+    // sem confirmar o aviso do APChat nada e gravado; confirmado, grava
     $p = ['id' => $cid, 'nome' => MARCA . ' CLIENTE', 'telefone' => '(19) 3234-0199', 'email' => 'casa@teste.com'] + $base + grade([linha($casa, 'CASA', '1932340102', 'S'), linha($cel, 'CELULAR', '19998760102', 'N', 'cel@teste.com')]);
+    $GLOBALS['__salvar_sem_exit'] = true;
     $s = saida(function () use ($p) { post($p); (new ClienteForm($p))->onSave($p); });
+    ok('troca de numero: aviso do APChat antes de gravar (recarregar o APChat, proxima mensagem para o numero novo)',
+        strpos($s, 'Confirmar a troca') !== false && strpos($s, 'recarregar a tela do APChat') !== false && strpos($s, '(19) 3234-0102') !== false && strpos($s, '(19) 3234-0199') !== false);
+    igual('troca de numero: sem confirmar, nada gravado', '1932340102', q("SELECT telefone FROM pessoa_contato WHERE id = {$casa}")[0]['telefone'] ?? '');
+    $p['apchat_troca_confirmada'] = '1';
+    $s = saida(function () use ($p) { post($p); (new ClienteForm($p))->onSave($p); });
+    ok('troca de numero: confirmada, o campo de confirmacao volta vazio para a proxima', strpos($s, "'apchat_troca_confirmada', ''") !== false);
     igual('Cliente editado: mudou telefone e e-mail dos Dados e o principal acompanhou', ['1932340199', 'casa@teste.com'], array_values(q("SELECT telefone, email FROM pessoa_contato WHERE id = {$casa}")[0] ?? [erro($s)]));
 
     // dois principais marcados na aba: bloqueia

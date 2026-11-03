@@ -504,6 +504,8 @@ trait PessoaContatoAbaTrait
             TTransaction::rollbackAll();
             new TQuestion(PessoaContatoService::mensagemTrocaDeNumero($mudancas['trocas']),
                           new TAction([__CLASS__, 'onConfirmarTrocaNumero'], ['static' => 1]), null, 'Troca de número', 'Confirmar a troca', 'Cancelar');
+            // para o salvar como os outros avisos do onSave (nos testes, excecao em vez de encerrar o processo)
+            if (!empty($GLOBALS['__salvar_sem_exit'])) { throw new RuntimeException('TROCA_DE_NUMERO_NAO_CONFIRMADA'); }
             exit;
         }
         PessoaContatoService::limparIdApchat(array_column($mudancas['trocas'], 2));
