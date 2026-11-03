@@ -52,6 +52,8 @@ class APChatContactService
     const TIMEOUT_TOTAL   = 15;
 
     const ERRO_NAO_ENCONTRADO = 'ERR_CONTACT_NOT_FOUND';
+    // createContact de numero que o APChat ja tem (ele trata com e sem o nono digito como o mesmo contato)
+    const ERRO_JA_EXISTE = 'ERR_CONTACT_EXISTS';
 
     /**
      * Sincronizar todos: chamadas abertas ao mesmo tempo, repeticoes e pausa quando o APChat pede calma.
@@ -283,7 +285,11 @@ class APChatContactService
                 $porChave = self::rodarVarios(array_combine(array_map(function ($n) { return 'n' . $n; }, $juntos), array_map($passos, $juntos)), $token, self::CHAMADAS_SIMULTANEAS);
                 foreach ($porChave as $chave => $r) { $feitos[substr((string) $chave, 1)] = $r; }
             }
-            foreach ($depois as $numero) { $feitos[$numero] = self::rodar($passos($numero), $token); }
+            // a variante (nono digito) de um numero do lote: le o APChat de novo - o outro acabou de ser criado agora
+            foreach ($depois as $numero)
+            {
+                $feitos[$numero] = self::rodar(self::passosDecidir(self::montarContatoDoNumero($numero), self::lerNoBanco([$numero]), $numero, self::numeroComId($numero)), $token);
+            }
 
             foreach ($feitos as $numero => $r)
             {
@@ -463,8 +469,8 @@ class APChatContactService
                 return $r;
             }
 
-            $r = yield from self::passosCriar($contato);
-            if ($r->situacao === ApchatContatoLog::SITUACAO_SUCESSO && !empty($r->apchat_contato_id) && ($erro = self::espelhar((int) $r->apchat_contato_id, $contato)))
+            $r = yield from self::passosCriarOuAchar($contato, $numero, true);
+            if ($r->situacao === ApchatContatoLog::SITUACAO_SUCESSO && $r->operacao === ApchatContatoLog::OPERACAO_CREATE && !empty($r->apchat_contato_id) && ($erro = self::espelhar((int) $r->apchat_contato_id, $contato)))
             {
                 // criado, mas ainda sem a protecao: a fila grava o espelho depois
                 $r->refazer = true;
@@ -517,7 +523,40 @@ class APChatContactService
             return $r;
         }
 
-        return yield from self::passosCriar($contato);
+        return yield from self::passosCriarOuAchar($contato, $numero, false);
+    }
+
+    /**
+     * Cria; se o APChat responder que o contato ja existe (409 ERR_CONTACT_EXISTS - ele trata com e sem o nono digito
+     * como o mesmo contato, ex.: a outra forma do numero acabou de ser criada no mesmo lote), acha pelo numero e atualiza
+     * esse contato (com o espelho antes, no modo com o banco do APChat).
+     */
+    private static function passosCriarOuAchar(array $contato, string $numero, bool $comEspelho): Generator
+    {
+        $r = yield from self::passosCriar($contato);
+        if (empty($r->ja_existe))
+        {
+            return $r;
+        }
+
+        $busca = yield from self::passosBuscar(self::variantes($numero));
+        if ($busca->situacao !== 'ENCONTRADO')
+        {
+            return $r;
+        }
+        $id = (int) ($busca->contato['id'] ?? 0);
+        if ($comEspelho && $id)
+        {
+            $corpo = $contato;
+            $corpo['number'] = $busca->numero;
+            if ($erro = self::espelhar($id, $corpo))
+            {
+                return self::resultado(ApchatContatoLog::SITUACAO_ERRO, ApchatContatoLog::OPERACAO_NENHUMA, 'Não foi possível gravar no banco do APChat: ' . $erro);
+            }
+        }
+        $r = yield from self::passosAtualizar($contato, $busca->numero);
+        $r->apchat_contato_id = $r->apchat_contato_id ?? ($id ?: null);
+        return $r;
     }
 
     private static function erroDeConsulta(object $busca): object
@@ -610,6 +649,7 @@ class APChatContactService
 
         $r->http_status = $resposta['status'];
         $r->apchat_contato_id = $classe->dados['id'] ?? null;
+        $r->ja_existe = ($classe->tipo === 'JA_EXISTE');
 
         return $r;
     }
@@ -817,6 +857,11 @@ class APChatContactService
         if ($status === 404 && $codigo === self::ERRO_NAO_ENCONTRADO)
         {
             return $saida('NAO_ENCONTRADO', 'Contato não encontrado no APChat.');
+        }
+
+        if ($status === 409 && $codigo === self::ERRO_JA_EXISTE)
+        {
+            return $saida('JA_EXISTE', 'O contato já existe no APChat (com ou sem o nono dígito).');
         }
 
         $detalhe = $codigo !== '' ? $codigo : ('resposta ' . ($json ? 'sem código de erro' : 'não é JSON'));

@@ -13,7 +13,7 @@ function q(string $sql) { TTransaction::open('escritorio'); $r = TTransaction::g
 function x(string $sql): void { TTransaction::open('escritorio'); TTransaction::get()->exec($sql); TTransaction::close(); }
 
 // ---------- APChat falso: API e banco com o mesmo estado ----------
-$apchat = ['contatos' => [], 'proximo' => 80001, 'chamadas' => [], 'espelho' => [], 'transferencias' => [], 'desligados' => [], 'fora' => false, 'falhar_transferencia' => 0];
+$apchat = ['contatos' => [], 'proximo' => 80001, 'chamadas' => [], 'espelho' => [], 'transferencias' => [], 'desligados' => [], 'fora' => false, 'falhar_transferencia' => 0, 'ocultar' => []];
 $responder = function (int $status, array $json) { return ['status' => $status, 'corpo' => json_encode($json), 'erro' => '']; };
 APChatContactService::usarTransporte(function ($rota, $corpo, $token) use (&$apchat, $responder) {
     $apchat['chamadas'][] = $rota;
@@ -22,6 +22,8 @@ APChatContactService::usarTransporte(function ($rota, $corpo, $token) use (&$apc
         return isset($apchat['contatos'][$n]) ? $responder(200, ['success' => true, 'data' => $apchat['contatos'][$n]]) : $responder(404, ['success' => false, 'error' => 'ERR_CONTACT_NOT_FOUND']);
     }
     if ($rota === 'createContact') {
+        // como o APChat real: com ou sem o nono digito e o mesmo contato
+        foreach (APChatContactService::variantes($n) as $v) { if (isset($apchat['contatos'][$v])) { return $responder(409, ['success' => false, 'error' => 'ERR_CONTACT_EXISTS']); } }
         $apchat['contatos'][$n] = $corpo + ['id' => $apchat['proximo']++];
         return $responder(201, ['success' => true, 'data' => $apchat['contatos'][$n]]);
     }
@@ -39,7 +41,7 @@ $banco = new class($apchat) {
     public function contatosPorNumeros(array $numeros): array {
         if ($this->a['fora']) { throw new Exception('banco do APChat fora (teste)'); }
         $r = [];
-        foreach ($numeros as $n) { foreach (APChatContactService::variantes((string) $n) as $v) { if (isset($this->a['contatos'][$v])) { $r[$v] = $this->a['contatos'][$v] + ['number' => $v]; } } }
+        foreach ($numeros as $n) { foreach (APChatContactService::variantes((string) $n) as $v) { if (isset($this->a['contatos'][$v]) && !in_array($v, $this->a['ocultar'], true)) { $r[$v] = $this->a['contatos'][$v] + ['number' => $v]; } } }
         return $r;
     }
     public function contato(int $id): ?array {
@@ -69,7 +71,7 @@ TSession::setValue('userunitid', (int) TTransaction::get()->query("SELECT system
 TTransaction::close();
 
 $ids = [];
-$numerosTeste = ['5511987660001', '5511987660002', '5511987660003', '5511987660004', '5511987660005', '5511987660006', '5511987660007', '5511987660008', '5511987660009', '5511987660010', '5511987660011', '5511987660012'];
+$numerosTeste = ['5511987660001', '5511987660002', '5511987660003', '5511987660004', '5511987660005', '5511987660006', '5511987660007', '5511987660008', '5511987660009', '5511987660010', '5511987660011', '5511987660012', '5511987660013'];
 $novo = function (string $nome, string $telefone) use (&$ids) {
     TTransaction::open('escritorio');
     $p = new Pessoa();
@@ -191,6 +193,17 @@ try {
     ob_start(); ApchatFilaService::processar(); ob_end_clean();
     igual('fila: transferencia refeita', [[$idG, (int) ($apchat['contatos']['5511987660010']['id'] ?? 0)]], $apchat['transferencias']);
     igual('fila: transferencia saiu da fila', 0, (int) q("SELECT count(*) n FROM apchat_fila WHERE numero = '5511987660010'")[0]['n']);
+
+    // ---------- 409 "ja existe": a outra forma do numero (nono digito) acabou de ser criada e a leitura ainda nao via ----------
+    $h = $novo('H', '11987660013');
+    $apchat['contatos']['551187660013'] = ['id' => 80960, 'name' => 'OUTRA FORMA DO NUMERO'];
+    $apchat['ocultar'] = ['551187660013'];
+    $apchat['chamadas'] = [];
+    $r = APChatContactService::sincronizarPessoa($h, [], ApchatContatoLog::ORIGEM_CADASTRO);
+    igual('409 ja existe: cria, acha pelo numero e atualiza (sem erro, sem fila)', ['SUCESSO|UPDATE', ['createContact', 'showcontact', 'showcontact', 'updateContact'], 0],
+        [$r->situacao . '|' . $r->operacao, $apchat['chamadas'], (int) q("SELECT count(*) n FROM apchat_fila WHERE numero = '5511987660013'")[0]['n']]);
+    igual('409 ja existe: idapchat e espelho do contato que ja existia', [80960, '551187660013'], [$idContato($h), $apchat['espelho'][80960]['numero'] ?? null]);
+    $apchat['ocultar'] = [];
 
     // ---------- tela "Contatos sem vinculo": vincular a um cadastro existente ----------
     $apchat['contatos']['5511987669001'] = ['id' => 80950, 'name' => '~Filho da D'];
