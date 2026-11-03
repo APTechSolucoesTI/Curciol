@@ -69,7 +69,7 @@ TSession::setValue('userunitid', (int) TTransaction::get()->query("SELECT system
 TTransaction::close();
 
 $ids = [];
-$numerosTeste = ['5511987660001', '5511987660002', '5511987660003', '5511987660004', '5511987660005', '5511987660006', '5511987660007', '5511987660008', '5511987660009', '5511987660010'];
+$numerosTeste = ['5511987660001', '5511987660002', '5511987660003', '5511987660004', '5511987660005', '5511987660006', '5511987660007', '5511987660008', '5511987660009', '5511987660010', '5511987660011', '5511987660012'];
 $novo = function (string $nome, string $telefone) use (&$ids) {
     TTransaction::open('escritorio');
     $p = new Pessoa();
@@ -126,15 +126,30 @@ try {
     ok('troca: log da transferencia', (int) q("SELECT count(*) n FROM apchat_contato_log WHERE pessoa_id = {$a} AND operacao = 'TRANSFERENCIA' AND situacao = 'SUCESSO'")[0]['n'] === 1);
     ok('troca: resultado do salvar sem problema', $r->situacao === 'SUCESSO', $r->mensagem);
 
-    // ---------- troca com o numero antigo ainda em outro cadastro: nao transfere ----------
+    // ---------- troca do principal: a copia em outro cadastro acompanha (regra 23), entao o antigo sai de todo lugar ----------
     $d = $novo('D', '11987660005');
     APChatContactService::sincronizarLote([$d], ApchatContatoLog::ORIGEM_LOTE);
     x("INSERT INTO pessoa_contato (pessoa_id, descricao, telefone, principal) VALUES ({$b}, 'MARIDO DA D', '11987660005', 'N')");
     $apchat['transferencias'] = [];
     $trocar($d, '11987660006');
     APChatContactService::sincronizarPessoa($d, [], ApchatContatoLog::ORIGEM_CADASTRO);
+    igual('troca do principal: a copia no outro cadastro acompanhou o numero novo', '11987660006', q("SELECT telefone FROM pessoa_contato WHERE pessoa_id = {$b} AND descricao = 'MARIDO DA D'")[0]['telefone'] ?? null);
+    igual('troca do principal: historico transferido (o numero antigo saiu de todo lugar)', 1, count($apchat['transferencias']));
+
+    // ---------- troca de um contato NAO principal cujo numero continua em outro cadastro: nao transfere ----------
+    x("INSERT INTO pessoa_contato (pessoa_id, descricao, telefone, principal) VALUES ({$d}, 'RECADO', '11987660011', 'N')");
+    x("INSERT INTO pessoa_contato (pessoa_id, descricao, telefone, principal) VALUES ({$b}, 'RECADO DA D', '11987660011', 'N')");
+    APChatContactService::sincronizarPessoa($d, [], ApchatContatoLog::ORIGEM_CADASTRO);
+    $apchat['transferencias'] = [];
+    TTransaction::open('escritorio');
+    $antes = PessoaContatoService::estadoAtual($d);
+    TTransaction::get()->exec("UPDATE pessoa_contato SET telefone = '11987660012' WHERE pessoa_id = {$d} AND descricao = 'RECADO'");
+    $mm = PessoaContatoService::trocasDeNumero($antes['contatos'], PessoaContatoService::numerosDosContatos($d));
+    APChatContactService::registrarTrocas($d, $mm['trocas'], $mm['removidos']);
+    TTransaction::close();
+    APChatContactService::sincronizarPessoa($d, [], ApchatContatoLog::ORIGEM_CADASTRO);
     igual('troca: numero antigo ainda em outro cadastro -> sem transferencia', [], $apchat['transferencias']);
-    ok('troca: o contato do numero antigo continua no APChat', isset($apchat['contatos']['5511987660005']));
+    ok('troca: o contato do numero antigo continua no APChat (ligado ao outro cadastro)', isset($apchat['contatos']['5511987660011']));
 
     // ---------- numero que saiu da Curciol: fica travado no APChat ----------
     $e = $novo('E', '11987660007');

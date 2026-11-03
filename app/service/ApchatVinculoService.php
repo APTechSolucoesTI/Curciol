@@ -142,7 +142,8 @@ class ApchatVinculoService
         $ignorados = array_map('intval', $conn->query('SELECT contato_id FROM apchat_contato_ignorado')->fetchAll(PDO::FETCH_COLUMN));
         TTransaction::close();
 
-        return ['ids' => $ids, 'numeros' => array_keys($numeros), 'ignorados' => $ignorados];
+        // array_keys devolveria os numeros como inteiros (chave numerica do PHP)
+        return ['ids' => $ids, 'numeros' => array_map('strval', array_keys($numeros)), 'ignorados' => $ignorados];
     }
 
     /**
