@@ -45,7 +45,11 @@ INSERT INTO system_group_program (id, system_group_id, system_program_id)
 SELECT (SELECT COALESCE(MAX(id), 0) FROM system_group_program) + ROW_NUMBER() OVER (ORDER BY g.id, p.id), g.id, p.id
   FROM system_group g
   JOIN system_program p ON p.controller IN ('ApchatContatoSemVinculoList', 'ApchatContatoConversaView', 'ApchatVincularForm')
- WHERE NOT EXISTS (SELECT 1 FROM system_group_program gp WHERE gp.system_group_id = g.id AND gp.system_program_id = p.id);
+ WHERE g.name <> 'Financeiro do agendamento'   -- grupo so com a janela do financeiro (30/10); a Vania tem a tela pelos outros grupos
+   AND NOT EXISTS (SELECT 1 FROM system_group_program gp WHERE gp.system_group_id = g.id AND gp.system_program_id = p.id);
+DELETE FROM system_group_program
+ WHERE system_group_id IN (SELECT id FROM system_group WHERE name = 'Financeiro do agendamento')
+   AND system_program_id IN (SELECT id FROM system_program WHERE controller IN ('ApchatContatoSemVinculoList', 'ApchatContatoConversaView', 'ApchatVincularForm'));
 
 COMMIT;
 
