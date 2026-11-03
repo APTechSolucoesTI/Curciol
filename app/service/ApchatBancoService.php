@@ -265,4 +265,30 @@ class ApchatBancoService
         $st->execute([$contatoId]);
         return array_reverse($st->fetchAll());
     }
+
+    // =================================================================
+    // Resposta SIM/NAO do WhatsApp de confirmacao (ApchatRespostaService)
+    // =================================================================
+
+    /**
+     * Primeira mensagem que o cliente mandou (nao nossa) de um destes numeros depois de um momento.
+     *
+     * @param string[] $numeros 55 + DDD + numero (com e sem o nono digito)
+     * @param string   $desde   'Y-m-d H:i:s' no horario de Sao Paulo
+     * @return array|null {id, body, mediaType, createdAt}
+     */
+    public static function primeiraRespostaDepois(array $numeros, string $desde): ?array
+    {
+        if (self::$falso) { return self::$falso->primeiraRespostaDepois($numeros, $desde); }
+        $st = self::conn()->prepare('SELECT m.id, m.body, m."mediaType", m."createdAt"
+                                       FROM curciol.mensagens m
+                                       JOIN curciol.contatos c ON c.id = m."contactId"
+                                      WHERE c.number = ANY (?::varchar[])
+                                        AND NOT m."fromMe" AND NOT COALESCE(m."isDeleted", false)
+                                        AND m."createdAt" > ?::timestamptz
+                                      ORDER BY m."createdAt", m.id LIMIT 1');
+        $st->execute([self::arrayPg($numeros), $desde]);
+        $r = $st->fetch();
+        return $r ?: null;
+    }
 }

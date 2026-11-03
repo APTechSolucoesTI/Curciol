@@ -72,5 +72,26 @@ class EscritorioService
         $templateEscritorio->tipo_template = 'WHATSAPP';
         $templateEscritorio->readonly = 'T';
         $templateEscritorio->store();
+
+        // mensagens automaticas depois da resposta SIM/NAO (ApchatRespostaService)
+        $respostas = [
+            ['WHATSAPP_RESPOSTA_SIM', 'Resposta SIM: confirmação recebida', 'Confirmação recebida',
+             'Obrigado, {$cliente}! Seu agendamento para {$data_inicial}, com {$profissional}, está confirmado.'],
+            ['WHATSAPP_RESPOSTA_NAO', 'Resposta NÃO: agradecimento', 'Agendamento cancelado',
+             'Obrigado por avisar, {$cliente}. Seu agendamento de {$data_inicial} foi cancelado.'],
+        ];
+        foreach ($respostas as [$chave, $descricao, $titulo, $texto])
+        {
+            $templateEscritorio = new TemplateEscritorio();
+            $templateEscritorio->chave = $chave;
+            $templateEscritorio->descricao = $descricao;
+            $templateEscritorio->escritorio_id = $escritorio_id;
+            $templateEscritorio->habilitado = 'T';
+            $templateEscritorio->template = $texto;
+            $templateEscritorio->titulo = $titulo;
+            $templateEscritorio->tipo_template = 'WHATSAPP';
+            $templateEscritorio->readonly = 'T';
+            $templateEscritorio->store();
+        }
    }
 }

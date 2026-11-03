@@ -52,6 +52,42 @@ class AgendamentoService
         return substr(hash_hmac('sha256', 'agendamento:' . (int) $id, $chave), 0, 32);
     }
 
+    /**
+     * Atendimento do agendamento confirmado, com os procedimentos do agendamento (o "Iniciar atendimento" precisa dele).
+     * Usado pelo Confirmar da equipe e pela confirmacao do cliente pelo WhatsApp (03/11/2026).
+     */
+    public static function criarAtendimento(Agendamento $agendamento): Atendimento
+    {
+        $atendimento = new Atendimento;
+        $atendimento->agendamento_id = $agendamento->id;
+        $atendimento->cliente_id = $agendamento->cliente_id;
+        $atendimento->profissional_id = $agendamento->get_agenda()->profissional_id;
+        $atendimento->tipo_atendimento_id = TipoAtendimento::AGENDADO;
+        $atendimento->criacao_user_id = TSession::getValue('userid');
+        $atendimento->store();
+
+        $total = 0;
+        foreach ($agendamento->getAgendamentoProcedimentos() ?: [] as $agendamentoProcedimento)
+        {
+            $atendimentoProcedimento = new AtendimentoProcedimento;
+            $atendimentoProcedimento->atendimento_id = $atendimento->id;
+            $atendimentoProcedimento->quantidade = $agendamentoProcedimento->quantidade;
+            $atendimentoProcedimento->valor = $agendamentoProcedimento->valor;
+            $atendimentoProcedimento->valor_total = $agendamentoProcedimento->valor_total;
+            $atendimentoProcedimento->procedimento_id = $agendamentoProcedimento->procedimento_id;
+            $atendimentoProcedimento->parceiro_id = $agendamentoProcedimento->parceiro_id;
+            $atendimentoProcedimento->store();
+
+            $total += $atendimentoProcedimento->valor;
+        }
+
+        $atendimento->valor_total = $total;
+        $atendimento->modificacao_user_id = TSession::getValue('userid');
+        $atendimento->store();
+
+        return $atendimento;
+    }
+
     /** Token antigo: so de agendamento que ja existia na troca do formato e que ainda nao passou. */
     private static function legadoValido($id)
     {

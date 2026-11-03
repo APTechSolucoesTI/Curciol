@@ -171,6 +171,23 @@ class AgendamentoFormView extends TPage
         $row5 = $this->form->addFields([$enviar_whatsapp,$enviar_email]);
         $row5->layout = [' col-sm-12'];
 
+        // ultima confirmacao por WhatsApp e a resposta do cliente (ApchatRespostaService, 03/11/2026)
+        $confirmacao = TTransaction::get()->query("SELECT m.enviado_em, m.destino, m.resposta, m.resposta_texto, m.respondido_em, m.resposta_obs
+                                                     FROM mensagem m JOIN template_escritorio t ON t.id = m.template_escritorio_id
+                                                    WHERE m.agendamento_id = " . (int) $agendamento->id . " AND t.chave = 'WHATSAPP_CONFIRMACAO_AGENDAMENTO'
+                                                    ORDER BY m.enviado_em DESC, m.id DESC LIMIT 1")->fetch(PDO::FETCH_ASSOC);
+        if ($confirmacao)
+        {
+            $quando = fn($d) => $d ? date('d/m/Y H:i', strtotime($d)) : '';
+            $situacao = $confirmacao['resposta'] === null
+                ? '<span style="color:#FF9800"><b>aguardando resposta</b></span>'
+                : '<b>' . htmlspecialchars(in_array($confirmacao['resposta'], ['SIM', 'NAO', 'OUTRA']) ? 'respondeu "' . $confirmacao['resposta_texto'] . '"' : strtolower($confirmacao['resposta']))
+                  . '</b> em ' . $quando($confirmacao['respondido_em']) . ($confirmacao['resposta_obs'] ? ' - ' . htmlspecialchars($confirmacao['resposta_obs']) : '');
+            $rowConfirmacao = $this->form->addFields([new TLabel('<i class="fab fa-whatsapp" style="color:#4CAF50"></i> Confirmação por WhatsApp enviada em '
+                . $quando($confirmacao['enviado_em']) . ' para ' . PessoaContatoService::formatarTelefone($confirmacao['destino']) . ': ' . $situacao, '#555', '13px', null, '100%')]);
+            $rowConfirmacao->layout = [' col-sm-12'];
+        }
+
         $row6 = $this->form->addContent([new TFormSeparator("Ajustar estado do agendamento", '#333', '18', '#eee')]);
         $row7 = $this->form->addFields([$btncancelar,$btnconfirmar,$btnnaocompareceu,$btniniciar,$btnentrar,$btnvalidar]);
         $row7->layout = [' col-sm-12'];
@@ -711,38 +728,7 @@ class AgendamentoFormView extends TPage
             $historico->atribuido_em = date('Y-m-d H:i:s');
             $historico->store();
 
-            $atendimento = new Atendimento;
-            $atendimento->agendamento_id = $agendamento->id;
-            $atendimento->cliente_id = $agendamento->cliente_id;
-            $atendimento->profissional_id = $agendamento->get_agenda()->profissional_id;
-            $atendimento->tipo_atendimento_id = TipoAtendimento::AGENDADO;
-            $atendimento->criacao_user_id = TSession::getValue('userid');
-            $atendimento->store();
-
-            $agendamentoProcedimentos = $agendamento->getAgendamentoProcedimentos();
-            $total = 0;
-            if ($agendamentoProcedimentos)
-            {
-                foreach($agendamentoProcedimentos as $agendamentoProcedimento)
-                {
-                    $atendimentoProcedimento = new AtendimentoProcedimento;
-                    $atendimentoProcedimento->atendimento_id = $atendimento->id;
-                    $atendimentoProcedimento->quantidade = $agendamentoProcedimento->quantidade;
-                    $atendimentoProcedimento->valor = $agendamentoProcedimento->valor;
-                    $atendimentoProcedimento->valor_total = $agendamentoProcedimento->valor_total;
-                    $atendimentoProcedimento->procedimento_id = $agendamentoProcedimento->procedimento_id;
-                    $atendimentoProcedimento->parceiro_id = $agendamentoProcedimento->parceiro_id;
-                    $atendimento->criacao_user_id = TSession::getValue('userid');
-                    $atendimentoProcedimento->store();
-
-                    $total += $atendimentoProcedimento->valor;
-                }
-            }
-
-            $atendimento->valor_total = $total;
-            $atendimento->modificacao_user_id = TSession::getValue('userid');
-            $atendimento->store();
-            $agendamento->atendimento = $atendimento;
+            $agendamento->atendimento = AgendamentoService::criarAtendimento($agendamento);
 
             // Curciol (29/10/2026): a conta a receber do agendamento nao nasce mais no Confirmar - so pelo
             // "Gerar financeiro" (com parceria de repasse; AgendamentoFinanceiroService)
