@@ -26,7 +26,9 @@ class ApchatContatoList extends TPage
     private $showMethods = ['onReload', 'onSearch', 'onRefresh', 'onClearFilters', 'onGlobalSearch'];
     private $limit = 20;
 
-    const TAMANHO_LOTE = 60; // por pedido; dentro do lote ate APChatContactService::CHAMADAS_SIMULTANEAS ao mesmo tempo
+    // por pedido; dentro do lote ate APChatContactService::CHAMADAS_SIMULTANEAS ao mesmo tempo. 150 desde 03/11/2026: o
+    // lote le o banco do APChat uma vez e so chama a API para criar ou para o que mudou (antes ate 3 chamadas por numero)
+    const TAMANHO_LOTE = 150;
 
     use BuilderDatagridTrait;
 
@@ -257,6 +259,29 @@ class ApchatContatoList extends TPage
         $panel->datagrid = 'datagrid-container';
         $this->datagridPanel = $panel;
 
+        // fila de reenvio (03/11/2026): o que nao foi para o APChat e e refeito sozinho
+        try
+        {
+            [$naFila, $itensFila] = ApchatFilaService::resumo(5);
+            if ($naFila > 0)
+            {
+                $linhas = array_map(function ($i) {
+                    return htmlspecialchars(($i['motivo'] === ApchatFilaService::TRANSFERENCIA ? 'Troca de número ' : '') . $i['numero'])
+                         . ' · ' . (int) $i['tentativas'] . ' tentativa(s), próxima ' . date('d/m H:i', strtotime($i['proxima_tentativa']))
+                         . ' · ' . htmlspecialchars(mb_substr((string) $i['ultimo_erro'], 0, 120));
+                }, $itensFila);
+                $aviso = new TElement('div');
+                $aviso->class = 'alert alert-warning';
+                $aviso->style = 'margin-bottom:8px; font-size:12px';
+                $aviso->add("<b>Na fila ({$naFila}):</b> envios ao APChat que falharam e são refeitos sozinhos a cada poucos minutos.<br>" . implode('<br>', $linhas) . ($naFila > count($linhas) ? '<br>…' : ''));
+                $panel->add($aviso);
+            }
+        }
+        catch (Exception $e)
+        {
+            // a tabela da fila ainda nao existe (migracao de 03/11/2026 nao aplicada)
+        }
+
         $panel->add($this->datagrid_form);
 
         $panel->getBody()->class .= ' table-responsive';
@@ -474,7 +499,8 @@ class ApchatContatoList extends TPage
             $nomes = [
                 'SUCESSO|CREATE'  => 'contatos criados',
                 'SUCESSO|UPDATE'  => 'contatos atualizados',
-                'PENDENTE|UPDATE' => 'pendentes (telefone alterado, contato antigo mantido)',
+                'SUCESSO|NENHUMA' => 'já estavam iguais no APChat (sem chamada)',
+                'ERRO|NENHUMA'    => 'com erro (ficaram na fila e são refeitos sozinhos)',
                 'IGNORADO|NENHUMA'=> 'não sincronizados (telefone inválido ou vazio)',
             ];
 

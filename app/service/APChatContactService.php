@@ -32,8 +32,11 @@
  * - O update localiza o contato pelo number e preserva os campos que nao
  *   forem enviados. Por isso campo vazio no Curciol nao e enviado.
  * - O update NAO troca o numero: id, contactId e newNumber sao ignorados.
- *   Telefone alterado no Curciol, com contato no numero antigo, vira
- *   PENDENTE (o contato antigo e atualizado, nada e criado) - ver decidir().
+ *   Desde 03/11/2026, telefone trocado na Curciol = contato novo no APChat e o
+ *   historico do antigo passa para ele (processarTrocas; funcao do schema
+ *   curciol no banco do APChat). Com o banco do APChat configurado
+ *   (ApchatBancoService), o envio le la se o numero existe em vez de consultar
+ *   a API, e falhas vao para a fila (ApchatFilaService).
  * - So um 404 com ERR_CONTACT_NOT_FOUND prova que o contato nao existe e
  *   libera o create. Qualquer outro erro encerra sem criar nada.
  *
@@ -121,6 +124,8 @@ class APChatContactService
             {
                 $r = self::resultado(ApchatContatoLog::SITUACAO_IGNORADO, ApchatContatoLog::OPERACAO_NENHUMA, 'Nenhum contato com telefone válido: nada foi enviado ao APChat.');
                 self::registrar($pessoa_id, $origem, $r, null, null);
+                // os numeros que sairam desta pessoa (contato excluido) deixam de ser da Curciol no APChat
+                self::processarTrocas($pessoa_id, [], $origem);
                 TTransaction::close();
 
                 return $r;
@@ -150,17 +155,20 @@ class APChatContactService
             foreach ($chaves as $chave) { self::travar($chave); }
 
             $principal = self::numeroPrincipal($pessoa_id);
+            $noApchat = self::lerNoBanco($numeros);
             $resultados = [];
             foreach ($numeros as $numero)
             {
-                $contato = self::montarContatoDoNumero($numero);
-                $anteriores = self::numerosAnterioresDoNumero($numero, $numero === $principal ? $telefones_anteriores : []);
-                $r = self::rodar(self::passosDecidir($contato, $anteriores, self::numeroComId($numero)), $token);
+                $r = self::rodar(self::passosDecidir(self::montarContatoDoNumero($numero), $noApchat, $numero, self::numeroComId($numero)), $token);
 
-                self::registrar($pessoa_id, $origem, $r, $numero, $r->numero_anterior ?? null);
+                self::registrar($pessoa_id, $origem, $r, $numero, null);
                 self::gravarIdApchatDoNumero($numero, $r);
+                self::filaDoEnvio($numero, $pessoa_id, $r);
                 $resultados[$numero] = $r;
             }
+
+            // troca de numero (03/11/2026): o historico do contato do numero antigo passa para o do novo
+            foreach (self::processarTrocas($pessoa_id, $resultados, $origem) as $numero => $r) { $resultados[$numero] = $r; }
 
             TTransaction::close();
 
@@ -262,8 +270,10 @@ class APChatContactService
                 $juntos[] = (string) $numero;
             }
 
-            $passos = function (string $numero) {
-                return self::passosDecidir(self::montarContatoDoNumero($numero), self::numerosAnterioresDoNumero($numero, []), self::numeroComId($numero));
+            // uma leitura do banco do APChat para o lote inteiro: quem ja existe igual nao gera chamada nenhuma (03/11/2026)
+            $noApchat = self::lerNoBanco(array_keys($donoDoNumero));
+            $passos = function (string $numero) use ($noApchat) {
+                return self::passosDecidir(self::montarContatoDoNumero($numero), $noApchat, $numero, self::numeroComId($numero));
             };
 
             $feitos = [];
@@ -275,7 +285,11 @@ class APChatContactService
             }
             foreach ($depois as $numero) { $feitos[$numero] = self::rodar($passos($numero), $token); }
 
-            foreach ($feitos as $numero => $r) { self::gravarIdApchatDoNumero((string) $numero, $r); }
+            foreach ($feitos as $numero => $r)
+            {
+                self::gravarIdApchatDoNumero((string) $numero, $r);
+                self::filaDoEnvio((string) $numero, $donoDoNumero[$numero] ?? null, $r);
+            }
 
             foreach ($numerosDe as $id => $numeros)
             {
@@ -283,7 +297,7 @@ class APChatContactService
                 foreach ($numeros as $numero)
                 {
                     $porNumero[$numero] = $feitos[$numero];
-                    self::registrar($id, $origem, $feitos[$numero], $numero, $feitos[$numero]->numero_anterior ?? null);
+                    self::registrar($id, $origem, $feitos[$numero], $numero, null);
                 }
                 $resultados[$id] = self::resumirResultados($porNumero, self::numeroPrincipal($id));
             }
@@ -404,18 +418,61 @@ class APChatContactService
     // roda um contato por vez (cadastro: rodar) ou varios ao mesmo tempo (Sincronizar todos: rodarVarios, curl_multi).
 
     /**
-     * 0. Caminho curto: o ultimo envio deu certo com este mesmo numero -> atualiza direto (1 chamada). Se o APChat
-     *    responder "nao encontrado" (o numero mudou la), segue o fluxo completo abaixo.
-     * 1. Consulta o numero atual (e a variante com/sem o nono digito).
-     *    Achou: UPDATE nele.
-     * 2. Nao achou: consulta os numeros anteriores. Achou: UPDATE no contato
-     *    antigo e PENDENTE (a API nao troca numero) - nao cria outro.
-     * 3. Nenhum existe, com 404 ERR_CONTACT_NOT_FOUND em todas as
-     *    consultas: CREATE.
-     * Qualquer erro de consulta encerra sem criar.
+     * O numero e a chave (03/11/2026; acabou o "numero anterior -> PENDENTE": troca de numero e contato novo, com o
+     * historico transferido - ver processarTrocas).
+     *
+     * Com o banco do APChat ($noApchat de lerNoBanco): o contato desse numero (ou da variante do nono digito) ja existe
+     * e esta igual -> nenhuma chamada; existe e mudou algo -> espelho + updateContact; nao existe -> createContact +
+     * espelho. Banco configurado mas fora do ar -> erro (fila): sem o espelho a protecao do APChat desfaria a atualizacao.
+     *
+     * Sem o banco configurado ($noApchat null), so pela API, como antes:
+     * 0. o numero ja tem idapchat -> atualiza direto (1 chamada); "nao encontrado" -> segue abaixo;
+     * 1. consulta o numero (e a variante com/sem o nono digito): achou -> UPDATE nele;
+     * 2. nao existe (404 ERR_CONTACT_NOT_FOUND em todas as consultas) -> CREATE. Qualquer erro de consulta encerra sem criar.
      */
-    private static function passosDecidir(array $contato, array $anteriores, bool $conhecido = false): Generator
+    private static function passosDecidir(array $contato, ?array $noApchat, string $numero, bool $conhecido = false): Generator
     {
+        if ($noApchat !== null)
+        {
+            if (!$noApchat['ok'])
+            {
+                return self::resultado(ApchatContatoLog::SITUACAO_ERRO, ApchatContatoLog::OPERACAO_NENHUMA,
+                    'Banco do APChat indisponível: o envio ficou na fila e será refeito sozinho. ' . $noApchat['erro']);
+            }
+
+            $la = null;
+            foreach (self::variantes($numero) as $v) { if (isset($noApchat['contatos'][$v])) { $la = $noApchat['contatos'][$v]; break; } }
+
+            if ($la)
+            {
+                $corpo = $contato;
+                $corpo['number'] = (string) $la['number'];
+                // o espelho vem antes: a protecao do APChat so aceita o que estiver nele
+                if ($erro = self::espelhar((int) $la['id'], $corpo))
+                {
+                    return self::resultado(ApchatContatoLog::SITUACAO_ERRO, ApchatContatoLog::OPERACAO_NENHUMA, 'Não foi possível gravar no banco do APChat: ' . $erro);
+                }
+                if (self::dadosIguais($contato, $la))
+                {
+                    $r = self::resultado(ApchatContatoLog::SITUACAO_SUCESSO, ApchatContatoLog::OPERACAO_NENHUMA, 'Contato já estava igual no APChat.');
+                    $r->apchat_contato_id = (int) $la['id'];
+                    return $r;
+                }
+                $r = yield from self::passosAtualizar($contato, (string) $la['number']);
+                $r->apchat_contato_id = $r->apchat_contato_id ?? (int) $la['id'];
+                return $r;
+            }
+
+            $r = yield from self::passosCriar($contato);
+            if ($r->situacao === ApchatContatoLog::SITUACAO_SUCESSO && !empty($r->apchat_contato_id) && ($erro = self::espelhar((int) $r->apchat_contato_id, $contato)))
+            {
+                // criado, mas ainda sem a protecao: a fila grava o espelho depois
+                $r->refazer = true;
+                $r->mensagem .= ' (proteção no APChat pendente: ' . $erro . ')';
+            }
+            return $r;
+        }
+
         if ($conhecido)
         {
             $resposta = yield ['updateContact', $contato];
@@ -458,32 +515,6 @@ class APChatContactService
             }
 
             return $r;
-        }
-
-        if (!empty($anteriores))
-        {
-            $antigo = yield from self::passosBuscar($anteriores);
-
-            if ($antigo->situacao === 'ERRO')
-            {
-                return self::erroDeConsulta($antigo);
-            }
-
-            if ($antigo->situacao === 'ENCONTRADO')
-            {
-                $r = yield from self::passosAtualizar($contato, $antigo->numero);
-                $r->apchat_contato_id = $r->apchat_contato_id ?? ($antigo->contato['id'] ?? null);
-                $r->numero_anterior = $antigo->numero;
-
-                if ($r->situacao === ApchatContatoLog::SITUACAO_SUCESSO)
-                {
-                    $r->situacao = ApchatContatoLog::SITUACAO_PENDENTE;
-                    $r->mensagem = "Telefone alterado de {$antigo->numero} para {$contato['number']}. A API do APChat não permite trocar o número: "
-                                 . "o contato existente foi atualizado com os demais dados e mantém o número antigo. Troque o número manualmente no APChat. Nenhum contato novo foi criado.";
-                }
-
-                return $r;
-            }
         }
 
         return yield from self::passosCriar($contato);
@@ -1069,32 +1100,263 @@ class APChatContactService
         return (bool) $st->fetchColumn();
     }
 
+    // =================================================================
+    // Banco do APChat, espelho, fila e troca de numero (03/11/2026)
+    // =================================================================
+
+    /** @var array [pessoa_id => ['trocas' => [[antigo, novo]], 'removidos' => [numero]]] registradas pelo salvar */
+    private static $trocas = [];
+
     /**
-     * Numeros em que o contato pode estar no APChat alem do atual: os ultimos enviados com sucesso para o mesmo id do
-     * APChat (o telefone do contato mudou na Curciol e a API nao troca numero) e os telefones de antes da edicao.
-     *
-     * @return string[]
+     * O que existe no APChat para estes numeros: null sem o banco configurado (so API); ['ok' => false] com o banco fora.
+     * @return array|null ['ok' => bool, 'erro' => string, 'contatos' => [numero do APChat => linha]]
      */
-    private static function numerosAnterioresDoNumero(string $numero, array $telefones): array
+    private static function lerNoBanco(array $numeros): ?array
     {
-        $st = TTransaction::get()->prepare('SELECT DISTINCT idapchat FROM pessoa_contato WHERE idapchat IS NOT NULL AND ' . self::mesmoNumeroSql());
-        $st->execute(self::argsNumero($numero));
-        $ids = array_map('intval', $st->fetchAll(PDO::FETCH_COLUMN));
-        if ($ids)
+        if (!ApchatBancoService::configurado())
         {
-            $ultimos = ApchatContatoLog::where('apchat_contato_id', 'in', $ids)
-                                       ->where('situacao', 'in', [ApchatContatoLog::SITUACAO_SUCESSO, ApchatContatoLog::SITUACAO_PENDENTE])
-                                       ->orderBy('id', 'desc')
-                                       ->take(5)
-                                       ->load();
-            foreach ($ultimos as $log)
+            return null;
+        }
+        try
+        {
+            if (!ApchatBancoService::disponivel()) { throw new Exception(ApchatBancoService::erro()); }
+            return ['ok' => true, 'erro' => '', 'contatos' => ApchatBancoService::contatosPorNumeros($numeros)];
+        }
+        catch (Throwable $e)
+        {
+            return ['ok' => false, 'erro' => $e->getMessage(), 'contatos' => []];
+        }
+    }
+
+    /** Grava o espelho (o que a Curciol manda para o contato); devolve a mensagem de erro ou '' */
+    private static function espelhar(int $id, array $corpo): string
+    {
+        try
+        {
+            ApchatBancoService::gravarEspelho($id, (string) ($corpo['name'] ?? ''), (string) $corpo['number'], $corpo['email'] ?? null);
+            return '';
+        }
+        catch (Throwable $e)
+        {
+            return $e->getMessage();
+        }
+    }
+
+    /** O contato do APChat ja tem tudo o que a Curciol mandaria? (campos nao enviados nao contam: o update os mantem) */
+    private static function dadosIguais(array $contato, array $noApchat): bool
+    {
+        $data = function ($v) {
+            $v = trim((string) $v);
+            if (preg_match('/^(\d{2})\/(\d{2})\/(\d{4})$/', $v, $m)) { return "{$m[3]}-{$m[2]}-{$m[1]}"; }
+            return substr($v, 0, 10);
+        };
+        foreach ($contato as $campo => $valor)
+        {
+            if ($campo === 'number') { continue; }
+            $la = $noApchat[$campo] ?? null;
+            if ($campo === 'email') { $iguais = mb_strtolower(trim((string) $valor)) === mb_strtolower(trim((string) $la)); }
+            elseif ($campo === 'birthdayDate') { $iguais = $data($valor) === $data($la); }
+            else { $iguais = trim((string) $valor) === trim((string) $la); }
+            if (!$iguais) { return false; }
+        }
+        return true;
+    }
+
+    /** Envio que falhou entra na fila (reenvio sozinho); o que deu certo sai dela. */
+    private static function filaDoEnvio(string $numero, ?int $pessoa_id, object $r): void
+    {
+        try
+        {
+            if ($r->situacao === ApchatContatoLog::SITUACAO_ERRO || !empty($r->refazer))
             {
-                $telefones[] = $log->numero_anterior ?: $log->numero;
-                $telefones[] = $log->numero;
+                ApchatFilaService::enfileirar(ApchatFilaService::ENVIO, $numero, $pessoa_id, null, $r->mensagem);
+            }
+            elseif ($r->situacao === ApchatContatoLog::SITUACAO_SUCESSO)
+            {
+                ApchatFilaService::concluir(ApchatFilaService::ENVIO, $numero);
+            }
+        }
+        catch (Throwable $e)
+        {
+            // a fila nunca impede o resto
+        }
+    }
+
+    /**
+     * O salvar da pessoa avisa as trocas de numero (contato que ja existia e mudou de numero) e os numeros que sairam
+     * (contato excluido ou sem telefone). Usado por processarTrocas, no envio logo depois do commit.
+     *
+     * @param array $trocas    [[numero antigo, numero novo]] (55 + DDD + numero)
+     * @param array $removidos [numero]
+     */
+    public static function registrarTrocas(int $pessoa_id, array $trocas, array $removidos): void
+    {
+        self::$trocas[$pessoa_id] = ['trocas' => $trocas, 'removidos' => $removidos];
+    }
+
+    /** Algum contato da Curciol ainda tem esse numero (com ou sem o nono digito)? */
+    private static function numeroEmUso(string $numero): bool
+    {
+        foreach (self::variantes($numero) as $v)
+        {
+            $st = TTransaction::get()->prepare('SELECT 1 FROM pessoa_contato WHERE ' . self::mesmoNumeroSql() . ' LIMIT 1');
+            $st->execute(self::argsNumero($v));
+            if ($st->fetchColumn()) { return true; }
+        }
+        return false;
+    }
+
+    /**
+     * Troca de numero: o contato do APChat do numero antigo passa o historico para o do numero novo e e excluido (so se
+     * nenhum outro contato da Curciol ainda usa o numero antigo). Numero que saiu da Curciol: o contato do APChat fica
+     * travado (ex-contato). Falha -> fila. Usa a transacao aberta.
+     *
+     * @param object[] $resultados [numero => resultado do envio desta pessoa]
+     * @return object[] [numero => resultado com erro] para o resumo do salvar
+     */
+    private static function processarTrocas(int $pessoa_id, array $resultados, string $origem): array
+    {
+        $registro = self::$trocas[$pessoa_id] ?? null;
+        unset(self::$trocas[$pessoa_id]);
+        if (!$registro || (!$registro['trocas'] && !$registro['removidos']) || !ApchatBancoService::configurado())
+        {
+            return [];
+        }
+
+        $problemas = [];
+        $antigos = array_merge(array_column($registro['trocas'], 0), $registro['removidos']);
+        $noApchat = self::lerNoBanco($antigos);
+
+        foreach ($registro['trocas'] as [$antigo, $novo])
+        {
+            if (self::numeroEmUso($antigo)) { continue; }   // o numero antigo continua em outro cadastro: fica como esta
+            $r = self::transferirNumero($antigo, $novo, $resultados[$novo] ?? null, $noApchat);
+            if ($r)
+            {
+                self::registrar($pessoa_id, $origem, $r, $novo, $antigo);
+                if ($r->situacao === ApchatContatoLog::SITUACAO_ERRO) { $problemas[$novo] = $r; }
             }
         }
 
-        return self::numerosAnteriores($telefones, $numero);
+        foreach ($registro['removidos'] as $numero)
+        {
+            if (self::numeroEmUso($numero) || !$noApchat || !$noApchat['ok']) { continue; }
+            foreach (self::variantes($numero) as $v)
+            {
+                if (isset($noApchat['contatos'][$v]))
+                {
+                    try { ApchatBancoService::desligarEspelho((int) $noApchat['contatos'][$v]['id']); } catch (Throwable $e) {}
+                }
+            }
+        }
+
+        return $problemas;
+    }
+
+    /**
+     * Uma transferencia (antigo -> novo). $envio: resultado do envio do numero novo (traz o id do contato novo).
+     * @return object|null resultado para o log (null: nada a fazer)
+     */
+    private static function transferirNumero(string $antigo, string $novo, ?object $envio, ?array $noApchat): ?object
+    {
+        $idAntigo = null;
+        if ($noApchat && $noApchat['ok'])
+        {
+            foreach (self::variantes($antigo) as $v) { if (isset($noApchat['contatos'][$v])) { $idAntigo = (int) $noApchat['contatos'][$v]['id']; break; } }
+            if (!$idAntigo) { return null; }                // o numero antigo nao tinha contato no APChat
+        }
+        $idNovo = (int) ($envio->apchat_contato_id ?? 0);
+
+        if (!$noApchat || !$noApchat['ok'] || !$idNovo || ($envio->situacao ?? '') === ApchatContatoLog::SITUACAO_ERRO)
+        {
+            $erro = !$noApchat || !$noApchat['ok'] ? 'banco do APChat indisponível' : 'o contato do número novo ainda não foi enviado';
+            ApchatFilaService::enfileirar(ApchatFilaService::TRANSFERENCIA, $novo, null, $idAntigo, $erro, $antigo);
+            $r = self::resultado(ApchatContatoLog::SITUACAO_ERRO, ApchatContatoLog::OPERACAO_TRANSFERENCIA,
+                "Troca de número: a passagem do histórico de {$antigo} para {$novo} no APChat ficou na fila ({$erro}) e será feita sozinha.");
+            return $r;
+        }
+        if ($idAntigo === $idNovo) { return null; }         // mesmo contato (so o nono digito)
+
+        try
+        {
+            $resumo = ApchatBancoService::transferir($idAntigo, $idNovo);
+            ApchatFilaService::concluir(ApchatFilaService::TRANSFERENCIA, $novo, $idAntigo);
+            $r = self::resultado(ApchatContatoLog::SITUACAO_SUCESSO, ApchatContatoLog::OPERACAO_TRANSFERENCIA,
+                "Troca de número: histórico do contato {$idAntigo} ({$antigo}) passado para o contato {$idNovo} ({$novo}) no APChat. {$resumo}");
+            $r->apchat_contato_id = $idNovo;
+            return $r;
+        }
+        catch (Throwable $e)
+        {
+            ApchatFilaService::enfileirar(ApchatFilaService::TRANSFERENCIA, $novo, null, $idAntigo, $e->getMessage(), $antigo);
+            return self::resultado(ApchatContatoLog::SITUACAO_ERRO, ApchatContatoLog::OPERACAO_TRANSFERENCIA,
+                "Troca de número: a passagem do histórico para {$novo} falhou e ficou na fila: " . $e->getMessage());
+        }
+    }
+
+    /**
+     * Fila: reenvia um numero (dados lidos agora) e, na transferencia, faz a passagem do historico.
+     * @return object resultado (situacao SUCESSO = sai da fila)
+     */
+    public static function reprocessar(string $motivo, string $numero, ?int $contatoAntigo, ?string $numeroAntigo): object
+    {
+        TTransaction::open(self::$database);
+        try
+        {
+            $token = self::token();
+            $dono = self::donoDoNumero($numero);
+            if ($token === '' || !$dono)
+            {
+                TTransaction::close();
+                // numero que saiu da Curciol ou integracao desligada: nada mais a fazer
+                return self::resultado(ApchatContatoLog::SITUACAO_SUCESSO, ApchatContatoLog::OPERACAO_NENHUMA, $dono ? 'Integração desligada.' : 'O número não está mais na Curciol.');
+            }
+            self::travar('apchat:' . $numero);
+            $noApchat = self::lerNoBanco(array_filter([$numero, $numeroAntigo]));
+            $r = self::rodar(self::passosDecidir(self::montarContatoDoNumero($numero), $noApchat, $numero, self::numeroComId($numero)), $token);
+            self::registrar($dono, ApchatContatoLog::ORIGEM_FILA, $r, $numero, null);
+            self::gravarIdApchatDoNumero($numero, $r);
+
+            if ($motivo === ApchatFilaService::TRANSFERENCIA && $r->situacao === ApchatContatoLog::SITUACAO_SUCESSO && ($contatoAntigo || $numeroAntigo))
+            {
+                if ($numeroAntigo && self::numeroEmUso($numeroAntigo))
+                {
+                    $t = null;
+                }
+                else
+                {
+                    $chave = $numeroAntigo ?: 'id' . $contatoAntigo;
+                    $mapa = $noApchat ?: ['ok' => false, 'erro' => 'banco do APChat não configurado', 'contatos' => []];
+                    if ($contatoAntigo)
+                    {
+                        // o contato antigo ja conhecido (id da fila), mesmo que o numero dele tenha mudado no APChat
+                        $mapa['contatos'][$chave] = ['id' => $contatoAntigo];
+                    }
+                    $t = self::transferirNumero($chave, $numero, $r, $mapa);
+                }
+                if ($t)
+                {
+                    self::registrar($dono, ApchatContatoLog::ORIGEM_FILA, $t, $numero, $numeroAntigo);
+                    $r = $t;
+                }
+            }
+            TTransaction::close();
+            return $r;
+        }
+        catch (Throwable $e)
+        {
+            TTransaction::rollbackAll();
+            return self::resultado(ApchatContatoLog::SITUACAO_ERRO, ApchatContatoLog::OPERACAO_NENHUMA, $e->getMessage());
+        }
+    }
+
+    /** Pessoa dona do numero para o log (quem o tem como principal; senao o contato mais antigo) */
+    private static function donoDoNumero(string $numero): ?int
+    {
+        $st = TTransaction::get()->prepare('SELECT pessoa_id FROM pessoa_contato WHERE ' . self::mesmoNumeroSql() . " ORDER BY (principal = 'S') DESC, id LIMIT 1");
+        $st->execute(self::argsNumero($numero));
+        $id = $st->fetchColumn();
+        return $id ? (int) $id : null;
     }
 
     /** id do APChat em todos os contatos com esse numero (e em pessoa.idapchat de quem o tem como principal) */
@@ -1138,37 +1400,6 @@ class APChatContactService
         }
 
         return $r;
-    }
-
-    /**
-     * Numeros em que o contato pode estar no APChat alem do atual (com a variante do nono digito), sem os do atual.
-     *
-     * @return string[]
-     */
-    private static function numerosAnteriores(array $telefones, string $atual): array
-    {
-        $proibidos = self::variantes($atual);
-        $lista = [];
-
-        foreach ($telefones as $telefone)
-        {
-            $numero = self::normalizarTelefone($telefone);
-
-            if ($numero === '')
-            {
-                continue;
-            }
-
-            foreach (self::variantes($numero) as $variante)
-            {
-                if (!in_array($variante, $proibidos, true) && !in_array($variante, $lista, true))
-                {
-                    $lista[] = $variante;
-                }
-            }
-        }
-
-        return $lista;
     }
 
     private static function travar(string $chave): void

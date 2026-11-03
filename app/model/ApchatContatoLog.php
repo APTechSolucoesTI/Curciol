@@ -12,10 +12,13 @@ class ApchatContatoLog extends TRecord
 
     const ORIGEM_CADASTRO = 'CADASTRO_CLIENTE';
     const ORIGEM_LOTE     = 'SINCRONIZAR_TODOS';
+    const ORIGEM_FILA     = 'FILA';
+    const ORIGEM_TELA     = 'CONTATOS_SEM_VINCULO';
 
     const OPERACAO_CREATE  = 'CREATE';
     const OPERACAO_UPDATE  = 'UPDATE';
     const OPERACAO_NENHUMA = 'NENHUMA';
+    const OPERACAO_TRANSFERENCIA = 'TRANSFERENCIA';
 
     const SITUACAO_SUCESSO  = 'SUCESSO';
     const SITUACAO_PENDENTE = 'PENDENTE';

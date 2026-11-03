@@ -127,7 +127,76 @@ class PessoaContatoService
             $estado['principal_nome'] = (string) $principal['nome'];
         }
 
+        // numero de cada contato (troca de numero no APChat, 03/11/2026)
+        $estado['contatos'] = self::numerosDosContatos($pessoaId);
+
         return $estado;
+    }
+
+    /**
+     * Numero de cada contato da pessoa no formato do APChat (55 + DDD + numero; '' sem telefone valido).
+     * @return array [pessoa_contato.id => numero]
+     */
+    public static function numerosDosContatos($pessoaId): array
+    {
+        $st = TTransaction::get()->prepare('SELECT id, telefone FROM pessoa_contato WHERE pessoa_id = ? ORDER BY id');
+        $st->execute([(int) $pessoaId]);
+        $r = [];
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $c) { $r[(int) $c['id']] = APChatContactService::normalizarTelefone($c['telefone']); }
+        return $r;
+    }
+
+    /**
+     * Antes x depois do salvar: contatos que ja existiam e mudaram de numero (troca) e numeros que sairam (contato
+     * excluido ou sem telefone). Acrescentar outro telefone nao e troca. O nono digito a mais/a menos nao conta.
+     *
+     * @return array ['trocas' => [[numero antigo, numero novo, pessoa_contato.id]], 'removidos' => [numero]]
+     */
+    public static function trocasDeNumero(array $antes, array $depois): array
+    {
+        $trocas = [];
+        $removidos = [];
+        foreach ($antes as $id => $numeroAntes)
+        {
+            if ($numeroAntes === '') { continue; }
+            $numeroDepois = $depois[$id] ?? '';
+            if ($numeroDepois === '')
+            {
+                $removidos[] = $numeroAntes;
+            }
+            elseif (!in_array($numeroDepois, APChatContactService::variantes($numeroAntes), true))
+            {
+                $trocas[] = [$numeroAntes, $numeroDepois, (int) $id];
+            }
+        }
+        // o numero "removido" que continua em outro contato da pessoa nao saiu
+        $removidos = array_values(array_diff(array_unique($removidos), array_values($depois)));
+
+        return ['trocas' => $trocas, 'removidos' => $removidos];
+    }
+
+    /** Aviso obrigatorio antes de gravar uma troca de numero (03/11/2026). */
+    public static function mensagemTrocaDeNumero(array $trocas): string
+    {
+        $linhas = [];
+        foreach ($trocas as [$antigo, $novo])
+        {
+            $linhas[] = 'Você está trocando o número <b>' . self::formatarTelefone($antigo) . '</b> por <b>' . self::formatarTelefone($novo) . '</b>.';
+        }
+
+        return implode('<br>', $linhas) . '<br><br>No APChat, o contato do número antigo deixará de existir: todo o histórico (conversas, tickets e '
+             . 'atendimentos) passa para o número novo. Se alguém estiver numa conversa com esse contato no APChat agora, precisa '
+             . 'recarregar a tela do APChat. A próxima mensagem já será enviada para o número novo.<br><br>Confirmar a troca?';
+    }
+
+    /** O id do APChat e de um numero: o contato que mudou de numero perde o id antigo (o envio grava o novo). */
+    public static function limparIdApchat(array $contatoIds): void
+    {
+        $ids = array_values(array_filter(array_map('intval', $contatoIds)));
+        if ($ids)
+        {
+            TTransaction::get()->exec('UPDATE pessoa_contato SET idapchat = NULL WHERE id IN (' . implode(',', $ids) . ')');
+        }
     }
 
     /**
@@ -199,9 +268,11 @@ class PessoaContatoService
             $filtro .= ' OR idapchat = ?';
             $args[] = (int) $p['idapchat'];
         }
-        $st = $conn->prepare("UPDATE pessoa_contato SET telefone = ?, nome = COALESCE(NULLIF(?, ''), nome), updated_at = now()
+        // numero novo nas copias: o id do APChat era do numero antigo (o envio grava o do novo)
+        $st = $conn->prepare("UPDATE pessoa_contato SET telefone = ?, nome = COALESCE(NULLIF(?, ''), nome), updated_at = now(),
+                                     idapchat = CASE WHEN ? THEN NULL ELSE idapchat END
                                WHERE principal = 'N' AND id <> ? AND (" . $filtro . ')');
-        $st->execute(array_merge([$telAgora, $nome, (int) $p['id']], $args));
+        $st->execute(array_merge([$telAgora, $nome, $telAntes !== $telAgora ? 'true' : 'false', (int) $p['id']], $args));
 
         return $st->rowCount();
     }

@@ -215,6 +215,10 @@
             <icon>fab:whatsapp fa-fw </icon>
             <action>ApchatContatoList#method=onShow</action>
             </menuitem>
+            <menuitem label="Contatos do APChat sem vínculo">
+            <icon>fas:user-tag fa-fw </icon>
+            <action>ApchatContatoSemVinculoList#method=onShow</action>
+            </menuitem>
             <menuitem label="Template">
             <icon>fab:html5 fa-fw </icon>
             <action>TemplateEscritorioHeaderList#method=onShow</action>

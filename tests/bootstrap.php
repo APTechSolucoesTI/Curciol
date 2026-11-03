@@ -5,6 +5,9 @@ if (PHP_SAPI !== 'cli') { http_response_code(404); exit; }
 chdir(dirname(__DIR__));
 require_once 'init.php';
 
+// testes nunca leem nem gravam no banco real do APChat (03/11/2026); quem testa o banco usa ApchatBancoService::usarFalso
+ApchatBancoService::desligar();
+
 $GLOBALS['__falhas'] = 0;
 
 function ok(string $nome, bool $cond, string $extra = ''): void

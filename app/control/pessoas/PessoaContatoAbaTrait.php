@@ -146,6 +146,33 @@ trait PessoaContatoAbaTrait
         $this->detailFormPessoaContatoPessoa->addContent([$tableResponsiveDiv]);
         $row = $this->form->addFields([$this->detailFormPessoaContatoPessoa]);
         $row->layout = [' col-sm-12'];
+
+        // troca de numero confirmada pelo usuario (aviso do APChat no salvar; ver salvarContatos)
+        $this->form->addFields([new THidden('apchat_troca_confirmada')]);
+
+        // novo cadastro aberto pela tela "Contatos sem vinculo" do APChat: ja vem com o numero (e o nome, se for nome)
+        $numero = PessoaContatoService::telefoneValido($_REQUEST['apchat_numero'] ?? '');
+        if ($numero && empty($_REQUEST['key']) && empty($_REQUEST['id']))
+        {
+            $dados = ['telefone' => PessoaContatoService::formatarTelefone($numero)];
+            $nome = trim((string) ($_REQUEST['apchat_nome'] ?? ''));
+            if ($nome !== '' && preg_match('/[[:alpha:]]/u', $nome))
+            {
+                $dados['nome'] = mb_strtoupper($nome);
+            }
+            foreach ($dados as $campo => $valor)
+            {
+                if ($campo_form = $this->form->getField($campo)) { $campo_form->setValue($valor); }
+            }
+        }
+    }
+
+    /** "Sim" no aviso de troca de numero: salva de novo, agora com a troca confirmada. */
+    public static function onConfirmarTrocaNumero($param = null)
+    {
+        $form = json_encode(self::$formName);
+        TScript::create("(function () { var f = $('form[name=' + {$form} + ']'); f.find('[name=apchat_troca_confirmada]').val('1');"
+            . " f.find('[onclick*=\"method=onSave\"]').first().click(); })();");
     }
 
     public  function onAddDetailPessoaContatoPessoa($param = null)
@@ -469,11 +496,24 @@ trait PessoaContatoAbaTrait
             PessoaContatoService::sincronizarRepresentantes($object->id);
         }
 
+        // troca de numero (03/11/2026): no APChat o contato antigo deixa de existir e o historico passa para o numero
+        // novo. Sempre avisa e pede confirmacao antes de gravar; confirmado, o envio (depois do commit) faz a passagem.
+        $mudancas = PessoaContatoService::trocasDeNumero($antes['contatos'] ?? [], PessoaContatoService::numerosDosContatos($object->id));
+        if ($mudancas['trocas'] && empty($param['apchat_troca_confirmada']))
+        {
+            TTransaction::rollbackAll();
+            new TQuestion(PessoaContatoService::mensagemTrocaDeNumero($mudancas['trocas']),
+                          new TAction([__CLASS__, 'onConfirmarTrocaNumero'], ['static' => 1]), null, 'Troca de número', 'Confirmar a troca', 'Cancelar');
+            exit;
+        }
+        PessoaContatoService::limparIdApchat(array_column($mudancas['trocas'], 2));
+        APChatContactService::registrarTrocas((int) $object->id, $mudancas['trocas'], $mudancas['removidos']);
+
         // a grade pode ter trocado o telefone e o e-mail dos Dados cadastrais
         $dados = PessoaContatoService::dadosAtuais($object->id);
         $object->telefone = $dados['telefone'];
         $object->email = $dados['email'];
-        TForm::sendData(self::$formName, (object) ['telefone' => PessoaContatoService::formatarTelefone($dados['telefone']), 'email' => $dados['email']]);
+        TForm::sendData(self::$formName, (object) ['telefone' => PessoaContatoService::formatarTelefone($dados['telefone']), 'email' => $dados['email'], 'apchat_troca_confirmada' => '']);
 
         if ($aviso)
         {

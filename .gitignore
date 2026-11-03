@@ -11,3 +11,4 @@
 /app/config/communication.php
 /app/config/log.php
 /app/config/permission.php
+/app/config/apchat.php
