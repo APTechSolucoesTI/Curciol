@@ -26,9 +26,10 @@ class ApchatContatoList extends TPage
     private $showMethods = ['onReload', 'onSearch', 'onRefresh', 'onClearFilters', 'onGlobalSearch'];
     private $limit = 20;
 
-    // por pedido; dentro do lote ate APChatContactService::CHAMADAS_SIMULTANEAS ao mesmo tempo. 150 desde 03/11/2026: o
-    // lote le o banco do APChat uma vez e so chama a API para criar ou para o que mudou (antes ate 3 chamadas por numero)
-    const TAMANHO_LOTE = 150;
+    // por pedido; dentro do lote ate APChatContactService::CHAMADAS_SIMULTANEAS ao mesmo tempo. Desde 03/11/2026 o lote
+    // le o banco do APChat uma vez e so chama a API para criar ou para o que mudou; 100 para o painel de progresso
+    // andar a cada ~15 s
+    const TAMANHO_LOTE = 100;
 
     use BuilderDatagridTrait;
 
@@ -436,8 +437,8 @@ class ApchatContatoList extends TPage
                     "Uma sincronização foi interrompida em {$parou} de {$total} pessoas.<br><br>"
                     . "Continuar de onde parou? (Recomeçar refaz desde o início; quem já foi sincronizado é atualizado rapidamente.)<br><br>"
                     . "Enquanto roda, não recarregue nem navegue nesta aba: para usar o sistema, abra outra aba.",
-                    new TAction([__CLASS__, 'onSincronizarLote'], ['offset' => $parou, 'static' => 1]),
-                    new TAction([__CLASS__, 'onSincronizarLote'], ['offset' => 0, 'static' => 1]),
+                    new TAction([__CLASS__, 'onIniciarSincronizacao'], ['offset' => $parou, 'static' => 1]),
+                    new TAction([__CLASS__, 'onIniciarSincronizacao'], ['offset' => 0, 'static' => 1]),
                     'Sincronizar todos', 'Continuar de onde parou', 'Recomeçar do início'
                 );
                 return;
@@ -448,13 +449,87 @@ class ApchatContatoList extends TPage
                 . "Cada telefone dos contatos é um contato no APChat (o mesmo número em várias pessoas é um contato só): consultado e atualizado (se já existir) ou criado (se não existir), "
                 . "com a mesma regra do cadastro. Telefone vazio ou inválido não é enviado. O processo roda em lotes de " . self::TAMANHO_LOTE . ", com até " . APChatContactService::CHAMADAS_SIMULTANEAS . " contatos ao mesmo tempo.<br><br>"
                 . "Enquanto roda, não recarregue nem navegue nesta aba: para usar o sistema, abra outra aba. Se for interrompido, é só clicar de novo para continuar de onde parou.",
-                new TAction([__CLASS__, 'onSincronizarLote'], ['offset' => 0, 'static' => 1])
+                new TAction([__CLASS__, 'onIniciarSincronizacao'], ['offset' => 0, 'static' => 1])
             );
         }
         catch (Exception $e)
         {
             new TMessage('error', $e->getMessage());
         }
+    }
+
+    /**
+     * Confirmado: mostra o painel de progresso na hora (0% ou de onde parou) e pede o primeiro lote.
+     */
+    public static function onIniciarSincronizacao($param = null)
+    {
+        $offset = max(0, (int) ($param['offset'] ?? 0));
+        $total = count(APChatContactService::idsAutorizados());
+        TSession::setValue(__CLASS__ . '_inicio', microtime(true));
+        TSession::setValue(__CLASS__ . '_inicio_offset', $offset);
+        if ($offset === 0) { TSession::setValue(__CLASS__ . '_lote', []); }
+        self::painelProgresso($offset, $total, (array) TSession::getValue(__CLASS__ . '_lote'), false);
+        TScript::create("Adianti.waitMessage = false; __adianti_ajax_exec('class=ApchatContatoList&method=onSincronizarLote&offset={$offset}');");
+    }
+
+    /**
+     * Painel fixo no canto da tela com o andamento do "Sincronizar todos" (03/11/2026): quanto ja foi, quanto falta,
+     * tempo estimado e o resultado ate agora. Atualizado a cada lote.
+     */
+    private static function painelProgresso(int $feitos, int $total, array $contagem, bool $fim): void
+    {
+        $n = function ($v) { return number_format((int) $v, 0, ',', '.'); };
+        $tempo = function (float $s) {
+            $s = (int) round($s);
+            if ($s < 60) { return $s . ' s'; }
+            $m = intdiv($s, 60);
+            return $m < 60 ? $m . ' min ' . ($s % 60) . ' s' : intdiv($m, 60) . ' h ' . ($m % 60) . ' min';
+        };
+        $pct = $total > 0 ? (int) floor($feitos * 100 / $total) : 100;
+        $decorrido = microtime(true) - (float) (TSession::getValue(__CLASS__ . '_inicio') ?: microtime(true));
+        $feitosAgora = $feitos - (int) TSession::getValue(__CLASS__ . '_inicio_offset');
+        $falta = max(0, $total - $feitos);
+
+        $soma = function (string $prefixo) use ($contagem) {
+            $t = 0;
+            foreach ($contagem as $chave => $q) { if (strpos($chave, $prefixo) === 0) { $t += $q; } }
+            return $t;
+        };
+        $resultado = [
+            ['Criados', $contagem['SUCESSO|CREATE'] ?? 0, '#2e7d32'],
+            ['Atualizados', $contagem['SUCESSO|UPDATE'] ?? 0, '#1565c0'],
+            ['Já iguais', $contagem['SUCESSO|NENHUMA'] ?? 0, '#607d8b'],
+            ['Sem telefone válido', $soma('IGNORADO|'), '#9e9e9e'],
+            ['Com erro (na fila)', $soma('ERRO|'), '#c62828'],
+        ];
+        $linhas = '';
+        foreach ($resultado as [$rotulo, $q, $cor])
+        {
+            $linhas .= '<div style="display:flex;justify-content:space-between"><span>' . $rotulo . '</span><b style="color:' . $cor . '">' . $n($q) . '</b></div>';
+        }
+
+        if ($fim)
+        {
+            $titulo = '<i class="fas fa-check-circle" style="color:#2e7d32"></i> Sincronização concluída';
+            $previsao = 'Tempo total: ' . $tempo($decorrido);
+            $rodape = '<button type="button" class="btn btn-sm btn-default" style="margin-top:8px;width:100%" onclick="document.getElementById(\'apchat-progresso\').remove()">Fechar</button>';
+        }
+        else
+        {
+            $titulo = '<i class="fas fa-sync fa-spin" style="color:#1565c0"></i> Sincronizando com o APChat';
+            $previsao = 'Decorrido: ' . $tempo($decorrido) . ($feitosAgora > 0 ? ' · faltam cerca de ' . $tempo($decorrido / $feitosAgora * $falta) : ' · calculando o tempo...');
+            $rodape = '<div style="margin-top:8px;color:#c62828;font-size:11px">Não recarregue nem navegue nesta aba. Para usar o sistema, abra outra aba.</div>';
+        }
+
+        $html = '<div style="font-weight:600;margin-bottom:6px">' . $titulo . '</div>'
+              . '<div style="background:#e3e8ef;border-radius:6px;height:14px;overflow:hidden"><div style="background:' . ($fim ? '#2e7d32' : '#1565c0') . ';height:100%;width:' . $pct . '%;transition:width .4s"></div></div>'
+              . '<div style="display:flex;justify-content:space-between;margin:4px 0 2px"><span><b>' . $n($feitos) . '</b> de ' . $n($total) . ' pessoas</span><b>' . $pct . '%</b></div>'
+              . '<div style="color:#555;margin-bottom:6px">' . ($fim ? '' : 'Faltam <b>' . $n($falta) . '</b> · ') . $previsao . '</div>'
+              . '<div style="border-top:1px solid #e3e8ef;padding-top:6px">' . $linhas . '</div>' . $rodape;
+
+        TScript::create("(function () { var d = document.getElementById('apchat-progresso'); if (!d) { d = document.createElement('div'); d.id = 'apchat-progresso';"
+            . " d.setAttribute('style', 'position:fixed;right:20px;bottom:20px;z-index:100000;width:340px;background:#fff;border:1px solid #c9d1dc;border-radius:8px;box-shadow:0 6px 18px rgba(0,0,0,.2);padding:12px 14px;font-size:13px');"
+            . " document.body.appendChild(d); } d.innerHTML = " . json_encode($html) . "; })();");
     }
 
     /**
@@ -488,11 +563,12 @@ class ApchatContatoList extends TPage
 
             if ($feitos < $total)
             {
-                TToast::show('info', "Sincronizando com o APChat: {$feitos} de {$total}... Não recarregue nem navegue nesta aba.", 'topRight', 'fas:sync');
-                TScript::create("__adianti_ajax_exec('class=ApchatContatoList&method=onSincronizarLote&offset={$feitos}');");
+                self::painelProgresso($feitos, $total, $contagem, false);
+                TScript::create("Adianti.waitMessage = false; __adianti_ajax_exec('class=ApchatContatoList&method=onSincronizarLote&offset={$feitos}');");
                 return;
             }
 
+            self::painelProgresso($feitos, $total, $contagem, true);
             TSession::setValue(__CLASS__ . '_lote', null);
             TSession::setValue(__CLASS__ . '_parou', null);
 
