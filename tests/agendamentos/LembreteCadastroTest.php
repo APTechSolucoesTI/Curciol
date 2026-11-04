@@ -305,7 +305,9 @@ try {
         ok("duas agendas: {$agDuas} sem o aviso na tela", strpos($html, 'Cadastro incompleto:') === false && strpos($html, 'Completar cadastro') === false);
     }
     TSession::setValue('agendamentos_filter_agenda_id', $filtroAntes);
-    ok('agenda: nome do cliente em 10px', strpos(AgendaVisual::estilo(), '.agd-ev-l1 { display: block; font-size: 10px;') !== false);
+    foreach (['agd-ev-l1', 'agd-ev-hora', 'agd-ev-l2'] as $linhaCartao) {
+        ok("agenda: {$linhaCartao} em 10px", strpos(AgendaVisual::estilo(), ".{$linhaCartao} { display: block; font-size: 10px;") !== false);
+    }
     // agendamento que ja terminou nao recebe a marca, em nenhum estado; o que ainda nao terminou recebe, mesmo ja iniciado
     foreach ([EstadoAgenda::ATENDIDO => 'Atendido', EstadoAgenda::CANCELADO => 'Cancelado', EstadoAgenda::CONFIRMADO => 'Confirmado'] as $estadoPassado => $nomeEstado) {
         $agPassado = $agendamento($pfVazia, (int) $estadoPassado, '-2 days');

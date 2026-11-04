@@ -4,8 +4,8 @@
  *
  * Tarefa agendada a cada minuto (cmd.php "class=ApchatRespostaService&method=vigiar"): fica rodando e olha a cada 5 segundos.
  * Para cada confirmacao enviada que ainda espera resposta, le no banco do APChat a conversa do numero depois do envio.
- * O fluxo e do template de confirmacao (Configuracoes > Template, 04/11/2026): quais respostas confirmam e quais cancelam,
- * uma por linha, ignorando maiusculas ou nao, e a mensagem de cada caso. Contam ate 3 mensagens SEGUIDAS do cliente e todas
+ * As respostas sao do template de confirmacao (Configuracoes > Template, 04/11/2026): a que confirma e a que cancela,
+ * ignorando maiusculas, minusculas e acentos ou nao, e a mensagem de cada caso. Contam ate 3 mensagens SEGUIDAS do cliente e todas
  * tem de ser a mesma decisao; espaco, pontuacao e emoji em volta da resposta nao importam.
  *   - resposta que confirma: agendamento Confirmado (com o atendimento, como o Confirmar da equipe) e a mensagem do fluxo;
  *   - resposta que cancela: agendamento Cancelado e a mensagem do fluxo;
@@ -54,12 +54,13 @@ class ApchatRespostaService
         return array_values(array_unique(array_filter($respostas, 'strlen')));
     }
 
-    private static function respostaComparavel(?string $texto, bool $ignorarMaiusculas): string
+    /** A resposta pronta para comparar. O ignorar vale para maiusculas, minusculas e acentos. */
+    public static function respostaComparavel(?string $texto, bool $ignorarMaiusculas): string
     {
         $t = preg_replace('/^\s*\*[^*\n]{1,80}\*:\s*/u', '', (string) $texto);
         $t = preg_replace('/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/u', '', $t);
 
-        return $ignorarMaiusculas ? mb_strtolower($t) : $t;
+        return $ignorarMaiusculas ? mb_strtolower(TratamentosService::removerAcentos($t)) : $t;
     }
 
     /** A resposta para mostrar: sem a assinatura "*Nome*:" de quem responde por um sistema de atendimento. */

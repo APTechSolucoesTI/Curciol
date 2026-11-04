@@ -13,7 +13,6 @@ class TemplateEscritorioHeaderList extends TPage
     private static $formName = 'formList_TemplateEscritorio';
     private $showMethods = ['onReload', 'onSearch', 'onRefresh', 'onClearFilters', 'onGlobalSearch'];
     private $limit = 20;
-    private $painelFluxo;
 
     /**
      * Class constructor
@@ -73,8 +72,8 @@ class TemplateEscritorioHeaderList extends TPage
         $column_categoria->setTransformer(function($value) { return TemplateEscritorio::CATEGORIAS[$value] ?? $value; });
         $column_tipo_template = new TDataGridColumn('tipo_template', "Tipo", 'center' , '100px');
         $column_descricao = new TDataGridColumn('descricao', "Descrição", 'left');
-        $column_vinculo = new TDataGridColumn('id', "Vínculo no fluxo", 'left');
-        $column_vinculo->setTransformer(function($value, $object) { return TemplateFluxoService::vinculoDaLista($object); });
+        $column_vinculo = new TDataGridColumn('id', "Respostas", 'left');
+        $column_vinculo->setTransformer(function($value, $object) { return TemplateRespostaService::colunaDaLista($object); });
         $column_habilitado_transformed = new TDataGridColumn('habilitado', "Habilitar", 'center' , '100px');
 
         $column_habilitado_transformed->setTransformer(function($value, $object, $row, $cell = null, $last_row = null)
@@ -215,10 +214,6 @@ class TemplateEscritorioHeaderList extends TPage
             $container->add(TBreadCrumb::create(["Configurações","Template"]));
         }
 
-        // o fluxo da confirmacao de ponta a ponta, preenchido no onReload
-        $this->painelFluxo = new TElement('div');
-        $container->add($this->painelFluxo);
-
         $container->add($panel);
 
         parent::add($container);
@@ -245,6 +240,8 @@ class TemplateEscritorioHeaderList extends TPage
                 {
                     throw new Exception('Template de outra unidade');
                 }
+
+                TemplateRespostaService::exigirSemUso($object);
 
                 Mensagem::where('template_escritorio_id', '=', $object->id)->set('template_escritorio_id', null)->update();
                 TemplateAcao::where('template_escritorio_id', '=', $object->id)->delete();
@@ -399,10 +396,6 @@ class TemplateEscritorioHeaderList extends TPage
 
             // load the objects according to criteria
             $objects = $repository->load($criteria, FALSE);
-
-            $escritorio = Escritorio::findByUnitId(TSession::getValue('userunitid'));
-            $this->painelFluxo->clearChildren();
-            $this->painelFluxo->add($escritorio ? TemplateFluxoService::painel((int) $escritorio->id) : '');
 
             $this->datagrid->clear();
             if ($objects)

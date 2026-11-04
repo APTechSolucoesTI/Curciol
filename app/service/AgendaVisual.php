@@ -339,8 +339,8 @@ class AgendaVisual
             #agd-resumo .agd-resumo-corpo { padding: 8px 10px; line-height: 1.45; }
             #agendamentos .agd-ev { display: flex; flex-direction: column; gap: 1px; line-height: 15px; overflow: hidden; }
             #agendamentos .agd-ev-l1 { display: block; font-size: 10px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-            #agendamentos .agd-ev-hora { display: block; font-size: 11px; opacity: .8; white-space: nowrap; }
-            #agendamentos .agd-ev-l2 { display: block; font-size: 11px; opacity: .85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+            #agendamentos .agd-ev-hora { display: block; font-size: 10px; opacity: .8; white-space: nowrap; }
+            #agendamentos .agd-ev-l2 { display: block; font-size: 10px; opacity: .85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
             #agendamentos .fc-timeGridDay-view .fc-timegrid-event .agd-ev-l2 { white-space: normal; }
             #agendamentos .agd-ev-est { width: 7px; height: 7px; border-radius: 50%; display: inline-block; vertical-align: middle; margin: -2px 4px 0 0; box-shadow: 0 0 0 1.5px #fff; }
             #agendamentos .agd-ev-online { display: inline-flex; align-items: center; gap: 3px; font-size: 10px; font-weight: 600; line-height: 1; padding: 2px 6px; border-radius: 9px; margin-left: 6px; background: rgba(255,255,255,.75); vertical-align: 1px; }

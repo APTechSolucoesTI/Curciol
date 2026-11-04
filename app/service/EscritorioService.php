@@ -106,11 +106,10 @@ class EscritorioService
         $id = function ($chave) use ($escritorio_id) { $t = TemplateEscritorio::where('escritorio_id', '=', $escritorio_id)->where('chave', '=', $chave)->first(); return $t ? $t->id : null; };
         $confirmacao = TemplateEscritorio::where('escritorio_id', '=', $escritorio_id)->where('chave', '=', 'WHATSAPP_CONFIRMACAO_AGENDAMENTO')->first();
         $confirmacao->respostas_confirmar = 'sim';
-        $confirmacao->respostas_cancelar = "não\nnao";
+        $confirmacao->respostas_cancelar = 'não';
         $confirmacao->ignorar_maiusculas = 'T';
         $confirmacao->template_confirmado_id = $id('WHATSAPP_RESPOSTA_SIM');
         $confirmacao->template_cancelado_id = $id('WHATSAPP_RESPOSTA_NAO');
-        $confirmacao->template_lembrete_id = $id('WHATSAPP_LEMBRETE_CONSULTA');
         $confirmacao->store();
    }
 }

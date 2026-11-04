@@ -50,7 +50,6 @@ class TemplateEscritorio extends TRecord
         parent::addAttribute('ignorar_maiusculas');
         parent::addAttribute('template_confirmado_id');
         parent::addAttribute('template_cancelado_id');
-        parent::addAttribute('template_lembrete_id');
         parent::addAttribute('readonly');
         parent::addAttribute('data_criacao');
         parent::addAttribute('criacao_user_id');

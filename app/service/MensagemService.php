@@ -128,8 +128,8 @@ class MensagemService
     }
 
     /**
-     * Template que ja vem escolhido: a confirmacao com o agendamento Agendado; depois de confirmado, o lembrete do fluxo da
-     * confirmacao ou o primeiro da categoria Lembrete. $templates: os da tela (templatesDoAgendamento).
+     * Template que ja vem escolhido: a confirmacao com o agendamento Agendado; depois de confirmado, o primeiro da categoria
+     * Lembrete. $templates: os da tela (templatesDoAgendamento).
      */
     public static function templatePadrao(Agendamento $agendamento, string $tipo, array $templates): ?TemplateEscritorio
     {
@@ -144,14 +144,6 @@ class MensagemService
         if ((int) $agendamento->estado_agenda_id !== (int) EstadoAgenda::CONFIRMADO)
         {
             return $primeiro(TemplateEscritorio::CONFIRMACAO);
-        }
-
-        $escritorio = Escritorio::findByUnitId(TSession::getValue('userunitid'));
-        $confirmacao = $escritorio ? TemplateEscritorio::where('tipo_template', '=', $tipo)->where('escritorio_id', '=', $escritorio->id)
-                                                       ->where('categoria', '=', TemplateEscritorio::CONFIRMACAO)->where('habilitado', '=', 'T')->orderBy('id')->first() : null;
-        if ($confirmacao && isset($porId[$confirmacao->template_lembrete_id]))
-        {
-            return $porId[$confirmacao->template_lembrete_id];
         }
 
         return $primeiro(TemplateEscritorio::LEMBRETE);
@@ -171,7 +163,7 @@ class MensagemService
             $respostas = array_merge(ApchatRespostaService::respostasDaLista($template->respostas_confirmar, $ignorar),
                                      ApchatRespostaService::respostasDaLista($template->respostas_cancelar, $ignorar));
             $limpo = strip_tags($texto);
-            $limpo = $ignorar ? mb_strtolower($limpo) : $limpo;
+            $limpo = $ignorar ? mb_strtolower(TratamentosService::removerAcentos($limpo)) : $limpo;
 
             foreach ($respostas as $r)
             {
