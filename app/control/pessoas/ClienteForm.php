@@ -1208,6 +1208,9 @@ class ClienteForm extends TPage
                 TToast::show('warning', 'Cliente salvo. APChat: ' . $sincronizacao_apchat->mensagem, 'topRight', 'fas:exclamation-triangle');
             }
 
+            // o cadastro completo tira o aviso de todos os agendamentos do cliente na agenda aberta, de onde quer que tenha sido salvo
+            TScript::create("if ($('#agendamentos').data('fullcalendar')) { $('#agendamentos').data('fullcalendar').refetchEvents(); }");
+
             $atendimento = TSession::getValue('atendimento');
 
             $agendamento = TSession::getValue('agendamento');
@@ -1219,8 +1222,6 @@ class ClienteForm extends TPage
             }else if(!empty($agendamento)){
                 $loadPageParam['key'] = $agendamento;
                 TApplication::loadPage('AgendamentoFormView', 'onShow', $loadPageParam);
-                // o cadastro completo tira a borda vermelha do cartao na agenda
-                TScript::create("if ($('#agendamentos').data('fullcalendar')) { $('#agendamentos').data('fullcalendar').refetchEvents(); }");
                 TToast::show('success', "Registro salvo", 'topRight', 'far:check-circle');
             }else{
                 TSession::setValue(__CLASS__.'_filter_data', NULL);

@@ -378,7 +378,7 @@ class AgendamentoCalendarFormView extends TPage
                     <b>Horário:</b><br/>{agendamento->horario_texto}<br/><b>Agendamento #{agendamento->id}</b><br/><b>Convidado por:</b><br/>{agendamento->agenda->profissional->nome_formatado}<br/><br/></div>
                     "));
 
-                    $return[] = AgendaVisual::marcarCadastro(AgendaVisual::estilizar($event_array, 'agendamento', $agendaConvidada->cor ?? null, $convidado->agenda_id), $faltam);
+                    $return[] = AgendaVisual::marcarCadastro(AgendaVisual::estilizar($event_array, 'agendamento', $agendaConvidada->cor ?? null, $convidado->agenda_id), $faltam, $convidado->agendamento->estado_agenda_id);
                 }
             }
 
@@ -443,7 +443,7 @@ class AgendamentoCalendarFormView extends TPage
                     $faltam = AgendaVisual::faltamNoCartao($pendencias, $event->cliente_id, $event->dt_final);
                     $event_array['title'] = AgendaVisual::comResumo($event->render($formatacao), 'Agendamento', AgendaVisual::avisoCadastro($faltam) . $event->render("{detalhe_html}"));
 
-                    $return[] = AgendaVisual::marcarCadastro(AgendaVisual::estilizar($event_array, 'agendamento', $event->render("{agenda->cor}"), $event->agenda_id), $faltam);
+                    $return[] = AgendaVisual::marcarCadastro(AgendaVisual::estilizar($event_array, 'agendamento', $event->render("{agenda->cor}"), $event->agenda_id), $faltam, $event->estado_agenda_id);
                 }
             }
             TTransaction::close();

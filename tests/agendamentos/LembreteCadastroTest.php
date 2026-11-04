@@ -272,6 +272,40 @@ try {
     $html = saida(function () use ($agSemConfirmar) { (new AgendamentoFormView(['key' => $agSemConfirmar]))->show(); });
     ok('tela do agendado: nao mostra os campos', strpos($html, 'Cadastro incompleto:') === false && strpos($html, 'Completar cadastro') === false);
     $eOk = $doAg($eventos(), $agOk);
+
+    // cancelado futuro: sem a borda; o resumo continua avisando e a tela nao lista os campos
+    $agCancelado = $agendamento($pfVazia, (int) EstadoAgenda::CANCELADO, "{$dia} 09:30:00");
+    $eCancelado = $doAg($eventos(), $agCancelado);
+    ok('agenda: cancelado sem a borda', $eCancelado !== null && !in_array('agd-incompleto', $eCancelado['classNames'] ?? [], true));
+    preg_match("/data-resumo='([^']+)'/", (string) ($eCancelado['title'] ?? ''), $mCancelado);
+    ok('agenda: cancelado mantem o aviso no resumo', strpos(base64_decode($mCancelado[1] ?? ''), 'Cadastro Incompleto') !== false);
+    $html = saida(function () use ($agCancelado) { (new AgendamentoFormView(['key' => $agCancelado]))->show(); });
+    ok('tela do cancelado: nao lista os campos', strpos($html, 'Cadastro incompleto:') === false);
+
+    // o mesmo cliente em duas agendas: completar o cadastro uma vez tira o aviso de todos os agendamentos
+    $agenda2 = (int) (q("SELECT a.id FROM agenda a JOIN escritorio e ON e.id = a.escritorio_id WHERE e.system_unit_id = {$unidade} AND a.id <> {$agendaId} ORDER BY a.id LIMIT 1")[0]['id'] ?? 0);
+    ok('existe uma segunda agenda para o teste', $agenda2 > 0);
+    $pfDuas = $cliente('PF DUAS AGENDAS');
+    $agDuas1 = $agendamento($pfDuas, (int) EstadoAgenda::CONFIRMADO, "{$dia} 10:00:00");
+    $agDuas2 = $agendamento($pfDuas, (int) EstadoAgenda::CONFIRMADO, "{$dia} 10:30:00");
+    x("UPDATE agendamento SET agenda_id = {$agenda2} WHERE id = {$agDuas2}");
+    $filtroAntes = TSession::getValue('agendamentos_filter_agenda_id');
+    TSession::setValue('agendamentos_filter_agenda_id', [$agendaId, $agenda2]);
+    foreach ([$agDuas1, $agDuas2] as $agDuas) {
+        ok("duas agendas: {$agDuas} com a borda antes de completar", in_array('agd-incompleto', $doAg($eventos(), $agDuas)['classNames'] ?? [], true));
+    }
+    x("UPDATE pessoa SET telefone = '19912345005', cpf_cnpj = '11144477735', rg_ie = '123', orgao_emissor = 'SSP', dt_nascimento_abertura = '1980-01-01' WHERE id = {$pfDuas}");
+    x("INSERT INTO pessoa_endereco (pessoa_id, principal, cidade_id, rua, numero, bairro, cep) VALUES ({$pfDuas}, 'S', (SELECT id FROM cidade ORDER BY id LIMIT 1), 'Rua', '1', 'Centro', '13000000')");
+    foreach ([$agDuas1, $agDuas2] as $agDuas) {
+        $eDuas = $doAg($eventos(), $agDuas);
+        ok("duas agendas: {$agDuas} sem a borda depois de completar", $eDuas !== null && !in_array('agd-incompleto', $eDuas['classNames'] ?? [], true));
+        preg_match("/data-resumo='([^']+)'/", (string) ($eDuas['title'] ?? ''), $mDuas);
+        ok("duas agendas: {$agDuas} sem o aviso no resumo", strpos(base64_decode($mDuas[1] ?? ''), 'Cadastro Incompleto') === false);
+        $html = saida(function () use ($agDuas) { (new AgendamentoFormView(['key' => $agDuas]))->show(); });
+        ok("duas agendas: {$agDuas} sem o aviso na tela", strpos($html, 'Cadastro incompleto:') === false && strpos($html, 'Completar cadastro') === false);
+    }
+    TSession::setValue('agendamentos_filter_agenda_id', $filtroAntes);
+    ok('agenda: nome do cliente em 10px', strpos(AgendaVisual::estilo(), '.agd-ev-l1 { display: block; font-size: 10px;') !== false);
     // agendamento que ja terminou nao recebe a marca, em nenhum estado; o que ainda nao terminou recebe, mesmo ja iniciado
     foreach ([EstadoAgenda::ATENDIDO => 'Atendido', EstadoAgenda::CANCELADO => 'Cancelado', EstadoAgenda::CONFIRMADO => 'Confirmado'] as $estadoPassado => $nomeEstado) {
         $agPassado = $agendamento($pfVazia, (int) $estadoPassado, '-2 days');

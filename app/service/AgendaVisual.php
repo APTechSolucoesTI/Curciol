@@ -124,10 +124,10 @@ class AgendaVisual
         return '<div style="color:#d32f2f;font-weight:600;margin-bottom:6px">Cadastro Incompleto</div>';
     }
 
-    /** Borda fina vermelha no cartao do agendamento com cadastro incompleto. */
-    public static function marcarCadastro(array $evento, array $faltam): array
+    /** Borda fina vermelha no cartao do agendamento com cadastro incompleto (o cancelado fica sem a borda). */
+    public static function marcarCadastro(array $evento, array $faltam, $estado): array
     {
-        if ($faltam) { $evento['classNames'][] = 'agd-incompleto'; }
+        if ($faltam && (int) $estado !== (int) EstadoAgenda::CANCELADO) { $evento['classNames'][] = 'agd-incompleto'; }
         return $evento;
     }
 
@@ -338,7 +338,7 @@ class AgendaVisual
             #agd-resumo .agd-resumo-titulo { background: #f3f5f6; border-bottom: 1px solid #e3e7ec; border-radius: 6px 6px 0 0; padding: 6px 10px; font-weight: 600; }
             #agd-resumo .agd-resumo-corpo { padding: 8px 10px; line-height: 1.45; }
             #agendamentos .agd-ev { display: flex; flex-direction: column; gap: 1px; line-height: 15px; overflow: hidden; }
-            #agendamentos .agd-ev-l1 { display: block; font-size: 11px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+            #agendamentos .agd-ev-l1 { display: block; font-size: 10px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
             #agendamentos .agd-ev-hora { display: block; font-size: 11px; opacity: .8; white-space: nowrap; }
             #agendamentos .agd-ev-l2 { display: block; font-size: 11px; opacity: .85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
             #agendamentos .fc-timeGridDay-view .fc-timegrid-event .agd-ev-l2 { white-space: normal; }
