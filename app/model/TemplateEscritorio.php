@@ -316,10 +316,8 @@ class TemplateEscritorio extends TRecord
         $content = str_replace('{$cliente}', $agendamento->cliente->nome, $content);
         $content = str_replace('{$agenda_nome}', $agendamento->agenda->nome, $content);
     
-        if ($agendamento->link_atendimento_online)
-        {
-            $content = str_replace('{$link_atendimento_online}', "{$agendamento->agenda->escritorio->url_sistema}/atendimento/{$agendamento->link_atendimento_online}" , $content);
-        }
+        // sem link de reuniao (04/11/2026): template antigo com a variavel nao manda o texto cru
+        $content = str_replace('{$link_atendimento_online}', '', $content);
     
         $content = str_replace('{$link_detalhe}', "{$agendamento->agenda->escritorio->url_sistema}/agendamento-{$agendamento->id}-{$token}", $content);
         $content = str_replace('{$link_cancelamento}', "{$agendamento->agenda->escritorio->url_sistema}/cancelar-agendamento-{$agendamento->id}-{$token}", $content);

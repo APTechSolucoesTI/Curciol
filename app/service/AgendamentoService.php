@@ -119,6 +119,43 @@ class AgendamentoService
     }
 
     /**
+     * Link do e-mail (04/11/2026): abrir ja confirma ou cancela, sem segunda pergunta. So vale com o agendamento ainda em
+     * aberto e antes do horario: depois da primeira resposta o outro link nao muda mais nada. Devolve o aviso da pagina,
+     * ['tipo' => classe do alerta, 'texto' => frase].
+     */
+    public static function respostaPeloLink(Agendamento $agendamento, int $estado): array
+    {
+        $confirmar = $estado === (int) EstadoAgenda::CONFIRMADO;
+        $feito = $confirmar ? ['tipo' => 'success', 'texto' => 'Agendamento confirmado.'] : ['tipo' => 'danger', 'texto' => 'Agendamento cancelado.'];
+
+        if ((int) $agendamento->estado_agenda_id === $estado)
+        {
+            return $feito;
+        }
+
+        if (!in_array((int) $agendamento->estado_agenda_id, [(int) EstadoAgenda::AGENDADO, (int) EstadoAgenda::AGUARDANDO_VALIDACAO_ESCRITORIO], true))
+        {
+            return ['tipo' => 'warning', 'texto' => 'Este agendamento está ' . $agendamento->estado_agenda->nome . '. Nada foi alterado.'];
+        }
+
+        if ((string) $agendamento->dt_inicial <= date('Y-m-d H:i:s'))
+        {
+            return ['tipo' => 'warning', 'texto' => 'O horário deste agendamento já passou. Nada foi alterado.'];
+        }
+
+        if (!$confirmar && AgendamentoFinanceiroService::ficha((int) $agendamento->id))
+        {
+            return ['tipo' => 'warning', 'texto' => 'Não foi possível cancelar este agendamento pelo link. Nada foi alterado.'];
+        }
+
+        self::respostaDoCliente($agendamento, $estado,
+            $confirmar ? EstadoAgendamento::EVENTO_CONFIRMADO_EMAIL : EstadoAgendamento::EVENTO_CANCELADO_EMAIL,
+            $confirmar ? 'Cliente confirmou pelo link do e-mail' : 'Cliente cancelou pelo link do e-mail');
+
+        return $feito;
+    }
+
+    /**
      * "Cancelar confirmacao" (04/11/2026): o agendamento Confirmado volta a Agendado, para remarcar ou cancelar depois, e a
      * observacao fica no historico. O atendimento criado na confirmacao sai, a nao ser que ja tenha algo ligado a ele.
      */

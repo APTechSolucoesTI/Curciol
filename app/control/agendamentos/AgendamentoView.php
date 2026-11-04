@@ -21,6 +21,24 @@ class AgendamentoView extends TPage
             $this->adianti_target_container = $param['target_container'];
         }
 
+        if (empty($param['token']))
+        {
+            new TMessage('error', 'Token não informado', new TAction(['Home', 'onShow']));
+            die;
+        }
+
+        $token = AgendamentoService::decode($param['token']);
+
+        if (empty($token) || empty($token->agendamento_id) || $token->agendamento_id != ($param['key'] ?? null))
+        {
+            new TMessage('error', 'Token inválido', new TAction(['Home', 'onShow']));
+            die;
+        }
+    }
+
+    /** A pagina e montada depois da resposta, para mostrar a situacao ja atualizada. */
+    private function montar($param, ?array $aviso = null): void
+    {
         TTransaction::open(self::$database);
         // creates the form
         $this->form = new BootstrapFormBuilder(self::$formName);
@@ -37,36 +55,12 @@ class AgendamentoView extends TPage
 
         }, $agendamento->estado_agenda->nome, $agendamento, null);    
 
-        $transformed_agendamento_link_atendimento_online = call_user_func(function($value, $object, $row)
+        if ($aviso)
         {
-
-            if ($value)
-            {
-                $button = new TElement('a');
-                $button->class = 'btn btn-block btn-success';
-                $button->target = '_blank';
-                $button->href = $object->agenda->escritorio->url_sistema.'/atendimento-' . $object->link_atendimento_online;
-                $button->add(TElement::tag('i', '', ['class' => 'fas fa-video']));
-                $button->add(TElement::tag('span', 'Link do atendimento'));
-                return $button;
-            }
-
-            return '';
-
-        }, $agendamento->link_atendimento_online, $agendamento, null);
-
-        if (empty($param['token']))
-        {
-            new TMessage('error', 'Token não informado', new TAction(['Home', 'onShow']));
-            die;
-        }
-
-        $token = AgendamentoService::decode($param['token']);
-
-        if (empty($token) || empty($token->agendamento_id) || $token->agendamento_id != $agendamento->id)
-        {
-            new TMessage('error', 'Token inválido', new TAction(['Home', 'onShow']));
-            die;
+            $caixa = new TElement('div');
+            $caixa->class = 'alert alert-' . $aviso['tipo'];
+            $caixa->add('<b style="font-size:16px">' . htmlspecialchars($aviso['texto']) . '</b><br>Se precisar alterar algo, entre em contato com o escritório pelo WhatsApp.');
+            $this->form->addFields([$caixa])->layout = [' col-sm-12'];
         }
 
         $label2 = new TLabel("Código:", '', '14px', 'B', '100%');
@@ -83,7 +77,6 @@ class AgendamentoView extends TPage
         $text9 = new TTextDisplay($agendamento->observacao, '', '12px', '');
         $label10 = new TLabel("Especialidade:", '', '14px', 'B', '100%');
         $text5 = new TTextDisplay($agendamento->especialidade->descricao, '', '14px', '');
-        $text18 = new TTextDisplay($transformed_agendamento_link_atendimento_online, '', '12px', '');
         $text22 = new TTextDisplay(new TImage('far:building #FF9800').$agendamento->agenda->escritorio->nome, '', '14px', 'B');
         $text26 = new TTextDisplay(new TImage('fas:map-pin #8BC34A').$agendamento->agenda->escritorio->endereco_formatado, '', '12px', '');
         $text7 = new TTextDisplay(new TImage('far:envelope #F44336').$agendamento->agenda->escritorio->email, '', '12px', '');
@@ -103,9 +96,6 @@ class AgendamentoView extends TPage
 
         $row3 = $this->form->addFields([$label8,$text9],[$label10,$text5]);
         $row3->layout = [' col-sm-6','col-sm-6'];
-
-        $row4 = $this->form->addFields([$text18]);
-        $row4->layout = [' col-sm-12'];
 
         $row5 = $this->form->addFields([$text22],[$text26],[$text7],[$text9a]);
         $row5->layout = [' col-sm-12',' col-sm-12',' col-sm-12',' col-sm-12'];
@@ -127,81 +117,31 @@ class AgendamentoView extends TPage
 
     public function onShow($param = null)
     {     
-
+        $this->montar($param);
     }
 
-    /**
-     * Links do e-mail (confirmar e cancelar). Abrir o link so pergunta; quem muda o agendamento e o clique na pergunta: os
-     * antivirus de e-mail abrem os links sozinhos e confirmariam ou cancelariam sem o cliente saber (04/11/2026).
-     */
+    /** Links do e-mail: abrir ja confirma ou cancela e a pagina avisa o resultado. */
     public function onConfirmar($param)
     {
-        try
-        {
-            if (empty($param['respondeu']))
-            {
-                new TQuestion('Confirma este agendamento?', new TAction([$this, 'onConfirmar'], ['key' => $param['key'], 'token' => $param['token'], 'respondeu' => 1]));
-                return;
-            }
-
-            TTransaction::open(self::$database);
-
-            $agendamento = Agendamento::find($param['key']);
-
-            if (in_array($agendamento->estado_agenda_id, [EstadoAgenda::AGENDADO, EstadoAgenda::AGUARDANDO_VALIDACAO_ESCRITORIO]))
-            {
-                AgendamentoService::respostaDoCliente($agendamento, (int) EstadoAgenda::CONFIRMADO, EstadoAgendamento::EVENTO_CONFIRMADO_EMAIL, 'Cliente confirmou pelo link do e-mail');
-
-                TToast::show("success", 'Agendamento confirmado', "topRight", "fas:check");
-
-                TApplication::loadPage('AgendamentoView', 'onShow', ['key' => $param['key'], 'token' => $param['token']]);
-            }
-
-            TTransaction::close();    
-        }
-        catch (Exception $e)
-        {
-            TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
-        }
+        $this->responder($param, (int) EstadoAgenda::CONFIRMADO);
     }
 
     public function onCancelar($param)
     {
+        $this->responder($param, (int) EstadoAgenda::CANCELADO);
+    }
+
+    private function responder($param, int $estado): void
+    {
         try
         {
-            if (empty($param['respondeu']))
-            {
-                new TQuestion('Cancela este agendamento?', new TAction([$this, 'onCancelar'], ['key' => $param['key'], 'token' => $param['token'], 'respondeu' => 1]));
-                return;
-            }
-
             TTransaction::open(self::$database);
 
-            $agendamento = Agendamento::find($param['key']);
+            $aviso = AgendamentoService::respostaPeloLink(Agendamento::find($param['key']), $estado);
 
-            if ($agendamento->estado_agenda->estado_final == 'S')
-            {
-                throw new Exception('Esse agendamento já está finalizado!');
-            }
+            TTransaction::close();
 
-            if($agendamento->estado_agenda_id == EstadoAgenda::CONFIRMADO)
-            {
-                throw new Exception('Não é possível cancelar um agendamento confirmado. Entre em contato com a clínica!');
-            }
-            // com financeiro gerado nao cancela (29/10/2026)
-            if (AgendamentoFinanceiroService::ficha((int) $agendamento->id))
-            {
-                throw new Exception('Não é possível cancelar este agendamento. Entre em contato com o escritório!');
-            }
-
-            AgendamentoService::respostaDoCliente($agendamento, (int) EstadoAgenda::CANCELADO, EstadoAgendamento::EVENTO_CANCELADO_EMAIL, 'Cliente cancelou pelo link do e-mail');
-
-            TToast::show("success", 'Agendamento cancelado', "topRight", "fas:check");
-
-            TApplication::loadPage('AgendamentoView', 'onShow', ['key' => $param['key'], 'token' => $param['token']]);
-
-            TTransaction::close();    
+            $this->montar($param, $aviso);
         }
         catch (Exception $e)
         {

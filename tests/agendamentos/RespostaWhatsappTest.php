@@ -327,33 +327,65 @@ try {
     igual('horario: uma linha no historico', 1, count($linhaHorario));
     ok('horario: de quanto para quanto', strpos($linhaHorario[0]['observacao'] ?? '', 'para 10/05/2031 14:00 às 14:30') !== false, $linhaHorario[0]['observacao'] ?? '');
 
-    // ---------- link do e-mail: abrir so pergunta; o clique confirma ou cancela ----------
+    // ---------- link do e-mail: abrir ja confirma ou cancela e avisa ----------
     [$agLink, $mLink] = $novo('LINK', '5519912340030');
-    $token = AgendamentoService::getToken($agLink);
-    $pg = function (string $metodo, array $extra = []) use ($agLink, $token) {
-        $p = ['key' => $agLink, 'token' => $token] + $extra;
+    $abrir = function (int $ag, string $metodo) {
+        $p = ['key' => $ag, 'token' => AgendamentoService::getToken($ag)];
         ob_start();
         $v = new AgendamentoView($p);
         $v->$metodo($p);
+        $v->show();
         return ob_get_clean();
     };
-    $s = $pg('onConfirmar');
-    igual('link: abrir nao confirma (antivirus de e-mail abre os links)', EstadoAgenda::AGENDADO, $estado($agLink));
-    ok('link: pergunta antes', strpos($s, 'Confirma este agendamento') !== false);
-    $pg('onConfirmar', ['respondeu' => 1]);
-    igual('link: o clique confirma', EstadoAgenda::CONFIRMADO, $estado($agLink));
+    $s = $abrir($agLink, 'onConfirmar');
+    igual('link: abrir ja confirma', EstadoAgenda::CONFIRMADO, $estado($agLink));
+    ok('link: sem segunda pergunta', strpos($s, 'Confirma este agendamento') === false && strpos($s, 'respondeu') === false);
+    ok('link: avisa que confirmou e fala do WhatsApp', strpos($s, 'Agendamento confirmado.') !== false && strpos($s, 'pelo WhatsApp') !== false && strpos($s, 'alert-success') !== false, substr($s, 0, 300));
+    ok('link: a situacao da pagina ja e a nova', strpos($s, 'Confirmado') !== false);
     igual('link: cria o atendimento', 1, count(q("SELECT 1 FROM atendimento WHERE agendamento_id = {$agLink}")));
     igual('link: historico automatico', 1, count(q("SELECT 1 FROM estado_agendamento WHERE agendamento_id = {$agLink} AND evento = 'CONFIRMADO_EMAIL' AND system_users_id IS NULL")));
     ob_start();
     (new AgendamentoFormView(['key' => $agLink]))->show();
     $html = ob_get_clean();
     ok('link: tela diz que foi pelo e-mail', strpos($html, 'pelo link do e-mail') !== false && strpos($html, 'fa-envelope') !== false);
+
+    $s = $abrir($agLink, 'onConfirmar');
+    igual('link: abrir de novo nao duplica o historico', 1, count(q("SELECT 1 FROM estado_agendamento WHERE agendamento_id = {$agLink} AND evento = 'CONFIRMADO_EMAIL'")));
+    ok('link: abrir de novo repete o aviso', strpos($s, 'Agendamento confirmado.') !== false);
+    $s = $abrir($agLink, 'onCancelar');
+    igual('link: depois de confirmar, o de cancelar nao muda', EstadoAgenda::CONFIRMADO, $estado($agLink));
+    ok('link: diz que nada mudou e fala do WhatsApp', strpos($s, 'Este agendamento está Confirmado. Nada foi alterado.') !== false && strpos($s, 'pelo WhatsApp') !== false, substr($s, 0, 300));
+
     [$agLink2, $mLink2] = $novo('LINK2', '5519912340031');
-    $p2 = ['key' => $agLink2, 'token' => AgendamentoService::getToken($agLink2)];
-    ob_start(); $v = new AgendamentoView($p2); $v->onCancelar($p2); ob_end_clean();
-    igual('link: abrir nao cancela', EstadoAgenda::AGENDADO, $estado($agLink2));
-    ob_start(); $v = new AgendamentoView($p2); $v->onCancelar($p2 + ['respondeu' => 1]); ob_end_clean();
-    igual('link: o clique cancela', EstadoAgenda::CANCELADO, $estado($agLink2));
+    $s = $abrir($agLink2, 'onCancelar');
+    igual('link: abrir ja cancela', EstadoAgenda::CANCELADO, $estado($agLink2));
+    ok('link: avisa que cancelou', strpos($s, 'Agendamento cancelado.') !== false && strpos($s, 'alert-danger') !== false && strpos($s, 'Cancela este agendamento') === false);
+    $s = $abrir($agLink2, 'onConfirmar');
+    igual('link: depois de cancelar, o de confirmar nao muda', EstadoAgenda::CANCELADO, $estado($agLink2));
+    ok('link: diz que esta cancelado', strpos($s, 'Este agendamento está Cancelado. Nada foi alterado.') !== false);
+
+    [$agLink3, $mLink3] = $novo('LINK3', '5519912340032');
+    $dtLink3 = q("SELECT dt_inicial d FROM agendamento WHERE id = {$agLink3}")[0]['d'];
+    x("UPDATE agendamento SET dt_inicial = now() - interval '1 hour' WHERE id = {$agLink3}");
+    $s = $abrir($agLink3, 'onConfirmar');
+    igual('link: horario passado nao muda', EstadoAgenda::AGENDADO, $estado($agLink3));
+    ok('link: avisa que o horario passou', strpos($s, 'já passou') !== false);
+    x("UPDATE agendamento SET dt_inicial = '{$dtLink3}' WHERE id = {$agLink3}");
+
+    // ---------- sem reuniao online ----------
+    ok('online: a pagina da reuniao nao existe mais', !class_exists('AtendimentoOnlineView'));
+    ok('online: a coluna do link saiu (migracao)', !array_key_exists('link_atendimento_online', q("SELECT * FROM agendamento WHERE id = {$agLink}")[0]));
+    ok('online: nada de Jitsi nem geracao de link no codigo', !preg_grep('~meet\.jit\.si|link_atendimento_online\s*=~', array_merge(file('app/control/agendamentos/AgendamentoCalendarForm.php'), file('app/control/agendamentos/AgendamentoClienteCalendarForm.php'), file('app/control/agendamentos/AgendamentoExcecao.php'), file('app/control/agendamentos/AgendamentoFormBtn.php'), file('app/control/atendimento/AtendimentoFormView.php'))));
+    ok('online: rotas e acesso publico sairam', strpos(file_get_contents('.htaccess'), 'AtendimentoOnlineView') === false && strpos(file_get_contents('app/config/application.ini'), 'AtendimentoOnlineView') === false);
+    TTransaction::open('escritorio');
+    $agOnline = Agendamento::find($agLink);
+    igual('online: variavel antiga nao vai crua na mensagem', 'Acesse: ', TemplateEscritorio::replace($agOnline, 'Acesse: {$link_atendimento_online}'));
+    ok('online: a variavel saiu da lista', !isset(MensagemService::variaveis()['{$link_atendimento_online}']));
+    $agOnline->online = 'T';
+    ok('online: continua marcando o agendamento online', $agOnline->is_online === true);
+    $agOnline->online = 'F';
+    ok('online: presencial nao e online', $agOnline->is_online === false);
+    TTransaction::close();
 
     // ---------- fluxo personalizado: respostas do usuario ----------
     igual('fluxo: resposta do usuario', 'SIM', ApchatRespostaService::classificar('Confirmo!', "sim\nconfirmo\npode confirmar", 'cancelar'));

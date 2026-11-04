@@ -469,10 +469,6 @@ class AgendamentoExcecao extends TPage
                 $object->online = 'F';
             }
 
-            if ($object->online == 'T')
-            {
-                $object->link_atendimento_online = implode('', [bin2hex(random_bytes(4)),bin2hex(random_bytes(2)),bin2hex(chr((ord(random_bytes(1)) & 0x0F) | 0x40)) . bin2hex(random_bytes(1)),bin2hex(chr((ord(random_bytes(1)) & 0x3F) | 0x80)) . bin2hex(random_bytes(1)),bin2hex(random_bytes(6))]);
-            }
 
             // Curciol (30/10/2026): horario livre na agenda (sem agendamento, bloqueio ou compromisso no mesmo horario); a
             // excecao pode cair no intervalo e quando a agenda nao atende, nunca sobre bloqueio

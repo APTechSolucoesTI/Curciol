@@ -72,7 +72,6 @@ class MensagemService
             '{$link_detalhe}'            => 'Link de detalhe do agendamento',
             '{$link_confirmacao}'        => 'Link para confirmar agendamento',
             '{$link_cancelamento}'       => 'Link para cancelar agendamento',
-            '{$link_atendimento_online}' => 'Link do atendimento online',
         ];
     }
 

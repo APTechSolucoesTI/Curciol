@@ -38,7 +38,6 @@ class Agendamento extends TRecord
         parent::addAttribute('mes_final');
         parent::addAttribute('ano_mes_final');
         parent::addAttribute('online');
-        parent::addAttribute('link_atendimento_online');
         parent::addAttribute('parceria_levantamento_id');
     
     }
@@ -872,12 +871,7 @@ class Agendamento extends TRecord
 
     public function get_is_online()
     {
-        if($this->link_atendimento_online)
-        {
-            return true;
-        }
-    
-        return false;
+        return $this->online === 'T';
     }
                                                         
 }

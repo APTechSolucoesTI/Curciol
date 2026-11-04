@@ -78,8 +78,6 @@ INSERT INTO system_program (id, name, controller) VALUES( (SELECT max(p.id) + 1 
 INSERT INTO system_group_program (id, system_group_id, system_program_id) VALUES( (SELECT max(gp.id) + 1 FROM system_group_program gp), (SELECT max(g.id) FROM system_group g) , (SELECT max(p.id) FROM system_program p where p.controller = 'ModalGerarDocumentosPadrao'));
 INSERT INTO system_program (id, name, controller) VALUES( (SELECT max(p.id) + 1 FROM system_program p) , 'Login do cliente', 'LoginClienteForm');
 INSERT INTO system_group_program (id, system_group_id, system_program_id) VALUES( (SELECT max(gp.id) + 1 FROM system_group_program gp), (SELECT max(g.id) FROM system_group g) , (SELECT max(p.id) FROM system_program p where p.controller = 'LoginClienteForm'));
-INSERT INTO system_program (id, name, controller) VALUES( (SELECT max(p.id) + 1 FROM system_program p) , 'AtendimentoOnlineView', 'AtendimentoOnlineView');
-INSERT INTO system_group_program (id, system_group_id, system_program_id) VALUES( (SELECT max(gp.id) + 1 FROM system_group_program gp), (SELECT max(g.id) FROM system_group g) , (SELECT max(p.id) FROM system_program p where p.controller = 'AtendimentoOnlineView'));
 INSERT INTO system_group (id, name, uuid) VALUES( (SELECT max(g.id) + 1 FROM system_group g) , 'Básico', '9352a67f-1d20-426b-a89c-2c1954f772ed');
 INSERT INTO system_user_group (id, system_group_id, system_user_id) VALUES((SELECT max(ug.id) + 1 FROM system_user_group ug), (SELECT max(g.id) FROM system_group g), 1);
 INSERT INTO system_program (id, name, controller) VALUES( (SELECT max(p.id) + 1 FROM system_program p) , 'Meus processos', 'ProcessoViewHeaderList');

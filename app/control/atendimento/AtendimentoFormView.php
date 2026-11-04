@@ -43,23 +43,6 @@ class AtendimentoFormView extends TPage
 
         }, $atendimento->agendamento->observacao, $atendimento, null);    
 
-        $transformed_atendimento_agendamento_online = call_user_func(function($value, $object, $row)
-        {
-            if ($value == 'T' && empty($object->dt_final))
-            {
-                $button = new TElement('a');
-                $button->class = 'btn btn-block btn-success';
-                $button->target = '_blank';
-                $button->href = 'https://meet.jit.si/' . $object->agendamento->link_atendimento_online . "#userInfo.displayName=\"{$object->profissional->nome}\"";
-                $button->add(TElement::tag('i', '', ['class' => 'fas fa-video']));
-                $button->add(TElement::tag('span', 'Entrar no atendimento'));
-                return $button;
-            }
-
-            return '';
-
-        }, $atendimento->agendamento->online, $atendimento, null);
-
         TTransaction::open(self::$database);
         $criteria = new TCriteria;
         $criteria->add(new TFilter('ativo', '=', 'S'));
@@ -77,7 +60,6 @@ class AtendimentoFormView extends TPage
         $text544 = new TTextDisplay($transformed_atendimento_agendamento_observacao, '', '12px', '');
         $labeltipoatend = new TLabel("Tipo de atendimento:", '', '12px', 'B', '100%');
         $text37 = new TTextDisplay($atendimento->tipo_atendimento->nome, '', '12px', '');
-        $text3 = new TTextDisplay($transformed_atendimento_agendamento_online, '', '12px', '');
         $actionAdicionarHistorico = new TActionLink("Adicionar histórico", new TAction(['AtendimentoHistoricoForm', 'onShow'], ['atendimento_id'=> $atendimento->id]), '', '12px', '', 'fas:plus #4CAF50');
         $labelFormulario = new TLabel("{$tipos_formularios}", '', '12px', '', '100%');
         $action2aaa = new TActionLink("Preencher novo formulário", new TAction(['RespostaFormularioForm', 'onShow'], ['atendimento_id'=> $atendimento->id]), '', '12px', '', 'fas:plus #4CAF50');
@@ -112,8 +94,6 @@ class AtendimentoFormView extends TPage
         $row2 = $this->form->addFields([$label5,$text544],[$labeltipoatend,$text37]);
         $row2->layout = [' col-sm-9',' col-sm-3'];
 
-        $row3 = $this->form->addFields([$text3]);
-        $row3->layout = [' col-sm-12'];
 
         $abas = new BootstrapFormBuilder('abas');
         $this->abas = $abas;
