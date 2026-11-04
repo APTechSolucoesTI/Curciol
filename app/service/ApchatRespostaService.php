@@ -92,6 +92,12 @@ class ApchatRespostaService
         });
     }
 
+    /** Arquivo da trava (os testes seguram a trava para o cron nao pegar o que eles criam). */
+    public static function arquivoDaTrava(): string
+    {
+        return sys_get_temp_dir() . '/curciol-apchat-resposta-' . md5(getcwd()) . '.lock';
+    }
+
     /** Uma por vez: a anterior ainda rodando = pula esta. */
     private static function comTrava(callable $rodar): void
     {
@@ -101,7 +107,7 @@ class ApchatRespostaService
             return;
         }
 
-        $trava = fopen(sys_get_temp_dir() . '/curciol-apchat-resposta-' . md5(getcwd()) . '.lock', 'c');
+        $trava = fopen(self::arquivoDaTrava(), 'c');
         if (!$trava || !flock($trava, LOCK_EX | LOCK_NB))
         {
             return;
@@ -118,7 +124,7 @@ class ApchatRespostaService
         }
     }
 
-    private static function rodada(): void
+    public static function rodada(): void
     {
         TTransaction::open(self::$database);
         $pendentes = self::pendentes();

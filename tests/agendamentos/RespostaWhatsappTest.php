@@ -25,6 +25,9 @@ function limparResposta(): void
     x("DELETE FROM pessoa_contato WHERE pessoa_id IN (SELECT id FROM pessoa WHERE nome LIKE '" . MARCA_RESP . "%')");
     x("DELETE FROM pessoa WHERE nome LIKE '" . MARCA_RESP . "%'");
 }
+// segura a trava durante o teste: o cron real da homologacao fica a maior parte do minuto com ela e nao pode ler o que o teste cria
+$travaCron = fopen(ApchatRespostaService::arquivoDaTrava(), 'c');
+flock($travaCron, LOCK_EX);
 limparResposta();
 
 // ---------- banco do APChat falso: a conversa de cada numero ----------
@@ -80,7 +83,7 @@ $novo = function (string $nome, string $destino, string $enviadaHa = '1 minute')
 };
 $estado = fn(int $ag) => (int) q("SELECT estado_agenda_id e FROM agendamento WHERE id = {$ag}")[0]['e'];
 $resposta = fn(int $m) => q("SELECT resposta, resposta_texto FROM mensagem WHERE id = {$m}")[0];
-$rodar = function () { ob_start(); ApchatRespostaService::processar(); return ob_get_clean(); };
+$rodar = function () { ob_start(); ApchatRespostaService::rodada(); return ob_get_clean(); };
 
 try {
     // ---------- classificar: so a palavra ----------
@@ -465,6 +468,8 @@ try {
     ApchatApiService::usarTransporte(null);
     AmbienteService::forcarProducao(null);
     limparResposta();
+    flock($travaCron, LOCK_UN);
+    fclose($travaCron);
 }
 
 fim();
