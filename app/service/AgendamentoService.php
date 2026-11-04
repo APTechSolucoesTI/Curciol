@@ -189,7 +189,10 @@ class AgendamentoService
         return $campos ? implode(', ', $campos) . ' e ' . $ultimo : (string) $ultimo;
     }
 
-    /** Campos essenciais que faltam no cadastro do cliente: sem eles o agendamento confirma, mas o atendimento nao inicia. */
+    /**
+     * Campos essenciais que faltam no cadastro do cliente: sem eles o agendamento confirma, mas o atendimento nao inicia.
+     * Telefone: basta um numero, nos Dados ou em qualquer contato, principal ou nao (a normalizacao tirou dos Dados o que estava em conflito).
+     */
     public static function pendenciasCadastro(int $clienteId): array
     {
         return self::pendenciasCadastroDe([$clienteId])[$clienteId] ?? [];
@@ -201,7 +204,8 @@ class AgendamentoService
         $ids = array_values(array_unique(array_filter(array_map('intval', $clienteIds))));
         if (!$ids) { return []; }
 
-        $linhas = TTransaction::get()->query("SELECT p.id, p.tipo_pessoa_id, p.telefone, p.cpf_cnpj, p.rg_ie, p.orgao_emissor, p.dt_nascimento_abertura,
+        $linhas = TTransaction::get()->query("SELECT p.id, p.tipo_pessoa_id, p.cpf_cnpj, p.rg_ie, p.orgao_emissor, p.dt_nascimento_abertura,
+                                                     (COALESCE(p.telefone, '') ~ '[1-9]' OR EXISTS (SELECT 1 FROM pessoa_contato c WHERE c.pessoa_id = p.id AND COALESCE(c.telefone, '') ~ '[1-9]'))::int AS tem_telefone,
                                                      (EXISTS (SELECT 1 FROM pessoa_endereco e WHERE e.pessoa_id = p.id AND e.principal = 'S'))::int AS tem_endereco,
                                                      (EXISTS (SELECT 1 FROM pessoa_representantes_legais r WHERE r.pessoa_juridica_id = p.id))::int AS tem_representante
                                                 FROM pessoa p WHERE p.id IN (" . implode(',', $ids) . ")")->fetchAll(PDO::FETCH_ASSOC);
@@ -209,7 +213,7 @@ class AgendamentoService
         $pendencias = [];
         foreach ($linhas as $p)
         {
-            $campos = ['telefone' => 'telefone', 'tem_endereco' => 'endereço principal'];
+            $campos = ['tem_telefone' => 'telefone', 'tem_endereco' => 'endereço principal'];
 
             if ((string) $p['tipo_pessoa_id'] === (string) TipoPessoa::FISICA)
             {

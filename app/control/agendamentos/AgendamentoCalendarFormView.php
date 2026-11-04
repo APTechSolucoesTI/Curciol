@@ -366,7 +366,7 @@ class AgendamentoCalendarFormView extends TPage
                 foreach($convidados as $convidado)
                 {
                     $agendaConvidada = Agenda::find($convidado->agenda_id);
-                    $faltam = $pendencias[(int) $convidado->agendamento->cliente_id] ?? [];
+                    $faltam = AgendaVisual::faltamNoCartao($pendencias, $convidado->agendamento->cliente_id, $convidado->agendamento->dt_final);
                     $event_array = [];
                     $event_array['start'] = str_replace( ' ', 'T', $convidado->agendamento->dt_inicial);
                     $event_array['end'] = str_replace( ' ', 'T', $convidado->agendamento->dt_final);
@@ -423,7 +423,7 @@ class AgendamentoCalendarFormView extends TPage
                 $st = TTransaction::get()->query("SELECT ap.agendamento_id, string_agg(p.nome, ', ' ORDER BY ap.id) AS nomes FROM agendamento_procedimento ap JOIN procedimento p ON p.id = ap.procedimento_id WHERE ap.agendamento_id IN ({$ids}) GROUP BY ap.agendamento_id");
                 foreach ($st->fetchAll(PDO::FETCH_OBJ) as $p) { $procedimentos[(int) $p->agendamento_id] = $p->nomes; }
 
-                // cadastro incompleto, em qualquer estado: borda vermelha no cartao e primeira informacao do resumo (04/11/2026)
+                // cadastro incompleto, em qualquer estado, do agendamento que ainda nao terminou: borda vermelha no cartao e primeira informacao do resumo (04/11/2026)
                 $pendencias = AgendamentoService::pendenciasCadastroDe(array_map(function ($e) { return (int) $e->cliente_id; }, $events));
 
                 foreach ($events as $event)
@@ -440,7 +440,7 @@ class AgendamentoCalendarFormView extends TPage
                         . "<span title='{estado_agenda->nome}' class='agd-ev-est' style='background-color: {estado_agenda->cor}'></span>"
                         . "{cliente->nome_formatado}{$online}</span>"
                         . "<span class='agd-ev-l2'>" . htmlspecialchars($detalhe) . "</span></div>";
-                    $faltam = $pendencias[(int) $event->cliente_id] ?? [];
+                    $faltam = AgendaVisual::faltamNoCartao($pendencias, $event->cliente_id, $event->dt_final);
                     $event_array['title'] = AgendaVisual::comResumo($event->render($formatacao), 'Agendamento', AgendaVisual::avisoCadastro($faltam) . $event->render("{detalhe_html}"));
 
                     $return[] = AgendaVisual::marcarCadastro(AgendaVisual::estilizar($event_array, 'agendamento', $event->render("{agenda->cor}"), $event->agenda_id), $faltam);

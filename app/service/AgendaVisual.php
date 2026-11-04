@@ -111,6 +111,12 @@ class AgendaVisual
         ];
     }
 
+    /** O que falta para marcar o cartao: a marca so vale para o agendamento que ainda nao terminou. */
+    public static function faltamNoCartao(array $pendencias, $clienteId, $dtFinal): array
+    {
+        return (string) $dtFinal > date('Y-m-d H:i:s') ? ($pendencias[(int) $clienteId] ?? []) : [];
+    }
+
     /** Primeira informacao do resumo do agendamento com cadastro incompleto (os campos ficam so na tela do agendamento confirmado). */
     public static function avisoCadastro(array $faltam): string
     {

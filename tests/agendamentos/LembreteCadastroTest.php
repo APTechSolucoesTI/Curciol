@@ -103,6 +103,24 @@ try {
     TTransaction::open('escritorio');
     TTransaction::get()->prepare('INSERT INTO pessoa_endereco (pessoa_id, principal, cidade_id, rua, numero, bairro, cep) VALUES (?, ?, (SELECT id FROM cidade ORDER BY id LIMIT 1), ?, ?, ?, ?)')->execute([$pfCompleta, 'S', 'Rua', '1', 'Centro', '13000000']);
     igual('PF completa: nada falta', [], AgendamentoService::pendenciasCadastro($pfCompleta));
+    // telefone: basta um numero, nos Dados ou em qualquer contato, principal ou nao
+    $semTelefone = ['endereço principal', 'CPF', 'RG', 'órgão emissor do RG', 'data de nascimento'];
+    $contato = function (int $pessoa, ?string $telefone, ?string $email, string $principal = 'N') {
+        TTransaction::get()->prepare('INSERT INTO pessoa_contato (pessoa_id, telefone, email, principal) VALUES (?, ?, ?, ?)')->execute([$pessoa, $telefone, $email, $principal]);
+    };
+    $pfContato = $cliente('PF CONTATO');
+    $contato($pfContato, null, 'teste@example.invalid');
+    igual('telefone: contato so com e-mail nao conta', array_merge(['telefone'], $semTelefone), AgendamentoService::pendenciasCadastro($pfContato));
+    $contato($pfContato, '0', null);
+    igual('telefone: numero zerado nao conta', array_merge(['telefone'], $semTelefone), AgendamentoService::pendenciasCadastro($pfContato));
+    $contato($pfContato, '19912345002', null);
+    igual('telefone: contato nao principal conta', $semTelefone, AgendamentoService::pendenciasCadastro($pfContato));
+    $pfPrincipal = $cliente('PF PRINCIPAL');
+    $contato($pfPrincipal, '19912345003', null, 'S');
+    igual('telefone: contato principal conta', $semTelefone, AgendamentoService::pendenciasCadastro($pfPrincipal));
+    $pfDados = $cliente('PF DADOS', ['telefone' => '19912345004']);
+    igual('telefone: nos Dados conta, sem contato', $semTelefone, AgendamentoService::pendenciasCadastro($pfDados));
+
     igual('por extenso: um campo', 'CPF', AgendamentoService::camposPorExtenso(['CPF']));
     igual('por extenso: dois campos', 'CPF e RG', AgendamentoService::camposPorExtenso(['CPF', 'RG']));
     igual('por extenso: virgula e "e" no ultimo', 'telefone, CPF e RG', AgendamentoService::camposPorExtenso(['telefone', 'CPF', 'RG']));
@@ -254,6 +272,18 @@ try {
     $html = saida(function () use ($agSemConfirmar) { (new AgendamentoFormView(['key' => $agSemConfirmar]))->show(); });
     ok('tela do agendado: nao mostra os campos', strpos($html, 'Cadastro incompleto:') === false && strpos($html, 'Completar cadastro') === false);
     $eOk = $doAg($eventos(), $agOk);
+    // agendamento que ja terminou nao recebe a marca, em nenhum estado; o que ainda nao terminou recebe, mesmo ja iniciado
+    foreach ([EstadoAgenda::ATENDIDO => 'Atendido', EstadoAgenda::CANCELADO => 'Cancelado', EstadoAgenda::CONFIRMADO => 'Confirmado'] as $estadoPassado => $nomeEstado) {
+        $agPassado = $agendamento($pfVazia, (int) $estadoPassado, '-2 days');
+        $diaPassado = date('Y-m-d', strtotime('-2 days'));
+        $evs = json_decode(saida(function () use ($diaPassado) { AgendamentoCalendarFormView::getEvents(['start' => "{$diaPassado}T00:00:00", 'end' => date('Y-m-d', strtotime($diaPassado . ' +1 day')) . 'T00:00:00']); }), true) ?: [];
+        $ePassado = $doAg($evs, $agPassado);
+        ok("agenda: {$nomeEstado} que ja passou aparece sem a marca", $ePassado !== null && !in_array('agd-incompleto', $ePassado['classNames'] ?? [], true));
+        preg_match("/data-resumo='([^']+)'/", (string) ($ePassado['title'] ?? ''), $mPassado);
+        ok("agenda: {$nomeEstado} que ja passou sem o aviso no resumo", strpos(base64_decode($mPassado[1] ?? ''), 'Cadastro Incompleto') === false);
+    }
+    igual('marca: termina no futuro marca', ['CPF'], AgendaVisual::faltamNoCartao([7 => ['CPF']], 7, date('Y-m-d H:i:s', strtotime('+1 minute'))));
+    igual('marca: ja terminou nao marca', [], AgendaVisual::faltamNoCartao([7 => ['CPF']], 7, date('Y-m-d H:i:s', strtotime('-1 minute'))));
     ok('agenda: cadastro completo sem marca', $eOk === null || !in_array('agd-incompleto', $eOk['classNames'] ?? [], true));
 
     // ---------- agenda sem filtro: bloqueio so no topo; intervalo e nao atende fora ----------
