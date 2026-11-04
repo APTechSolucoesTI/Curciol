@@ -1202,7 +1202,7 @@ class APChatContactService
     {
         try
         {
-            ApchatBancoService::gravarEspelho($id, (string) ($corpo['name'] ?? ''), (string) $corpo['number'], $corpo['email'] ?? null);
+            ApchatBancoService::gravarEspelho($id, (string) ($corpo['name'] ?? ''), (string) $corpo['number'], $corpo['email'] ?? null, $corpo);
             return '';
         }
         catch (Throwable $e)

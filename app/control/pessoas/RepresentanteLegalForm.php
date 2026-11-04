@@ -726,6 +726,8 @@ class RepresentanteLegalForm extends TPage
                 }
             }
 
+            PessoaDocumentoService::exigirRgValido($data->rg_ie ?? '', $data->tipo_pessoa_id ?? null);
+
             if($data->cpf_cnpj){
                 if($data->tipo_pessoa_id && $data->tipo_pessoa_id==TipoPessoa::FISICA){
                     (new TCPFValidator())->validate('CPF', $data->cpf_cnpj);

@@ -971,6 +971,17 @@ class PessoaEditHeaderList extends TPage
             $object = $class::find($id);
             if ($object)
             {
+                // a mesma validacao de formato dos formularios
+                if ($column === 'cpf_cnpj')
+                {
+                    $value = preg_replace('/\D/', '', (string) $value);
+                    PessoaLoginService::exigirDocumentoValido($value);
+                }
+                elseif ($column === 'rg_ie')
+                {
+                    PessoaDocumentoService::exigirRgValido($value, $object->tipo_pessoa_id);
+                }
+
                 // contato principal: o telefone e o e-mail dos Dados e os do contato principal andam juntos (PessoaContatoService)
                 $contatos_antes = null;
                 if (in_array($column, ['telefone', 'email'], true))

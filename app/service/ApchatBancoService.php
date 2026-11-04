@@ -7,7 +7,7 @@
  * - contatosPorNumeros(): o "Sincronizar todos" e o salvar da pessoa leem aqui se o numero ja existe no APChat, em vez
  *   de consultar a API numero a numero (showcontact);
  * - gravarEspelho()/desligarEspelho(): o que a Curciol mandou para cada contato. A trigger de protecao no APChat so
- *   aceita, para contato da Curciol, os valores do espelho (edicao pelo APChat volta ao que estava);
+ *   aceita, para contato da Curciol, os valores do espelho (edicao de qualquer campo do cadastro do contato volta ao que estava);
  * - transferir(): troca de numero na Curciol - o historico do contato antigo passa para o novo e o antigo e excluido;
  * - listar()/conversa(): tela "Contatos sem vinculo".
  *
@@ -128,13 +128,29 @@ class ApchatBancoService
     }
 
     /** O que a Curciol mandou (ou vai mandar) para o contato: a trigger de protecao aceita estes valores. */
-    public static function gravarEspelho(int $id, string $nome, string $numero, ?string $email): void
+    public static function gravarEspelho(int $id, string $nome, string $numero, ?string $email, array $corpo = []): void
     {
         if (self::$falso) { self::$falso->gravarEspelho($id, $nome, $numero, $email); return; }
-        self::conn()->prepare('INSERT INTO curciol.contato (contato_id, nome, numero, email, ligado, atualizado_em) VALUES (?, ?, ?, ?, true, now())
-                               ON CONFLICT (contato_id) DO UPDATE SET nome = EXCLUDED.nome, numero = EXCLUDED.numero, email = EXCLUDED.email,
+        $campos = self::camposDoEspelho($corpo);
+        self::conn()->prepare('INSERT INTO curciol.contato (contato_id, nome, numero, email, cpf, primeiro_nome, ultimo_nome, razao_social, nascimento, ligado, atualizado_em)
+                               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, true, now())
+                               ON CONFLICT (contato_id) DO UPDATE SET nome = EXCLUDED.nome, numero = EXCLUDED.numero, email = EXCLUDED.email, cpf = EXCLUDED.cpf,
+                                                                      primeiro_nome = EXCLUDED.primeiro_nome, ultimo_nome = EXCLUDED.ultimo_nome,
+                                                                      razao_social = EXCLUDED.razao_social, nascimento = EXCLUDED.nascimento,
                                                                       ligado = true, atualizado_em = now()')
-             ->execute([$id, $nome, $numero, $email !== null && $email !== '' ? $email : null]);
+             ->execute([$id, $nome, $numero, $email !== null && $email !== '' ? $email : null, $campos['cpf'], $campos['primeiro_nome'], $campos['ultimo_nome'], $campos['razao_social'], $campos['nascimento']]);
+    }
+
+    /** Os outros campos enviados ao APChat, no formato que a protecao compara: CPF so numeros, nascimento como o APChat grava (aaaa-mm-dd). */
+    public static function camposDoEspelho(array $corpo): array
+    {
+        $texto = function ($campo) use ($corpo) { $v = trim((string) ($corpo[$campo] ?? '')); return $v !== '' ? $v : null; };
+        $cpf = preg_replace('/\D/', '', (string) ($corpo['cpf'] ?? ''));
+        $nascimento = $texto('birthdayDate');
+        if ($nascimento !== null && preg_match('~^(\d{1,2})/(\d{1,2})/(\d+)$~', $nascimento, $m)) { $nascimento = "{$m[3]}-{$m[2]}-{$m[1]}"; }
+
+        return ['cpf' => $cpf !== '' ? $cpf : null, 'primeiro_nome' => $texto('firstName'), 'ultimo_nome' => $texto('lastName'), 'razao_social' => $texto('businessName'),
+                'nascimento' => $nascimento !== null ? substr($nascimento, 0, 10) : null];
     }
 
     /** O contato deixou de ser da Curciol (numero saiu de todos os cadastros): fica travado no APChat. */
