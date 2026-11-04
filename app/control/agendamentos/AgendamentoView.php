@@ -130,24 +130,27 @@ class AgendamentoView extends TPage
 
     }
 
+    /**
+     * Links do e-mail (confirmar e cancelar). Abrir o link so pergunta; quem muda o agendamento e o clique na pergunta: os
+     * antivirus de e-mail abrem os links sozinhos e confirmariam ou cancelariam sem o cliente saber (04/11/2026).
+     */
     public function onConfirmar($param)
     {
         try
         {
+            if (empty($param['respondeu']))
+            {
+                new TQuestion('Confirma este agendamento?', new TAction([$this, 'onConfirmar'], ['key' => $param['key'], 'token' => $param['token'], 'respondeu' => 1]));
+                return;
+            }
+
             TTransaction::open(self::$database);
 
             $agendamento = Agendamento::find($param['key']);
 
             if (in_array($agendamento->estado_agenda_id, [EstadoAgenda::AGENDADO, EstadoAgenda::AGUARDANDO_VALIDACAO_ESCRITORIO]))
             {
-                $agendamento->estado_agenda_id = EstadoAgenda::CONFIRMADO;
-                $agendamento->store();
-
-                $historico = new EstadoAgendamento();
-                $historico->agendamento_id = $agendamento->id;
-                $historico->estado_agenda_id = $agendamento->estado_agenda_id;
-                $historico->atribuido_em = date('Y-m-d H:i:s');
-                $historico->store();
+                AgendamentoService::respostaDoCliente($agendamento, (int) EstadoAgenda::CONFIRMADO, EstadoAgendamento::EVENTO_CONFIRMADO_EMAIL, 'Cliente confirmou pelo link do e-mail');
 
                 TToast::show("success", 'Agendamento confirmado', "topRight", "fas:check");
 
@@ -167,6 +170,12 @@ class AgendamentoView extends TPage
     {
         try
         {
+            if (empty($param['respondeu']))
+            {
+                new TQuestion('Cancela este agendamento?', new TAction([$this, 'onCancelar'], ['key' => $param['key'], 'token' => $param['token'], 'respondeu' => 1]));
+                return;
+            }
+
             TTransaction::open(self::$database);
 
             $agendamento = Agendamento::find($param['key']);
@@ -186,14 +195,7 @@ class AgendamentoView extends TPage
                 throw new Exception('Não é possível cancelar este agendamento. Entre em contato com o escritório!');
             }
 
-            $agendamento->estado_agenda_id = EstadoAgenda::CANCELADO;
-            $agendamento->store();
-
-            $historico = new EstadoAgendamento();
-            $historico->agendamento_id = $agendamento->id;
-            $historico->estado_agenda_id = $agendamento->estado_agenda_id;
-            $historico->atribuido_em = date('Y-m-d H:i:s');
-            $historico->store();
+            AgendamentoService::respostaDoCliente($agendamento, (int) EstadoAgenda::CANCELADO, EstadoAgendamento::EVENTO_CANCELADO_EMAIL, 'Cliente cancelou pelo link do e-mail');
 
             TToast::show("success", 'Agendamento cancelado', "topRight", "fas:check");
 
@@ -208,4 +210,3 @@ class AgendamentoView extends TPage
         }
     }
 }
-

@@ -688,8 +688,19 @@ class Agendamento extends TRecord
         return implode(', ', $values);
     }
 
+    /** Horario gravado antes deste store (para o historico; 04/11/2026). */
+    private $horarioAnterior = null;
+
     public function onBeforeStore($object)
     {
+        $this->horarioAnterior = null;
+        if (!empty($object->id))
+        {
+            $st = TTransaction::get()->prepare('SELECT dt_inicial, dt_final FROM agendamento WHERE id = ?');
+            $st->execute([(int) $object->id]);
+            $this->horarioAnterior = $st->fetch(PDO::FETCH_ASSOC) ?: null;
+        }
+
         if ($object->dt_inicial) {
             $object->ano_inicial = date('Y', strtotime($object->dt_inicial));
             $object->mes_inicial = date('m', strtotime($object->dt_inicial));
@@ -701,6 +712,34 @@ class Agendamento extends TRecord
             $object->mes_final = date('m', strtotime($object->dt_final));
             $object->ano_mes_final = date('Ym', strtotime($object->dt_final));
         }
+    }
+
+    /** Depois de criado, mudou o horario (qualquer tela): uma linha no historico, de quanto para quanto. */
+    public function onAfterStore($object)
+    {
+        $antes = $this->horarioAnterior;
+        $this->horarioAnterior = null;
+
+        if (!$antes || empty($object->dt_inicial) || empty($object->dt_final))
+        {
+            return;
+        }
+        if (substr((string) $antes['dt_inicial'], 0, 16) === substr((string) $object->dt_inicial, 0, 16)
+            && substr((string) $antes['dt_final'], 0, 16) === substr((string) $object->dt_final, 0, 16))
+        {
+            return;
+        }
+
+        $faixa = function ($inicio, $fim) { return date('d/m/Y H:i', strtotime($inicio)) . ' às ' . date('H:i', strtotime($fim)); };
+
+        $historico = new EstadoAgendamento();
+        $historico->agendamento_id = $object->id;
+        $historico->estado_agenda_id = $object->estado_agenda_id;
+        $historico->system_users_id = TSession::getValue('userid');
+        $historico->atribuido_em = date('Y-m-d H:i:s');
+        $historico->evento = EstadoAgendamento::EVENTO_HORARIO;
+        $historico->observacao = 'Horário alterado de ' . $faixa($antes['dt_inicial'], $antes['dt_final']) . ' para ' . $faixa($object->dt_inicial, $object->dt_final);
+        $historico->store();
     }
 
     public function validate()

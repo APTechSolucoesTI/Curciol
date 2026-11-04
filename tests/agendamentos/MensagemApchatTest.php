@@ -89,6 +89,7 @@ try {
     $t->descricao = 'Teste';
     $t->habilitado = 'T';
     $t->tipo_template = TemplateEscritorio::WHATSAPP;
+    $t->categoria = TemplateEscritorio::OUTROS;
     $t->template = 'Confirma?';
     $t->store();
     $a = new TemplateAcao();
@@ -99,14 +100,15 @@ try {
     igual('template: sem os links das acoes', 'Confirma?', MensagemService::textoDoTemplate($t)['texto']);
     $doEnvio = MensagemService::templatesDoEnvio(TemplateEscritorio::WHATSAPP);
     ok('templates do envio: inclui os do canal', isset($doEnvio[$t->id]));
-    igual('templates do envio: sem respostas automaticas nem credenciais', 0, count(TemplateEscritorio::where('id', 'in', array_keys($doEnvio) ?: [0])->where('chave', 'in', MensagemService::CHAVES_FORA_DO_ENVIO)->load() ?: []));
+    igual('templates do envio: sem as credenciais', 0, count(TemplateEscritorio::where('id', 'in', array_keys($doEnvio) ?: [0])->where('chave', 'in', MensagemService::CHAVES_FORA_DO_ENVIO)->load() ?: []));
+    ok('templates do envio: com a categoria no nome', strpos($doEnvio[$t->id], 'Outros - ') === 0, $doEnvio[$t->id]);
 
     // ---------- contatos para o envio: principal primeiro, sempre com nome, descricao e principal ----------
     $c->prepare("INSERT INTO pessoa_contato (pessoa_id, nome, descricao, telefone, email, principal) VALUES (?, 'JOAO', 'CELULAR', '19987650009', 'joao@exemplo.com.br', 'S')")->execute([$p->id]);
     $contatos = MensagemService::contatosParaEnvio($ag, TemplateEscritorio::WHATSAPP);
     igual('contatos: 2 de contato e o telefone so dos Dados', 3, count($contatos));
-    igual('contatos: principal primeiro, com nome, descricao e principal', '(19) 98765-0009 | Nome: JOAO | Descrição: CELULAR | Principal: Sim', $contatos[0]['rotulo']);
-    igual('contatos: sem nome e sem descricao aparecem com traco', '(19) 8765-4321 | Nome: - | Descrição: - | Principal: Não', $contatos[1]['rotulo']);
+    igual('contatos: principal primeiro, nome | telefone | descricao e a marca', 'JOAO | (19) 98765-0009 | CELULAR [principal]', $contatos[0]['rotulo']);
+    igual('contatos: sem nome e sem descricao, so o telefone', '(19) 8765-4321', $contatos[1]['rotulo']);
     igual('contatos: destino do escolhido', $contatos[1]['destino'], MensagemService::destinoDoContato($ag, TemplateEscritorio::WHATSAPP, $contatos[1]['chave']));
     lanca('contatos: de outra pessoa nao passa', fn() => MensagemService::destinoDoContato($ag, TemplateEscritorio::WHATSAPP, '999999999'), 'Escolha o contato');
     $emails = MensagemService::contatosParaEnvio($ag, TemplateEscritorio::EMAIL);
@@ -114,7 +116,10 @@ try {
 
     // ---------- Manual e a confirmacao que espera SIM/NAO ----------
     $confirma = new TemplateEscritorio();
-    $confirma->chave = ApchatRespostaService::CHAVE_CONFIRMACAO;
+    $confirma->categoria = TemplateEscritorio::CONFIRMACAO;
+    $confirma->respostas_confirmar = 'sim';
+    $confirma->respostas_cancelar = "não\nnao";
+    $confirma->ignorar_maiusculas = 'T';
     $confirma->id = 123456;
     igual('template pronto fica registrado', 123456, MensagemService::templateRegistrado($confirma, false, 'tanto faz'));
     igual('Manual pedindo SIM continua confirmacao', 123456, MensagemService::templateRegistrado($confirma, true, 'Pode vir? Responda SIM ou NÃO'));

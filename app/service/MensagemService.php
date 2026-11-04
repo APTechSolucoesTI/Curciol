@@ -76,10 +76,13 @@ class MensagemService
         ];
     }
 
-    /** Templates que nao se escolhe no envio: as respostas automaticas e as credenciais do portal. */
-    const CHAVES_FORA_DO_ENVIO = ['WHATSAPP_RESPOSTA_SIM', 'WHATSAPP_RESPOSTA_NAO', 'EMAIL_CREDENCIAIS'];
+    /** Template que nao se escolhe no envio: as credenciais do portal. */
+    const CHAVES_FORA_DO_ENVIO = ['EMAIL_CREDENCIAIS'];
 
-    /** Templates habilitados do canal no escritorio da unidade logada: [id => descricao]. */
+    /** Marca do contato principal no rotulo; a tela troca pelo quadradinho verde. */
+    const MARCA_PRINCIPAL = '[principal]';
+
+    /** Templates habilitados do canal no escritorio da unidade logada: [id => "Categoria - descricao"]. */
     public static function templatesDoEnvio(string $tipo): array
     {
         $escritorio = Escritorio::findByUnitId(TSession::getValue('userunitid'));
@@ -89,47 +92,81 @@ class MensagemService
             return [];
         }
 
-        return TemplateEscritorio::where('tipo_template', '=', $tipo)
-                                 ->where('escritorio_id', '=', $escritorio->id)
-                                 ->where('habilitado', '=', 'T')
-                                 ->where('chave', 'not in', self::CHAVES_FORA_DO_ENVIO)
-                                 ->orderBy('id')
-                                 ->getIndexedArray('id', 'descricao');
-    }
+        $templates = TemplateEscritorio::where('tipo_template', '=', $tipo)
+                                       ->where('escritorio_id', '=', $escritorio->id)
+                                       ->where('habilitado', '=', 'T')
+                                       ->where('chave', 'not in', self::CHAVES_FORA_DO_ENVIO)
+                                       ->orderBy('id')
+                                       ->load();
 
-    /** Template que ja vem escolhido: confirmacao com o agendamento Agendado, lembrete depois de confirmado. */
-    public static function templatePadrao(Agendamento $agendamento, string $tipo, array $templates): ?TemplateEscritorio
-    {
-        $chave = (int) $agendamento->estado_agenda_id === (int) EstadoAgenda::CONFIRMADO ? 'LEMBRETE_CONSULTA' : 'CONFIRMACAO_AGENDAMENTO';
-
-        foreach (array_keys($templates) as $id)
+        $lista = [];
+        foreach ($templates ?: [] as $t)
         {
-            $template = TemplateEscritorio::find($id);
-            if ($template->chave === $tipo . '_' . $chave) { return $template; }
+            $lista[$t->id] = (TemplateEscritorio::CATEGORIAS[$t->categoria] ?? 'Outros') . ' - ' . $t->descricao;
         }
 
-        return null;
+        return $lista;
     }
 
     /**
-     * Template que fica registrado no envio. A confirmacao espera a resposta SIM/NAO: com "Manual", so continua sendo
-     * confirmacao se o texto ainda pedir SIM - senao um "sim" a outro assunto confirmaria o agendamento.
+     * Template que ja vem escolhido: a confirmacao com o agendamento Agendado; depois de confirmado, o lembrete do fluxo da
+     * confirmacao ou o primeiro da categoria Lembrete.
+     */
+    public static function templatePadrao(Agendamento $agendamento, string $tipo, array $templates): ?TemplateEscritorio
+    {
+        $porId = [];
+        foreach (array_keys($templates) as $id) { $porId[$id] = TemplateEscritorio::find($id); }
+
+        $primeiro = function (string $categoria) use ($porId) {
+            foreach ($porId as $t) { if ($t->categoria === $categoria) { return $t; } }
+            return null;
+        };
+
+        if ((int) $agendamento->estado_agenda_id !== (int) EstadoAgenda::CONFIRMADO)
+        {
+            return $primeiro(TemplateEscritorio::CONFIRMACAO);
+        }
+
+        $confirmacao = $primeiro(TemplateEscritorio::CONFIRMACAO);
+        if ($confirmacao && isset($porId[$confirmacao->template_lembrete_id]))
+        {
+            return $porId[$confirmacao->template_lembrete_id];
+        }
+
+        return $primeiro(TemplateEscritorio::LEMBRETE);
+    }
+
+    /**
+     * Template que fica registrado no envio. A confirmacao espera a resposta do fluxo: com "Manual", so continua sendo
+     * confirmacao se o texto ainda citar uma resposta valida - senao um "sim" a outro assunto confirmaria o agendamento.
      */
     public static function templateRegistrado(?TemplateEscritorio $template, bool $manual, string $texto): ?int
     {
         if (!$template) { return null; }
 
-        if ($manual && $template->chave === ApchatRespostaService::CHAVE_CONFIRMACAO && !preg_match('/\bsim\b/iu', strip_tags($texto)))
+        if ($manual && $template->categoria === TemplateEscritorio::CONFIRMACAO)
         {
-            return null;
+            $ignorar = $template->ignorar_maiusculas !== 'F';
+            $respostas = array_merge(ApchatRespostaService::respostasDaLista($template->respostas_confirmar, $ignorar),
+                                     ApchatRespostaService::respostasDaLista($template->respostas_cancelar, $ignorar));
+            $limpo = strip_tags($texto);
+            $limpo = $ignorar ? mb_strtolower($limpo) : $limpo;
+
+            foreach ($respostas as $r)
+            {
+                if (preg_match('/(?<![\p{L}\p{N}])' . preg_quote($r, '/') . '(?![\p{L}\p{N}])/u', $limpo)) { return (int) $template->id; }
+            }
+
+            return $respostas ? null : (int) $template->id;
         }
 
         return (int) $template->id;
     }
 
     /**
-     * Contatos do cliente que podem receber, o principal primeiro: [{chave, destino, rotulo}]. O rotulo sempre mostra nome,
-     * descricao e se e principal. Telefone ou e-mail so nos Dados do cadastro (sem contato) entra como "Dados do cadastro".
+     * Contatos do cliente que podem receber, o principal primeiro: [{chave, destino, rotulo}]. O rotulo e
+     * "Nome | Telefone | Descricao" e o principal termina com a marca. Telefone ou e-mail so nos Dados do cadastro (sem
+     * contato) entra como "Dados do cadastro".
      */
     public static function contatosParaEnvio(Agendamento $agendamento, string $tipo): array
     {
@@ -147,10 +184,8 @@ class MensagemService
             $lista[] = [
                 'chave'   => (string) $chave,
                 'destino' => $destino,
-                'rotulo'  => ($ehEmail ? $destino : PessoaContatoService::formatarTelefone($destino))
-                           . ' | Nome: ' . (trim((string) $nome) ?: '-')
-                           . ' | Descrição: ' . (trim((string) $descricao) ?: '-')
-                           . ' | Principal: ' . ($principal ? 'Sim' : 'Não'),
+                'rotulo'  => implode(' | ', array_filter([trim((string) $nome), $ehEmail ? $destino : PessoaContatoService::formatarTelefone($destino), trim((string) $descricao)], 'strlen'))
+                           . ($principal ? ' ' . self::MARCA_PRINCIPAL : ''),
             ];
         };
 

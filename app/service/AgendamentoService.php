@@ -96,6 +96,29 @@ class AgendamentoService
     }
 
     /**
+     * O cliente respondeu (WhatsApp ou link do e-mail): muda o estado e registra no historico, sem usuario ("Automatico").
+     * Confirmando, cria o atendimento, como o Confirmar da equipe.
+     */
+    public static function respostaDoCliente(Agendamento $agendamento, int $estado, string $evento, string $observacao): void
+    {
+        $agendamento->estado_agenda_id = $estado;
+        $agendamento->store();
+
+        $historico = new EstadoAgendamento();
+        $historico->agendamento_id = $agendamento->id;
+        $historico->estado_agenda_id = $estado;
+        $historico->atribuido_em = date('Y-m-d H:i:s');
+        $historico->evento = $evento;
+        $historico->observacao = $observacao;
+        $historico->store();
+
+        if ($estado === (int) EstadoAgenda::CONFIRMADO)
+        {
+            self::criarAtendimento($agendamento);
+        }
+    }
+
+    /**
      * "Cancelar confirmacao" (04/11/2026): o agendamento Confirmado volta a Agendado, para remarcar ou cancelar depois, e a
      * observacao fica no historico. O atendimento criado na confirmacao sai, a nao ser que ja tenha algo ligado a ele.
      */
@@ -128,6 +151,7 @@ class AgendamentoService
         $historico->system_users_id = TSession::getValue('userid');
         $historico->atribuido_em = date('Y-m-d H:i:s');
         $historico->observacao = $observacao;
+        $historico->evento = EstadoAgendamento::EVENTO_CONFIRMACAO_CANCELADA;
         $historico->store();
 
         if ($atendimento && !self::atendimentoTemVinculo((int) $atendimento->id))

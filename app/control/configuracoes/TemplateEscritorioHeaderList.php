@@ -30,6 +30,7 @@ class TemplateEscritorioHeaderList extends TPage
 
         $this->limit = 20;
 
+        $categoria = new TCombo('categoria');
         $tipo_template = new TCombo('tipo_template');
         $descricao = new TEntry('descricao');
         $habilitado = new TCombo('habilitado');
@@ -39,6 +40,9 @@ class TemplateEscritorioHeaderList extends TPage
         $descricao->setExitAction(new TAction([$this, 'onSearch'], ['static'=>'1', 'target_container' => $param['target_container'] ?? null]));
 
         $tipo_template->setChangeAction(new TAction([$this, 'onSearch'], ['static'=>'1', 'target_container' => $param['target_container'] ?? null]));
+        $categoria->setChangeAction(new TAction([$this, 'onSearch'], ['static'=>'1', 'target_container' => $param['target_container'] ?? null]));
+        $categoria->addItems(TemplateEscritorio::CATEGORIAS);
+        $categoria->setSize('100%');
         $habilitado->setChangeAction(new TAction([$this, 'onSearch'], ['static'=>'1', 'target_container' => $param['target_container'] ?? null]));
 
         $habilitado->addItems(["T"=>"Sim","F"=>"Não"]);
@@ -64,6 +68,8 @@ class TemplateEscritorioHeaderList extends TPage
         $this->datagrid->style = 'width: 100%';
         $this->datagrid->setHeight(320);
 
+        $column_categoria = new TDataGridColumn('categoria', "Categoria", 'left' , '180px');
+        $column_categoria->setTransformer(function($value) { return TemplateEscritorio::CATEGORIAS[$value] ?? $value; });
         $column_tipo_template = new TDataGridColumn('tipo_template', "Tipo", 'center' , '100px');
         $column_descricao = new TDataGridColumn('descricao', "Descrição", 'left');
         $column_habilitado_transformed = new TDataGridColumn('habilitado', "Habilitar", 'center' , '100px');
@@ -87,6 +93,7 @@ class TemplateEscritorioHeaderList extends TPage
             return $label;
         });        
 
+        $this->datagrid->addColumn($column_categoria);
         $this->datagrid->addColumn($column_tipo_template);
         $this->datagrid->addColumn($column_descricao);
         $this->datagrid->addColumn($column_habilitado_transformed);
@@ -125,6 +132,7 @@ class TemplateEscritorioHeaderList extends TPage
         {
             $tr->add(TElement::tag('td', ''));
         }
+        $tr->add(TElement::tag('td', $categoria));
         $td_tipo_template = TElement::tag('td', $tipo_template);
         $tr->add($td_tipo_template);
         $td_descricao = TElement::tag('td', $descricao);
@@ -132,6 +140,7 @@ class TemplateEscritorioHeaderList extends TPage
         $td_habilitado = TElement::tag('td', $habilitado);
         $tr->add($td_habilitado);
 
+        $this->datagrid_form->addField($categoria);
         $this->datagrid_form->addField($tipo_template);
         $this->datagrid_form->addField($descricao);
         $this->datagrid_form->addField($habilitado);
@@ -305,6 +314,11 @@ class TemplateEscritorioHeaderList extends TPage
         {
 
             $filters[] = new TFilter('tipo_template', '=', $data->tipo_template);// create the filter 
+        }
+
+        if (!empty($data->categoria))
+        {
+            $filters[] = new TFilter('categoria', '=', $data->categoria);// create the filter
         }
 
         if (isset($data->descricao) AND ( (is_scalar($data->descricao) AND $data->descricao !== '') OR (is_array($data->descricao) AND (!empty($data->descricao)) )) )

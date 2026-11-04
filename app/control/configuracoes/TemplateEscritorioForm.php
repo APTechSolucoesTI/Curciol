@@ -32,7 +32,8 @@ class TemplateEscritorioForm extends TPage
 
         $escritorio_id = new THidden('escritorio_id');
         $id = new THidden('id');
-        $chave = new TEntry('chave');
+        $chave = new THidden('chave');
+        $categoria = new TCombo('categoria');
         $descricao = new TEntry('descricao');
         $tipo_template = new TCombo('tipo_template');
         $titulo = new TEntry('titulo');
@@ -73,7 +74,7 @@ class TemplateEscritorioForm extends TPage
 
         $tipo_template->setChangeAction(new TAction([$this,'onChangeTipo']));
 
-        $chave->addValidation("Chave", new TRequiredValidator()); 
+        $categoria->addValidation("Categoria", new TRequiredValidator());
         $descricao->addValidation("Descrição", new TRequiredValidator()); 
         $tipo_template->addValidation("Tipo", new TRequiredValidator()); 
         $habilitado->addValidation("Habilitar", new TRequiredValidator()); 
@@ -93,7 +94,10 @@ class TemplateEscritorioForm extends TPage
         $data_criacao->setDatabaseMask('yyyy-mm-dd hh:ii');
         $data_modificacao->setDatabaseMask('yyyy-mm-dd hh:ii');
 
-        $chave->forceUpperCase();
+        $categoria->addItems(TemplateEscritorio::CATEGORIAS);
+        $categoria->setDefaultOption(false);
+        $categoria->setValue(TemplateEscritorio::CONFIRMACAO);
+        $categoria->setSize('100%');
         $titulo->forceUpperCase();
         $descricao->forceUpperCase();
 
@@ -103,7 +107,6 @@ class TemplateEscritorioForm extends TPage
         $modificacao_user_name->setEditable(false);
 
         $id->setSize(200);
-        $chave->setSize('100%');
         $titulo->setSize('100%');
         $descricao->setSize('100%');
         $escritorio_id->setSize(200);
@@ -119,7 +122,7 @@ class TemplateEscritorioForm extends TPage
         $template_acao_template_escritorio_label->setSize('100%');
 
 
-        $row1 = $this->form->addFields([new TLabel("Chave:", '#ff0000', '14px', null, '100%'),$escritorio_id,$id,$chave],[new TLabel("Descrição:", '#ff0000', '14px', null, '100%'),$descricao],[new TLabel("Tipo:", '#FF0000', '14px', null),$tipo_template]);
+        $row1 = $this->form->addFields([new TLabel("Categoria:", '#ff0000', '14px', null, '100%'),$escritorio_id,$id,$chave,$categoria],[new TLabel("Descrição:", '#ff0000', '14px', null, '100%'),$descricao],[new TLabel("Tipo:", '#FF0000', '14px', null),$tipo_template]);
         $row1->layout = [' col-sm-3','col-sm-6',' col-sm-3'];
 
         $bcontainer_62e034c1eb8f6 = new BContainer('bcontainer_62e034c1eb8f6');
@@ -145,6 +148,47 @@ class TemplateEscritorioForm extends TPage
 
         $row7 = $this->form->addFields([new TLabel("Template:", null, '14px', null, '100%'),$template_whatsapp]);
         $row7->layout = ['col-sm-12'];
+
+        // fluxo da confirmacao por WhatsApp: o usuario define as respostas validas e o que acontece (04/11/2026)
+        $criteria_fluxo = new TCriteria();
+        $criteria_fluxo->add(new TFilter('tipo_template', '=', TemplateEscritorio::WHATSAPP));
+        $criteria_fluxo->add(new TFilter('escritorio_id', 'in', "(SELECT id FROM escritorio WHERE system_unit_id = '" . (int) TSession::getValue('userunitid') . "')"));
+
+        $respostas_confirmar = new TText('respostas_confirmar');
+        $respostas_cancelar = new TText('respostas_cancelar');
+        $ignorar_maiusculas = new TCheckButton('ignorar_maiusculas');
+        $template_confirmado_id = new TDBCombo('template_confirmado_id', 'escritorio', 'TemplateEscritorio', 'id', '{descricao}', 'descricao asc', $criteria_fluxo);
+        $template_cancelado_id = new TDBCombo('template_cancelado_id', 'escritorio', 'TemplateEscritorio', 'id', '{descricao}', 'descricao asc', $criteria_fluxo);
+        $template_lembrete_id = new TDBCombo('template_lembrete_id', 'escritorio', 'TemplateEscritorio', 'id', '{descricao}', 'descricao asc', $criteria_fluxo);
+
+        $respostas_confirmar->setSize('100%', 80);
+        $respostas_cancelar->setSize('100%', 80);
+        $ignorar_maiusculas->setIndexValue('T');
+        $ignorar_maiusculas->setUseSwitch(true, 'green');
+        $ignorar_maiusculas->setValue('T');
+        $template_confirmado_id->setSize('100%');
+        $template_cancelado_id->setSize('100%');
+        $template_lembrete_id->setSize('100%');
+
+        $tituloFluxo = new TElement('div');
+        $tituloFluxo->id = 'fluxo_titulo';
+        $tituloFluxo->add('<b>Fluxo da confirmação</b> - o que o cliente responde e o que o sistema faz. Vale a resposta inteira: uma frase com a palavra no meio não conta.');
+
+        $this->form->addFields([$tituloFluxo])->layout = ['col-sm-12'];
+        $rowFluxo = $this->form->addFields([new TLabel("Respostas que confirmam (uma por linha):", null, '14px', null, '100%'), $respostas_confirmar], [new TLabel("Respostas que cancelam (uma por linha):", null, '14px', null, '100%'), $respostas_cancelar]);
+        $rowFluxo->layout = ['col-sm-6', 'col-sm-6'];
+        $this->form->addFields([new TLabel("Ignorar maiúsculas e minúsculas (sim serve para Sim, sIm, SIM...):", null, '14px', null, '100%'), $ignorar_maiusculas])->layout = ['col-sm-12'];
+        $rowFluxo = $this->form->addFields([new TLabel("Mensagem ao confirmar:", null, '14px', null, '100%'), $template_confirmado_id], [new TLabel("Mensagem ao cancelar:", null, '14px', null, '100%'), $template_cancelado_id], [new TLabel("Lembrete depois de confirmado:", null, '14px', null, '100%'), $template_lembrete_id]);
+        $rowFluxo->layout = ['col-sm-4', 'col-sm-4', 'col-sm-4'];
+
+        TScript::create("
+            window.curciolFluxoTemplate = function () {
+                var mostra = $('[name=categoria]').val() === '" . TemplateEscritorio::CONFIRMACAO . "' && $('[name=tipo_template]').val() === '" . TemplateEscritorio::WHATSAPP . "';
+                $('#fluxo_titulo, [name=respostas_confirmar], [name=ignorar_maiusculas], [name=template_confirmado_id]').closest('.tformrow').toggle(mostra);
+            };
+            $(document).off('change.curciolFluxo').on('change.curciolFluxo', '[name=categoria], [name=tipo_template]', window.curciolFluxoTemplate);
+            $(function () { window.curciolFluxoTemplate(); });
+        ");
 
         $row8 = $this->form->addFields([new TLabel("Ações:", null, '14px', null, '100%')]);
         $row8->layout = [' col-sm-12'];
@@ -224,7 +268,30 @@ class TemplateEscritorioForm extends TPage
 
             $data = $this->form->getData(); // get form data as array
             $object->fromArray( (array) $data); // load the object with data
-            $object->escritorio_id = TSession::getValue('userunitid');
+            $object->escritorio_id = Escritorio::findByUnitId(TSession::getValue('userunitid'))->id;
+
+            // template do sistema nao muda de canal; template novo ganha a chave sozinho (quem escolhe e a categoria)
+            $gravado = !empty($data->id) ? TemplateEscritorio::find($data->id) : null;
+            if ($gravado && $gravado->readonly == 'T')
+            {
+                $object->tipo_template = $gravado->tipo_template;
+            }
+            if (empty($object->chave))
+            {
+                $object->chave = $gravado && $gravado->chave ? $gravado->chave : 'TEMPLATE_' . strtoupper(uniqid());
+            }
+
+            $object->ignorar_maiusculas = !empty($data->ignorar_maiusculas) ? 'T' : 'F';
+            $object->template_confirmado_id = $data->template_confirmado_id ?: null;
+            $object->template_cancelado_id = $data->template_cancelado_id ?: null;
+            $object->template_lembrete_id = $data->template_lembrete_id ?: null;
+
+            $confirmam = ApchatRespostaService::respostasDaLista($data->respostas_confirmar, $object->ignorar_maiusculas === 'T');
+            $cancelam = ApchatRespostaService::respostasDaLista($data->respostas_cancelar, $object->ignorar_maiusculas === 'T');
+            if ($repetida = array_intersect($confirmam, $cancelam))
+            {
+                throw new Exception('A resposta "' . reset($repetida) . '" está para confirmar e para cancelar. Deixe em uma só.');
+            }
 
             if ($object->tipo_template == TemplateEscritorio::WHATSAPP)
             {
@@ -294,8 +361,6 @@ class TemplateEscritorioForm extends TPage
                 if ($object->readonly == 'T')
                 {
                     TCombo::disableField(self::$formName, 'tipo_template');
-                    TEntry::disableField(self::$formName, 'descricao');
-                    TEntry::disableField(self::$formName, 'chave');
                 }
 
                 if ($object->tipo_template == 'EMAIL')

@@ -93,5 +93,24 @@ class EscritorioService
             $templateEscritorio->readonly = 'T';
             $templateEscritorio->store();
         }
+
+        // categorias e fluxo da confirmacao, os mesmos da migracao 2026-11-04-templates-fluxo-historico.sql
+        $c = TTransaction::get();
+        $st = $c->prepare("UPDATE template_escritorio SET categoria = CASE
+                               WHEN chave LIKE '%\\_CONFIRMACAO\\_AGENDAMENTO' THEN 'CONFIRMACAO'
+                               WHEN chave LIKE '%\\_LEMBRETE\\_CONSULTA' THEN 'LEMBRETE'
+                               WHEN chave = 'WHATSAPP_RESPOSTA_SIM' THEN 'CONFIRMADO'
+                               WHEN chave = 'WHATSAPP_RESPOSTA_NAO' THEN 'CANCELAMENTO'
+                               ELSE 'OUTROS' END WHERE escritorio_id = ?");
+        $st->execute([$escritorio_id]);
+        $id = function ($chave) use ($escritorio_id) { $t = TemplateEscritorio::where('escritorio_id', '=', $escritorio_id)->where('chave', '=', $chave)->first(); return $t ? $t->id : null; };
+        $confirmacao = TemplateEscritorio::where('escritorio_id', '=', $escritorio_id)->where('chave', '=', 'WHATSAPP_CONFIRMACAO_AGENDAMENTO')->first();
+        $confirmacao->respostas_confirmar = 'sim';
+        $confirmacao->respostas_cancelar = "não\nnao";
+        $confirmacao->ignorar_maiusculas = 'T';
+        $confirmacao->template_confirmado_id = $id('WHATSAPP_RESPOSTA_SIM');
+        $confirmacao->template_cancelado_id = $id('WHATSAPP_RESPOSTA_NAO');
+        $confirmacao->template_lembrete_id = $id('WHATSAPP_LEMBRETE_CONSULTA');
+        $confirmacao->store();
    }
 }

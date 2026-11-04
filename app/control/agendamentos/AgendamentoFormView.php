@@ -131,27 +131,10 @@ class AgendamentoFormView extends TPage
         $row5 = $this->form->addFields([$enviar_whatsapp,$enviar_email]);
         $row5->layout = [' col-sm-12'];
 
-        // ultima confirmacao por WhatsApp e a resposta do cliente (ApchatRespostaService, 03/11/2026)
-        $confirmacao = TTransaction::get()->query("SELECT m.enviado_em, m.destino, m.resposta, m.resposta_texto, m.respondido_em, m.resposta_obs
-                                                     FROM mensagem m JOIN template_escritorio t ON t.id = m.template_escritorio_id
-                                                    WHERE m.agendamento_id = " . (int) $agendamento->id . " AND t.chave = 'WHATSAPP_CONFIRMACAO_AGENDAMENTO'
-                                                    ORDER BY m.enviado_em DESC, m.id DESC LIMIT 1")->fetch(PDO::FETCH_ASSOC);
-        if ($confirmacao)
+        foreach (self::linhasDaConfirmacao($agendamento) as $linha)
         {
-            $rowConfirmacao = $this->form->addFields([new TLabel('<i class="fab fa-whatsapp" style="color:#4CAF50"></i> ' . self::textoDaConfirmacao($agendamento, $confirmacao), '#555', '13px', null, '100%')]);
+            $rowConfirmacao = $this->form->addFields([new TLabel($linha, '#555', '13px', null, '100%')]);
             $rowConfirmacao->layout = [' col-sm-12'];
-        }
-
-        // ultima confirmacao cancelada, com a observacao (04/11/2026)
-        $cancelada = TTransaction::get()->query("SELECT e.atribuido_em, e.observacao, u.name
-                                                   FROM estado_agendamento e LEFT JOIN system_users u ON u.id = e.system_users_id
-                                                  WHERE e.agendamento_id = " . (int) $agendamento->id . " AND COALESCE(e.observacao, '') <> ''
-                                                  ORDER BY e.atribuido_em DESC, e.id DESC LIMIT 1")->fetch(PDO::FETCH_ASSOC);
-        if ($cancelada)
-        {
-            $rowCancelada = $this->form->addFields([new TLabel('<i class="fas fa-calendar-minus" style="color:#F44336"></i> Confirmação cancelada por '
-                . htmlspecialchars((string) $cancelada['name']) . ' em ' . date('d/m/Y H:i', strtotime($cancelada['atribuido_em'])) . ': ' . htmlspecialchars($cancelada['observacao']), '#555', '13px', null, '100%')]);
-            $rowCancelada->layout = [' col-sm-12'];
         }
 
         $row6 = $this->form->addContent([new TFormSeparator("Ajustar estado do agendamento", '#333', '18', '#eee')]);
@@ -253,6 +236,11 @@ class AgendamentoFormView extends TPage
         $column_estado_agenda_nome = $this->estado_agendamento_agendamento_id_list->addQuickColumn("Estado", 'estado_agenda->nome', 'left');
         $column_system_users_name = $this->estado_agendamento_agendamento_id_list->addQuickColumn("Usuário", 'system_users->name', 'left' , '250px');
         $column_atribuido_em_transformed = $this->estado_agendamento_agendamento_id_list->addQuickColumn("Data", 'atribuido_em', 'center' , '200px');
+        $column_observacao = $this->estado_agendamento_agendamento_id_list->addQuickColumn("Observação", 'observacao', 'left');
+
+        // sem usuario = o cliente respondeu (WhatsApp ou link do e-mail)
+        $column_system_users_name->setTransformer(function($value) { return trim((string) $value) !== '' ? $value : 'Automático'; });
+        $column_observacao->setTransformer(function($value) { return htmlspecialchars((string) $value); });
 
         $column_estado_agenda_cor_transformed->setTransformer(function($value, $object, $row, $cell = null, $last_row = null)
         {
@@ -715,6 +703,57 @@ class AgendamentoFormView extends TPage
             TTransaction::rollback();
             new TMessage('error', $e->getMessage());
         }
+    }
+
+    /**
+     * Linhas acima dos botoes de estado (04/11/2026). Confirmacao cancelada: so o cancelamento, e o que veio antes dele nao
+     * aparece mais; confirmou de novo: o cancelamento sai da tela (fica no historico).
+     */
+    private static function linhasDaConfirmacao(Agendamento $agendamento): array
+    {
+        $c = TTransaction::get();
+        $id = (int) $agendamento->id;
+        $estado = (int) $agendamento->estado_agenda_id;
+        $data = fn($d) => date('d/m/Y H:i', strtotime($d));
+
+        $evento = function (array $eventos) use ($c, $id) {
+            $st = $c->query("SELECT e.atribuido_em, e.observacao, e.evento, u.name
+                               FROM estado_agendamento e LEFT JOIN system_users u ON u.id = e.system_users_id
+                              WHERE e.agendamento_id = {$id} AND e.evento IN ('" . implode("','", $eventos) . "')
+                              ORDER BY e.atribuido_em DESC, e.id DESC LIMIT 1");
+            return $st->fetch(PDO::FETCH_ASSOC) ?: null;
+        };
+
+        $cancelada = $evento([EstadoAgendamento::EVENTO_CONFIRMACAO_CANCELADA]);
+        $desde = $cancelada ? $cancelada['atribuido_em'] : '';
+        $linhas = [];
+
+        $email = $evento([EstadoAgendamento::EVENTO_CONFIRMADO_EMAIL, EstadoAgendamento::EVENTO_CANCELADO_EMAIL]);
+        if ($email && $email['atribuido_em'] > $desde
+            && $estado === (int) ($email['evento'] === EstadoAgendamento::EVENTO_CONFIRMADO_EMAIL ? EstadoAgenda::CONFIRMADO : EstadoAgenda::CANCELADO))
+        {
+            $linhas[] = '<i class="far fa-envelope" style="color:#F44336"></i> <b>Agendamento ' . ($email['evento'] === EstadoAgendamento::EVENTO_CONFIRMADO_EMAIL ? 'confirmado' : 'cancelado')
+                      . ' pelo cliente</b> - pelo link do e-mail em ' . $data($email['atribuido_em']);
+        }
+        else
+        {
+            $confirmacao = $c->query("SELECT m.enviado_em, m.destino, m.resposta, m.resposta_texto, m.respondido_em, m.resposta_obs
+                                        FROM mensagem m JOIN template_escritorio t ON t.id = m.template_escritorio_id
+                                       WHERE m.agendamento_id = {$id} AND m.tipo_mensagem = 'WHATSAPP' AND t.categoria = '" . TemplateEscritorio::CONFIRMACAO . "'
+                                       ORDER BY m.enviado_em DESC, m.id DESC LIMIT 1")->fetch(PDO::FETCH_ASSOC);
+            if ($confirmacao && $confirmacao['enviado_em'] > $desde)
+            {
+                $linhas[] = '<i class="fab fa-whatsapp" style="color:#4CAF50"></i> ' . self::textoDaConfirmacao($agendamento, $confirmacao);
+            }
+        }
+
+        if ($cancelada && $estado !== (int) EstadoAgenda::CONFIRMADO)
+        {
+            $linhas[] = '<i class="fas fa-calendar-minus" style="color:#F44336"></i> Confirmação cancelada por ' . htmlspecialchars((string) $cancelada['name'])
+                      . ' em ' . $data($cancelada['atribuido_em']) . ': ' . htmlspecialchars((string) $cancelada['observacao']);
+        }
+
+        return $linhas;
     }
 
     /** Linha da confirmacao por WhatsApp na tela. */

@@ -3,6 +3,14 @@
 class EstadoAgendamento extends TRecord
 {
     const TABLENAME  = 'estado_agendamento';
+
+    // de onde veio a linha do historico (vazio = mudanca de estado feita pela equipe)
+    const EVENTO_CONFIRMACAO_CANCELADA = 'CONFIRMACAO_CANCELADA';
+    const EVENTO_HORARIO = 'HORARIO';
+    const EVENTO_CONFIRMADO_WHATSAPP = 'CONFIRMADO_WHATSAPP';
+    const EVENTO_CANCELADO_WHATSAPP = 'CANCELADO_WHATSAPP';
+    const EVENTO_CONFIRMADO_EMAIL = 'CONFIRMADO_EMAIL';
+    const EVENTO_CANCELADO_EMAIL = 'CANCELADO_EMAIL';
     const PRIMARYKEY = 'id';
     const IDPOLICY   =  'serial'; // {max, serial}
 
@@ -24,6 +32,7 @@ class EstadoAgendamento extends TRecord
         parent::addAttribute('system_users_id');
         parent::addAttribute('atribuido_em');
         parent::addAttribute('observacao');
+        parent::addAttribute('evento');
             
     }
 

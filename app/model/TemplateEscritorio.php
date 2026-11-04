@@ -16,6 +16,20 @@ class TemplateEscritorio extends TRecord
     const EMAIL = 'EMAIL';
     const WHATSAPP = 'WHATSAPP';
                                         
+    const CONFIRMACAO = 'CONFIRMACAO';
+    const CONFIRMADO = 'CONFIRMADO';
+    const CANCELAMENTO = 'CANCELAMENTO';
+    const LEMBRETE = 'LEMBRETE';
+    const OUTROS = 'OUTROS';
+
+    const CATEGORIAS = [
+        self::CONFIRMACAO  => 'Confirmação',
+        self::CONFIRMADO   => 'Agendamento confirmado',
+        self::CANCELAMENTO => 'Cancelamento',
+        self::LEMBRETE     => 'Lembrete',
+        self::OUTROS       => 'Outros',
+    ];
+                                        
 
     /**
      * Constructor method
@@ -30,6 +44,13 @@ class TemplateEscritorio extends TRecord
         parent::addAttribute('template');
         parent::addAttribute('titulo');
         parent::addAttribute('tipo_template');
+        parent::addAttribute('categoria');
+        parent::addAttribute('respostas_confirmar');
+        parent::addAttribute('respostas_cancelar');
+        parent::addAttribute('ignorar_maiusculas');
+        parent::addAttribute('template_confirmado_id');
+        parent::addAttribute('template_cancelado_id');
+        parent::addAttribute('template_lembrete_id');
         parent::addAttribute('readonly');
         parent::addAttribute('data_criacao');
         parent::addAttribute('criacao_user_id');

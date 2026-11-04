@@ -2,9 +2,10 @@
 /**
  * Envio de WhatsApp (APChat) e e-mail do agendamento (botoes da tela do agendamento; 04/11/2026).
  *
- * Em cima, o contato do cliente que recebe (o principal vem marcado; a lista mostra nome, descricao e se e principal).
+ * Em cima, o contato do cliente que recebe: "Nome | Telefone | Descricao", o principal primeiro e com o selo verde.
  * Abaixo, o template e a opcao "Manual": sem ela, a mensagem pronta com as variaveis trocadas, sem edicao; com ela, o
- * texto do template fica editavel (ou tudo do zero, com "Nenhum"), com a lista de variaveis para clicar.
+ * texto do template fica editavel (ou tudo do zero, com "Nenhum"), com a lista de variaveis para clicar e o botao
+ * Visualizar, que mostra como a mensagem sai para este agendamento.
  *
  * Fora da producao o contato so aparece: a mensagem vai SO para o numero/e-mail digitado (obrigatorio e nunca do cliente;
  * MensagemService).
@@ -109,6 +110,18 @@ class EnviarMensagemForm extends TPage
         $variaveis->setTitle('Variáveis (clique para inserir na mensagem)', '#333', '13px', '', '#fff');
         $variaveis->setBorderColor('#c0c0c0');
 
+        $btnVisualizar = new TButton('btn_visualizar');
+        $btnVisualizar->setAction(new TAction([$this, 'onVisualizar'], ['static' => 1]), 'Visualizar');
+        $btnVisualizar->setImage('fas:eye #2196F3');
+        $btnVisualizar->addStyleClass('btn-default');
+
+        $visualizacao = new TElement('div');
+        $visualizacao->id = 'mensagem_visualizacao';
+        $visualizacao->style = 'margin-top:8px;' . ($ehEmail ? '' : 'white-space:pre-wrap;');
+
+        $row = $this->form->addFields([$btnVisualizar, $visualizacao]);
+        $row->layout = ['col-sm-12'];
+
         $colunas = [[], [], []];
         $i = 0;
         foreach (MensagemService::variaveis() as $variavel => $descricao)
@@ -130,12 +143,21 @@ class EnviarMensagemForm extends TPage
             window.curciolManual = function () {
                 var m = $('[name=manual]').is(':checked');
                 $('#mensagem_preview').closest('.tformrow').toggle(!m);
-                $('[name=content_whatsapp], [name=content_email], [name=titulo]').closest('.tformrow').toggle(m);
+                $('[name=content_whatsapp], [name=content_email], [name=titulo], [name=btn_visualizar]').closest('.tformrow').toggle(m);
                 $('#caixa_variaveis').toggle(m);
             };
             $(document).off('change.curciolManual').on('change.curciolManual', '[name=manual]', window.curciolManual);
             $(function () {
                 window.curciolManual();
+                // contato: o principal com o quadradinho verde
+                if ($.fn.select2) {
+                    var contato = function (o) {
+                        if (!o.id) { return o.text; }
+                        return $('<div>').text(o.text).html().replace('" . MensagemService::MARCA_PRINCIPAL . "',
+                            '<span style=\"background:#4CAF50;color:#fff;border-radius:3px;padding:1px 6px;font-size:11px;margin-left:4px;\">principal</span>');
+                    };
+                    $('[name=contato]').select2({ width: '100%', templateResult: contato, templateSelection: contato, escapeMarkup: function (m) { return m; } });
+                }
                 var \$e = $('[name=content_email]');
                 if (\$e.length) { \$e.on('summernote.blur', function () { \$e.summernote('editor.saveRange'); }); }
             });
@@ -237,10 +259,40 @@ class EnviarMensagemForm extends TPage
             $texto = json_encode($partes['texto']);
             TScript::create("
                 $('#mensagem_preview').html(" . json_encode($html) . ");
+                $('#mensagem_visualizacao').empty();
                 $('[name=titulo]').val(" . json_encode($partes['titulo']) . ");
                 $('[name=content_whatsapp]').val({$texto});
                 if ($('[name=content_email]').length) { $('[name=content_email]').summernote('code', {$texto}); }
                 " . ($template ? '' : "$('[name=manual]').prop('checked', true); window.curciolManual();"));
+        }
+        catch (Exception $e)
+        {
+            TTransaction::rollback();
+            new TMessage('error', $e->getMessage());
+        }
+    }
+
+    /** Visualizar (Manual): a mensagem como sai para este agendamento, com as variaveis trocadas. */
+    public static function onVisualizar($param = null)
+    {
+        try
+        {
+            TTransaction::open(self::$database);
+
+            $agendamento = Agendamento::find((int) ($param['agendamento_id'] ?? 0));
+
+            if (!$agendamento)
+            {
+                throw new Exception('Agendamento é obrigatório');
+            }
+
+            $ehEmail = ($param['tipo'] ?? '') === TemplateEscritorio::EMAIL;
+            $texto = (string) ($ehEmail ? ($param['content_email'] ?? '') : ($param['content_whatsapp'] ?? ''));
+            $html = self::mensagemHtml($agendamento, $ehEmail, (string) ($param['titulo'] ?? ''), $texto);
+
+            TTransaction::close();
+
+            TScript::create("$('#mensagem_visualizacao').html(" . json_encode('<div style="border:1px solid #ddd;border-radius:6px;padding:12px;background:#f7f7f7;">' . $html . '</div>') . ");");
         }
         catch (Exception $e)
         {
@@ -322,11 +374,17 @@ class EnviarMensagemForm extends TPage
     private static function previewHtml(Agendamento $agendamento, TemplateEscritorio $template): string
     {
         $partes = MensagemService::textoDoTemplate($template);
-        $texto = TemplateEscritorio::replace($agendamento, $partes['texto']);
 
-        if ($template->tipo_template == TemplateEscritorio::EMAIL)
+        return self::mensagemHtml($agendamento, $template->tipo_template == TemplateEscritorio::EMAIL, $partes['titulo'], $partes['texto']);
+    }
+
+    private static function mensagemHtml(Agendamento $agendamento, bool $ehEmail, string $titulo, string $texto): string
+    {
+        $texto = TemplateEscritorio::replace($agendamento, $texto);
+
+        if ($ehEmail)
         {
-            $titulo = htmlspecialchars(TemplateEscritorio::replace($agendamento, $partes['titulo']));
+            $titulo = htmlspecialchars(TemplateEscritorio::replace($agendamento, $titulo));
             return "<div style=\"margin-bottom:8px\"><b>Assunto:</b> {$titulo}</div><hr style=\"margin:8px 0\">{$texto}";
         }
 

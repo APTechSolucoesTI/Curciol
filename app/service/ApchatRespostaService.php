@@ -2,12 +2,13 @@
 /**
  * Resposta do cliente ao WhatsApp de confirmacao do agendamento (03/11/2026).
  *
- * Tarefa agendada a cada minuto (cmd.php "class=ApchatRespostaService&method=processar"): para cada confirmacao enviada
- * que ainda espera resposta, le no banco do APChat a conversa do numero depois do envio. Regra do usuario (04/11/2026):
- * contam ate 3 mensagens SEGUIDAS do cliente e todas tem de ser so a mesma palavra.
- *   - SIM (so a palavra: sim/Sim/SIM/sIm, com espaco, pontuacao ou emoji em volta): agendamento Confirmado (com o
- *     atendimento, como o Confirmar da equipe) e a mensagem "Resposta SIM" (template WHATSAPP_RESPOSTA_SIM);
- *   - NAO (nao/não/NÃO...): agendamento Cancelado e a mensagem de agradecimento (WHATSAPP_RESPOSTA_NAO);
+ * Tarefa agendada a cada minuto (cmd.php "class=ApchatRespostaService&method=vigiar"): fica rodando e olha a cada 5 segundos.
+ * Para cada confirmacao enviada que ainda espera resposta, le no banco do APChat a conversa do numero depois do envio.
+ * O fluxo e do template de confirmacao (Configuracoes > Template, 04/11/2026): quais respostas confirmam e quais cancelam,
+ * uma por linha, ignorando maiusculas ou nao, e a mensagem de cada caso. Contam ate 3 mensagens SEGUIDAS do cliente e todas
+ * tem de ser a mesma decisao; espaco, pontuacao e emoji em volta da resposta nao importam.
+ *   - resposta que confirma: agendamento Confirmado (com o atendimento, como o Confirmar da equipe) e a mensagem do fluxo;
+ *   - resposta que cancela: agendamento Cancelado e a mensagem do fluxo;
  *   - frase, saudacao (ate automatica) ou mistura, mesmo com SIM/NAO depois: nada automatico, o agendamento fica em
  *     aberto, a equipe resolve no APChat e o que vier depois nao conta;
  *   - atendente escreveu na conversa antes de completar as 3: tambem nada automatico. E atendente toda mensagem nossa
@@ -18,10 +19,6 @@
  */
 class ApchatRespostaService
 {
-    const CHAVE_CONFIRMACAO = 'WHATSAPP_CONFIRMACAO_AGENDAMENTO';
-    const CHAVE_RESPOSTA_SIM = 'WHATSAPP_RESPOSTA_SIM';
-    const CHAVE_RESPOSTA_NAO = 'WHATSAPP_RESPOSTA_NAO';
-
     const SIM = 'SIM';
     const NAO = 'NAO';
     const OUTRA = 'OUTRA';
@@ -30,22 +27,39 @@ class ApchatRespostaService
     const RESPOSTAS_SEGUIDAS = 3;        // so as 3 mensagens seguidas do cliente contam
     const ENCERRADA = 'ENCERRADA';       // agendamento mudou de estado ou a data passou sem resposta
 
+    const VIGIA_SEGUNDOS = 55;           // o cron chama a cada minuto; a proxima chamada assume
+    const VIGIA_INTERVALO = 5;           // a resposta e lida em ate 5 segundos
+
     private static $database = 'escritorio';
 
     /**
-     * SIM, NAO ou OUTRA: so a palavra conta (maiusculas, acento, espaco, pontuacao e emoji nao importam). A assinatura
-     * "*Nome*:" no comeco (cliente que responde por um sistema de atendimento, como o proprio APChat) nao conta.
+     * SIM (confirma), NAO (cancela) ou OUTRA, pelas respostas do fluxo. Vale a resposta inteira; a assinatura "*Nome*:" no
+     * comeco (cliente que responde por um sistema de atendimento) e espaco, pontuacao e emoji em volta nao contam.
      */
-    public static function classificar(?string $texto): string
+    public static function classificar(?string $texto, string $confirmar = 'sim', string $cancelar = "não\nnao", bool $ignorarMaiusculas = true): string
+    {
+        $t = self::respostaComparavel($texto, $ignorarMaiusculas);
+
+        if ($t === '') { return self::OUTRA; }
+        if (in_array($t, self::respostasDaLista($confirmar, $ignorarMaiusculas), true)) { return self::SIM; }
+        if (in_array($t, self::respostasDaLista($cancelar, $ignorarMaiusculas), true)) { return self::NAO; }
+        return self::OUTRA;
+    }
+
+    /** As respostas de uma lista (uma por linha), prontas para comparar. */
+    public static function respostasDaLista(?string $lista, bool $ignorarMaiusculas): array
+    {
+        $respostas = array_map(function ($r) use ($ignorarMaiusculas) { return self::respostaComparavel($r, $ignorarMaiusculas); }, preg_split('/\R/u', (string) $lista));
+
+        return array_values(array_unique(array_filter($respostas, 'strlen')));
+    }
+
+    private static function respostaComparavel(?string $texto, bool $ignorarMaiusculas): string
     {
         $t = preg_replace('/^\s*\*[^*\n]{1,80}\*:\s*/u', '', (string) $texto);
-        $t = mb_strtolower(trim($t));
-        $t = strtr($t, ['ã' => 'a', 'á' => 'a', 'à' => 'a', 'â' => 'a', 'í' => 'i', 'î' => 'i', 'õ' => 'o', 'ó' => 'o', 'ô' => 'o']);
-        $t = preg_replace('/[^a-z0-9]/', '', $t);
+        $t = preg_replace('/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/u', '', $t);
 
-        if ($t === 'sim') { return self::SIM; }
-        if ($t === 'nao') { return self::NAO; }
-        return self::OUTRA;
+        return $ignorarMaiusculas ? mb_strtolower($t) : $t;
     }
 
     /** A resposta para mostrar: sem a assinatura "*Nome*:" de quem responde por um sistema de atendimento. */
@@ -54,8 +68,29 @@ class ApchatRespostaService
         return trim(preg_replace('/\*[^*\n]{1,80}\*:\s*/u', '', (string) $texto));
     }
 
-    /** Cron. */
+    /** Uma rodada. */
     public static function processar($param = null): void
+    {
+        self::comTrava(function () { self::rodada(); });
+    }
+
+    /** Cron a cada minuto: fica olhando as respostas ate a proxima chamada. */
+    public static function vigiar($param = null): void
+    {
+        self::comTrava(function () {
+            $fim = time() + self::VIGIA_SEGUNDOS;
+            do
+            {
+                self::rodada();
+                if (time() + self::VIGIA_INTERVALO >= $fim) { break; }
+                sleep(self::VIGIA_INTERVALO);
+            }
+            while (true);
+        });
+    }
+
+    /** Uma por vez: a anterior ainda rodando = pula esta. */
+    private static function comTrava(callable $rodar): void
     {
         if (!ApchatBancoService::configurado() || !ApchatBancoService::disponivel())
         {
@@ -63,7 +98,6 @@ class ApchatRespostaService
             return;
         }
 
-        // uma rodada por vez (a anterior ainda rodando = pula esta)
         $trava = fopen(sys_get_temp_dir() . '/curciol-apchat-resposta-' . md5(getcwd()) . '.lock', 'c');
         if (!$trava || !flock($trava, LOCK_EX | LOCK_NB))
         {
@@ -72,20 +106,25 @@ class ApchatRespostaService
 
         try
         {
-            TTransaction::open(self::$database);
-            $pendentes = self::pendentes();
-            TTransaction::close();
-
-            foreach ($pendentes as $p)
-            {
-                $r = self::processarUma($p);
-                if ($r !== null) { echo date('Y-m-d H:i:s') . " mensagem {$p['id']} agendamento {$p['agendamento_id']}: {$r}\n"; }
-            }
+            $rodar();
         }
         finally
         {
             flock($trava, LOCK_UN);
             fclose($trava);
+        }
+    }
+
+    private static function rodada(): void
+    {
+        TTransaction::open(self::$database);
+        $pendentes = self::pendentes();
+        TTransaction::close();
+
+        foreach ($pendentes as $p)
+        {
+            $r = self::processarUma($p);
+            if ($r !== null) { echo date('Y-m-d H:i:s') . " mensagem {$p['id']} agendamento {$p['agendamento_id']}: {$r}\n"; }
         }
     }
 
@@ -95,10 +134,12 @@ class ApchatRespostaService
     private static function pendentes(): array
     {
         $c = TTransaction::get();
-        $linhas = $c->query("SELECT m.id, m.agendamento_id, m.destino, m.enviado_em, m.system_user_id
+        $linhas = $c->query("SELECT m.id, m.agendamento_id, m.destino, m.enviado_em, m.system_user_id,
+                                    t.respostas_confirmar, t.respostas_cancelar, t.ignorar_maiusculas, t.template_confirmado_id, t.template_cancelado_id
                                FROM mensagem m
                                JOIN template_escritorio t ON t.id = m.template_escritorio_id
-                              WHERE t.chave = '" . self::CHAVE_CONFIRMACAO . "'
+                              WHERE t.categoria = '" . TemplateEscritorio::CONFIRMACAO . "'
+                                AND (COALESCE(btrim(t.respostas_confirmar), '') <> '' OR COALESCE(btrim(t.respostas_cancelar), '') <> '')
                                 AND m.tipo_mensagem = 'WHATSAPP' AND m.resposta IS NULL AND COALESCE(m.destino, '') <> ''
                               ORDER BY m.enviado_em DESC, m.id DESC")->fetchAll(PDO::FETCH_ASSOC);
 
@@ -179,35 +220,38 @@ class ApchatRespostaService
             TSession::setValue('userunitid', (int) $agendamento->agenda->escritorio->system_unit_id);
 
             // todas as mensagens seguidas tem de ser so a mesma palavra
-            $tipos = array_unique(array_map(function ($r) { return self::classificar($r['body'] ?? ''); }, $respostas));
+            $tipos = array_unique(array_map(function ($r) use ($p) {
+                return self::classificar($r['body'] ?? '', (string) $p['respostas_confirmar'], (string) $p['respostas_cancelar'], $p['ignorar_maiusculas'] !== 'F');
+            }, $respostas));
             $tipo = count($tipos) === 1 ? reset($tipos) : self::OUTRA;
             $mensagem->resposta = $tipo;
             $mensagem->resposta_texto = $todas;
             $mensagem->respondido_em = date('Y-m-d H:i:s', strtotime((string) end($respostas)['createdAt']));
 
+            $quem = PessoaContatoService::formatarTelefone($p['destino']) . ' respondeu "' . self::semAssinatura($todas) . '"';
+
             if ($tipo === self::SIM)
             {
-                self::mudarEstado($agendamento, EstadoAgenda::CONFIRMADO);
-                AgendamentoService::criarAtendimento($agendamento);
+                AgendamentoService::respostaDoCliente($agendamento, (int) EstadoAgenda::CONFIRMADO, EstadoAgendamento::EVENTO_CONFIRMADO_WHATSAPP, $quem);
                 $mensagem->resposta_obs = 'Agendamento confirmado pelo cliente (WhatsApp).';
-                self::responder($agendamento, $mensagem, self::CHAVE_RESPOSTA_SIM);
+                self::responder($agendamento, $mensagem, (int) $p['template_confirmado_id']);
             }
             elseif ($tipo === self::NAO)
             {
                 if (AgendamentoFinanceiroService::ficha((int) $agendamento->id))
                 {
-                    $mensagem->resposta_obs = 'Cliente respondeu NÃO, mas o agendamento tem financeiro gerado: não foi cancelado.';
+                    $mensagem->resposta_obs = 'Cliente respondeu que cancela, mas o agendamento tem financeiro gerado: não foi cancelado.';
                 }
                 else
                 {
-                    self::mudarEstado($agendamento, EstadoAgenda::CANCELADO);
+                    AgendamentoService::respostaDoCliente($agendamento, (int) EstadoAgenda::CANCELADO, EstadoAgendamento::EVENTO_CANCELADO_WHATSAPP, $quem);
                     $mensagem->resposta_obs = 'Agendamento cancelado pelo cliente (WhatsApp).';
-                    self::responder($agendamento, $mensagem, self::CHAVE_RESPOSTA_NAO);
+                    self::responder($agendamento, $mensagem, (int) $p['template_cancelado_id']);
                 }
             }
             else
             {
-                $mensagem->resposta_obs = 'Resposta com frase ou diferente de SIM/NÃO: nada automático, agendamento em aberto.';
+                $mensagem->resposta_obs = 'Resposta fora das respostas válidas: nada automático, agendamento em aberto.';
             }
 
             $mensagem->store();
@@ -242,26 +286,12 @@ class ApchatRespostaService
         return trim((string) ($resposta['body'] ?? '')) ?: ('(' . ($resposta['mediaType'] ?? 'sem texto') . ')');
     }
 
-    private static function mudarEstado(Agendamento $agendamento, int $estado): void
+    /** Mensagem automatica do fluxo (sem template, ou desabilitado, so muda o agendamento). */
+    private static function responder(Agendamento $agendamento, Mensagem $confirmacao, int $templateId): void
     {
-        $agendamento->estado_agenda_id = $estado;
-        $agendamento->store();
+        $template = $templateId ? TemplateEscritorio::find($templateId) : null;
 
-        $historico = new EstadoAgendamento();
-        $historico->agendamento_id = $agendamento->id;
-        $historico->estado_agenda_id = $estado;
-        $historico->atribuido_em = date('Y-m-d H:i:s');
-        $historico->store();
-    }
-
-    /** Mensagem automatica de resposta (sem template habilitado, so muda o agendamento). */
-    private static function responder(Agendamento $agendamento, Mensagem $confirmacao, string $chave): void
-    {
-        $template = TemplateEscritorio::where('chave', '=', $chave)
-                                      ->where('escritorio_id', '=', (int) $agendamento->agenda->escritorio_id)
-                                      ->where('habilitado', '=', 'T')
-                                      ->first();
-        if (!$template)
+        if (!$template || $template->habilitado != 'T')
         {
             return;
         }
