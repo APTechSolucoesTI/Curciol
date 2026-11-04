@@ -67,11 +67,14 @@ class FiltroLista
         return $c;
     }
 
-    /** Aba fechada e aberta de novo: a tela comeca sem filtros (chamado pelo engine.php com curciol_limpar_filtros=1). */
+    /**
+     * Aba fechada e aberta de novo: a tela comeca sem filtros, ou nos filtros iniciais dela (chamado pelo engine.php com
+     * curciol_limpar_filtros=1; '_iniciada' e a marca das telas com filtro inicial: Contas a pagar e a receber).
+     */
     public static function limparSessao(string $classe): void
     {
         $classe = preg_replace('/[^A-Za-z0-9_]/', '', $classe);
-        foreach (['_filter_data', '_filters', '_filtros', '_colunas', '_parametros'] as $sufixo) {
+        foreach (['_filter_data', '_filters', '_filtros', '_colunas', '_parametros', '_iniciada'] as $sufixo) {
             TSession::setValue($classe . $sufixo, null);
         }
     }

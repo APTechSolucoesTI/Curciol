@@ -108,9 +108,28 @@ class MensagemService
         return $lista;
     }
 
+    /** Templates que a tela de envio oferece: com o agendamento confirmado, so os da categoria Lembrete. */
+    public static function templatesDoAgendamento(Agendamento $agendamento, string $tipo): array
+    {
+        $templates = self::templatesDoEnvio($tipo);
+
+        if ((int) $agendamento->estado_agenda_id !== (int) EstadoAgenda::CONFIRMADO)
+        {
+            return $templates;
+        }
+
+        $lembretes = [];
+        foreach ($templates as $id => $rotulo)
+        {
+            if (TemplateEscritorio::find($id)->categoria === TemplateEscritorio::LEMBRETE) { $lembretes[$id] = $rotulo; }
+        }
+
+        return $lembretes;
+    }
+
     /**
      * Template que ja vem escolhido: a confirmacao com o agendamento Agendado; depois de confirmado, o lembrete do fluxo da
-     * confirmacao ou o primeiro da categoria Lembrete.
+     * confirmacao ou o primeiro da categoria Lembrete. $templates: os da tela (templatesDoAgendamento).
      */
     public static function templatePadrao(Agendamento $agendamento, string $tipo, array $templates): ?TemplateEscritorio
     {
@@ -127,7 +146,9 @@ class MensagemService
             return $primeiro(TemplateEscritorio::CONFIRMACAO);
         }
 
-        $confirmacao = $primeiro(TemplateEscritorio::CONFIRMACAO);
+        $escritorio = Escritorio::findByUnitId(TSession::getValue('userunitid'));
+        $confirmacao = $escritorio ? TemplateEscritorio::where('tipo_template', '=', $tipo)->where('escritorio_id', '=', $escritorio->id)
+                                                       ->where('categoria', '=', TemplateEscritorio::CONFIRMACAO)->where('habilitado', '=', 'T')->orderBy('id')->first() : null;
         if ($confirmacao && isset($porId[$confirmacao->template_lembrete_id]))
         {
             return $porId[$confirmacao->template_lembrete_id];

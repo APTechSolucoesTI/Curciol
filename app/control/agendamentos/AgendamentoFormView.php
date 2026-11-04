@@ -137,8 +137,31 @@ class AgendamentoFormView extends TPage
             $rowConfirmacao->layout = [' col-sm-12'];
         }
 
+        foreach (MensagemAgendadaService::doAgendamento((int) $agendamento->id) as $lembrete)
+        {
+            $rowLembrete = $this->form->addFields(self::linhaDoLembrete($lembrete));
+            $rowLembrete->layout = [' col-sm-12'];
+        }
+
+        // confirmado com cadastro incompleto: nao inicia o atendimento; ao lado do botao, o que falta e o caminho para completar
+        $pendencias = (int) $agendamento->estado_agenda_id === (int) EstadoAgenda::CONFIRMADO ? AgendamentoService::pendenciasCadastro((int) $agendamento->cliente_id) : [];
+        $botoesEstado = [$btncancelar,$btnconfirmar,$btncancelarconfirmacao,$btnnaocompareceu,$btniniciar,$btnentrar,$btnvalidar];
+
+        if ($pendencias)
+        {
+            $avisoCadastro = new TElement('span');
+            $avisoCadastro->style = 'color:#d32f2f;font-size:13px;margin:0 8px;';
+            $avisoCadastro->add('<i class="fas fa-exclamation-triangle"></i> <b>Cadastro incompleto:</b> falta ' . htmlspecialchars(implode(', ', $pendencias)));
+
+            $btncompletar = new TActionLink(" Completar cadastro", new TAction(['AgendamentoFormView', 'onVisualizarCliente'], ['key'=> $agendamento->id]), '#d32f2f', '14px', 'B', 'fas:user-edit #d32f2f');
+            $btncompletar->class = 'btn btn-default';
+
+            $botoesEstado[] = $avisoCadastro;
+            $botoesEstado[] = $btncompletar;
+        }
+
         $row6 = $this->form->addContent([new TFormSeparator("Ajustar estado do agendamento", '#333', '18', '#eee')]);
-        $row7 = $this->form->addFields([$btncancelar,$btnconfirmar,$btncancelarconfirmacao,$btnnaocompareceu,$btniniciar,$btnentrar,$btnvalidar]);
+        $row7 = $this->form->addFields($botoesEstado);
         $row7->layout = [' col-sm-12'];
 
         $this->form->appendPage("Procedimentos");
@@ -340,6 +363,11 @@ class AgendamentoFormView extends TPage
              $btniniciar->style = 'display: none;';
              $btnnaocompareceu->style = 'display: none;';
              $btnvalidar->style = 'display: none;';
+        }
+
+        if ($pendencias)
+        {
+            $btniniciar->style = 'opacity:.5;pointer-events:none;';
         }
 
         // Caso não for o responsavel pela agenda não deixa fazer o inicio e nem entrar
@@ -623,56 +651,7 @@ class AgendamentoFormView extends TPage
                 throw new Exception('Você não pode confirmar esse agendamento!');
             }
 
-            if(!$agendamento->cliente->telefone){
-                throw new Exception('Não foi possivel confirmar o agendamento! Cadastre um telefone e tente novamente.');
-            }
-
-            $objeto = PessoaEndereco::where('pessoa_id', '=', $agendamento->cliente_id)
-                                    ->where('principal', '=', 'S')
-                                    ->count();
-            if($objeto<1){
-                throw new Exception('Não foi possivel confirmar o agendamento! Cadastre um endereço principal e tente novamente.');
-            }
-
-            //PESSOA FISICA
-            if($agendamento->cliente->tipo_pessoa_id == TipoPessoa::FISICA){
-                if(!$agendamento->cliente->cpf_cnpj){
-                    throw new Exception('Não foi possivel confirmar o agendamento! Cadastre o CPF e tente novamente.');
-                }
-                if(!$agendamento->cliente->rg_ie){
-                    throw new Exception('Não foi possivel confirmar o agendamento! Cadastre o RG e tente novamente.');
-                }
-                if(!$agendamento->cliente->orgao_emissor){
-                    throw new Exception('Não foi possivel confirmar o agendamento! Cadastre o orgao emissor do RG e tente novamente.');
-                }
-                if(!$agendamento->cliente->dt_nascimento_abertura){
-                    throw new Exception('Não foi possivel confirmar o agendamento! Cadastre a data de nascimento e tente novamente.');
-                }
-                if(!$agendamento->cliente->nacionalidade){
-                    throw new Exception('Não foi possivel confirmar o agendamento! Cadastre a nacionalidade e tente novamente.');
-                }
-                if(!$agendamento->cliente->sexo){
-                    throw new Exception('Não foi possivel confirmar o agendamento! Cadastre o sexo e tente novamente.');
-                }
-                if(!$agendamento->cliente->estado_civil){
-                    throw new Exception('Não foi possivel confirmar o agendamento! Cadastre o estado civil e tente novamente.');
-                }
-            }
-
-            if($agendamento->cliente->tipo_pessoa_id == TipoPessoa::JURIDICA){
-                if(!$agendamento->cliente->cpf_cnpj){
-                    throw new Exception('Não foi possivel confirmar o agendamento! Cadastre o CNPJ e tente novamente.');
-                }
-                if(!$agendamento->cliente->dt_nascimento_abertura){
-                    throw new Exception('Não foi possivel confirmar o agendamento! Cadastre a data de abertura e tente novamente.');
-                }
-                $objeto = PessoaRepresentantesLegais::where('pessoa_juridica_id', '=', $agendamento->cliente_id)
-                                                    ->count();
-                if($objeto<1){
-                    throw new Exception('Não foi possivel confirmar o agendamento! Cadastre um representante legal e tente novamente.');
-                }
-            }
-
+            // Curciol (04/11/2026): cadastro incompleto nao impede de confirmar, so de iniciar (AgendamentoService::pendenciasCadastro)
             $agendamento->estado_agenda_id = EstadoAgenda::CONFIRMADO;
             $agendamento->store();
 
@@ -787,6 +766,61 @@ class AgendamentoFormView extends TPage
         }
 
         return 'Confirmação por WhatsApp enviada em ' . $quando($c['enviado_em']) . ' para ' . htmlspecialchars($numero) . ($c['resposta_obs'] ? ' - ' . htmlspecialchars($c['resposta_obs']) : '');
+    }
+
+    /** Linha do lembrete agendado na tela; enquanto nao saiu, com o botao de cancelar. */
+    private static function linhaDoLembrete(MensagemAgendada $lembrete): array
+    {
+        $ehEmail = $lembrete->tipo_mensagem === TemplateEscritorio::EMAIL;
+        $canal = $ehEmail ? 'e-mail' : 'WhatsApp';
+        $para = htmlspecialchars($ehEmail ? (string) $lembrete->destino : PessoaContatoService::formatarTelefone($lembrete->destino));
+        $quando = date('d/m/Y H:i', strtotime($lembrete->enviar_em));
+
+        $texto = new TElement('span');
+        $texto->style = 'color:#555;font-size:13px;margin-right:8px;';
+
+        if ($lembrete->situacao === MensagemAgendada::PENDENTE)
+        {
+            $texto->add("<i class=\"far fa-clock\" style=\"color:#FF9800\"></i> Lembrete por {$canal} agendado para <b>{$quando}</b> - {$para}");
+
+            $cancelar = new TActionLink(' Cancelar lembrete', new TAction([__CLASS__, 'onCancelarLembrete'], ['key' => (int) $lembrete->agendamento_id, 'lembrete' => (int) $lembrete->id, 'static' => 1]), '#F44336', '12px', 'B', 'fas:times #F44336');
+            return [$texto, $cancelar];
+        }
+
+        if ($lembrete->situacao === MensagemAgendada::ENVIADA)
+        {
+            $texto->add("<i class=\"fas fa-check\" style=\"color:#4CAF50\"></i> Lembrete por {$canal} enviado em " . date('d/m/Y H:i', strtotime($lembrete->processado_em)) . " - {$para}");
+            return [$texto];
+        }
+
+        $texto->add("<i class=\"fas fa-exclamation-triangle\" style=\"color:#d32f2f\"></i> <span style=\"color:#d32f2f\">Lembrete por {$canal} agendado para {$quando} não foi enviado: " . htmlspecialchars((string) $lembrete->motivo) . '</span>');
+        return [$texto];
+    }
+
+    public static function onCancelarLembrete($param)
+    {
+        $acao = new TAction([__CLASS__, 'onConfirmarCancelarLembrete'], ['key' => (int) ($param['key'] ?? 0), 'lembrete' => (int) ($param['lembrete'] ?? 0), 'static' => 1]);
+        new TQuestion('Cancelar o envio deste lembrete?', $acao);
+    }
+
+    public static function onConfirmarCancelarLembrete($param)
+    {
+        try
+        {
+            TTransaction::open(self::$database);
+
+            MensagemAgendadaService::cancelar((int) ($param['key'] ?? 0), (int) ($param['lembrete'] ?? 0));
+
+            TTransaction::close();
+
+            TToast::show('success', 'Lembrete cancelado.');
+            TApplication::loadPage('AgendamentoFormView', 'onShow', ['key' => (int) $param['key']]);
+        }
+        catch (Exception $e)
+        {
+            TTransaction::rollback();
+            new TMessage('error', $e->getMessage());
+        }
     }
 
     /** Janela do "Cancelar confirmacao": confirma a acao e pede a observacao (04/11/2026). */

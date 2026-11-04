@@ -1277,8 +1277,8 @@ class ContaReceberList extends TPage
 
             if (empty($param['order']))
             {
-                // ordem padrao: emissao, da mais recente para a mais antiga
-                $param['order'] = 'data_emissao desc, id';
+                // ordem padrao: vencimento, do mais recente para o mais antigo
+                $param['order'] = ContaListaColunas::ORDEM_VENCIMENTO;
                 $param['direction'] = 'desc';    
             }
 
@@ -1288,6 +1288,7 @@ class ContaReceberList extends TPage
             }
 
             $criteria->setProperties($param); // order, offset
+            ContaListaColunas::ordenarPeloVencimento($criteria, $param);
             $criteria->setProperty('limit', $this->limit);
 
             if($filters = TSession::getValue(__CLASS__.'_filters'))
@@ -1353,10 +1354,15 @@ class ContaReceberList extends TPage
 
     public function onShow($param = null)
     {
+        // primeira vez: contas em aberto, vencimento mais recente primeiro; voltar para a tela mantem os filtros, ate "Limpar filtros" zera (04/11/2026)
+        if (TSession::getValue(__CLASS__.'_iniciada'))
+        {
+            $this->onReload($param);
+            return;
+        }
 
-        // abre sem filtro nenhum (antes ja vinha com "Em aberto" ligado)
-        $this->onClearFilters($param);
-
+        TSession::setValue(__CLASS__.'_iniciada', true);
+        $this->onSearch(['__sem_formulario' => 1, '__filtros_extra' => ['quitada' => 'N']]);
     }
 
     /**

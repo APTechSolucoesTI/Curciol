@@ -334,6 +334,7 @@ class AgendamentoList extends TPage
         }
         catch (Exception $e) 
         {
+            TTransaction::rollback();
             new TMessage('error', $e->getMessage());    
         }
     }

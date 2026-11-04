@@ -1219,6 +1219,8 @@ class ClienteForm extends TPage
             }else if(!empty($agendamento)){
                 $loadPageParam['key'] = $agendamento;
                 TApplication::loadPage('AgendamentoFormView', 'onShow', $loadPageParam);
+                // o cadastro completo tira a borda vermelha do cartao na agenda
+                TScript::create("if ($('#agendamentos').data('fullcalendar')) { $('#agendamentos').data('fullcalendar').refetchEvents(); }");
                 TToast::show('success', "Registro salvo", 'topRight', 'far:check-circle');
             }else{
                 TSession::setValue(__CLASS__.'_filter_data', NULL);

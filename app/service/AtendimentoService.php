@@ -47,12 +47,11 @@ class AtendimentoService
     
     public static function iniciarAtendimento(Agendamento $agendamento)
     {
-        $enderecoPrincipal = PessoaEndereco::where('pessoa_id','=',$agendamento->cliente_id)
-                                            ->where('principal','=','S')
-                                            ->first();
+        // Curciol (04/11/2026): o cadastro incompleto nao impede mais de confirmar; impede de iniciar
+        $pendencias = AgendamentoService::pendenciasCadastro((int) $agendamento->cliente_id);
                                             
-        if(!$enderecoPrincipal){
-            throw new Exception("Cadastre um endereço principal para iniciar um atendimento.");
+        if($pendencias){
+            throw new Exception('Cadastro do cliente incompleto: falta ' . implode(', ', $pendencias) . '. Complete o cadastro para iniciar o atendimento.');
         }
         
         $atendimento = Atendimento::where('agendamento_id','=',$agendamento->id)->first();

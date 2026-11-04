@@ -77,6 +77,9 @@ class ApchatRespostaService
     /** Cron a cada minuto: fica olhando as respostas ate a proxima chamada. */
     public static function vigiar($param = null): void
     {
+        // lembretes agendados: uma vez por minuto, sem depender do banco do APChat
+        MensagemAgendadaService::processar();
+
         self::comTrava(function () {
             $fim = time() + self::VIGIA_SEGUNDOS;
             do

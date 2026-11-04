@@ -7,6 +7,9 @@
  * texto do template fica editavel (ou tudo do zero, com "Nenhum"), com a lista de variaveis para clicar e o botao
  * Visualizar, que mostra como a mensagem sai para este agendamento.
  *
+ * Com o agendamento confirmado, so os templates da categoria Lembrete, e o envio pode ser na hora ou agendado
+ * (MensagemAgendadaService).
+ *
  * Fora da producao o contato so aparece: a mensagem vai SO para o numero/e-mail digitado (obrigatorio e nunca do cliente;
  * MensagemService).
  */
@@ -138,6 +141,24 @@ class EnviarMensagemForm extends TPage
         $row = $this->form->addFields([$caixaVariaveis]);
         $row->layout = ['col-sm-12'];
 
+        // ---------- lembrete: na hora ou agendado (so com o agendamento confirmado) ----------
+        if (self::agendamentoConfirmado($param))
+        {
+            $agendar = new TCheckButton('agendar');
+            $agendar->setIndexValue('S');
+            $agendar->setUseSwitch(true, 'green');
+
+            $enviarEm = new TDateTime('enviar_em');
+            $enviarEm->setMask('dd/mm/yyyy hh:ii');
+            $enviarEm->setSize(170);
+
+            $row = $this->form->addFields([new TLabel('Agendar envio:', null, '14px', null, '100%'), $agendar]);
+            $row->layout = ['col-sm-12'];
+
+            $row = $this->form->addFields([new TLabel('Enviar em:', '#ff0000', '14px', null, '100%'), $enviarEm]);
+            $row->layout = ['col-sm-12'];
+        }
+
         // Manual mostra o texto editavel no lugar da mensagem pronta; variavel entra no ponto do cursor; contato principal
         // com o quadradinho verde. Sem comentario dentro do script: o TScript junta tudo em uma linha
         TScript::create("
@@ -148,8 +169,13 @@ class EnviarMensagemForm extends TPage
                 $('#caixa_variaveis').toggle(m);
             };
             $(document).off('change.curciolManual').on('change.curciolManual', '[name=manual]', window.curciolManual);
+            window.curciolAgendar = function () {
+                $('[name=enviar_em]').closest('.tformrow').toggle($('[name=agendar]').is(':checked'));
+            };
+            $(document).off('change.curciolAgendar').on('change.curciolAgendar', '[name=agendar]', window.curciolAgendar);
             $(function () {
                 window.curciolManual();
+                window.curciolAgendar();
                 if ($.fn.select2) {
                     var contato = function (o) {
                         if (!o.id) { return o.text; }
@@ -217,7 +243,7 @@ class EnviarMensagemForm extends TPage
             $this->form->getField('contato')->addItems(array_column($contatos, 'rotulo', 'chave'));
             $data->contato = $contatos ? $contatos[0]['chave'] : null;
 
-            $templates = MensagemService::templatesDoEnvio($tipo);
+            $templates = MensagemService::templatesDoAgendamento($agendamento, $tipo);
             $this->form->getField('template')->addItems($templates);
             $padrao = MensagemService::templatePadrao($agendamento, $tipo, $templates);
 
@@ -230,6 +256,10 @@ class EnviarMensagemForm extends TPage
                 $data->content_email = $partes['texto'];
                 $this->preview->add(self::previewHtml($agendamento, $padrao));
             }
+
+            // sugestao: um dia antes do agendamento, se ainda der tempo
+            $umDiaAntes = strtotime($agendamento->dt_inicial . ' -1 day');
+            $data->enviar_em = $umDiaAntes > time() ? date('d/m/Y H:i', $umDiaAntes) : null;
 
             $this->form->setData($data);
 
@@ -250,7 +280,7 @@ class EnviarMensagemForm extends TPage
             TTransaction::open(self::$database);
 
             $agendamento = Agendamento::find((int) ($param['agendamento_id'] ?? 0));
-            $template = self::templateDoEnvio($param);
+            $template = self::templateDoEnvio($param, $agendamento);
             $html = $agendamento && $template ? self::previewHtml($agendamento, $template) : '';
             $partes = $template ? MensagemService::textoDoTemplate($template) : ['titulo' => '', 'texto' => ''];
 
@@ -316,7 +346,7 @@ class EnviarMensagemForm extends TPage
 
             $tipo = ($param['tipo'] ?? '') === TemplateEscritorio::EMAIL ? TemplateEscritorio::EMAIL : TemplateEscritorio::WHATSAPP;
             $ehEmail = $tipo === TemplateEscritorio::EMAIL;
-            $template = self::templateDoEnvio($param);
+            $template = self::templateDoEnvio($param, $agendamento);
             $manual = !empty($param['manual']);
 
             if ($manual)
@@ -342,16 +372,32 @@ class EnviarMensagemForm extends TPage
 
             $templateId = MensagemService::templateRegistrado($template, $manual, $texto);
 
-            $mensagem = $ehEmail
-                ? MensagemService::enviarEmail($agendamento, $titulo, $texto, $templateId, $destino)
-                : MensagemService::enviarWhatsapp($agendamento, $titulo, $texto, $templateId, $destino);
+            if (!empty($param['agendar']))
+            {
+                $lembrete = MensagemAgendadaService::agendar($agendamento, $tipo, $titulo, $texto, $templateId, $destino, (string) ($param['enviar_em'] ?? ''));
+                $paraDestino = $lembrete->destino;
+                $aviso = 'Lembrete agendado para ' . date('d/m/Y H:i', strtotime($lembrete->enviar_em)) . ': %s';
+            }
+            else
+            {
+                $mensagem = $ehEmail
+                    ? MensagemService::enviarEmail($agendamento, $titulo, $texto, $templateId, $destino)
+                    : MensagemService::enviarWhatsapp($agendamento, $titulo, $texto, $templateId, $destino);
+                $paraDestino = $mensagem->destino;
+                $aviso = 'Mensagem enviada para %s';
+            }
 
             TTransaction::close();
 
-            $para = $ehEmail ? $mensagem->destino : PessoaContatoService::formatarTelefone($mensagem->destino);
+            $para = $ehEmail ? $paraDestino : PessoaContatoService::formatarTelefone($paraDestino);
+            $agendamentoId = (int) $agendamento->id;
 
-            TScript::create("Template.closeRightPanel();");
-            TToast::show('success', "Mensagem enviada para {$para}", 'topRight', 'fas:check');
+            TScript::create("Template.closeRightPanel();
+                if ($('#adianti_right_panel > [page_name=AgendamentoFormView]').length) {
+                    Adianti.waitMessage = false;
+                    __adianti_load_page('index.php?class=AgendamentoFormView&method=onShow&key={$agendamentoId}&register_state=false');
+                }");
+            TToast::show('success', sprintf($aviso, $para), 'topRight', 'fas:check');
         }
         catch (Exception $e)
         {
@@ -360,14 +406,25 @@ class EnviarMensagemForm extends TPage
         }
     }
 
-    /** Template escolhido, so entre os que podem ser enviados neste canal (null = nenhum). */
-    private static function templateDoEnvio(array $param): ?TemplateEscritorio
+    /** Template escolhido, so entre os que a tela oferece neste canal (null = nenhum). */
+    private static function templateDoEnvio(array $param, ?Agendamento $agendamento): ?TemplateEscritorio
     {
         $id = (int) ($param['template'] ?? $param['key'] ?? 0);
         $tipo = ($param['tipo'] ?? '') === TemplateEscritorio::EMAIL ? TemplateEscritorio::EMAIL : TemplateEscritorio::WHATSAPP;
-        $permitidos = MensagemService::templatesDoEnvio($tipo);
+        $permitidos = $agendamento ? MensagemService::templatesDoAgendamento($agendamento, $tipo) : MensagemService::templatesDoEnvio($tipo);
 
         return isset($permitidos[$id]) ? TemplateEscritorio::find($id) : null;
+    }
+
+    private static function agendamentoConfirmado($param): bool
+    {
+        if (empty($param['agendamento_id'])) { return false; }
+
+        TTransaction::open(self::$database);
+        $agendamento = Agendamento::find((int) $param['agendamento_id']);
+        TTransaction::close();
+
+        return $agendamento && (int) $agendamento->estado_agenda_id === (int) EstadoAgenda::CONFIRMADO;
     }
 
     /** A mensagem como sai: variaveis trocadas; WhatsApp em texto, e-mail com o assunto em cima. */

@@ -154,6 +154,8 @@ class AgendamentoService
         $historico->evento = EstadoAgendamento::EVENTO_CONFIRMACAO_CANCELADA;
         $historico->store();
 
+        MensagemAgendadaService::cancelarPendentes((int) $agendamento->id, 'Confirmação cancelada');
+
         if ($atendimento && !self::atendimentoTemVinculo((int) $atendimento->id))
         {
             AtendimentoProcedimento::where('atendimento_id', '=', $atendimento->id)->delete();
@@ -177,6 +179,50 @@ class AgendamentoService
             if ($st->fetchColumn()) { return true; }
         }
         return false;
+    }
+
+    /** Campos essenciais que faltam no cadastro do cliente: sem eles o agendamento confirma, mas o atendimento nao inicia. */
+    public static function pendenciasCadastro(int $clienteId): array
+    {
+        return self::pendenciasCadastroDe([$clienteId])[$clienteId] ?? [];
+    }
+
+    /** O mesmo para varios clientes numa consulta so (agenda): [id => [campos]], so quem tem pendencia. */
+    public static function pendenciasCadastroDe(array $clienteIds): array
+    {
+        $ids = array_values(array_unique(array_filter(array_map('intval', $clienteIds))));
+        if (!$ids) { return []; }
+
+        $linhas = TTransaction::get()->query("SELECT p.id, p.tipo_pessoa_id, p.telefone, p.cpf_cnpj, p.rg_ie, p.orgao_emissor, p.dt_nascimento_abertura,
+                                                     p.nacionalidade_id, p.sexo_id, p.estado_civil_id,
+                                                     (EXISTS (SELECT 1 FROM pessoa_endereco e WHERE e.pessoa_id = p.id AND e.principal = 'S'))::int AS tem_endereco,
+                                                     (EXISTS (SELECT 1 FROM pessoa_representantes_legais r WHERE r.pessoa_juridica_id = p.id))::int AS tem_representante
+                                                FROM pessoa p WHERE p.id IN (" . implode(',', $ids) . ")")->fetchAll(PDO::FETCH_ASSOC);
+
+        $pendencias = [];
+        foreach ($linhas as $p)
+        {
+            $campos = ['telefone' => 'telefone', 'tem_endereco' => 'endereço principal'];
+
+            if ((string) $p['tipo_pessoa_id'] === (string) TipoPessoa::FISICA)
+            {
+                $campos += ['cpf_cnpj' => 'CPF', 'rg_ie' => 'RG', 'orgao_emissor' => 'órgão emissor do RG', 'dt_nascimento_abertura' => 'data de nascimento',
+                            'nacionalidade_id' => 'nacionalidade', 'sexo_id' => 'sexo', 'estado_civil_id' => 'estado civil'];
+            }
+            elseif ((string) $p['tipo_pessoa_id'] === (string) TipoPessoa::JURIDICA)
+            {
+                $campos += ['cpf_cnpj' => 'CNPJ', 'dt_nascimento_abertura' => 'data de abertura', 'tem_representante' => 'representante legal'];
+            }
+
+            $faltam = [];
+            foreach ($campos as $coluna => $rotulo)
+            {
+                if (empty($p[$coluna])) { $faltam[] = $rotulo; }
+            }
+            if ($faltam) { $pendencias[(int) $p['id']] = $faltam; }
+        }
+
+        return $pendencias;
     }
 
     /** Token antigo: so de agendamento que ja existia na troca do formato e que ainda nao passou. */

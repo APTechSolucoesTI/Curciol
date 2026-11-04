@@ -14,6 +14,20 @@ class ContaListaColunas
                                  THEN (SELECT max(l.dt_vencimento) FROM lancamento l WHERE l.conta_id = c.id)
                                  ELSE c.proximo_vencimento_lancamento END AS DATE)";
 
+    /** Coluna de vencimento da listagem: tambem a ordem padrao, da data mais recente para a mais antiga (04/11/2026). */
+    const ORDEM_VENCIMENTO = 'proximo_vencimento_lancamento';
+
+    /** Ordena pelo vencimento exibido (conta quitada ou sem proximo vencimento vai pela ultima parcela); sem data, por ultimo. */
+    public static function ordenarPeloVencimento(TCriteria $criteria, array $param): void
+    {
+        if (($param['order'] ?? '') !== self::ORDEM_VENCIMENTO) { return; }
+
+        $direcao = ($param['direction'] ?? '') === 'desc' ? 'desc' : 'asc';
+        $criteria->setProperty('order', "CAST(CASE WHEN quitada IN ('S','T') OR proximo_vencimento_lancamento IS NULL
+                                                   THEN (SELECT max(l.dt_vencimento) FROM lancamento l WHERE l.conta_id = conta.id)
+                                                   ELSE proximo_vencimento_lancamento END AS DATE) {$direcao} NULLS LAST, id");
+    }
+
     /** Campos do cabecalho das colunas (abrem no funil). $lista e a listagem (onSearch estatico). */
     public static function camposCabecalho($lista): array
     {

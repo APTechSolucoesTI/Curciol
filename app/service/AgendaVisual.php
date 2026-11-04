@@ -81,14 +81,48 @@ class AgendaVisual
      */
     public static function resumo(string $cartao, string $titulo, array $itens): string
     {
+        return self::comResumo($cartao, htmlspecialchars($titulo, ENT_QUOTES, 'UTF-8'), self::itensDoResumo($itens));
+    }
+
+    private static function itensDoResumo(array $itens): string
+    {
         $e = function ($v) { return htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8'); };
         $conteudo = '<div>';
         foreach ($itens as $rotulo => $valor) {
             if (trim((string) $valor) === '') { continue; }
             $conteudo .= '<b>' . $e($rotulo) . ':</b><br/>' . nl2br($e(trim((string) $valor))) . '<br/>';
         }
-        $conteudo .= '</div>';
-        return self::comResumo($cartao, $e($titulo), $conteudo);
+        return $conteudo . '</div>';
+    }
+
+    /**
+     * Sem agenda no filtro o bloqueio nao aparece na grade (04/11/2026): evento invisivel, com o resumo; o scriptCalendario
+     * poe o icone no topo de cada dia que ele pega.
+     */
+    public static function bloqueioNoTopo($bloqueio, $agenda): array
+    {
+        return [
+            'id' => 'bloqueio-topo-' . $bloqueio->id,
+            'start' => str_replace(' ', 'T', (string) $bloqueio->dt_inicio),
+            'end' => str_replace(' ', 'T', (string) $bloqueio->dt_final),
+            'display' => 'none',
+            'bloqueio_topo' => true,
+            'resumo_topo' => self::itensDoResumo(['Horário' => self::horarioTexto($bloqueio->dt_inicio, $bloqueio->dt_final), 'Agenda' => $agenda->nome ?? '', 'Observação' => $bloqueio->observacao]),
+        ];
+    }
+
+    /** Primeira informacao do resumo do agendamento confirmado com cadastro incompleto. */
+    public static function avisoCadastro(array $faltam): string
+    {
+        if (!$faltam) { return ''; }
+        return '<div style="color:#d32f2f;font-weight:600;margin-bottom:6px">Cadastro incompleto: falta ' . htmlspecialchars(implode(', ', $faltam), ENT_QUOTES, 'UTF-8') . '</div>';
+    }
+
+    /** Borda fina vermelha no cartao do agendamento confirmado com cadastro incompleto. */
+    public static function marcarCadastro(array $evento, array $faltam): array
+    {
+        if ($faltam) { $evento['classNames'][] = 'agd-incompleto'; }
+        return $evento;
     }
 
     /**
@@ -232,6 +266,8 @@ class AgendaVisual
             . '<span class="agd-leg"><span class="agd-amostra agd-am-comp" ' . $exemplo . '></span>Compromisso (tracejado, cor da agenda)</span>'
             . '<span class="agd-leg"><span class="agd-amostra agd-am-bloq" ' . $exemplo . '></span>Bloqueio (listrado, cor da agenda)</span>'
             . '<span class="agd-leg"><span class="agd-amostra agd-am-fundo"></span>Intervalo / não atende</span>'
+            . '<span class="agd-leg"><span class="agd-amostra agd-am-incompleto"></span>Confirmado com cadastro incompleto</span>'
+            . '<span class="agd-leg"><i class="fas fa-lock" style="width:22px;text-align:center;color:#b45309"></i>Bloqueio no dia (sem agenda no filtro)</span>'
             . '</div>');
         return $painel;
     }
@@ -269,6 +305,7 @@ class AgendaVisual
             .agd-am-comp { background: #fff; border: 1.5px dashed var(--agd-cor); }
             .agd-am-bloq { border: 1px solid var(--agd-cor); background: repeating-linear-gradient(135deg, var(--agd-lista) 0 4px, var(--agd-fundo) 4px 8px); }
             .agd-am-fundo { background: repeating-linear-gradient(135deg, #e3e6ea 0 3px, #f8f9fa 3px 7px); }
+            .agd-am-incompleto { background: #fff; border: 1px solid #e53935; }
             /* grade (30/10/2026): linhas cinza-claras entre os dias e nas horas (meia hora tracejada); hoje em azul claro */
             #agendamentos { --fc-border-color: #e3e7ec; --fc-today-bg-color: #eef5fc; --fc-now-indicator-color: #dd5a43; --fc-neutral-bg-color: #fafbfc; }
             #agendamentos td, #agendamentos th, #agendamentos .fc-scrollgrid { border-color: #e3e7ec; }
@@ -295,7 +332,7 @@ class AgendaVisual
             #agd-resumo .agd-resumo-titulo { background: #f3f5f6; border-bottom: 1px solid #e3e7ec; border-radius: 6px 6px 0 0; padding: 6px 10px; font-weight: 600; }
             #agd-resumo .agd-resumo-corpo { padding: 8px 10px; line-height: 1.45; }
             #agendamentos .agd-ev { display: flex; flex-direction: column; gap: 1px; line-height: 15px; overflow: hidden; }
-            #agendamentos .agd-ev-l1 { display: block; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+            #agendamentos .agd-ev-l1 { display: block; font-size: 11px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
             #agendamentos .agd-ev-hora { display: block; font-size: 11px; opacity: .8; white-space: nowrap; }
             #agendamentos .agd-ev-l2 { display: block; font-size: 11px; opacity: .85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
             #agendamentos .fc-timeGridDay-view .fc-timegrid-event .agd-ev-l2 { white-space: normal; }
@@ -321,6 +358,13 @@ class AgendaVisual
             #agendamentos .fc-event.agd-bloqueio { background-image: repeating-linear-gradient(135deg, rgba(255,255,255,.55) 0 7px, rgba(255,255,255,0) 7px 14px); }
             #agendamentos .fc-event.agd-compromisso { border-style: dashed; border-width: 1.5px; }
             #agendamentos .agd-ev-texto { background: rgba(255,255,255,.85); border-radius: 3px; padding: 0 3px; }
+
+            /* confirmado com cadastro incompleto: borda fina vermelha (a cor da borda do evento vem inline) */
+            #agendamentos .fc-event.agd-incompleto { border: 1px solid #e53935 !important; }
+            #agendamentos .fc-list-event.agd-incompleto { outline: 1px solid #e53935; outline-offset: -1px; }
+
+            /* bloqueio sem agenda no filtro: icone no topo do dia */
+            #agendamentos .agd-bloq-topo { color: #b45309; font-size: 11px; margin-left: 6px; cursor: help; }
 
             /* intervalo e "nao atende" da agenda: hachurado cinza no fundo da coluna */
             #agendamentos .fc-bg-event.agd-fundo { background: repeating-linear-gradient(135deg, #e3e6ea 0 3px, #f8f9fa 3px 7px); opacity: 1; }
@@ -352,6 +396,7 @@ JS;
      * passar o mouse junto do cursor e a linha da aba Agenda na cor da agenda.
      * 30/10/2026: a grade do dia/semana mostra o horario das agendas filtradas; se algo visivel cai fora dele (excecao a
      * noite, agendamento antigo fora do horario), a faixa de horas cresce ate caber e volta ao normal nas outras semanas.
+     * 04/11/2026: bloqueio sem agenda no filtro vira um icone no topo de cada dia que ele pega, com o resumo ao passar o mouse.
      */
     public static function scriptCalendario(): string
     {
@@ -402,6 +447,32 @@ JS;
                 info.el.style.color = info.event.textColor || '';
             }
         });
+        function diaIso(d) { return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
+        function desenharBloqueios() {
+            $('#agendamentos .agd-bloq-topo').remove();
+            var porDia = {};
+            cal.getEvents().forEach(function (e) {
+                if (!e.extendedProps.bloqueio_topo || !e.start || !e.end) { return; }
+                for (var d = new Date(e.start.getFullYear(), e.start.getMonth(), e.start.getDate()); d < e.end; d = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1)) {
+                    (porDia[diaIso(d)] = porDia[diaIso(d)] || []).push(e.extendedProps.resumo_topo);
+                }
+            });
+            Object.keys(porDia).forEach(function (dia) {
+                var lugar = $('#agendamentos').find('th.fc-col-header-cell[data-date="' + dia + '"] .fc-scrollgrid-sync-inner, td.fc-daygrid-day[data-date="' + dia + '"] .fc-daygrid-day-top, tr.fc-list-day[data-date="' + dia + '"] .fc-list-day-cushion');
+                $('<i class="fas fa-lock agd-bloq-topo"></i>').data('resumos', porDia[dia]).appendTo(lugar);
+            });
+        }
+        cal.on('eventsSet', function () { setTimeout(desenharBloqueios, 0); });
+        cal.on('datesSet', function () { setTimeout(desenharBloqueios, 0); });
+        $('#agendamentos').off('.agdbloq')
+            .on('mouseenter.agdbloq', '.agd-bloq-topo', function (ev) {
+                var resumos = $(this).data('resumos') || [];
+                dica.innerHTML = '<div class="agd-resumo-titulo">' + (resumos.length > 1 ? resumos.length + ' bloqueios' : 'Bloqueio') + '</div><div class="agd-resumo-corpo">' + resumos.join('<hr style="margin:6px 0">') + '</div>';
+                dica.style.display = 'block';
+                posicionar(ev);
+            })
+            .on('mousemove.agdbloq', '.agd-bloq-topo', posicionar)
+            .on('mouseleave.agdbloq', '.agd-bloq-topo', esconder);
         function minutos(t) {
             if (t && typeof t === 'object') { return (t.days || 0) * 1440 + Math.round((t.milliseconds || 0) / 60000); }
             var p = String(t || '0:0').split(':'); return (parseInt(p[0], 10) || 0) * 60 + (parseInt(p[1], 10) || 0);

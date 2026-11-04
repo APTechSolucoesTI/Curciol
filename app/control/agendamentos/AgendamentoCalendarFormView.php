@@ -293,6 +293,14 @@ class AgendamentoCalendarFormView extends TPage
                 foreach($bloqueios as $bloqueio)
                 {
                     $agenda = Agenda::find($bloqueio->agenda_id);
+
+                    // sem agenda no filtro: so o icone no topo do dia, com o resumo ao passar o mouse (04/11/2026)
+                    if (empty($agenda_id))
+                    {
+                        $return[] = AgendaVisual::bloqueioNoTopo($bloqueio, $agenda);
+                        continue;
+                    }
+
                     $event_array = [];
                     $event_array['start'] = str_replace( ' ', 'T', $bloqueio->dt_inicio);
                     $event_array['end'] = str_replace( ' ', 'T', $bloqueio->dt_final);
@@ -353,9 +361,17 @@ class AgendamentoCalendarFormView extends TPage
 
             if ($convidados)
             {
+                $confirmados = [];
+                foreach ($convidados as $convidado)
+                {
+                    if ((int) $convidado->agendamento->estado_agenda_id === (int) EstadoAgenda::CONFIRMADO) { $confirmados[] = (int) $convidado->agendamento->cliente_id; }
+                }
+                $pendencias = AgendamentoService::pendenciasCadastroDe($confirmados);
+
                 foreach($convidados as $convidado)
                 {
                     $agendaConvidada = Agenda::find($convidado->agenda_id);
+                    $faltam = (int) $convidado->agendamento->estado_agenda_id === (int) EstadoAgenda::CONFIRMADO ? ($pendencias[(int) $convidado->agendamento->cliente_id] ?? []) : [];
                     $event_array = [];
                     $event_array['start'] = str_replace( ' ', 'T', $convidado->agendamento->dt_inicial);
                     $event_array['end'] = str_replace( ' ', 'T', $convidado->agendamento->dt_final);
@@ -363,11 +379,11 @@ class AgendamentoCalendarFormView extends TPage
                     $event_array['title'] = AgendaVisual::comResumo($convidado->render("<div class='agd-ev'><span class='agd-ev-l1'>
                     <span title='{agendamento->estado_agenda->nome}' class='agd-ev-est' style='background-color: {agendamento->estado_agenda->cor}'></span>
                     {agendamento->cliente->nome_formatado}</span><span class='agd-ev-l2'>Convidado por {agendamento->agenda->profissional->nome_formatado}</span>
-                    </div> "), 'Agendamento (agenda convidada)', $convidado->render("<div>
+                    </div> "), 'Agendamento (agenda convidada)', AgendaVisual::avisoCadastro($faltam) . $convidado->render("<div>
                     <b>Horário:</b><br/>{agendamento->horario_texto}<br/><b>Agendamento #{agendamento->id}</b><br/><b>Convidado por:</b><br/>{agendamento->agenda->profissional->nome_formatado}<br/><br/></div>
                     "));
 
-                    $return[] = AgendaVisual::estilizar($event_array, 'agendamento', $agendaConvidada->cor ?? null, $convidado->agenda_id);
+                    $return[] = AgendaVisual::marcarCadastro(AgendaVisual::estilizar($event_array, 'agendamento', $agendaConvidada->cor ?? null, $convidado->agenda_id), $faltam);
                 }
             }
 
@@ -412,6 +428,14 @@ class AgendamentoCalendarFormView extends TPage
                 $st = TTransaction::get()->query("SELECT ap.agendamento_id, string_agg(p.nome, ', ' ORDER BY ap.id) AS nomes FROM agendamento_procedimento ap JOIN procedimento p ON p.id = ap.procedimento_id WHERE ap.agendamento_id IN ({$ids}) GROUP BY ap.agendamento_id");
                 foreach ($st->fetchAll(PDO::FETCH_OBJ) as $p) { $procedimentos[(int) $p->agendamento_id] = $p->nomes; }
 
+                // confirmado com cadastro incompleto: borda vermelha no cartao e primeira informacao do resumo (04/11/2026)
+                $confirmados = [];
+                foreach ($events as $event)
+                {
+                    if ((int) $event->estado_agenda_id === (int) EstadoAgenda::CONFIRMADO) { $confirmados[] = (int) $event->cliente_id; }
+                }
+                $pendencias = AgendamentoService::pendenciasCadastroDe($confirmados);
+
                 foreach ($events as $event)
                 {
                     $event_array = $event->toArray();
@@ -426,9 +450,10 @@ class AgendamentoCalendarFormView extends TPage
                         . "<span title='{estado_agenda->nome}' class='agd-ev-est' style='background-color: {estado_agenda->cor}'></span>"
                         . "{cliente->nome_formatado}{$online}</span>"
                         . "<span class='agd-ev-l2'>" . htmlspecialchars($detalhe) . "</span></div>";
-                    $event_array['title'] = AgendaVisual::comResumo($event->render($formatacao), 'Agendamento', $event->render("{detalhe_html}"));
+                    $faltam = (int) $event->estado_agenda_id === (int) EstadoAgenda::CONFIRMADO ? ($pendencias[(int) $event->cliente_id] ?? []) : [];
+                    $event_array['title'] = AgendaVisual::comResumo($event->render($formatacao), 'Agendamento', AgendaVisual::avisoCadastro($faltam) . $event->render("{detalhe_html}"));
 
-                    $return[] = AgendaVisual::estilizar($event_array, 'agendamento', $event->render("{agenda->cor}"), $event->agenda_id);
+                    $return[] = AgendaVisual::marcarCadastro(AgendaVisual::estilizar($event_array, 'agendamento', $event->render("{agenda->cor}"), $event->agenda_id), $faltam);
                 }
             }
             TTransaction::close();
