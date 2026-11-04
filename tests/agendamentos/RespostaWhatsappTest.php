@@ -313,6 +313,7 @@ try {
     $html = $tela($param);
     ok('teste: mostra os contatos', strpos($html, 'Nome: TITULAR | Descrição: CELULAR | Principal: Sim') !== false && strpos($html, 'Nome: FILHA | Descrição: RECADO | Principal: Não') !== false);
     ok('teste: pede o numero digitado', strpos($html, 'name="destino"') !== false && strpos($html, 'Ambiente de teste') !== false);
+    ok('tela: Manual esconde a mensagem pronta e mostra o texto pelas linhas do formulario', strpos(, 'id="mensagem_preview"') !== false && strpos(, 'id="caixa_variaveis"') !== false && strpos(, "closest('.tformrow')") !== false);
     ok('tela: Manual ao lado do template', strpos($html, 'name="manual"') !== false && strpos($html, 'name="template"') !== false);
     ok('tela: template padrao do Agendado e a confirmacao', strpos($html, 'Responda SIM ou NÃO') !== false || strpos($html, 'Responda *SIM*') !== false);
     $enviadas = [];

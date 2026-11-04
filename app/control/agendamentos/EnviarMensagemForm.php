@@ -84,7 +84,6 @@ class EnviarMensagemForm extends TPage
 
         $row = $this->form->addFields([new TLabel('Mensagem que será enviada:', null, '14px', null, '100%'), $this->preview]);
         $row->layout = ['col-sm-12'];
-        $row->id = 'linha_preview';
 
         // ---------- texto editavel (com Manual) ----------
         if ($ehEmail)
@@ -93,7 +92,6 @@ class EnviarMensagemForm extends TPage
             $titulo->setSize('100%');
             $row = $this->form->addFields([new TLabel('Título:', '#ff0000', '14px', null, '100%'), $titulo]);
             $row->layout = ['col-sm-12'];
-            $row->id = 'linha_titulo';
 
             $texto = new THtmlEditor('content_email');
             $texto->setSize('100%', 220);
@@ -106,7 +104,6 @@ class EnviarMensagemForm extends TPage
 
         $row = $this->form->addFields([new TLabel('Mensagem:', '#ff0000', '14px', null, '100%'), $texto]);
         $row->layout = ['col-sm-12'];
-        $row->id = 'linha_texto';
 
         $variaveis = new BContainer('bcontainer_variaveis');
         $variaveis->setTitle('Variáveis (clique para inserir na mensagem)', '#333', '13px', '', '#fff');
@@ -121,16 +118,20 @@ class EnviarMensagemForm extends TPage
         $rowVar = $variaveis->addFields($colunas[0], $colunas[1], $colunas[2]);
         $rowVar->layout = ['col-sm-4', 'col-sm-4', 'col-sm-4'];
 
-        $row = $this->form->addFields([$variaveis]);
+        $caixaVariaveis = new TElement('div');
+        $caixaVariaveis->id = 'caixa_variaveis';
+        $caixaVariaveis->add($variaveis);
+
+        $row = $this->form->addFields([$caixaVariaveis]);
         $row->layout = ['col-sm-12'];
-        $row->id = 'linha_variaveis';
 
         // Manual mostra o texto editavel no lugar da mensagem pronta; variavel entra no ponto do cursor
         TScript::create("
             window.curciolManual = function () {
                 var m = $('[name=manual]').is(':checked');
-                $('#linha_preview').toggle(!m);
-                $('#linha_texto, #linha_titulo, #linha_variaveis').toggle(m);
+                $('#mensagem_preview').closest('.tformrow').toggle(!m);
+                $('[name=content_whatsapp], [name=content_email], [name=titulo]').closest('.tformrow').toggle(m);
+                $('#caixa_variaveis').toggle(m);
             };
             $('[name=manual]').off('change.curciol').on('change.curciol', window.curciolManual);
             window.curciolManual();
