@@ -180,7 +180,7 @@ class AgendamentoFormView extends TPage
         {
             $quando = fn($d) => $d ? date('d/m/Y H:i', strtotime($d)) : '';
             $situacao = $confirmacao['resposta'] === null
-                ? '<span style="color:#FF9800"><b>aguardando resposta</b></span>' . ($confirmacao['resposta_texto'] ? ' - já recebeu: "' . htmlspecialchars($confirmacao['resposta_texto']) . '"' : '')
+                ? '<span style="color:#FF9800"><b>aguardando resposta</b></span>'
                 : '<b>' . htmlspecialchars(in_array($confirmacao['resposta'], ['SIM', 'NAO', 'OUTRA']) ? 'respondeu "' . $confirmacao['resposta_texto'] . '"' : strtolower($confirmacao['resposta']))
                   . '</b> em ' . $quando($confirmacao['respondido_em']) . ($confirmacao['resposta_obs'] ? ' - ' . htmlspecialchars($confirmacao['resposta_obs']) : '');
             $rowConfirmacao = $this->form->addFields([new TLabel('<i class="fab fa-whatsapp" style="color:#4CAF50"></i> Confirmação por WhatsApp enviada em '

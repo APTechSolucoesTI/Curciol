@@ -1,6 +1,6 @@
 -- Resposta SIM/NAO ao WhatsApp de confirmacao do agendamento (03/11/2026; ApchatRespostaService, cron a cada minuto).
 -- mensagem.resposta: SIM | NAO | OUTRA | SUBSTITUIDA (outra confirmacao enviada depois ao mesmo numero) | ENCERRADA
---   (agendamento mudou de estado ou a data passou); NULL = esperando resposta.
+--   (agendamento mudou de estado ou a data passou) | ATENDENTE (atendente escreveu antes); NULL = esperando resposta.
 -- Templates novos por escritorio (editaveis em Configuracoes > Template): a mensagem automatica depois do SIM
 --   (confirmacao recebida) e depois do NAO (agradecimento).
 -- Pode rodar mais de uma vez.

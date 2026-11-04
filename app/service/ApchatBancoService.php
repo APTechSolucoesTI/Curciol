@@ -271,21 +271,22 @@ class ApchatBancoService
     // =================================================================
 
     /**
-     * Primeiras mensagens que o cliente mandou (nao nossas) de um destes numeros depois de um momento, da mais antiga
-     * para a mais recente.
+     * Conversa do numero depois de um momento, da mais antiga para a mais recente: mensagens do cliente e as nossas. Vai
+     * pelo contato do atendimento (a copia, no canal oficial, de mensagem enviada pela API vem sem contato).
      *
      * @param string[] $numeros 55 + DDD + numero (com e sem o nono digito)
      * @param string   $desde   'Y-m-d H:i:s' no horario de Sao Paulo
-     * @return array linhas {id, body, mediaType, createdAt}
+     * @return array linhas {id, body, mediaType, fromMe, createdAt}
      */
-    public static function primeirasRespostasDepois(array $numeros, string $desde, int $limite): array
+    public static function conversaDepois(array $numeros, string $desde, int $limite = 50): array
     {
-        if (self::$falso) { return self::$falso->primeirasRespostasDepois($numeros, $desde, $limite); }
-        $st = self::conn()->prepare('SELECT m.id, m.body, m."mediaType", m."createdAt"
+        if (self::$falso) { return self::$falso->conversaDepois($numeros, $desde, $limite); }
+        $st = self::conn()->prepare('SELECT m.id, m.body, m."mediaType", m."fromMe", m."createdAt"
                                        FROM curciol.mensagens m
-                                       JOIN curciol.contatos c ON c.id = m."contactId"
+                                       JOIN curciol.tickets t ON t.id = m."ticketId" AND t.arquivado = m.arquivada
+                                       JOIN curciol.contatos c ON c.id = t."contactId"
                                       WHERE c.number = ANY (?::varchar[])
-                                        AND NOT m."fromMe" AND NOT COALESCE(m."isDeleted", false)
+                                        AND NOT COALESCE(m."isDeleted", false)
                                         AND m."createdAt" > ?::timestamptz
                                       ORDER BY m."createdAt", m.id LIMIT ' . (int) $limite);
         $st->execute([self::arrayPg($numeros), $desde]);

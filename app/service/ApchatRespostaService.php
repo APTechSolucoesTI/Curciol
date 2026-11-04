@@ -3,13 +3,15 @@
  * Resposta do cliente ao WhatsApp de confirmacao do agendamento (03/11/2026).
  *
  * Tarefa agendada a cada minuto (cmd.php "class=ApchatRespostaService&method=processar"): para cada confirmacao enviada
- * que ainda espera resposta, le no banco do APChat as 3 PRIMEIRAS mensagens que o numero mandou depois do envio (usuario,
- * 04/11/2026: uma saudacao automatica do cliente nao pode tomar o lugar do SIM). A primeira delas que for so SIM ou so NAO decide:
- *   - SIM (so a palavra: sim/Sim/SIM, com espaco, pontuacao ou emoji em volta): agendamento Confirmado (com o
+ * que ainda espera resposta, le no banco do APChat a conversa do numero depois do envio. Regra do usuario (04/11/2026):
+ * contam ate 3 mensagens SEGUIDAS do cliente e todas tem de ser so a mesma palavra.
+ *   - SIM (so a palavra: sim/Sim/SIM/sIm, com espaco, pontuacao ou emoji em volta): agendamento Confirmado (com o
  *     atendimento, como o Confirmar da equipe) e a mensagem "Resposta SIM" (template WHATSAPP_RESPOSTA_SIM);
  *   - NAO (nao/não/NÃO...): agendamento Cancelado e a mensagem de agradecimento (WHATSAPP_RESPOSTA_NAO);
- *   - frase, saudacao ou qualquer outra coisa: nao decide. Ate a 3a resposta continua esperando; se nenhuma das 3 for
- *     SIM ou NAO, nada automatico (o que vier depois nao conta) e o atendimento segue no APChat.
+ *   - frase, saudacao (ate automatica) ou mistura, mesmo com SIM/NAO depois: nada automatico, o agendamento fica em
+ *     aberto, a equipe resolve no APChat e o que vier depois nao conta;
+ *   - atendente escreveu na conversa antes de completar as 3: tambem nada automatico. E atendente toda mensagem nossa
+ *     que nao seja um texto enviado pela Curciol (a API e a copia no canal oficial trazem esse texto).
  * So vale enquanto o agendamento esta Agendado e a data nao passou. Com mais de uma confirmacao para o mesmo numero,
  * vale a ultima enviada (as anteriores ficam "substituidas"). A resposta automatica vai para o mesmo numero da
  * confirmacao (na homologacao, o numero de teste digitado).
@@ -24,7 +26,8 @@ class ApchatRespostaService
     const NAO = 'NAO';
     const OUTRA = 'OUTRA';
     const SUBSTITUIDA = 'SUBSTITUIDA';   // outra confirmacao foi enviada depois para o mesmo numero
-    const RESPOSTAS_VALIDAS = 3;         // so as 3 primeiras respostas do cliente contam
+    const ATENDENTE = 'ATENDENTE';       // atendente escreveu na conversa antes de completar as respostas
+    const RESPOSTAS_SEGUIDAS = 3;        // so as 3 mensagens seguidas do cliente contam
     const ENCERRADA = 'ENCERRADA';       // agendamento mudou de estado ou a data passou sem resposta
 
     private static $database = 'escritorio';
@@ -130,43 +133,51 @@ class ApchatRespostaService
                 return self::ENCERRADA;
             }
 
-            $respostas = ApchatBancoService::primeirasRespostasDepois(APChatContactService::variantes((string) $p['destino']), (string) $p['enviado_em'], self::RESPOSTAS_VALIDAS);
+            $conversa = ApchatBancoService::conversaDepois(APChatContactService::variantes((string) $p['destino']), (string) $p['enviado_em']);
+            $daCurciol = self::textosDaCurciol((string) $p['destino'], (string) $p['enviado_em']);
 
-            if (!$respostas)
+            $respostas = [];
+            $atendente = false;
+            foreach ($conversa as $m)
+            {
+                if ($m['fromMe'] === true || $m['fromMe'] === 't')
+                {
+                    if (!in_array(self::textoComparavel($m['body'] ?? ''), $daCurciol, true)) { $atendente = true; break; }
+                    continue;
+                }
+                $respostas[] = $m;
+                if (count($respostas) === self::RESPOSTAS_SEGUIDAS) { break; }
+            }
+
+            if (!$respostas && !$atendente)
             {
                 TTransaction::close();
                 return null;
-            }
-
-            $decisiva = null;
-            foreach ($respostas as $r)
-            {
-                if (self::classificar($r['body'] ?? '') !== self::OUTRA) { $decisiva = $r; break; }
             }
 
             $todas = mb_substr(implode(' / ', array_map([self::class, 'textoDaResposta'], $respostas)), 0, 2000);
 
-            // ainda pode vir SIM ou NAO: so guarda o que chegou, para aparecer na tela do agendamento
-            if (!$decisiva && count($respostas) < self::RESPOSTAS_VALIDAS)
+            if ($atendente)
             {
-                if ((string) $mensagem->resposta_texto !== $todas)
-                {
-                    $mensagem->resposta_texto = $todas;
-                    $mensagem->store();
-                }
+                $mensagem->resposta = self::ATENDENTE;
+                $mensagem->resposta_texto = $todas !== '' ? $todas : null;
+                $mensagem->respondido_em = date('Y-m-d H:i:s');
+                $mensagem->resposta_obs = 'Um atendente escreveu na conversa antes da resposta: nada automático, agendamento em aberto.';
+                $mensagem->store();
                 TTransaction::close();
-                return null;
+                return self::ATENDENTE;
             }
 
             // a resposta automatica e o historico ficam no nome de quem enviou a confirmacao
             TSession::setValue('userid', (int) $p['system_user_id']);
             TSession::setValue('userunitid', (int) $agendamento->agenda->escritorio->system_unit_id);
 
-            $tipo = $decisiva ? self::classificar($decisiva['body'] ?? '') : self::OUTRA;
-            $ultima = $decisiva ?: end($respostas);
+            // todas as mensagens seguidas tem de ser so a mesma palavra
+            $tipos = array_unique(array_map(function ($r) { return self::classificar($r['body'] ?? ''); }, $respostas));
+            $tipo = count($tipos) === 1 ? reset($tipos) : self::OUTRA;
             $mensagem->resposta = $tipo;
-            $mensagem->resposta_texto = $decisiva ? mb_substr(self::textoDaResposta($decisiva), 0, 2000) : $todas;
-            $mensagem->respondido_em = date('Y-m-d H:i:s', strtotime((string) $ultima['createdAt']));
+            $mensagem->resposta_texto = $todas;
+            $mensagem->respondido_em = date('Y-m-d H:i:s', strtotime((string) end($respostas)['createdAt']));
 
             if ($tipo === self::SIM)
             {
@@ -193,7 +204,7 @@ class ApchatRespostaService
             }
             else
             {
-                $mensagem->resposta_obs = 'Nenhuma das 3 primeiras respostas foi SIM ou NÃO: nada automático.';
+                $mensagem->resposta_obs = 'Resposta com frase ou diferente de SIM/NÃO: nada automático, agendamento em aberto.';
             }
 
             $mensagem->store();
@@ -206,6 +217,20 @@ class ApchatRespostaService
             TTransaction::rollback();
             return 'ERRO (tenta de novo): ' . $e->getMessage();
         }
+    }
+
+    /** Textos que a Curciol mandou para este numero desde o envio (a API e a copia no canal oficial trazem o mesmo texto). */
+    private static function textosDaCurciol(string $destino, string $desde): array
+    {
+        $st = TTransaction::get()->prepare("SELECT template FROM mensagem WHERE destino = ? AND tipo_mensagem = 'WHATSAPP' AND enviado_em >= ?");
+        $st->execute([$destino, $desde]);
+
+        return array_map([self::class, 'textoComparavel'], $st->fetchAll(PDO::FETCH_COLUMN));
+    }
+
+    private static function textoComparavel(?string $texto): string
+    {
+        return trim(preg_replace('/\s+/u', ' ', (string) $texto));
     }
 
     /** Texto da mensagem do cliente; audio, imagem etc. pelo tipo. */

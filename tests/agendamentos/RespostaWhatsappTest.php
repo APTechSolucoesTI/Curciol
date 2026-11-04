@@ -1,7 +1,7 @@
 <?php
 // tests/agendamentos/RespostaWhatsappTest.php
 // Resposta SIM/NAO ao WhatsApp de confirmacao (03/11/2026; ApchatRespostaService): SIM confirma (com atendimento) e
-// manda a "confirmacao recebida", NAO cancela e agradece, so as 3 primeiras respostas contam, so a ultima confirmacao do numero
+// manda a "confirmacao recebida", NAO cancela e agradece, frase ou saudacao antes deixa em aberto, atendente interrompe, so a ultima confirmacao do numero
 // vale, agendamento que ja mudou encerra, erro no envio da resposta desfaz e tenta de novo.
 // NUNCA fala com o APChat de verdade: banco do APChat falso e API falsa.
 require __DIR__ . '/../bootstrap.php';
@@ -24,12 +24,12 @@ function limparResposta(): void
 }
 limparResposta();
 
-// ---------- banco do APChat falso: a primeira resposta de cada numero ----------
+// ---------- banco do APChat falso: a conversa de cada numero ----------
 class ApchatBancoRespostasFalso
 {
     public $respostas = [];
     public function disponivel() { return true; }
-    public function primeirasRespostasDepois(array $numeros, string $desde, int $limite)
+    public function conversaDepois(array $numeros, string $desde, int $limite = 50)
     {
         foreach ($numeros as $n) { if (isset($this->respostas[$n])) { return array_slice($this->respostas[$n], 0, $limite); } }
         return [];
@@ -38,7 +38,11 @@ class ApchatBancoRespostasFalso
 $banco = new ApchatBancoRespostasFalso();
 ApchatBancoService::usarFalso($banco);
 $responde = function (string $numero, string $texto) use ($banco) {
-    $banco->respostas[$numero][] = ['id' => 1, 'body' => $texto, 'mediaType' => 'chat', 'createdAt' => date('Y-m-d H:i:s')];
+    $banco->respostas[$numero][] = ['id' => 1, 'body' => $texto, 'mediaType' => 'chat', 'fromMe' => false, 'createdAt' => date('Y-m-d H:i:s')];
+};
+// mensagem nossa na conversa: atendente pelo APChat ou a copia, no canal oficial, do texto enviado pela Curciol
+$nossa = function (string $numero, string $texto) use ($banco) {
+    $banco->respostas[$numero][] = ['id' => 2, 'body' => $texto, 'mediaType' => 'chat', 'fromMe' => true, 'createdAt' => date('Y-m-d H:i:s')];
 };
 
 $enviadas = [];
@@ -89,7 +93,6 @@ try {
 
     [$agSim, $mSim] = $novo('SIM', '5519912340001');
     [$agNao, $mNao] = $novo('NAO', '5519912340002');
-    [$agOutra, $mOutra] = $novo('OUTRA', '5519912340003');
 
     // ---------- sem resposta ainda ----------
     $rodar();
@@ -119,40 +122,75 @@ try {
     igual('NAO: mensagem de agradecimento', 1, count($enviadas));
     ok('NAO: texto do agradecimento', strpos($enviadas[0]['body'] ?? '', 'Obrigado por avisar') !== false, $enviadas[0]['body'] ?? '');
 
-    // ---------- ate a 3a resposta: frase nao decide, a primeira que for so SIM ou NAO decide ----------
-    $responde('5519912340003', 'Sim, mas posso mudar o horário?');
-    $enviadas = [];
-    $rodar();
-    igual('frase: agendamento continua Agendado', EstadoAgenda::AGENDADO, $estado($agOutra));
-    igual('frase: continua esperando e guarda o que chegou', ['resposta' => null, 'resposta_texto' => 'Sim, mas posso mudar o horário?'], $resposta($mOutra));
-    igual('frase: nenhuma mensagem automatica', 0, count($enviadas));
-    $responde('5519912340003', 'Olá! Agradecemos o contato.');
-    $rodar();
-    igual('2 respostas sem SIM/NAO: continua Agendado', EstadoAgenda::AGENDADO, $estado($agOutra));
-    ok('2 respostas sem SIM/NAO: continua esperando', $resposta($mOutra)['resposta'] === null);
-    $responde('5519912340003', 'sIm!');
-    $rodar();
-    igual('3a resposta SIM: confirma', EstadoAgenda::CONFIRMADO, $estado($agOutra));
-    igual('3a resposta SIM: registra so o SIM', ['resposta' => 'SIM', 'resposta_texto' => 'sIm!'], $resposta($mOutra));
-    igual('3a resposta SIM: mensagem automatica', 1, count($enviadas));
+    // ---------- frase, saudacao ou mistura, mesmo com SIM/NAO depois: nao confirma nem cancela (usuario, 04/11/2026) ----------
+    $semDecisao = [
+        'frase' => ['Sim, mas posso mudar o horário?'],
+        'saudacao automatica e Sim' => ['Olá! Agradecemos o contato.', 'Sim'],
+        'frase, saudacao e sIm!' => ['Quero saber o horário', 'Olá! Agradecemos o contato.', 'sIm!'],
+        'Bom dia e NAO' => ['Bom dia', 'NÃO'],
+        'sim e nao' => ['sim', 'não'],
+        'Sim e frase' => ['Sim', 'mas prefiro à tarde'],
+    ];
+    $final = 1000;
+    foreach ($semDecisao as $caso => $textos) {
+        $numero = '551991234' . ($final++);
+        [$ag, $m] = $novo('ABERTO ' . $final, $numero);
+        foreach ($textos as $t) { $responde($numero, $t); }
+        $enviadas = [];
+        $rodar();
+        igual("{$caso}: agendamento continua Agendado", EstadoAgenda::AGENDADO, $estado($ag));
+        igual("{$caso}: registrado sem decisao", ['resposta' => 'OUTRA', 'resposta_texto' => implode(' / ', $textos)], $resposta($m));
+        igual("{$caso}: nenhuma mensagem automatica", 0, count($enviadas));
+        $responde($numero, 'sim');
+        $rodar();
+        igual("{$caso}: SIM depois nao conta", EstadoAgenda::AGENDADO, $estado($ag));
+        igual("{$caso}: nada enviado depois", 0, count($enviadas));
+    }
 
-    // ---------- 3 respostas sem SIM/NAO: nada automatico e a 4a nao conta ----------
+    // ---------- ate 3 seguidas, so a mesma palavra ----------
     [$agTres, $mTres] = $novo('TRES', '5519912340007');
-    foreach (['Bom dia', 'Quem fala?', 'Sim, mas prefiro à tarde'] as $t) { $responde('5519912340007', $t); }
+    foreach (['sim', 'Sim!', 'SIM'] as $t) { $responde('5519912340007', $t); }
     $enviadas = [];
     $rodar();
-    igual('3 sem SIM/NAO: continua Agendado', EstadoAgenda::AGENDADO, $estado($agTres));
-    igual('3 sem SIM/NAO: registra as 3', ['resposta' => 'OUTRA', 'resposta_texto' => 'Bom dia / Quem fala? / Sim, mas prefiro à tarde'], $resposta($mTres));
-    igual('3 sem SIM/NAO: nenhuma mensagem automatica', 0, count($enviadas));
-    $responde('5519912340007', 'sim');
-    $rodar();
-    igual('4a resposta SIM: nao conta', EstadoAgenda::AGENDADO, $estado($agTres));
-    igual('4a resposta SIM: nada enviado', 0, count($enviadas));
+    igual('3 vezes SIM: confirma', EstadoAgenda::CONFIRMADO, $estado($agTres));
+    igual('3 vezes SIM: uma mensagem automatica', 1, count($enviadas));
 
-    // ---------- resposta esperando: aparece na tela ----------
-    [$agEspera, $mEspera] = $novo('ESPERA', '5519912340008');
-    $responde('5519912340008', 'Vou ver e já respondo');
+    // ---------- a copia do texto da Curciol no canal oficial nao e atendente ----------
+    [$agCopia, $mCopia] = $novo('COPIA', '5519912340003');
+    $nossa('5519912340003', "  Responda  SIM\nou NÃO ");
+    $responde('5519912340003', 'sim');
     $rodar();
+    igual('copia do texto enviado: SIM confirma', EstadoAgenda::CONFIRMADO, $estado($agCopia));
+
+    // ---------- atendente escreveu: para a contagem ----------
+    [$agAtend, $mAtend] = $novo('ATENDENTE', '5519912340009');
+    $nossa('5519912340009', '*Kleber*: pode confirmar?');
+    $enviadas = [];
+    $rodar();
+    igual('atendente antes da resposta: para de contar', 'ATENDENTE', $resposta($mAtend)['resposta']);
+    $responde('5519912340009', 'sim');
+    $rodar();
+    igual('atendente antes da resposta: SIM depois nao confirma', EstadoAgenda::AGENDADO, $estado($agAtend));
+    igual('atendente antes da resposta: nada enviado', 0, count($enviadas));
+
+    [$agMeio, $mMeio] = $novo('MEIO', '5519912340010');
+    $responde('5519912340010', 'sim');
+    $nossa('5519912340010', '*Kleber*: tudo certo?');
+    $rodar();
+    igual('atendente antes de a tarefa ler o SIM: nao confirma', EstadoAgenda::AGENDADO, $estado($agMeio));
+    igual('atendente antes de a tarefa ler o SIM: registrado', ['resposta' => 'ATENDENTE', 'resposta_texto' => 'sim'], $resposta($mMeio));
+
+    [$agDepois, $mDepois] = $novo('DEPOIS', '5519912340011');
+    foreach (['não', 'NAO', 'Não!'] as $t) { $responde('5519912340011', $t); }
+    $nossa('5519912340011', '*Kleber*: certo');
+    $rodar();
+    igual('atendente depois das 3 mensagens: vale o que o cliente respondeu', EstadoAgenda::CANCELADO, $estado($agDepois));
+
+    // telas: uma com a resposta registrada e outra esperando
+    [$agTela, $mTela] = $novo('TELA', '5519912340012');
+    $responde('5519912340012', 'Sim, mas prefiro à tarde');
+    $rodar();
+    [$agEspera, $mEspera] = $novo('ESPERA', '5519912340008');
 
     // ---------- duas confirmacoes para o mesmo numero: vale a ultima ----------
     [$agVelho, $mVelho] = $novo('VELHO', '5519912340004', '10 minutes');
@@ -189,13 +227,13 @@ try {
     // ---------- tela do agendamento mostra a resposta ----------
     TSession::setValue('userunitid', (int) q("SELECT e.system_unit_id u FROM escritorio e JOIN agenda a ON a.escritorio_id = e.id WHERE a.id = {$agendaId}")[0]['u']);
     ob_start();
-    (new AgendamentoFormView(['key' => $agTres]))->show();
+    (new AgendamentoFormView(['key' => $agTela]))->show();
     $html = ob_get_clean();
     ok('tela: mostra as respostas do cliente', strpos($html, 'Confirmação por WhatsApp enviada') !== false && strpos($html, 'prefiro à tarde') !== false);
     ob_start();
     (new AgendamentoFormView(['key' => $agEspera]))->show();
     $html = ob_get_clean();
-    ok('tela: aguardando, com o que ja chegou', strpos($html, 'aguardando resposta') !== false && strpos($html, 'Vou ver e já respondo') !== false);
+    ok('tela: aguardando resposta', strpos($html, 'aguardando resposta') !== false);
 } finally {
     ApchatBancoService::usarFalso(null);
     ApchatApiService::usarTransporte(null);
