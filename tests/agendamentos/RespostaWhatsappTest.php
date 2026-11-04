@@ -5,6 +5,7 @@
 // vale, agendamento que ja mudou encerra, erro no envio da resposta desfaz e tenta de novo.
 // NUNCA fala com o APChat de verdade: banco do APChat falso e API falsa.
 require __DIR__ . '/../bootstrap.php';
+if (!class_exists('TApplication')) { class TApplication extends AdiantiCoreApplication {} }
 
 const MARCA_RESP = 'TESTE RESPOSTA WHATSAPP';
 function q(string $sql) { TTransaction::open('escritorio'); $r = TTransaction::get()->query($sql)->fetchAll(PDO::FETCH_ASSOC); TTransaction::close(); return $r; }
@@ -17,10 +18,10 @@ function limparResposta(): void
     x("DELETE FROM mensagem_acao WHERE mensagem_id IN (SELECT id FROM mensagem WHERE agendamento_id IN ({$lista}))");
     x("DELETE FROM mensagem WHERE agendamento_id IN ({$lista})");
     x("DELETE FROM estado_agendamento WHERE agendamento_id IN ({$lista})");
+    x("DELETE FROM atendimento_historico WHERE atendimento_id IN (SELECT id FROM atendimento WHERE agendamento_id IN ({$lista}))");
     x("DELETE FROM atendimento_procedimento WHERE atendimento_id IN (SELECT id FROM atendimento WHERE agendamento_id IN ({$lista}))");
     x("DELETE FROM atendimento WHERE agendamento_id IN ({$lista})");
     x("DELETE FROM agendamento WHERE id IN ({$lista})");
-    x("DELETE FROM atendimento_historico WHERE atendimento_id IN (SELECT id FROM atendimento WHERE agendamento_id IN ({$lista}))");
     x("DELETE FROM pessoa_contato WHERE pessoa_id IN (SELECT id FROM pessoa WHERE nome LIKE '" . MARCA_RESP . "%')");
     x("DELETE FROM pessoa WHERE nome LIKE '" . MARCA_RESP . "%'");
 }
@@ -231,7 +232,7 @@ try {
     ob_start();
     (new AgendamentoFormView(['key' => $agTela]))->show();
     $html = ob_get_clean();
-    ok('tela: mostra as respostas do cliente', strpos($html, 'Confirmação por WhatsApp enviada') !== false && strpos($html, 'prefiro à tarde') !== false);
+    ok('tela: mostra as respostas do cliente', strpos($html, 'respondeu') !== false && strpos($html, 'prefiro à tarde') !== false);
     ob_start();
     (new AgendamentoFormView(['key' => $agEspera]))->show();
     $html = ob_get_clean();
