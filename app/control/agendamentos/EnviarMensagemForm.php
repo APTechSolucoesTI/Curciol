@@ -133,10 +133,12 @@ class EnviarMensagemForm extends TPage
                 $('[name=content_whatsapp], [name=content_email], [name=titulo]').closest('.tformrow').toggle(m);
                 $('#caixa_variaveis').toggle(m);
             };
-            $('[name=manual]').off('change.curciol').on('change.curciol', window.curciolManual);
-            window.curciolManual();
-            var \$e = $('[name=content_email]');
-            if (\$e.length) { \$e.on('summernote.blur', function () { \$e.summernote('editor.saveRange'); }); }
+            $(document).off('change.curciolManual').on('change.curciolManual', '[name=manual]', window.curciolManual);
+            $(function () {
+                window.curciolManual();
+                var \$e = $('[name=content_email]');
+                if (\$e.length) { \$e.on('summernote.blur', function () { \$e.summernote('editor.saveRange'); }); }
+            });
             $(document).off('click.curciolVariavel').on('click.curciolVariavel', '.curciol-variavel', function (ev) {
                 ev.preventDefault();
                 var v = $(this).data('variavel');
