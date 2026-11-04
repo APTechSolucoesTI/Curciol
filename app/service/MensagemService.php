@@ -40,82 +40,12 @@ class MensagemService
         }
     }
     
-    public static function canEnviarWhatsappLembreteConsulta($agendamento)
-    {
-        if ($agendamento->estado_agenda_id != EstadoAgenda::CONFIRMADO)
-        {
-            return false;
-        }
-        
-        $template = TemplateEscritorio::getTemplate('WHATSAPP_LEMBRETE_CONSULTA', TSession::getValue('userunitid'));
-        
-        if ($template && $template->habilitado == 'T' && $agendamento->cliente->telefone)
-        {
-            return true;
-        }
-        
-        
-        return false;
-    }
-    
-    public static function canEnviarWhatsappConfirmacao($agendamento)
-    {
-        if ($agendamento->estado_agenda_id != EstadoAgenda::AGENDADO)
-        {
-            return false;
-        }
-        
-        $template = TemplateEscritorio::getTemplate('WHATSAPP_CONFIRMACAO_AGENDAMENTO', TSession::getValue('userunitid'));
-        
-        if ($template && $template->habilitado == 'T' && $agendamento->cliente->telefone)
-        {
-            return true;
-        }
-        
-        
-        return false;
-    }
-    
-    public static function canEnviarEmailConfirmacao($agendamento)
-    {
-        if ($agendamento->estado_agenda_id != EstadoAgenda::AGENDADO)
-        {
-            return false;
-        }
-        
-        $template = TemplateEscritorio::getTemplate('EMAIL_CONFIRMACAO_AGENDAMENTO', TSession::getValue('userunitid'));
-        
-        if ($template && $template->habilitado == 'T' && $agendamento->cliente->email)
-        {
-            return true;
-        }
-        
-        return false;
-    }
-    
-    public static function canEnviarEmailLembreteConsulta($agendamento)
-    {
-        if ($agendamento->estado_agenda_id != EstadoAgenda::CONFIRMADO)
-        {
-            return false;
-        }
-        
-        $template = TemplateEscritorio::getTemplate('EMAIL_LEMBRETE_CONSULTA', TSession::getValue('userunitid'));
-        
-        if ($template && $template->habilitado == 'T' && $agendamento->cliente->email)
-        {
-            return true;
-        }
-        
-        return false;
-    }
-    
     // =================================================================
-    // Envio pela tela "Enviar mensagem" (03/11/2026)
+    // Envio pela tela "Enviar mensagem" (03/11/2026; botoes unicos de WhatsApp e e-mail desde 04/11)
     // =================================================================
     //
-    // Todo envio do agendamento passa pela cortina EnviarMensagemForm: o template (botoes de confirmacao e lembrete)
-    // ou o texto escrito na hora (envio manual), com as variaveis trocadas no envio. WhatsApp pelo APChat, e-mail pelo
+    // Todo envio do agendamento passa pela cortina EnviarMensagemForm: o template pronto ou, com "Manual", o texto
+    // alterado ou escrito na hora, com as variaveis trocadas no envio. WhatsApp pelo APChat, e-mail pelo
     // SMTP do escritorio.
     //
     // Fora da producao (AmbienteService) o destino e obrigatorio e nunca pode ser do cliente do agendamento: a
@@ -146,8 +76,11 @@ class MensagemService
         ];
     }
 
-    /** Templates habilitados de uma chave no escritorio da unidade logada: [id => descricao]. */
-    public static function templatesDaChave(string $chave): array
+    /** Templates que nao se escolhe no envio: as respostas automaticas e as credenciais do portal. */
+    const CHAVES_FORA_DO_ENVIO = ['WHATSAPP_RESPOSTA_SIM', 'WHATSAPP_RESPOSTA_NAO', 'EMAIL_CREDENCIAIS'];
+
+    /** Templates habilitados do canal no escritorio da unidade logada: [id => descricao]. */
+    public static function templatesDoEnvio(string $tipo): array
     {
         $escritorio = Escritorio::findByUnitId(TSession::getValue('userunitid'));
 
@@ -156,11 +89,95 @@ class MensagemService
             return [];
         }
 
-        return TemplateEscritorio::where('chave', '=', $chave)
+        return TemplateEscritorio::where('tipo_template', '=', $tipo)
                                  ->where('escritorio_id', '=', $escritorio->id)
                                  ->where('habilitado', '=', 'T')
+                                 ->where('chave', 'not in', self::CHAVES_FORA_DO_ENVIO)
                                  ->orderBy('id')
                                  ->getIndexedArray('id', 'descricao');
+    }
+
+    /** Template que ja vem escolhido: confirmacao com o agendamento Agendado, lembrete depois de confirmado. */
+    public static function templatePadrao(Agendamento $agendamento, string $tipo, array $templates): ?TemplateEscritorio
+    {
+        $chave = (int) $agendamento->estado_agenda_id === (int) EstadoAgenda::CONFIRMADO ? 'LEMBRETE_CONSULTA' : 'CONFIRMACAO_AGENDAMENTO';
+
+        foreach (array_keys($templates) as $id)
+        {
+            $template = TemplateEscritorio::find($id);
+            if ($template->chave === $tipo . '_' . $chave) { return $template; }
+        }
+
+        return null;
+    }
+
+    /**
+     * Template que fica registrado no envio. A confirmacao espera a resposta SIM/NAO: com "Manual", so continua sendo
+     * confirmacao se o texto ainda pedir SIM - senao um "sim" a outro assunto confirmaria o agendamento.
+     */
+    public static function templateRegistrado(?TemplateEscritorio $template, bool $manual, string $texto): ?int
+    {
+        if (!$template) { return null; }
+
+        if ($manual && $template->chave === ApchatRespostaService::CHAVE_CONFIRMACAO && !preg_match('/\bsim\b/iu', strip_tags($texto)))
+        {
+            return null;
+        }
+
+        return (int) $template->id;
+    }
+
+    /**
+     * Contatos do cliente que podem receber, o principal primeiro: [{chave, destino, rotulo}]. O rotulo sempre mostra nome,
+     * descricao e se e principal. Telefone ou e-mail so nos Dados do cadastro (sem contato) entra como "Dados do cadastro".
+     */
+    public static function contatosParaEnvio(Agendamento $agendamento, string $tipo): array
+    {
+        $ehEmail = $tipo === TemplateEscritorio::EMAIL;
+        $st = TTransaction::get()->prepare("SELECT id, nome, descricao, telefone, email, principal FROM pessoa_contato WHERE pessoa_id = ?
+                                             ORDER BY CASE WHEN principal = 'S' THEN 0 ELSE 1 END, id");
+        $st->execute([(int) $agendamento->cliente_id]);
+
+        $lista = [];
+        $vistos = [];
+        $incluir = function ($chave, string $bruto, $nome, $descricao, bool $principal) use (&$lista, &$vistos, $ehEmail) {
+            $destino = $ehEmail ? mb_strtolower(trim($bruto)) : APChatContactService::normalizarTelefone($bruto);
+            if ($destino === '' || ($ehEmail && !filter_var($destino, FILTER_VALIDATE_EMAIL))) { return; }
+            $vistos[$destino] = true;
+            $lista[] = [
+                'chave'   => (string) $chave,
+                'destino' => $destino,
+                'rotulo'  => ($ehEmail ? $destino : PessoaContatoService::formatarTelefone($destino))
+                           . ' | Nome: ' . (trim((string) $nome) ?: '-')
+                           . ' | Descrição: ' . (trim((string) $descricao) ?: '-')
+                           . ' | Principal: ' . ($principal ? 'Sim' : 'Não'),
+            ];
+        };
+
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $c)
+        {
+            $incluir($c['id'], (string) ($ehEmail ? $c['email'] : $c['telefone']), $c['nome'], $c['descricao'], $c['principal'] === 'S');
+        }
+
+        $doCadastro = (string) ($ehEmail ? $agendamento->cliente->email : $agendamento->cliente->telefone);
+        $normal = $ehEmail ? mb_strtolower(trim($doCadastro)) : APChatContactService::normalizarTelefone($doCadastro);
+        if ($normal !== '' && !isset($vistos[$normal]))
+        {
+            $incluir('dados', $doCadastro, $agendamento->cliente->nome, 'Dados do cadastro', !$lista);
+        }
+
+        return $lista;
+    }
+
+    /** Destino do contato escolhido na tela; so aceita contato deste cliente. */
+    public static function destinoDoContato(Agendamento $agendamento, string $tipo, string $chave): string
+    {
+        foreach (self::contatosParaEnvio($agendamento, $tipo) as $c)
+        {
+            if ($c['chave'] === $chave) { return $c['destino']; }
+        }
+
+        throw new Exception('Escolha o contato que vai receber a mensagem.');
     }
     
     /**

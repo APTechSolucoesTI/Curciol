@@ -54,10 +54,17 @@ class AgendamentoService
 
     /**
      * Atendimento do agendamento confirmado, com os procedimentos do agendamento (o "Iniciar atendimento" precisa dele).
-     * Usado pelo Confirmar da equipe e pela confirmacao do cliente pelo WhatsApp (03/11/2026).
+     * Usado pelo Confirmar da equipe e pela confirmacao do cliente pelo WhatsApp (03/11/2026). Reconfirmar depois de
+     * "Cancelar confirmacao" reaproveita o atendimento que ficou (tinha documento, anexo etc.): nao duplica.
      */
     public static function criarAtendimento(Agendamento $agendamento): Atendimento
     {
+        $existente = Atendimento::where('agendamento_id', '=', $agendamento->id)->first();
+        if ($existente)
+        {
+            return $existente;
+        }
+
         $atendimento = new Atendimento;
         $atendimento->agendamento_id = $agendamento->id;
         $atendimento->cliente_id = $agendamento->cliente_id;
@@ -86,6 +93,66 @@ class AgendamentoService
         $atendimento->store();
 
         return $atendimento;
+    }
+
+    /**
+     * "Cancelar confirmacao" (04/11/2026): o agendamento Confirmado volta a Agendado, para remarcar ou cancelar depois, e a
+     * observacao fica no historico. O atendimento criado na confirmacao sai, a nao ser que ja tenha algo ligado a ele.
+     */
+    public static function cancelarConfirmacao(Agendamento $agendamento, string $observacao): void
+    {
+        $observacao = trim($observacao);
+
+        if ((int) $agendamento->estado_agenda_id !== (int) EstadoAgenda::CONFIRMADO)
+        {
+            throw new Exception('Só é possível cancelar a confirmação de um agendamento confirmado.');
+        }
+        if ($observacao === '')
+        {
+            throw new Exception('Escreva a observação.');
+        }
+
+        $atendimento = Atendimento::where('agendamento_id', '=', $agendamento->id)->first();
+
+        if ($atendimento && !empty($atendimento->dt_inicio))
+        {
+            throw new Exception('O atendimento deste agendamento já foi iniciado.');
+        }
+
+        $agendamento->estado_agenda_id = EstadoAgenda::AGENDADO;
+        $agendamento->store();
+
+        $historico = new EstadoAgendamento();
+        $historico->agendamento_id = $agendamento->id;
+        $historico->estado_agenda_id = $agendamento->estado_agenda_id;
+        $historico->system_users_id = TSession::getValue('userid');
+        $historico->atribuido_em = date('Y-m-d H:i:s');
+        $historico->observacao = $observacao;
+        $historico->store();
+
+        if ($atendimento && !self::atendimentoTemVinculo((int) $atendimento->id))
+        {
+            AtendimentoProcedimento::where('atendimento_id', '=', $atendimento->id)->delete();
+            $atendimento->delete();
+        }
+    }
+
+    /** Alguma tabela (fora os procedimentos copiados do agendamento) aponta para este atendimento? */
+    private static function atendimentoTemVinculo(int $atendimentoId): bool
+    {
+        $c = TTransaction::get();
+        $tabelas = $c->query("SELECT c.conrelid::regclass::text AS tabela, a.attname AS coluna
+                                FROM pg_constraint c
+                                JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = c.conkey[1]
+                               WHERE c.contype = 'f' AND c.confrelid = 'atendimento'::regclass
+                                 AND c.conrelid <> 'atendimento_procedimento'::regclass")->fetchAll(PDO::FETCH_ASSOC);
+        foreach ($tabelas as $t)
+        {
+            $st = $c->prepare("SELECT 1 FROM {$t['tabela']} WHERE \"{$t['coluna']}\" = ? LIMIT 1");
+            $st->execute([$atendimentoId]);
+            if ($st->fetchColumn()) { return true; }
+        }
+        return false;
     }
 
     /** Token antigo: so de agendamento que ja existia na troca do formato e que ainda nao passou. */

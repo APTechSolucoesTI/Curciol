@@ -48,6 +48,12 @@ class ApchatRespostaService
         return self::OUTRA;
     }
 
+    /** A resposta para mostrar: sem a assinatura "*Nome*:" de quem responde por um sistema de atendimento. */
+    public static function semAssinatura(?string $texto): string
+    {
+        return trim(preg_replace('/\*[^*\n]{1,80}\*:\s*/u', '', (string) $texto));
+    }
+
     /** Cron. */
     public static function processar($param = null): void
     {
@@ -182,10 +188,7 @@ class ApchatRespostaService
             if ($tipo === self::SIM)
             {
                 self::mudarEstado($agendamento, EstadoAgenda::CONFIRMADO);
-                if (!Atendimento::where('agendamento_id', '=', $agendamento->id)->first())
-                {
-                    AgendamentoService::criarAtendimento($agendamento);
-                }
+                AgendamentoService::criarAtendimento($agendamento);
                 $mensagem->resposta_obs = 'Agendamento confirmado pelo cliente (WhatsApp).';
                 self::responder($agendamento, $mensagem, self::CHAVE_RESPOSTA_SIM);
             }

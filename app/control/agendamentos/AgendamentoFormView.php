@@ -78,10 +78,6 @@ class AgendamentoFormView extends TPage
         $labelOnline = new TTextDisplay($transformed_agendamento_is_online, '', '14px', '');
         $label18 = new TLabel("Observação:", '', '14px', 'B', '100%');
         $text9 = new TTextDisplay($agendamento->observacao, '', '14px', '');
-        $WHATSAPP_CONFIRMACAO_AGENDAMENTO = new TButton('WHATSAPP_CONFIRMACAO_AGENDAMENTO');
-        $EMAIL_CONFIRMACAO_AGENDAMENTO = new TButton('EMAIL_CONFIRMACAO_AGENDAMENTO');
-        $WHATSAPP_LEMBRETE_CONSULTA = new TButton('WHATSAPP_LEMBRETE_CONSULTA');
-        $EMAIL_LEMBRETE_CONSULTA = new TButton('EMAIL_LEMBRETE_CONSULTA');
         $enviar_whatsapp = new TButton('enviar_whatsapp');
         $enviar_email = new TButton('enviar_email');
         $btncancelar = new TActionLink(" Cancelar", new TAction(['AgendamentoFormView', 'onCancelar'], ['key'=> $agendamento->id]), '#F44336', '14px', 'B', 'fas:calendar-times #F44336');
@@ -90,32 +86,23 @@ class AgendamentoFormView extends TPage
         $btniniciar = new TActionLink("Iniciar Atendimento", new TAction(['AgendamentoFormView', 'onIniciar'], ['key'=> $agendamento->id]), '#FF9800', '14px', 'B', 'fas:play #FF9800');
         $btnentrar = new TActionLink("Acessar atendimento", new TAction(['AgendamentoFormView', 'onAbrirAtendimento'], ['key'=> $agendamento->id]), '#009688', '14px', 'B', 'fas:pencil-alt #009688');
         $btnvalidar = new TActionLink("Validar agendamento", new TAction(['AgendamentoFormView', 'onValidarAgendamento'], ['key'=> $agendamento->id]), '#673AB7', '14px', 'B', 'fas:calendar-plus #673AB7');
+        $btncancelarconfirmacao = new TActionLink(" Cancelar confirmação", new TAction(['AgendamentoFormView', 'onCancelarConfirmacao'], ['key'=> $agendamento->id, 'static' => 1]), '#F44336', '14px', 'B', 'fas:calendar-minus #F44336');
 
-        $enviar_email->setAction(new TAction(['EnviarMensagemForm', 'onShow'],['tipo' => 'EMAIL']), "Enviar e-mail manual");
-        $enviar_whatsapp->setAction(new TAction(['EnviarMensagemForm', 'onShow'],['tipo' => 'WHATSAPP']), "Enviar whatsapp manual");
-        // todo envio abre a cortina antes (mensagem pronta e destino; 03/11/2026)
-        $EMAIL_LEMBRETE_CONSULTA->setAction(new TAction(['EnviarMensagemForm', 'onShow'], ['tipo' => 'EMAIL', 'chave' => 'EMAIL_LEMBRETE_CONSULTA']), "Enviar e-mail de lembrete de consulta");
-        $EMAIL_CONFIRMACAO_AGENDAMENTO->setAction(new TAction(['EnviarMensagemForm', 'onShow'], ['tipo' => 'EMAIL', 'chave' => 'EMAIL_CONFIRMACAO_AGENDAMENTO']), "Enviar email de confirmação do agendamento");
-        $WHATSAPP_LEMBRETE_CONSULTA->setAction(new TAction(['EnviarMensagemForm', 'onShow'], ['tipo' => 'WHATSAPP', 'chave' => 'WHATSAPP_LEMBRETE_CONSULTA']), "Enviar whatsapp de lembrete de consulta");
-        $WHATSAPP_CONFIRMACAO_AGENDAMENTO->setAction(new TAction(['EnviarMensagemForm', 'onShow'], ['tipo' => 'WHATSAPP', 'chave' => 'WHATSAPP_CONFIRMACAO_AGENDAMENTO']), "Enviar whatsapp de confirmação do agendamento");
+        $enviar_email->setAction(new TAction(['EnviarMensagemForm', 'onShow'],['tipo' => 'EMAIL']), "Enviar e-mail");
+        $enviar_whatsapp->setAction(new TAction(['EnviarMensagemForm', 'onShow'],['tipo' => 'WHATSAPP']), "Enviar WhatsApp");
+        // um botao de cada canal: a cortina escolhe contato, template e Manual (04/11/2026)
 
         $enviar_email->addStyleClass('btn-default');
         $enviar_whatsapp->addStyleClass('btn-default');
-        $EMAIL_LEMBRETE_CONSULTA->addStyleClass('btn-default');
-        $WHATSAPP_LEMBRETE_CONSULTA->addStyleClass('btn-default');
-        $EMAIL_CONFIRMACAO_AGENDAMENTO->addStyleClass('btn-default');
-        $WHATSAPP_CONFIRMACAO_AGENDAMENTO->addStyleClass('btn-default');
 
         $enviar_email->setImage('far:envelope #F44336');
         $enviar_whatsapp->setImage('fab:whatsapp #4CAF50');
-        $EMAIL_LEMBRETE_CONSULTA->setImage('fas:envelope #FF0000');
-        $WHATSAPP_LEMBRETE_CONSULTA->setImage('fab:whatsapp #4CAF50');
-        $EMAIL_CONFIRMACAO_AGENDAMENTO->setImage('fas:envelope #FF0000');
-        $WHATSAPP_CONFIRMACAO_AGENDAMENTO->setImage('fab:whatsapp #4CAF50');
 
         $btnentrar->class = 'btn btn-default';
         $btniniciar->class = 'btn btn-default';
         $btnvalidar->class = 'btn btn-default';
+        $btncancelarconfirmacao->class = 'btn btn-default';
+        $btncancelarconfirmacao->style = 'display: none;';
         $btncancelar->class = 'btn btn-default';
         $btnconfirmar->class = 'btn btn-default';
         $btnnaocompareceu->class = 'btn btn-default';
@@ -124,32 +111,8 @@ class AgendamentoFormView extends TPage
         $enviar_email->getAction()->setParameter('agendamento_id', $agendamento->id);
         $enviar_whatsapp->getAction()->setParameter('agendamento_id', $agendamento->id);
 
-        $EMAIL_LEMBRETE_CONSULTA->getAction()->setParameter('agendamento_id', $agendamento->id);
-        $EMAIL_CONFIRMACAO_AGENDAMENTO->getAction()->setParameter('agendamento_id', $agendamento->id);
-        $WHATSAPP_LEMBRETE_CONSULTA->getAction()->setParameter('agendamento_id', $agendamento->id);
-        $WHATSAPP_CONFIRMACAO_AGENDAMENTO->getAction()->setParameter('agendamento_id', $agendamento->id);
 
-        $EMAIL_LEMBRETE_CONSULTA->style = 'display: none';
-        $EMAIL_CONFIRMACAO_AGENDAMENTO->style = 'display: none';
-        $WHATSAPP_LEMBRETE_CONSULTA->style = 'display: none';
-        $WHATSAPP_CONFIRMACAO_AGENDAMENTO->style = 'display: none';
 
-        if (MensagemService::canEnviarEmailLembreteConsulta($agendamento))
-        {
-            $EMAIL_LEMBRETE_CONSULTA->style = 'display: block';
-        }
-        if (MensagemService::canEnviarEmailConfirmacao($agendamento))
-        {
-            $EMAIL_CONFIRMACAO_AGENDAMENTO->style = 'display: block';
-        }
-        if (MensagemService::canEnviarWhatsappLembreteConsulta($agendamento))
-        {
-            $WHATSAPP_LEMBRETE_CONSULTA->style = 'display: block';
-        }
-        if (MensagemService::canEnviarWhatsappConfirmacao($agendamento))
-        {
-            $WHATSAPP_CONFIRMACAO_AGENDAMENTO->style = 'display: block';
-        }
 
         $this->form->appendPage("Atendimento");
 
@@ -165,9 +128,6 @@ class AgendamentoFormView extends TPage
         $row3 = $this->form->addFields([$label18,$text9]);
         $row3->layout = [' col-sm-12'];
 
-        $row4 = $this->form->addFields([$WHATSAPP_CONFIRMACAO_AGENDAMENTO,$EMAIL_CONFIRMACAO_AGENDAMENTO,$WHATSAPP_LEMBRETE_CONSULTA,$EMAIL_LEMBRETE_CONSULTA]);
-        $row4->layout = [' col-sm-12'];
-
         $row5 = $this->form->addFields([$enviar_whatsapp,$enviar_email]);
         $row5->layout = [' col-sm-12'];
 
@@ -178,18 +138,24 @@ class AgendamentoFormView extends TPage
                                                     ORDER BY m.enviado_em DESC, m.id DESC LIMIT 1")->fetch(PDO::FETCH_ASSOC);
         if ($confirmacao)
         {
-            $quando = fn($d) => $d ? date('d/m/Y H:i', strtotime($d)) : '';
-            $situacao = $confirmacao['resposta'] === null
-                ? '<span style="color:#FF9800"><b>aguardando resposta</b></span>'
-                : '<b>' . htmlspecialchars(in_array($confirmacao['resposta'], ['SIM', 'NAO', 'OUTRA']) ? 'respondeu "' . $confirmacao['resposta_texto'] . '"' : strtolower($confirmacao['resposta']))
-                  . '</b> em ' . $quando($confirmacao['respondido_em']) . ($confirmacao['resposta_obs'] ? ' - ' . htmlspecialchars($confirmacao['resposta_obs']) : '');
-            $rowConfirmacao = $this->form->addFields([new TLabel('<i class="fab fa-whatsapp" style="color:#4CAF50"></i> Confirmação por WhatsApp enviada em '
-                . $quando($confirmacao['enviado_em']) . ' para ' . PessoaContatoService::formatarTelefone($confirmacao['destino']) . ': ' . $situacao, '#555', '13px', null, '100%')]);
+            $rowConfirmacao = $this->form->addFields([new TLabel('<i class="fab fa-whatsapp" style="color:#4CAF50"></i> ' . self::textoDaConfirmacao($agendamento, $confirmacao), '#555', '13px', null, '100%')]);
             $rowConfirmacao->layout = [' col-sm-12'];
         }
 
+        // ultima confirmacao cancelada, com a observacao (04/11/2026)
+        $cancelada = TTransaction::get()->query("SELECT e.atribuido_em, e.observacao, u.name
+                                                   FROM estado_agendamento e LEFT JOIN system_users u ON u.id = e.system_users_id
+                                                  WHERE e.agendamento_id = " . (int) $agendamento->id . " AND COALESCE(e.observacao, '') <> ''
+                                                  ORDER BY e.atribuido_em DESC, e.id DESC LIMIT 1")->fetch(PDO::FETCH_ASSOC);
+        if ($cancelada)
+        {
+            $rowCancelada = $this->form->addFields([new TLabel('<i class="fas fa-calendar-minus" style="color:#F44336"></i> Confirmação cancelada por '
+                . htmlspecialchars((string) $cancelada['name']) . ' em ' . date('d/m/Y H:i', strtotime($cancelada['atribuido_em'])) . ': ' . htmlspecialchars($cancelada['observacao']), '#555', '13px', null, '100%')]);
+            $rowCancelada->layout = [' col-sm-12'];
+        }
+
         $row6 = $this->form->addContent([new TFormSeparator("Ajustar estado do agendamento", '#333', '18', '#eee')]);
-        $row7 = $this->form->addFields([$btncancelar,$btnconfirmar,$btnnaocompareceu,$btniniciar,$btnentrar,$btnvalidar]);
+        $row7 = $this->form->addFields([$btncancelar,$btnconfirmar,$btncancelarconfirmacao,$btnnaocompareceu,$btniniciar,$btnentrar,$btnvalidar]);
         $row7->layout = [' col-sm-12'];
 
         $this->form->appendPage("Procedimentos");
@@ -356,6 +322,7 @@ class AgendamentoFormView extends TPage
         }
         else if ($agendamento->estado_agenda_id == EstadoAgenda::CONFIRMADO)
         {
+             $btncancelarconfirmacao->style = '';
              $btncancelar->style = 'display: none;';
              $btnconfirmar->style = 'display: none;';
              $btnnaocompareceu->style = 'display: none;';
@@ -742,6 +709,92 @@ class AgendamentoFormView extends TPage
             TApplication::loadPage('AgendamentoFormView', 'onShow', $pageParam);
 
             TScript::create("$('#agendamentos').data('fullcalendar').refetchEvents()");
+        }
+        catch (Exception $e)
+        {
+            TTransaction::rollback();
+            new TMessage('error', $e->getMessage());
+        }
+    }
+
+    /** Linha da confirmacao por WhatsApp na tela. */
+    private static function textoDaConfirmacao(Agendamento $agendamento, array $c): string
+    {
+        $quando = fn($d) => $d ? date('d/m/Y H:i', strtotime($d)) : '';
+        $numero = PessoaContatoService::formatarTelefone($c['destino']);
+        $estado = (int) $agendamento->estado_agenda_id;
+        $resposta = $c['resposta'];
+        $respondeu = htmlspecialchars($numero . ' respondeu "' . ApchatRespostaService::semAssinatura($c['resposta_texto']) . '"') . ' em ' . $quando($c['respondido_em']);
+
+        if ($resposta === null)
+        {
+            return 'Confirmação por WhatsApp enviada em ' . $quando($c['enviado_em']) . ' para ' . htmlspecialchars($numero) . ': <span style="color:#FF9800"><b>aguardando resposta</b></span>';
+        }
+        if ($resposta === ApchatRespostaService::SIM && $estado === (int) EstadoAgenda::CONFIRMADO)
+        {
+            return '<b>Agendamento confirmado pelo cliente</b> - ' . $respondeu;
+        }
+        if ($resposta === ApchatRespostaService::NAO && $estado === (int) EstadoAgenda::CANCELADO)
+        {
+            return '<b>Agendamento cancelado pelo cliente</b> - ' . $respondeu;
+        }
+        if ($resposta === ApchatRespostaService::SIM)
+        {
+            return $respondeu;
+        }
+        if (in_array($resposta, [ApchatRespostaService::NAO, ApchatRespostaService::OUTRA], true))
+        {
+            return $respondeu . ($c['resposta_obs'] ? ' - ' . htmlspecialchars($c['resposta_obs']) : '');
+        }
+
+        return 'Confirmação por WhatsApp enviada em ' . $quando($c['enviado_em']) . ' para ' . htmlspecialchars($numero) . ($c['resposta_obs'] ? ' - ' . htmlspecialchars($c['resposta_obs']) : '');
+    }
+
+    /** Janela do "Cancelar confirmacao": confirma a acao e pede a observacao (04/11/2026). */
+    public static function onCancelarConfirmacao($param)
+    {
+        $form = new BootstrapFormBuilder('form_cancelar_confirmacao');
+        $form->setFieldSizes('100%');
+
+        $observacao = new TText('observacao');
+        $observacao->setSize('100%', 100);
+
+        $form->addContent(['<div style="margin-bottom:8px">O agendamento volta para <b>Agendado</b>. Depois você pode remarcar mudando o horário ou cancelar. O cliente não é avisado automaticamente.</div>']);
+        $row = $form->addFields([new TLabel('Observação:', '#ff0000', '14px', null, '100%'), $observacao]);
+        $row->layout = ['col-sm-12'];
+
+        $btn = $form->addAction('Cancelar confirmação', new TAction([__CLASS__, 'onSalvarCancelarConfirmacao'], ['key' => (int) ($param['key'] ?? 0), 'static' => 1]), 'fas:calendar-minus #ffffff');
+        $btn->addStyleClass('btn-danger');
+
+        $window = TWindow::create('Cancelar confirmação', 0.5, null);
+        $window->setProperty('class', 'window_modal');
+        $window->add($form);
+        $window->show();
+    }
+
+    public static function onSalvarCancelarConfirmacao($param)
+    {
+        try
+        {
+            TTransaction::open(self::$database);
+
+            $agendamento = Agendamento::find((int) ($param['key'] ?? 0));
+
+            if (!$agendamento)
+            {
+                throw new Exception('Agendamento não encontrado.');
+            }
+
+            AgendamentoService::cancelarConfirmacao($agendamento, (string) ($param['observacao'] ?? ''));
+
+            TTransaction::close();
+
+            TWindow::closeWindow();
+            TToast::show('success', 'Confirmação cancelada: o agendamento voltou para Agendado.');
+
+            TApplication::loadPage('AgendamentoFormView', 'onShow', ['key' => $agendamento->id]);
+
+            TScript::create("if ($('#agendamentos').data('fullcalendar')) { $('#agendamentos').data('fullcalendar').refetchEvents(); }");
         }
         catch (Exception $e)
         {

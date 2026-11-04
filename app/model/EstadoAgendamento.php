@@ -23,6 +23,7 @@ class EstadoAgendamento extends TRecord
         parent::addAttribute('estado_agenda_id');
         parent::addAttribute('system_users_id');
         parent::addAttribute('atribuido_em');
+        parent::addAttribute('observacao');
             
     }
 

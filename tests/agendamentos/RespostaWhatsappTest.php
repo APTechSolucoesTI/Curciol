@@ -20,6 +20,8 @@ function limparResposta(): void
     x("DELETE FROM atendimento_procedimento WHERE atendimento_id IN (SELECT id FROM atendimento WHERE agendamento_id IN ({$lista}))");
     x("DELETE FROM atendimento WHERE agendamento_id IN ({$lista})");
     x("DELETE FROM agendamento WHERE id IN ({$lista})");
+    x("DELETE FROM atendimento_historico WHERE atendimento_id IN (SELECT id FROM atendimento WHERE agendamento_id IN ({$lista}))");
+    x("DELETE FROM pessoa_contato WHERE pessoa_id IN (SELECT id FROM pessoa WHERE nome LIKE '" . MARCA_RESP . "%')");
     x("DELETE FROM pessoa WHERE nome LIKE '" . MARCA_RESP . "%'");
 }
 limparResposta();
@@ -234,6 +236,116 @@ try {
     (new AgendamentoFormView(['key' => $agEspera]))->show();
     $html = ob_get_clean();
     ok('tela: aguardando resposta', strpos($html, 'aguardando resposta') !== false);
+
+    // ---------- linha do confirmado pelo cliente, e so 2 botoes de envio ----------
+    ob_start();
+    (new AgendamentoFormView(['key' => $agSim]))->show();
+    $html = ob_get_clean();
+    ok('tela: "Agendamento confirmado pelo cliente - numero respondeu ... em data"', (bool) preg_match('~Agendamento confirmado pelo cliente</b> - \(19\) 91234-0001 respondeu &quot;Sim!&quot; em \d\d/\d\d/\d{4} \d\d:\d\d~', $html));
+    ok('tela: botoes unicos de WhatsApp e e-mail', strpos($html, 'Enviar WhatsApp') !== false && strpos($html, 'Enviar e-mail') !== false);
+    ok('tela: sem os botoes por template', strpos($html, 'WHATSAPP_CONFIRMACAO_AGENDAMENTO') === false && strpos($html, 'lembrete de consulta') === false);
+    ok('tela: Cancelar confirmacao aparece no confirmado', (bool) preg_match('~<a[^>]*(?<!display: none;)[^>]*>[^<]*(<i[^>]*></i>)?[^<]*Cancelar confirmação~u', $html));
+    ob_start();
+    (new AgendamentoFormView(['key' => $agEspera]))->show();
+    $html = ob_get_clean();
+    ok('tela: Cancelar confirmacao escondido no Agendado', (bool) preg_match('~style="display: none;"[^>]*>[^<]*(<i[^>]*></i>)?[^<]*Cancelar confirmação~u', $html));
+
+    // ---------- Cancelar confirmacao ----------
+    ob_start();
+    AgendamentoFormView::onCancelarConfirmacao(['key' => $agSim]);
+    $html = ob_get_clean();
+    ok('cancelar confirmacao: janela pede a observacao', strpos($html, 'name="observacao"') !== false && strpos($html, 'volta para') !== false);
+    ob_start();
+    AgendamentoFormView::onSalvarCancelarConfirmacao(['key' => $agSim, 'observacao' => '   ']);
+    $html = ob_get_clean();
+    igual('cancelar confirmacao: sem observacao nao cancela', EstadoAgenda::CONFIRMADO, $estado($agSim));
+    ok('cancelar confirmacao: avisa da observacao', strpos($html, 'Escreva a observação') !== false);
+    ob_start();
+    AgendamentoFormView::onSalvarCancelarConfirmacao(['key' => $agSim, 'observacao' => 'Cliente pediu para remarcar']);
+    ob_end_clean();
+    igual('cancelar confirmacao: volta para Agendado', EstadoAgenda::AGENDADO, $estado($agSim));
+    igual('cancelar confirmacao: atendimento sem nada ligado sai', 0, count(q("SELECT 1 FROM atendimento WHERE agendamento_id = {$agSim}")));
+    igual('cancelar confirmacao: observacao no historico', 1, count(q("SELECT 1 FROM estado_agendamento WHERE agendamento_id = {$agSim} AND estado_agenda_id = " . EstadoAgenda::AGENDADO . " AND observacao = 'Cliente pediu para remarcar'")));
+    ob_start();
+    (new AgendamentoFormView(['key' => $agSim]))->show();
+    $html = ob_get_clean();
+    ok('cancelar confirmacao: tela mostra a observacao', strpos($html, 'Confirmação cancelada por') !== false && strpos($html, 'Cliente pediu para remarcar') !== false);
+    ok('cancelar confirmacao: nao diz mais que esta confirmado', strpos($html, 'Agendamento confirmado pelo cliente') === false);
+    ob_start();
+    AgendamentoFormView::onSalvarCancelarConfirmacao(['key' => $agSim, 'observacao' => 'de novo']);
+    $html = ob_get_clean();
+    ok('cancelar confirmacao: so de confirmado', strpos($html, 'Só é possível') !== false);
+
+    // reconfirmar: atendimento com algo ligado fica e nao duplica
+    TTransaction::open('escritorio');
+    $a = Agendamento::find($agSim);
+    $a->estado_agenda_id = EstadoAgenda::CONFIRMADO;
+    $a->store();
+    $at = AgendamentoService::criarAtendimento($a);
+    TTransaction::get()->prepare('INSERT INTO atendimento_historico (atendimento_id, historico) VALUES (?, ?)')->execute([$at->id, 'teste']);
+    AgendamentoService::cancelarConfirmacao($a, 'remarcar');
+    TTransaction::close();
+    igual('atendimento com historico ligado fica', 1, count(q("SELECT 1 FROM atendimento WHERE agendamento_id = {$agSim}")));
+    TTransaction::open('escritorio');
+    $a = Agendamento::find($agSim);
+    igual('reconfirmar reaproveita o atendimento', (int) $at->id, (int) AgendamentoService::criarAtendimento($a)->id);
+    TTransaction::close();
+    igual('reconfirmar nao duplica', 1, count(q("SELECT 1 FROM atendimento WHERE agendamento_id = {$agSim}")));
+
+    // ---------- tela de envio: ambiente de teste x producao ----------
+    [$agEnvio, $mEnvio] = $novo('ENVIO', '5519912340020');
+    $clienteEnvio = (int) q("SELECT cliente_id c FROM agendamento WHERE id = {$agEnvio}")[0]['c'];
+    x("UPDATE pessoa SET aceita_receber_mensagen_whatsapp = 'T', telefone = '19987650021' WHERE id = {$clienteEnvio}");
+    x("INSERT INTO pessoa_contato (pessoa_id, nome, descricao, telefone, principal) VALUES ({$clienteEnvio}, 'TITULAR', 'CELULAR', '19987650021', 'S')");
+    x("INSERT INTO pessoa_contato (pessoa_id, nome, descricao, telefone, principal) VALUES ({$clienteEnvio}, 'FILHA', 'RECADO', '19987650022', 'N')");
+    $filha = (int) q("SELECT id FROM pessoa_contato WHERE pessoa_id = {$clienteEnvio} AND nome = 'FILHA'")[0]['id'];
+    $tela = function (array $p) { ob_start(); $pg = new EnviarMensagemForm($p); $pg->onShow($p); $pg->show(); return ob_get_clean(); };
+    $param = ['tipo' => 'WHATSAPP', 'agendamento_id' => $agEnvio];
+    $templateConfirmacao = $confirmacaoId;
+    $enviar = function (array $extra) use ($param, $templateConfirmacao) {
+        ob_start();
+        EnviarMensagemForm::onSend($param + $extra + ['template' => $templateConfirmacao]);
+        return ob_get_clean();
+    };
+
+    AmbienteService::forcarProducao(false);
+    $html = $tela($param);
+    ok('teste: mostra os contatos', strpos($html, 'Nome: TITULAR | Descrição: CELULAR | Principal: Sim') !== false && strpos($html, 'Nome: FILHA | Descrição: RECADO | Principal: Não') !== false);
+    ok('teste: pede o numero digitado', strpos($html, 'name="destino"') !== false && strpos($html, 'Ambiente de teste') !== false);
+    ok('tela: Manual ao lado do template', strpos($html, 'name="manual"') !== false && strpos($html, 'name="template"') !== false);
+    ok('tela: template padrao do Agendado e a confirmacao', strpos($html, 'Responda SIM ou NÃO') !== false || strpos($html, 'Responda *SIM*') !== false);
+    $enviadas = [];
+    $s = $enviar(['contato' => (string) $filha, 'destino' => '']);
+    igual('teste: sem digitar nao envia, mesmo com contato escolhido', 0, count($enviadas));
+    ok('teste: avisa', strpos($s, 'Ambiente de teste') !== false);
+    $s = $enviar(['contato' => (string) $filha, 'destino' => '19987650022']);
+    igual('teste: numero do cliente digitado nao envia', 0, count($enviadas));
+    $enviar(['contato' => (string) $filha, 'destino' => '19912340099']);
+    igual('teste: vai so para o digitado', ['5519912340099'], array_column($enviadas, 'number'));
+
+    AmbienteService::forcarProducao(true);
+    $html = $tela($param);
+    ok('producao: sem o campo de digitar', strpos($html, 'name="destino"') === false && strpos($html, 'Ambiente de teste') === false);
+    ok('producao: contatos com o principal', strpos($html, 'Nome: TITULAR | Descrição: CELULAR | Principal: Sim') !== false);
+    $enviadas = [];
+    $enviar(['contato' => (string) $filha]);
+    igual('producao: vai para o contato escolhido', ['5519987650022'], array_column($enviadas, 'number'));
+    $enviadas = [];
+    $enviar(['contato' => '999999999']);
+    igual('producao: contato de outra pessoa nao envia', 0, count($enviadas));
+
+    // Manual: texto editado, variaveis trocadas e sem pedir SIM nao espera resposta
+    $enviadas = [];
+    $enviar(['contato' => (string) $filha, 'manual' => 'S', 'content_whatsapp' => 'Bom dia {$cliente}, segue o endereço']);
+    igual('manual: texto editado com variaveis trocadas', 'Bom dia ' . MARCA_RESP . ' ENVIO, segue o endereço', $enviadas[0]['body'] ?? '');
+    igual('manual sem pedir SIM: nao fica esperando resposta', [''], array_column(q("SELECT COALESCE(template_escritorio_id::text, '') t FROM mensagem WHERE agendamento_id = {$agEnvio} ORDER BY id DESC LIMIT 1"), 't'));
+    $enviadas = [];
+    $enviar(['contato' => (string) $filha, 'template' => '', 'manual' => 'S', 'content_whatsapp' => 'Do zero']);
+    igual('manual sem template: escreve do zero', 'Do zero', $enviadas[0]['body'] ?? '');
+    $enviadas = [];
+    $s = $enviar(['contato' => (string) $filha, 'template' => '']);
+    igual('sem template e sem Manual: nao envia', 0, count($enviadas));
+    AmbienteService::forcarProducao(false);
 } finally {
     ApchatBancoService::usarFalso(null);
     ApchatApiService::usarTransporte(null);
