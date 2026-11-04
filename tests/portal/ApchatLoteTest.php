@@ -72,6 +72,7 @@ $soContato = function (string $nome, string $telefone, ?string $descricao, ?stri
 $idapchat = function (int $id) { return (int) (q("SELECT COALESCE(idapchat, 0) i FROM pessoa WHERE id = {$id}")[0]['i']); };
 $idContatos = function (int $id) { return array_map('intval', array_column(q("SELECT COALESCE(idapchat, 0) i FROM pessoa_contato WHERE pessoa_id = {$id} ORDER BY id"), 'i')); };
 $servidor = null;
+$urlOriginal = false;
 
 try {
     // ---------- regra no lote (APChat falso em memoria): um contato no APChat por numero ----------
@@ -154,7 +155,9 @@ try {
     $servidor = proc_open([PHP_BINARY, '-S', "127.0.0.1:{$porta}", __DIR__ . '/apchat-falso-servidor.php'],
         [0 => ['pipe', 'r'], 1 => ['file', '/dev/null', 'w'], 2 => ['file', '/dev/null', 'w']], $pipes, null,
         array_merge(getenv(), ['PHP_CLI_SERVER_WORKERS' => '12']));
-    APChatContactService::usarUrlBase("http://127.0.0.1:{$porta}/");
+    // a sincronizacao vai para a URL do escritorio (a mesma integracao das mensagens, 04/11/2026)
+    $urlOriginal = q("SELECT url_apchat u FROM escritorio WHERE system_unit_id = {$unidade}")[0]['u'];
+    x("UPDATE escritorio SET url_apchat = 'http://127.0.0.1:{$porta}' WHERE system_unit_id = {$unidade}");
     for ($i = 0; $i < 50 && !@fsockopen('127.0.0.1', $porta); $i++) { usleep(100000); }
 
     $vinte = [];
@@ -171,7 +174,11 @@ try {
     echo '    tempo dos 20 contatos em paralelo: ', round($segundos, 2), " s\n";
 } finally {
     APChatContactService::usarTransporte(null);
-    APChatContactService::usarUrlBase(null);
+    if ($urlOriginal !== false) {
+        TTransaction::open('escritorio');
+        TTransaction::get()->prepare('UPDATE escritorio SET url_apchat = ? WHERE system_unit_id = ?')->execute([$urlOriginal, $unidade]);
+        TTransaction::close();
+    }
     if ($servidor) { proc_terminate($servidor); proc_close($servidor); }
     if ($ids) {
         x('DELETE FROM apchat_contato_log WHERE pessoa_id IN (' . implode(',', $ids) . ')');

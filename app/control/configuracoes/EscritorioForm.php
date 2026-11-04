@@ -237,7 +237,7 @@ class EscritorioForm extends TPage
         */
         $url_apchat->setSize('100%');
         $token_apchat->setSize('100%');
-        $url_apchat->placeholder = ApchatApiService::URL_PADRAO;
+        $url_apchat->placeholder = 'https://api.apchat.com.br/v2/api/external/código-da-integração';
 
         $apchat_container = new BContainer('apchat_container');
         $apchat_container->setTitle("APChat (WhatsApp)", '#25D366', '13px', 'B', '#fff');
@@ -340,7 +340,7 @@ class EscritorioForm extends TPage
             $token = $escritorio ? trim((string) $escritorio->token_apchat) : '';
 
             // botao da tela: o que esta na tela tem de ser o salvo (o dialogo nao manda URL nem token)
-            $urlTela = rtrim(trim((string) ($param['url_apchat'] ?? $url)), '/') ?: ApchatApiService::URL_PADRAO;
+            $urlTela = rtrim(trim((string) ($param['url_apchat'] ?? $url)), '/');
             $tokenTela = trim((string) ($param['token_apchat'] ?? $token));
 
             if ($urlTela !== $url || $tokenTela !== $token)

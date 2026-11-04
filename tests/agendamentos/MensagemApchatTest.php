@@ -110,8 +110,10 @@ try {
     lanca('conexao: endereco errado', fn() => ApchatApiService::testarConexao('https://apchat.falso/x', 'tok'), 'endereço da API');
     lanca('conexao: sem token', fn() => ApchatApiService::testarConexao('https://apchat.falso/x', ''), 'Informe');
 
-    $e = new Escritorio();
-    igual('url vazia = padrao', ApchatApiService::URL_PADRAO, ApchatApiService::url($e));
+    // sem URL no escritorio a integracao fica desligada: nao ha endereco fixo no codigo
+    igual('url vazia = sem endereco', '', ApchatApiService::url(new Escritorio()));
+    $c->exec("UPDATE escritorio SET url_apchat = NULL WHERE id = {$escritorio['id']}");
+    lanca('envio sem URL no escritorio', fn() => ApchatApiService::enviarMensagem('5519912340000', 'oi', 'x'), 'não configurado');
 } finally {
     AmbienteService::forcarProducao(null);
     ApchatApiService::usarTransporte(null);

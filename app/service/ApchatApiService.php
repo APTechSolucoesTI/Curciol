@@ -3,7 +3,9 @@
  * API externa do APChat: endereco e token do escritorio, envio de mensagem de WhatsApp e teste de conexao.
  *
  * O endereco (url_apchat) e o token (token_apchat) ficam no cadastro do escritorio (Configuracoes) e podem ser trocados
- * pela tela para testar outro canal; a sincronizacao de contatos (APChatContactService) usa os mesmos.
+ * pela tela para testar outro canal. Uma integracao so para tudo (usuario, 04/11/2026): o envio de mensagens e a
+ * sincronizacao de contatos (APChatContactService) usam os mesmos; sem eles a integracao fica desligada, nao ha endereco
+ * fixo no codigo.
  *
  * Envio (03/11/2026): POST no proprio endereco, JSON {number, body, externalKey, isClosed}, "Authorization: Bearer".
  * A integracao deve ser do canal "Curciol - Coexistencia" (113): o oficial (112, WABA) recusa texto livre fora da
@@ -13,8 +15,6 @@
  */
 class ApchatApiService
 {
-    const URL_PADRAO = 'https://api.apchat.com.br/v2/api/external/baca905c-dce1-4d3f-b1bb-f2ffc981fdb4';
-
     const TIMEOUT_CONEXAO = 5;
     const TIMEOUT_TOTAL   = 20;
 
@@ -54,12 +54,10 @@ class ApchatApiService
         return $escritorio ?: null;
     }
 
-    /** Endereco da API sem a barra final; vazio = o padrao. */
+    /** Endereco da API sem a barra final; vazio = nao configurado. */
     public static function url(?Escritorio $escritorio): string
     {
-        $url = rtrim(trim((string) ($escritorio->url_apchat ?? '')), '/');
-
-        return $url !== '' ? $url : self::URL_PADRAO;
+        return rtrim(trim((string) ($escritorio->url_apchat ?? '')), '/');
     }
 
     /**
@@ -71,13 +69,14 @@ class ApchatApiService
     {
         $escritorio = self::escritorio();
         $token = $escritorio ? trim((string) $escritorio->token_apchat) : '';
+        $url = self::url($escritorio);
 
-        if ($token === '')
+        if ($token === '' || $url === '')
         {
             throw new Exception('APChat não configurado: informe a URL e o token em Configurações do escritório.');
         }
 
-        return self::enviar(self::url($escritorio), $token, $numero, $texto, $chave);
+        return self::enviar($url, $token, $numero, $texto, $chave);
     }
 
     /**

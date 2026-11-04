@@ -17,7 +17,8 @@
  * API (confirmada em 09/10/2026)
  * -------------------------------
  * Todas as rotas sao POST com JSON e "Authorization: Bearer <token>"; o token
- * fica em escritorio.token_apchat e o endereco em escritorio.url_apchat (vazio = URL_BASE; ApchatApiService).
+ * fica em escritorio.token_apchat e o endereco em escritorio.url_apchat (a mesma integracao do envio de mensagens;
+ * sem um dos dois, desligada; ApchatApiService).
  *
  *   showcontact    {number}   200 {success:true, data:{id,...}}         encontrado
  *                             404 {success:false, error:ERR_CONTACT_NOT_FOUND}  nao existe
@@ -46,8 +47,6 @@
  */
 class APChatContactService
 {
-    const URL_BASE = 'https://api.apchat.com.br/v2/api/external/baca905c-dce1-4d3f-b1bb-f2ffc981fdb4/';
-
     const TIMEOUT_CONEXAO = 5;
     const TIMEOUT_TOTAL   = 15;
 
@@ -79,16 +78,8 @@ class APChatContactService
         self::$transporte = $transporte;
     }
 
-    /** Endereco da API (testes: um APChat falso local); null volta ao de verdade. */
-    private static $urlBase = null;
-
     /** Endereco do escritorio, lido junto com o token. */
     private static $urlAtual = null;
-
-    public static function usarUrlBase(?string $url): void
-    {
-        self::$urlBase = $url;
-    }
 
     // =================================================================
     // Ponto de entrada
@@ -141,7 +132,7 @@ class APChatContactService
             if ($token === '')
             {
                 // sem token = integracao desligada (ex.: homologacao): o salvar da pessoa nao envia e nao avisa erro
-                $r = self::resultado(ApchatContatoLog::SITUACAO_IGNORADO, ApchatContatoLog::OPERACAO_NENHUMA, 'Integração com o APChat desligada (escritório sem token): nada foi enviado.');
+                $r = self::resultado(ApchatContatoLog::SITUACAO_IGNORADO, ApchatContatoLog::OPERACAO_NENHUMA, 'Integração com o APChat desligada (escritório sem URL ou token): nada foi enviado.');
                 self::registrar($pessoa_id, $origem, $r, $numeros[0], null);
                 TTransaction::close();
 
@@ -722,7 +713,7 @@ class APChatContactService
 
     private static function novoHandle(string $rota, array $corpo, string $token)
     {
-        $ch = curl_init((self::$urlBase ?? self::$urlAtual ?? self::URL_BASE) . $rota);
+        $ch = curl_init(self::$urlAtual . $rota);
 
         curl_setopt_array($ch, [
             CURLOPT_POST           => true,
@@ -1079,10 +1070,11 @@ class APChatContactService
     {
         $escritorio = ApchatApiService::escritorio();
 
-        // o endereco vem junto do token (URL da API editavel no escritorio, 03/11/2026)
-        self::$urlAtual = ApchatApiService::url($escritorio) . '/';
+        // o endereco vem junto do token (URL da API editavel no escritorio, 03/11/2026); sem ele, integracao desligada
+        $url = ApchatApiService::url($escritorio);
+        self::$urlAtual = $url . '/';
 
-        return $escritorio ? trim((string) $escritorio->token_apchat) : '';
+        return $escritorio && $url !== '' ? trim((string) $escritorio->token_apchat) : '';
     }
 
     // =================================================================

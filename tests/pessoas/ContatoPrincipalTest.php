@@ -408,6 +408,22 @@ try {
         TTransaction::close();
     }
 
+    // APChat sem URL (a integracao antiga fixa no codigo saiu, 04/11/2026): tambem desligado, nada enviado
+    TTransaction::open('escritorio');
+    $urls = TTransaction::get()->query('SELECT id, url_apchat FROM escritorio')->fetchAll(PDO::FETCH_KEY_PAIR);
+    TTransaction::get()->exec('UPDATE escritorio SET url_apchat = NULL');
+    TTransaction::close();
+    try {
+        $antes = $chamadasApchat;
+        $r = APChatContactService::sincronizarPessoa($fid);
+        igual('APChat sem URL: nada enviado e situacao IGNORADO (sem aviso de erro)', ['IGNORADO', $antes], [$r->situacao, $chamadasApchat]);
+    } finally {
+        TTransaction::open('escritorio');
+        $st = TTransaction::get()->prepare('UPDATE escritorio SET url_apchat = ? WHERE id = ?');
+        foreach ($urls as $id => $url) { $st->execute([$url, $id]); }
+        TTransaction::close();
+    }
+
     // Cliente salvo na cortina: continua no registro e na mesma aba
     $p = ['id' => $cid, 'nome' => MARCA . ' CLIENTE', 'telefone' => '1932340199', 'email' => 'casa@teste.com', 'current_tab' => '2'] + $base + grade([linha($casa, 'CASA', '1932340199', 'S', 'casa@teste.com'), linha($cel, 'CELULAR', '19998760102', 'N')]);
     $s = saida(function () use ($p) { post($p); (new ClienteForm($p))->onSave($p); });

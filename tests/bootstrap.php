@@ -38,20 +38,21 @@ function fim(): void
 }
 
 /**
- * Testes do APChat (sempre com o transporte falso): sem token no escritorio (envio desligado, ex.: homologacao), poe um
- * token falso ate o fim do teste - o servico so roda com token. Um token falso tambem seria recusado pelo APChat real.
+ * Testes do APChat (sempre com o transporte falso): sem URL ou token no escritorio (integracao desligada), poe valores
+ * falsos ate o fim do teste - o servico so roda com os dois. Um token falso tambem seria recusado pelo APChat real.
  */
 function tokenApchatDeTeste(): void
 {
     TTransaction::open('escritorio');
     $c = TTransaction::get();
-    if (!(int) $c->query("SELECT count(*) FROM escritorio WHERE COALESCE(token_apchat, '') <> ''")->fetchColumn())
+    if (!(int) $c->query("SELECT count(*) FROM escritorio WHERE COALESCE(token_apchat, '') <> '' AND COALESCE(url_apchat, '') <> ''")->fetchColumn())
     {
-        $c->exec("UPDATE escritorio SET token_apchat = 'TOKEN-FALSO-DE-TESTE' WHERE id = (SELECT min(id) FROM escritorio)");
+        $c->exec("UPDATE escritorio SET token_apchat = COALESCE(NULLIF(token_apchat, ''), 'TOKEN-FALSO-DE-TESTE'), url_apchat = COALESCE(NULLIF(url_apchat, ''), 'http://apchat.falso.invalid') WHERE id = (SELECT min(id) FROM escritorio)");
         register_shutdown_function(function () {
             while (TTransaction::get()) { TTransaction::rollback(); }
             TTransaction::open('escritorio');
             TTransaction::get()->exec("UPDATE escritorio SET token_apchat = NULL WHERE token_apchat = 'TOKEN-FALSO-DE-TESTE'");
+            TTransaction::get()->exec("UPDATE escritorio SET url_apchat = NULL WHERE url_apchat = 'http://apchat.falso.invalid'");
             TTransaction::close();
         });
     }
