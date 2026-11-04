@@ -151,7 +151,7 @@ class AgendamentoFormView extends TPage
         {
             $avisoCadastro = new TElement('span');
             $avisoCadastro->style = 'color:#d32f2f;font-size:13px;margin:0 8px;';
-            $avisoCadastro->add('<i class="fas fa-exclamation-triangle"></i> <b>Cadastro incompleto:</b> falta ' . htmlspecialchars(implode(', ', $pendencias)));
+            $avisoCadastro->add('<i class="fas fa-exclamation-triangle"></i> <b>Cadastro incompleto:</b> ' . htmlspecialchars(AgendamentoService::camposPorExtenso($pendencias)));
 
             $btncompletar = new TActionLink(" Completar cadastro", new TAction(['AgendamentoFormView', 'onVisualizarCliente'], ['key'=> $agendamento->id]), '#d32f2f', '14px', 'B', 'fas:user-edit #d32f2f');
             $btncompletar->class = 'btn btn-default';
@@ -260,6 +260,11 @@ class AgendamentoFormView extends TPage
         $column_system_users_name = $this->estado_agendamento_agendamento_id_list->addQuickColumn("Usuário", 'system_users->name', 'left' , '250px');
         $column_atribuido_em_transformed = $this->estado_agendamento_agendamento_id_list->addQuickColumn("Data", 'atribuido_em', 'center' , '200px');
         $column_observacao = $this->estado_agendamento_agendamento_id_list->addQuickColumn("Observação", 'observacao', 'left');
+
+        // a confirmacao cancelada volta para Agendado: sem isto a linha nao se distinguia de um Agendado qualquer
+        $column_estado_agenda_nome->setTransformer(function($value, $object) {
+            return $object->evento === EstadoAgendamento::EVENTO_CONFIRMACAO_CANCELADA ? 'Confirmação cancelada (voltou para Agendado)' : $value;
+        });
 
         // sem usuario = o cliente respondeu (WhatsApp ou link do e-mail)
         $column_system_users_name->setTransformer(function($value) { return trim((string) $value) !== '' ? $value : 'Automático'; });

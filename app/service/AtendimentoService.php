@@ -51,7 +51,7 @@ class AtendimentoService
         $pendencias = AgendamentoService::pendenciasCadastro((int) $agendamento->cliente_id);
                                             
         if($pendencias){
-            throw new Exception('Cadastro do cliente incompleto: falta ' . implode(', ', $pendencias) . '. Complete o cadastro para iniciar o atendimento.');
+            throw new Exception('Cadastro do cliente incompleto: ' . AgendamentoService::camposPorExtenso($pendencias) . '. Complete o cadastro para iniciar o atendimento.');
         }
         
         $atendimento = Atendimento::where('agendamento_id','=',$agendamento->id)->first();

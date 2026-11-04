@@ -90,7 +90,7 @@ try {
     // ---------- pendencias do cadastro: os mesmos campos da regra antiga ----------
     $pfVazia = $cliente('PF VAZIA');
     TTransaction::open('escritorio');
-    igual('PF vazia: tudo falta', ['telefone', 'endereço principal', 'CPF', 'RG', 'órgão emissor do RG', 'data de nascimento', 'nacionalidade', 'sexo', 'estado civil'], AgendamentoService::pendenciasCadastro($pfVazia));
+    igual('PF vazia: tudo falta', ['telefone', 'endereço principal', 'CPF', 'RG', 'órgão emissor do RG', 'data de nascimento'], AgendamentoService::pendenciasCadastro($pfVazia));
     TTransaction::close();
 
     $pjVazia = $cliente('PJ VAZIA', [], 2);
@@ -98,11 +98,14 @@ try {
     igual('PJ vazia: os campos de PJ', ['telefone', 'endereço principal', 'CNPJ', 'data de abertura', 'representante legal'], AgendamentoService::pendenciasCadastro($pjVazia));
     TTransaction::close();
 
-    $ref = q('SELECT (SELECT id FROM sexo ORDER BY id LIMIT 1) s, (SELECT id FROM nacionalidade ORDER BY id LIMIT 1) n, (SELECT id FROM estado_civil ORDER BY id LIMIT 1) e')[0];
-    $pfCompleta = $cliente('PF COMPLETA', $campoCompletos + ['sexo_id' => $ref['s'], 'nacionalidade_id' => $ref['n'], 'estado_civil_id' => $ref['e']]);
+    // sexo, nacionalidade e estado civil nao contam
+    $pfCompleta = $cliente('PF COMPLETA', $campoCompletos);
     TTransaction::open('escritorio');
     TTransaction::get()->prepare('INSERT INTO pessoa_endereco (pessoa_id, principal, cidade_id, rua, numero, bairro, cep) VALUES (?, ?, (SELECT id FROM cidade ORDER BY id LIMIT 1), ?, ?, ?, ?)')->execute([$pfCompleta, 'S', 'Rua', '1', 'Centro', '13000000']);
     igual('PF completa: nada falta', [], AgendamentoService::pendenciasCadastro($pfCompleta));
+    igual('por extenso: um campo', 'CPF', AgendamentoService::camposPorExtenso(['CPF']));
+    igual('por extenso: dois campos', 'CPF e RG', AgendamentoService::camposPorExtenso(['CPF', 'RG']));
+    igual('por extenso: virgula e "e" no ultimo', 'telefone, CPF e RG', AgendamentoService::camposPorExtenso(['telefone', 'CPF', 'RG']));
     igual('varios: so quem tem pendencia', [$pfVazia, $pjVazia], array_keys(AgendamentoService::pendenciasCadastroDe([$pfVazia, $pjVazia, $pfCompleta])));
     TTransaction::close();
 
@@ -113,12 +116,12 @@ try {
     igual('confirmou: atendimento criado', 1, count(q("SELECT 1 FROM atendimento WHERE agendamento_id = {$agIncompleto}")));
 
     $s = saida(function () use ($agIncompleto) { AgendamentoFormView::onIniciar(['key' => $agIncompleto]); });
-    ok('Iniciar bloqueado: diz o que falta', strpos($s, 'Cadastro do cliente incompleto') !== false && strpos($s, 'estado civil') !== false, substr($s, 0, 200));
+    ok('Iniciar bloqueado: diz o que falta, sem a palavra falta', strpos($s, 'Cadastro do cliente incompleto: telefone') !== false && strpos($s, 'órgão emissor do RG e data de nascimento') !== false && strpos($s, 'falta') === false, substr($s, 0, 200));
     igual('Iniciar bloqueado: continua Confirmado', (int) EstadoAgenda::CONFIRMADO, (int) q("SELECT estado_agenda_id e FROM agendamento WHERE id = {$agIncompleto}")[0]['e']);
     ok('Iniciar bloqueado: atendimento nao comeca', q("SELECT dt_inicio FROM atendimento WHERE agendamento_id = {$agIncompleto}")[0]['dt_inicio'] === null);
 
     $html = saida(function () use ($agIncompleto) { (new AgendamentoFormView(['key' => $agIncompleto]))->show(); });
-    ok('tela: mostra o cadastro incompleto e os campos', strpos($html, 'Cadastro incompleto:') !== false && strpos($html, 'órgão emissor do RG') !== false);
+    ok('tela: mostra o cadastro incompleto e os campos', strpos($html, 'Cadastro incompleto:</b> telefone, endereço principal, CPF, RG, órgão emissor do RG e data de nascimento') !== false);
     ok('tela: botao de completar o cadastro', strpos($html, 'Completar cadastro') !== false && strpos($html, 'onVisualizarCliente') !== false);
     ok('tela: Iniciar desabilitado', preg_match('/onIniciar[^>]*opacity:\.5|opacity:\.5[^>]*onIniciar/', $html) === 1);
 
@@ -241,12 +244,17 @@ try {
     ok('agenda: cartao com a classe da borda vermelha', in_array('agd-incompleto', $e['classNames'] ?? [], true), json_encode($e['classNames'] ?? null));
     preg_match("/data-resumo='([^']+)'/", (string) ($e['title'] ?? ''), $m);
     $resumo = base64_decode($m[1] ?? '');
-    ok('agenda: resumo comeca pelo cadastro incompleto, em vermelho', strpos($resumo, 'Cadastro incompleto') !== false && strpos($resumo, 'Cadastro incompleto') < strpos($resumo, 'Horário') && strpos($resumo, '#d32f2f') !== false);
+    ok('agenda: resumo comeca pelo cadastro incompleto, em vermelho', strpos($resumo, '>Cadastro Incompleto</div>') !== false && strpos($resumo, 'Cadastro Incompleto') < strpos($resumo, 'Horário') && strpos($resumo, '#d32f2f') !== false);
+    ok('agenda: resumo nao lista os campos', strpos($resumo, 'CPF') === false && strpos($resumo, 'falta') === false);
 
-    // agendado (ainda nao confirmado) nao recebe a marca
-    $agSemMarca = $agendamento($pfVazia, (int) EstadoAgenda::AGENDADO, '+3 days 2 hours');
-    $e2 = $doAg($eventos(), $agSemMarca);
-    ok('agenda: agendado nao recebe a marca', $e2 !== null && !in_array('agd-incompleto', $e2['classNames'] ?? [], true));
+    // agendado (ainda nao confirmado): a marca aparece na agenda, mas os campos so na tela do confirmado
+    $agSemConfirmar = $agendamento($pfVazia, (int) EstadoAgenda::AGENDADO, '+3 days 2 hours');
+    $e2 = $doAg($eventos(), $agSemConfirmar);
+    ok('agenda: agendado tambem recebe a marca', $e2 !== null && in_array('agd-incompleto', $e2['classNames'] ?? [], true));
+    $html = saida(function () use ($agSemConfirmar) { (new AgendamentoFormView(['key' => $agSemConfirmar]))->show(); });
+    ok('tela do agendado: nao mostra os campos', strpos($html, 'Cadastro incompleto:') === false && strpos($html, 'Completar cadastro') === false);
+    $eOk = $doAg($eventos(), $agOk);
+    ok('agenda: cadastro completo sem marca', $eOk === null || !in_array('agd-incompleto', $eOk['classNames'] ?? [], true));
 
     // ---------- agenda sem filtro: bloqueio so no topo; intervalo e nao atende fora ----------
     TTransaction::open('escritorio');

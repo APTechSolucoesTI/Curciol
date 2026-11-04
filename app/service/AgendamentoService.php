@@ -181,6 +181,14 @@ class AgendamentoService
         return false;
     }
 
+    /** "a, b e c". */
+    public static function camposPorExtenso(array $campos): string
+    {
+        $ultimo = array_pop($campos);
+
+        return $campos ? implode(', ', $campos) . ' e ' . $ultimo : (string) $ultimo;
+    }
+
     /** Campos essenciais que faltam no cadastro do cliente: sem eles o agendamento confirma, mas o atendimento nao inicia. */
     public static function pendenciasCadastro(int $clienteId): array
     {
@@ -194,7 +202,6 @@ class AgendamentoService
         if (!$ids) { return []; }
 
         $linhas = TTransaction::get()->query("SELECT p.id, p.tipo_pessoa_id, p.telefone, p.cpf_cnpj, p.rg_ie, p.orgao_emissor, p.dt_nascimento_abertura,
-                                                     p.nacionalidade_id, p.sexo_id, p.estado_civil_id,
                                                      (EXISTS (SELECT 1 FROM pessoa_endereco e WHERE e.pessoa_id = p.id AND e.principal = 'S'))::int AS tem_endereco,
                                                      (EXISTS (SELECT 1 FROM pessoa_representantes_legais r WHERE r.pessoa_juridica_id = p.id))::int AS tem_representante
                                                 FROM pessoa p WHERE p.id IN (" . implode(',', $ids) . ")")->fetchAll(PDO::FETCH_ASSOC);
@@ -206,8 +213,7 @@ class AgendamentoService
 
             if ((string) $p['tipo_pessoa_id'] === (string) TipoPessoa::FISICA)
             {
-                $campos += ['cpf_cnpj' => 'CPF', 'rg_ie' => 'RG', 'orgao_emissor' => 'órgão emissor do RG', 'dt_nascimento_abertura' => 'data de nascimento',
-                            'nacionalidade_id' => 'nacionalidade', 'sexo_id' => 'sexo', 'estado_civil_id' => 'estado civil'];
+                $campos += ['cpf_cnpj' => 'CPF', 'rg_ie' => 'RG', 'orgao_emissor' => 'órgão emissor do RG', 'dt_nascimento_abertura' => 'data de nascimento'];
             }
             elseif ((string) $p['tipo_pessoa_id'] === (string) TipoPessoa::JURIDICA)
             {

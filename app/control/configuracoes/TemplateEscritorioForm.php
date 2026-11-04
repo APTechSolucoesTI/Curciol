@@ -8,6 +8,7 @@ class TemplateEscritorioForm extends TPage
     private static $activeRecord = 'TemplateEscritorio';
     private static $primaryKey = 'id';
     private static $formName = 'form_TemplateClinicaForm';
+    private $usadoEm;
 
     use BuilderMasterDetailFieldListTrait;
 
@@ -33,6 +34,8 @@ class TemplateEscritorioForm extends TPage
         $escritorio_id = new THidden('escritorio_id');
         $id = new THidden('id');
         $chave = new THidden('chave');
+        $fluxo_pai_id = new THidden('fluxo_pai_id');
+        $fluxo_ramo = new THidden('fluxo_ramo');
         $categoria = new TCombo('categoria');
         $descricao = new TEntry('descricao');
         $tipo_template = new TCombo('tipo_template');
@@ -122,8 +125,12 @@ class TemplateEscritorioForm extends TPage
         $template_acao_template_escritorio_label->setSize('100%');
 
 
-        $row1 = $this->form->addFields([new TLabel("Categoria:", '#ff0000', '14px', null, '100%'),$escritorio_id,$id,$chave,$categoria],[new TLabel("Descrição:", '#ff0000', '14px', null, '100%'),$descricao],[new TLabel("Tipo:", '#FF0000', '14px', null),$tipo_template]);
+        $row1 = $this->form->addFields([new TLabel("Categoria:", '#ff0000', '14px', null, '100%'),$escritorio_id,$id,$chave,$fluxo_pai_id,$fluxo_ramo,$categoria],[new TLabel("Descrição:", '#ff0000', '14px', null, '100%'),$descricao],[new TLabel("Tipo:", '#FF0000', '14px', null),$tipo_template]);
         $row1->layout = [' col-sm-3','col-sm-6',' col-sm-3'];
+
+        // onde esta mensagem entra no fluxo (preenchido no onEdit e na mensagem criada a partir do fluxo)
+        $this->usadoEm = new TElement('div');
+        $this->form->addFields([$this->usadoEm])->layout = ['col-sm-12'];
 
         $bcontainer_62e034c1eb8f6 = new BContainer('bcontainer_62e034c1eb8f6');
         $this->bcontainer_62e034c1eb8f6 = $bcontainer_62e034c1eb8f6;
@@ -149,7 +156,7 @@ class TemplateEscritorioForm extends TPage
         $row7 = $this->form->addFields([new TLabel("Template:", null, '14px', null, '100%'),$template_whatsapp]);
         $row7->layout = ['col-sm-12'];
 
-        // fluxo da confirmacao por WhatsApp: o usuario define as respostas validas e o que acontece (04/11/2026)
+        // fluxo da confirmacao por WhatsApp: o usuario define as respostas validas e o que vem depois de cada uma (04/11/2026)
         $criteria_fluxo = new TCriteria();
         $criteria_fluxo->add(new TFilter('tipo_template', '=', TemplateEscritorio::WHATSAPP));
         $criteria_fluxo->add(new TFilter('escritorio_id', 'in', "(SELECT id FROM escritorio WHERE system_unit_id = '" . (int) TSession::getValue('userunitid') . "')"));
@@ -157,9 +164,22 @@ class TemplateEscritorioForm extends TPage
         $respostas_confirmar = new TText('respostas_confirmar');
         $respostas_cancelar = new TText('respostas_cancelar');
         $ignorar_maiusculas = new TCheckButton('ignorar_maiusculas');
-        $template_confirmado_id = new TDBCombo('template_confirmado_id', 'escritorio', 'TemplateEscritorio', 'id', '{descricao}', 'descricao asc', $criteria_fluxo);
-        $template_cancelado_id = new TDBCombo('template_cancelado_id', 'escritorio', 'TemplateEscritorio', 'id', '{descricao}', 'descricao asc', $criteria_fluxo);
-        $template_lembrete_id = new TDBCombo('template_lembrete_id', 'escritorio', 'TemplateEscritorio', 'id', '{descricao}', 'descricao asc', $criteria_fluxo);
+        // cada combo so com as mensagens da categoria daquele ponto do fluxo; a que ja esta ligada continua na lista mesmo se mudou de categoria
+        $mensagens_do_ramo = function (string $ramo) use ($criteria_fluxo) {
+            $coluna = TemplateFluxoService::RAMOS[$ramo]['coluna'];
+            $doRamo = new TCriteria();
+            $doRamo->add(new TFilter('categoria', '=', TemplateFluxoService::RAMOS[$ramo]['categoria']));
+            $doRamo->add(new TFilter('id', 'in', "(SELECT {$coluna} FROM template_escritorio WHERE {$coluna} IS NOT NULL)"), TExpression::OR_OPERATOR);
+            $criteria = clone $criteria_fluxo;
+            $criteria->add($doRamo);
+            return $criteria;
+        };
+        $template_confirmado_id = new TDBCombo('template_confirmado_id', 'escritorio', 'TemplateEscritorio', 'id', '{descricao}', 'descricao asc', $mensagens_do_ramo('confirmado'));
+        $template_cancelado_id = new TDBCombo('template_cancelado_id', 'escritorio', 'TemplateEscritorio', 'id', '{descricao}', 'descricao asc', $mensagens_do_ramo('cancelado'));
+        $template_lembrete_id = new TDBCombo('template_lembrete_id', 'escritorio', 'TemplateEscritorio', 'id', '{descricao}', 'descricao asc', $mensagens_do_ramo('lembrete'));
+        $template_confirmado_id->setDefaultOption('Nenhuma: só muda o agendamento');
+        $template_cancelado_id->setDefaultOption('Nenhuma: só muda o agendamento');
+        $template_lembrete_id->setDefaultOption('Nenhum');
 
         $respostas_confirmar->setSize('100%', 80);
         $respostas_cancelar->setSize('100%', 80);
@@ -172,19 +192,33 @@ class TemplateEscritorioForm extends TPage
 
         $tituloFluxo = new TElement('div');
         $tituloFluxo->id = 'fluxo_titulo';
-        $tituloFluxo->add('<b>Fluxo da confirmação</b> - o que o cliente responde e o que o sistema faz. Vale a resposta inteira: uma frase com a palavra no meio não conta.');
+        $tituloFluxo->style = 'border-top:1px solid #ddd;padding-top:10px;';
+        $tituloFluxo->add('<b style="font-size:15px">Fluxo da confirmação</b><br>1. O sistema envia a mensagem acima. 2. O cliente responde. 3. Conforme a resposta, o agendamento muda e sai a mensagem escolhida aqui. Diga na mensagem acima quais respostas o cliente deve usar. Vale a resposta inteira: uma frase com a palavra no meio não conta.');
+
+        $cabecalhoDoRamo = function (string $texto, string $cor) {
+            $cabecalho = new TElement('div');
+            $cabecalho->style = "color:{$cor};font-weight:600;border-left:3px solid {$cor};padding-left:8px;margin-bottom:6px;";
+            $cabecalho->add($texto);
+            return $cabecalho;
+        };
+
+        $outraResposta = new TElement('div');
+        $outraResposta->id = 'fluxo_outra';
+        $outraResposta->add('<b>Qualquer outra resposta:</b> o agendamento não muda, nenhuma mensagem sai e a equipe resolve no APChat.');
 
         $this->form->addFields([$tituloFluxo])->layout = ['col-sm-12'];
-        $rowFluxo = $this->form->addFields([new TLabel("Respostas que confirmam (uma por linha):", null, '14px', null, '100%'), $respostas_confirmar], [new TLabel("Respostas que cancelam (uma por linha):", null, '14px', null, '100%'), $respostas_cancelar]);
+        $rowFluxo = $this->form->addFields(
+            [$cabecalhoDoRamo('Se o cliente confirmar: o agendamento fica Confirmado', '#2e7d32'), new TLabel("Respostas aceitas (uma por linha):", null, '14px', null, '100%'), $respostas_confirmar, new TLabel("Mensagem enviada em seguida (categoria Agendamento confirmado):", null, '14px', null, '100%'), $template_confirmado_id],
+            [$cabecalhoDoRamo('Se o cliente cancelar: o agendamento fica Cancelado', '#c62828'), new TLabel("Respostas aceitas (uma por linha):", null, '14px', null, '100%'), $respostas_cancelar, new TLabel("Mensagem enviada em seguida (categoria Cancelamento):", null, '14px', null, '100%'), $template_cancelado_id]);
         $rowFluxo->layout = ['col-sm-6', 'col-sm-6'];
-        $this->form->addFields([new TLabel("Ignorar maiúsculas e minúsculas (sim serve para Sim, sIm, SIM...):", null, '14px', null, '100%'), $ignorar_maiusculas])->layout = ['col-sm-12'];
-        $rowFluxo = $this->form->addFields([new TLabel("Mensagem ao confirmar:", null, '14px', null, '100%'), $template_confirmado_id], [new TLabel("Mensagem ao cancelar:", null, '14px', null, '100%'), $template_cancelado_id], [new TLabel("Lembrete depois de confirmado:", null, '14px', null, '100%'), $template_lembrete_id]);
-        $rowFluxo->layout = ['col-sm-4', 'col-sm-4', 'col-sm-4'];
+        $this->form->addFields([$outraResposta])->layout = ['col-sm-12'];
+        $rowFluxo = $this->form->addFields([new TLabel("Lembrete que já vem escolhido na tela de envio depois de confirmar:", null, '14px', null, '100%'), $template_lembrete_id], [new TLabel("Ignorar maiúsculas e minúsculas (sim serve para Sim, sIm, SIM...):", null, '14px', null, '100%'), $ignorar_maiusculas]);
+        $rowFluxo->layout = ['col-sm-6', 'col-sm-6'];
 
         TScript::create("
             window.curciolFluxoTemplate = function () {
                 var mostra = $('[name=categoria]').val() === '" . TemplateEscritorio::CONFIRMACAO . "' && $('[name=tipo_template]').val() === '" . TemplateEscritorio::WHATSAPP . "';
-                $('#fluxo_titulo, [name=respostas_confirmar], [name=ignorar_maiusculas], [name=template_confirmado_id]').closest('.tformrow').toggle(mostra);
+                $('#fluxo_titulo, [name=respostas_confirmar], #fluxo_outra, [name=template_lembrete_id]').closest('.tformrow').toggle(mostra);
             };
             $(document).off('change.curciolFluxo').on('change.curciolFluxo', '[name=categoria], [name=tipo_template]', window.curciolFluxoTemplate);
             $(function () { window.curciolFluxoTemplate(); });
@@ -281,6 +315,14 @@ class TemplateEscritorioForm extends TPage
                 $object->chave = $gravado && $gravado->chave ? $gravado->chave : 'TEMPLATE_' . strtoupper(uniqid());
             }
 
+            // mensagem criada a partir do fluxo: a categoria e o canal sao os daquele ponto
+            $ramo = TemplateFluxoService::RAMOS[$data->fluxo_ramo ?? ''] ?? null;
+            if ($ramo)
+            {
+                $object->categoria = $ramo['categoria'];
+                $object->tipo_template = TemplateEscritorio::WHATSAPP;
+            }
+
             $object->ignorar_maiusculas = !empty($data->ignorar_maiusculas) ? 'T' : 'F';
             $object->template_confirmado_id = $data->template_confirmado_id ?: null;
             $object->template_cancelado_id = $data->template_cancelado_id ?: null;
@@ -304,6 +346,11 @@ class TemplateEscritorioForm extends TPage
             }
 
             $object->store(); // save the object 
+
+            if ($ramo && !empty($data->fluxo_pai_id))
+            {
+                TemplateFluxoService::ligar((int) $data->fluxo_pai_id, (string) $data->fluxo_ramo, $object);
+            }
 
             $loadPageParam = [];
 
@@ -375,6 +422,8 @@ class TemplateEscritorioForm extends TPage
                     TScript::create("$('[name=fieldList_acoes]').closest('.tformrow').hide().prev().hide();");
                 }
 
+                $this->mostrarUsadoEm(TemplateFluxoService::usadoEm($object));
+
                                 $object->criacao_user_name = $object->criacao_user->name;
                 $object->modificacao_user_name = $object->modificacao_user->name;
 
@@ -425,8 +474,67 @@ class TemplateEscritorioForm extends TPage
 
         $this->fieldList_acoes->addCloneAction(null, 'fas:plus #69aa46', "Clonar");
 
-        TScript::create("$('[name=template_whatsapp]').closest('.tformrow').hide();");
         TScript::create("$('[name=fieldList_acoes]').closest('.tformrow').hide().prev().hide();");
+
+        if (!$this->prepararPeloFluxo((array) $param))
+        {
+            TScript::create("$('[name=template_whatsapp]').closest('.tformrow').hide();");
+        }
+    }
+
+    /** Veio do painel da listagem: novo fluxo ou mensagem de um ponto do fluxo. Ja abre por WhatsApp, na categoria certa. */
+    private function prepararPeloFluxo(array $param): bool
+    {
+        $dados = new stdClass;
+        $ramo = (string) ($param['fluxo_ramo'] ?? '');
+
+        if (!empty($param['fluxo_novo']))
+        {
+            $dados->categoria = TemplateEscritorio::CONFIRMACAO;
+            $dados->respostas_confirmar = 'sim';
+            $dados->respostas_cancelar = "não\nnao";
+            $dados->ignorar_maiusculas = 'T';
+        }
+        elseif (isset(TemplateFluxoService::RAMOS[$ramo]) && !empty($param['fluxo_pai']))
+        {
+            TTransaction::open(self::$database);
+            $escritorio = Escritorio::findByUnitId(TSession::getValue('userunitid'));
+            $pai = $escritorio ? TemplateFluxoService::confirmacao((int) $param['fluxo_pai'], (int) $escritorio->id) : null;
+            $frase = $pai ? TemplateFluxoService::fraseDoRamo($pai, $ramo) : null;
+            TTransaction::close();
+
+            if (!$pai)
+            {
+                return false;
+            }
+
+            $dados->categoria = TemplateFluxoService::RAMOS[$ramo]['categoria'];
+            $dados->fluxo_pai_id = (int) $param['fluxo_pai'];
+            $dados->fluxo_ramo = $ramo;
+            $this->mostrarUsadoEm([$frase]);
+        }
+        else
+        {
+            return false;
+        }
+
+        $dados->tipo_template = TemplateEscritorio::WHATSAPP;
+        $dados->habilitado = 'T';
+        $this->form->setData($dados);
+
+        TScript::create("$('[name=template]').closest('.tformrow').hide();");
+
+        return true;
+    }
+
+    /** Linhas com o lugar desta mensagem no fluxo (HTML ja escapado). */
+    private function mostrarUsadoEm(array $usos): void
+    {
+        if ($usos)
+        {
+            $this->usadoEm->style = 'background:#eef5fb;border-left:3px solid #1a73e8;padding:8px 10px;font-size:13px;';
+            $this->usadoEm->add(implode('<br>', $usos));
+        }
     } 
 
     public static function getFormName()

@@ -111,14 +111,14 @@ class AgendaVisual
         ];
     }
 
-    /** Primeira informacao do resumo do agendamento confirmado com cadastro incompleto. */
+    /** Primeira informacao do resumo do agendamento com cadastro incompleto (os campos ficam so na tela do agendamento confirmado). */
     public static function avisoCadastro(array $faltam): string
     {
         if (!$faltam) { return ''; }
-        return '<div style="color:#d32f2f;font-weight:600;margin-bottom:6px">Cadastro incompleto: falta ' . htmlspecialchars(implode(', ', $faltam), ENT_QUOTES, 'UTF-8') . '</div>';
+        return '<div style="color:#d32f2f;font-weight:600;margin-bottom:6px">Cadastro Incompleto</div>';
     }
 
-    /** Borda fina vermelha no cartao do agendamento confirmado com cadastro incompleto. */
+    /** Borda fina vermelha no cartao do agendamento com cadastro incompleto. */
     public static function marcarCadastro(array $evento, array $faltam): array
     {
         if ($faltam) { $evento['classNames'][] = 'agd-incompleto'; }
@@ -266,7 +266,7 @@ class AgendaVisual
             . '<span class="agd-leg"><span class="agd-amostra agd-am-comp" ' . $exemplo . '></span>Compromisso (tracejado, cor da agenda)</span>'
             . '<span class="agd-leg"><span class="agd-amostra agd-am-bloq" ' . $exemplo . '></span>Bloqueio (listrado, cor da agenda)</span>'
             . '<span class="agd-leg"><span class="agd-amostra agd-am-fundo"></span>Intervalo / não atende</span>'
-            . '<span class="agd-leg"><span class="agd-amostra agd-am-incompleto"></span>Confirmado com cadastro incompleto</span>'
+            . '<span class="agd-leg"><span class="agd-amostra agd-am-incompleto"></span>Cadastro incompleto</span>'
             . '<span class="agd-leg"><i class="fas fa-lock" style="width:22px;text-align:center;color:#b45309"></i>Bloqueio no dia (sem agenda no filtro)</span>'
             . '</div>');
         return $painel;
@@ -359,7 +359,7 @@ class AgendaVisual
             #agendamentos .fc-event.agd-compromisso { border-style: dashed; border-width: 1.5px; }
             #agendamentos .agd-ev-texto { background: rgba(255,255,255,.85); border-radius: 3px; padding: 0 3px; }
 
-            /* confirmado com cadastro incompleto: borda fina vermelha (a cor da borda do evento vem inline) */
+            /* cadastro incompleto: borda fina vermelha (a cor da borda do evento vem inline) */
             #agendamentos .fc-event.agd-incompleto { border: 1px solid #e53935 !important; }
             #agendamentos .fc-list-event.agd-incompleto { outline: 1px solid #e53935; outline-offset: -1px; }
 

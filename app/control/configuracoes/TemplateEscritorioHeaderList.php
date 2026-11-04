@@ -13,6 +13,7 @@ class TemplateEscritorioHeaderList extends TPage
     private static $formName = 'formList_TemplateEscritorio';
     private $showMethods = ['onReload', 'onSearch', 'onRefresh', 'onClearFilters', 'onGlobalSearch'];
     private $limit = 20;
+    private $painelFluxo;
 
     /**
      * Class constructor
@@ -72,6 +73,8 @@ class TemplateEscritorioHeaderList extends TPage
         $column_categoria->setTransformer(function($value) { return TemplateEscritorio::CATEGORIAS[$value] ?? $value; });
         $column_tipo_template = new TDataGridColumn('tipo_template', "Tipo", 'center' , '100px');
         $column_descricao = new TDataGridColumn('descricao', "Descrição", 'left');
+        $column_vinculo = new TDataGridColumn('id', "Vínculo no fluxo", 'left');
+        $column_vinculo->setTransformer(function($value, $object) { return TemplateFluxoService::vinculoDaLista($object); });
         $column_habilitado_transformed = new TDataGridColumn('habilitado', "Habilitar", 'center' , '100px');
 
         $column_habilitado_transformed->setTransformer(function($value, $object, $row, $cell = null, $last_row = null)
@@ -96,6 +99,7 @@ class TemplateEscritorioHeaderList extends TPage
         $this->datagrid->addColumn($column_categoria);
         $this->datagrid->addColumn($column_tipo_template);
         $this->datagrid->addColumn($column_descricao);
+        $this->datagrid->addColumn($column_vinculo);
         $this->datagrid->addColumn($column_habilitado_transformed);
 
         $action_onEdit = new TDataGridAction(array('TemplateEscritorioForm', 'onEdit'));
@@ -137,6 +141,7 @@ class TemplateEscritorioHeaderList extends TPage
         $tr->add($td_tipo_template);
         $td_descricao = TElement::tag('td', $descricao);
         $tr->add($td_descricao);
+        $tr->add(TElement::tag('td', ''));
         $td_habilitado = TElement::tag('td', $habilitado);
         $tr->add($td_habilitado);
 
@@ -209,6 +214,10 @@ class TemplateEscritorioHeaderList extends TPage
         {
             $container->add(TBreadCrumb::create(["Configurações","Template"]));
         }
+
+        // o fluxo da confirmacao de ponta a ponta, preenchido no onReload
+        $this->painelFluxo = new TElement('div');
+        $container->add($this->painelFluxo);
 
         $container->add($panel);
 
@@ -390,6 +399,10 @@ class TemplateEscritorioHeaderList extends TPage
 
             // load the objects according to criteria
             $objects = $repository->load($criteria, FALSE);
+
+            $escritorio = Escritorio::findByUnitId(TSession::getValue('userunitid'));
+            $this->painelFluxo->clearChildren();
+            $this->painelFluxo->add($escritorio ? TemplateFluxoService::painel((int) $escritorio->id) : '');
 
             $this->datagrid->clear();
             if ($objects)
