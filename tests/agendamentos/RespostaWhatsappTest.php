@@ -327,21 +327,29 @@ try {
     igual('horario: uma linha no historico', 1, count($linhaHorario));
     ok('horario: de quanto para quanto', strpos($linhaHorario[0]['observacao'] ?? '', 'para 10/05/2031 14:00 às 14:30') !== false, $linhaHorario[0]['observacao'] ?? '');
 
-    // ---------- link do e-mail: abrir ja confirma ou cancela e avisa ----------
+    // ---------- link do e-mail: abrir so mostra o botao daquele link; o clique confirma ou cancela e avisa ----------
     [$agLink, $mLink] = $novo('LINK', '5519912340030');
-    $abrir = function (int $ag, string $metodo) {
-        $p = ['key' => $ag, 'token' => AgendamentoService::getToken($ag)];
+    $abrir = function (int $ag, string $metodo, array $extra = []) {
+        $p = ['key' => $ag, 'token' => AgendamentoService::getToken($ag)] + $extra;
         ob_start();
         $v = new AgendamentoView($p);
         $v->$metodo($p);
         $v->show();
         return ob_get_clean();
     };
+    $clicar = ['respondeu' => 1];
     $s = $abrir($agLink, 'onConfirmar');
-    igual('link: abrir ja confirma', EstadoAgenda::CONFIRMADO, $estado($agLink));
-    ok('link: sem segunda pergunta', strpos($s, 'Confirma este agendamento') === false && strpos($s, 'respondeu') === false);
+    igual('link: abrir nao confirma (antivirus de e-mail abre os links)', EstadoAgenda::AGENDADO, $estado($agLink));
+    ok('link de confirmar: so o botao de confirmar', strpos($s, 'Confirmar agendamento') !== false && strpos($s, 'Cancelar agendamento') === false && strpos($s, 'method=onConfirmar') !== false && strpos($s, 'method=onCancelar') === false, substr($s, 0, 300));
+    ok('link de confirmar: sem Nao para escolher', strpos($s, 'Confirma este agendamento') === false && strpos($s, 'tquestion') === false);
+    $s = $abrir($agLink, 'onCancelar');
+    igual('link: abrir o de cancelar nao cancela', EstadoAgenda::AGENDADO, $estado($agLink));
+    ok('link de cancelar: so o botao de cancelar', strpos($s, 'Cancelar agendamento') !== false && strpos($s, 'Confirmar agendamento') === false && strpos($s, 'method=onCancelar') !== false && strpos($s, 'method=onConfirmar') === false);
+
+    $s = $abrir($agLink, 'onConfirmar', $clicar);
+    igual('link: o clique confirma', EstadoAgenda::CONFIRMADO, $estado($agLink));
     ok('link: avisa que confirmou e fala do WhatsApp', strpos($s, 'Agendamento confirmado.') !== false && strpos($s, 'pelo WhatsApp') !== false && strpos($s, 'alert-success') !== false, substr($s, 0, 300));
-    ok('link: a situacao da pagina ja e a nova', strpos($s, 'Confirmado') !== false);
+    ok('link: depois do clique, sem botao', strpos($s, 'Confirmar agendamento') === false);
     igual('link: cria o atendimento', 1, count(q("SELECT 1 FROM atendimento WHERE agendamento_id = {$agLink}")));
     igual('link: historico automatico', 1, count(q("SELECT 1 FROM estado_agendamento WHERE agendamento_id = {$agLink} AND evento = 'CONFIRMADO_EMAIL' AND system_users_id IS NULL")));
     ob_start();
@@ -349,27 +357,33 @@ try {
     $html = ob_get_clean();
     ok('link: tela diz que foi pelo e-mail', strpos($html, 'pelo link do e-mail') !== false && strpos($html, 'fa-envelope') !== false);
 
-    $s = $abrir($agLink, 'onConfirmar');
-    igual('link: abrir de novo nao duplica o historico', 1, count(q("SELECT 1 FROM estado_agendamento WHERE agendamento_id = {$agLink} AND evento = 'CONFIRMADO_EMAIL'")));
-    ok('link: abrir de novo repete o aviso', strpos($s, 'Agendamento confirmado.') !== false);
-    $s = $abrir($agLink, 'onCancelar');
-    igual('link: depois de confirmar, o de cancelar nao muda', EstadoAgenda::CONFIRMADO, $estado($agLink));
-    ok('link: diz que nada mudou e fala do WhatsApp', strpos($s, 'Este agendamento está Confirmado. Nada foi alterado.') !== false && strpos($s, 'pelo WhatsApp') !== false, substr($s, 0, 300));
+    foreach (['onConfirmar', 'onCancelar'] as $metodo) {
+        $s = $abrir($agLink, $metodo);
+        ok("{$metodo} depois de confirmado: diz que ja foi confirmado, sem botao", strpos($s, 'Este agendamento já foi confirmado.') !== false && strpos($s, 'pelo WhatsApp') !== false && strpos($s, 'respondeu=1') === false, substr($s, 0, 300));
+    }
+    $s = $abrir($agLink, 'onCancelar', $clicar);
+    igual('clique forcado no cancelar depois de confirmado: nao muda', EstadoAgenda::CONFIRMADO, $estado($agLink));
+    $abrir($agLink, 'onConfirmar', $clicar);
+    igual('clicar de novo nao duplica o historico', 1, count(q("SELECT 1 FROM estado_agendamento WHERE agendamento_id = {$agLink} AND evento = 'CONFIRMADO_EMAIL'")));
 
     [$agLink2, $mLink2] = $novo('LINK2', '5519912340031');
-    $s = $abrir($agLink2, 'onCancelar');
-    igual('link: abrir ja cancela', EstadoAgenda::CANCELADO, $estado($agLink2));
-    ok('link: avisa que cancelou', strpos($s, 'Agendamento cancelado.') !== false && strpos($s, 'alert-danger') !== false && strpos($s, 'Cancela este agendamento') === false);
-    $s = $abrir($agLink2, 'onConfirmar');
-    igual('link: depois de cancelar, o de confirmar nao muda', EstadoAgenda::CANCELADO, $estado($agLink2));
-    ok('link: diz que esta cancelado', strpos($s, 'Este agendamento está Cancelado. Nada foi alterado.') !== false);
+    $s = $abrir($agLink2, 'onCancelar', $clicar);
+    igual('link: o clique cancela', EstadoAgenda::CANCELADO, $estado($agLink2));
+    ok('link: avisa que cancelou', strpos($s, 'Agendamento cancelado.') !== false && strpos($s, 'alert-danger') !== false);
+    foreach (['onConfirmar', 'onCancelar'] as $metodo) {
+        $s = $abrir($agLink2, $metodo);
+        ok("{$metodo} depois de cancelado: diz que ja foi cancelado, sem botao", strpos($s, 'Este agendamento já foi cancelado.') !== false && strpos($s, 'respondeu=1') === false);
+    }
+    $abrir($agLink2, 'onConfirmar', $clicar);
+    igual('clique forcado no confirmar depois de cancelado: nao muda', EstadoAgenda::CANCELADO, $estado($agLink2));
 
     [$agLink3, $mLink3] = $novo('LINK3', '5519912340032');
     $dtLink3 = q("SELECT dt_inicial d FROM agendamento WHERE id = {$agLink3}")[0]['d'];
     x("UPDATE agendamento SET dt_inicial = '" . date('Y-m-d H:i:s', strtotime('-1 hour')) . "' WHERE id = {$agLink3}");
     $s = $abrir($agLink3, 'onConfirmar');
+    ok('link: horario passado avisa, sem botao', strpos($s, 'já passou') !== false && strpos($s, 'respondeu=1') === false);
+    $abrir($agLink3, 'onConfirmar', $clicar);
     igual('link: horario passado nao muda', EstadoAgenda::AGENDADO, $estado($agLink3));
-    ok('link: avisa que o horario passou', strpos($s, 'já passou') !== false);
     x("UPDATE agendamento SET dt_inicial = '{$dtLink3}' WHERE id = {$agLink3}");
 
     // ---------- sem reuniao online ----------

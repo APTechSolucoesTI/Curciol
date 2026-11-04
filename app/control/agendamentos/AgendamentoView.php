@@ -37,7 +37,7 @@ class AgendamentoView extends TPage
     }
 
     /** A pagina e montada depois da resposta, para mostrar a situacao ja atualizada. */
-    private function montar($param, ?array $aviso = null): void
+    private function montar($param, ?array $aviso = null, ?TElement $botao = null): void
     {
         TTransaction::open(self::$database);
         // creates the form
@@ -59,7 +59,16 @@ class AgendamentoView extends TPage
         {
             $caixa = new TElement('div');
             $caixa->class = 'alert alert-' . $aviso['tipo'];
-            $caixa->add('<b style="font-size:16px">' . htmlspecialchars($aviso['texto']) . '</b><br>Se precisar alterar algo, entre em contato com o escritório pelo WhatsApp.');
+            $caixa->add('<b style="font-size:16px">' . htmlspecialchars($aviso['texto']) . '</b>');
+            if ($botao)
+            {
+                $caixa->add('<br>');
+                $caixa->add($botao);
+            }
+            else
+            {
+                $caixa->add('<br>Se precisar alterar algo, entre em contato com o escritório pelo WhatsApp.');
+            }
             $this->form->addFields([$caixa])->layout = [' col-sm-12'];
         }
 
@@ -120,7 +129,7 @@ class AgendamentoView extends TPage
         $this->montar($param);
     }
 
-    /** Links do e-mail: abrir ja confirma ou cancela e a pagina avisa o resultado. */
+    /** Links do e-mail: abrir mostra so o botao daquele link; o clique (respondeu) confirma ou cancela e a pagina avisa o resultado. */
     public function onConfirmar($param)
     {
         $this->responder($param, (int) EstadoAgenda::CONFIRMADO);
@@ -137,11 +146,26 @@ class AgendamentoView extends TPage
         {
             TTransaction::open(self::$database);
 
-            $aviso = AgendamentoService::respostaPeloLink(Agendamento::find($param['key']), $estado);
+            $agendamento = Agendamento::find($param['key']);
+            $aviso = empty($param['respondeu'])
+                ? AgendamentoService::avisoDoLink($agendamento, $estado)
+                : AgendamentoService::respostaPeloLink($agendamento, $estado);
 
             TTransaction::close();
 
-            $this->montar($param, $aviso);
+            if ($aviso)
+            {
+                $this->montar($param, $aviso);
+                return;
+            }
+
+            $confirmar = $estado === (int) EstadoAgenda::CONFIRMADO;
+            $acao = new TAction([__CLASS__, $confirmar ? 'onConfirmar' : 'onCancelar'], ['key' => $param['key'], 'token' => $param['token'], 'respondeu' => 1]);
+            $botao = new TActionLink($confirmar ? ' Confirmar agendamento' : ' Cancelar agendamento', $acao, '#ffffff', '14px', 'B', $confirmar ? 'fas:check #ffffff' : 'fas:times #ffffff');
+            $botao->class = $confirmar ? 'btn btn-success' : 'btn btn-danger';
+            $botao->style = 'margin-top:10px;';
+
+            $this->montar($param, ['tipo' => 'info', 'texto' => $confirmar ? 'Para confirmar este agendamento, clique no botão abaixo.' : 'Para cancelar este agendamento, clique no botão abaixo.'], $botao);
         }
         catch (Exception $e)
         {

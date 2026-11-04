@@ -119,40 +119,54 @@ class AgendamentoService
     }
 
     /**
-     * Link do e-mail (04/11/2026): abrir ja confirma ou cancela, sem segunda pergunta. So vale com o agendamento ainda em
-     * aberto e antes do horario: depois da primeira resposta o outro link nao muda mais nada. Devolve o aviso da pagina,
-     * ['tipo' => classe do alerta, 'texto' => frase].
+     * Link do e-mail (04/11/2026): abrir so mostra o botao daquele link, porque antivirus de e-mail abrem os links sozinhos; quem
+     * muda o agendamento e o clique. Vale so com o agendamento em aberto e antes do horario. Devolve o aviso de quando o link nao
+     * pode mais responder, ['tipo' => classe do alerta, 'texto' => frase], ou null se pode.
      */
-    public static function respostaPeloLink(Agendamento $agendamento, int $estado): array
+    public static function avisoDoLink(Agendamento $agendamento, int $estado): ?array
     {
-        $confirmar = $estado === (int) EstadoAgenda::CONFIRMADO;
-        $feito = $confirmar ? ['tipo' => 'success', 'texto' => 'Agendamento confirmado.'] : ['tipo' => 'danger', 'texto' => 'Agendamento cancelado.'];
+        $atual = (int) $agendamento->estado_agenda_id;
 
-        if ((int) $agendamento->estado_agenda_id === $estado)
+        if ($atual === (int) EstadoAgenda::CONFIRMADO)
         {
-            return $feito;
+            return ['tipo' => 'success', 'texto' => 'Este agendamento já foi confirmado.'];
         }
-
-        if (!in_array((int) $agendamento->estado_agenda_id, [(int) EstadoAgenda::AGENDADO, (int) EstadoAgenda::AGUARDANDO_VALIDACAO_ESCRITORIO], true))
+        if ($atual === (int) EstadoAgenda::CANCELADO)
+        {
+            return ['tipo' => 'danger', 'texto' => 'Este agendamento já foi cancelado.'];
+        }
+        if (!in_array($atual, [(int) EstadoAgenda::AGENDADO, (int) EstadoAgenda::AGUARDANDO_VALIDACAO_ESCRITORIO], true))
         {
             return ['tipo' => 'warning', 'texto' => 'Este agendamento está ' . $agendamento->estado_agenda->nome . '. Nada foi alterado.'];
         }
-
         if ((string) $agendamento->dt_inicial <= date('Y-m-d H:i:s'))
         {
             return ['tipo' => 'warning', 'texto' => 'O horário deste agendamento já passou. Nada foi alterado.'];
         }
-
-        if (!$confirmar && AgendamentoFinanceiroService::ficha((int) $agendamento->id))
+        if ($estado === (int) EstadoAgenda::CANCELADO && AgendamentoFinanceiroService::ficha((int) $agendamento->id))
         {
             return ['tipo' => 'warning', 'texto' => 'Não foi possível cancelar este agendamento pelo link. Nada foi alterado.'];
         }
 
-        self::respostaDoCliente($agendamento, $estado,
-            $confirmar ? EstadoAgendamento::EVENTO_CONFIRMADO_EMAIL : EstadoAgendamento::EVENTO_CANCELADO_EMAIL,
-            $confirmar ? 'Cliente confirmou pelo link do e-mail' : 'Cliente cancelou pelo link do e-mail');
+        return null;
+    }
 
-        return $feito;
+    /** O clique no botao do link: confirma ou cancela, conforme o link, e devolve o aviso da pagina. */
+    public static function respostaPeloLink(Agendamento $agendamento, int $estado): array
+    {
+        if ($aviso = self::avisoDoLink($agendamento, $estado))
+        {
+            return $aviso;
+        }
+
+        if ($estado === (int) EstadoAgenda::CONFIRMADO)
+        {
+            self::respostaDoCliente($agendamento, $estado, EstadoAgendamento::EVENTO_CONFIRMADO_EMAIL, 'Cliente confirmou pelo link do e-mail');
+            return ['tipo' => 'success', 'texto' => 'Agendamento confirmado.'];
+        }
+
+        self::respostaDoCliente($agendamento, $estado, EstadoAgendamento::EVENTO_CANCELADO_EMAIL, 'Cliente cancelou pelo link do e-mail');
+        return ['tipo' => 'danger', 'texto' => 'Agendamento cancelado.'];
     }
 
     /**
