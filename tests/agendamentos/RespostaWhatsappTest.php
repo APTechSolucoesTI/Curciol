@@ -366,7 +366,7 @@ try {
 
     [$agLink3, $mLink3] = $novo('LINK3', '5519912340032');
     $dtLink3 = q("SELECT dt_inicial d FROM agendamento WHERE id = {$agLink3}")[0]['d'];
-    x("UPDATE agendamento SET dt_inicial = now() - interval '1 hour' WHERE id = {$agLink3}");
+    x("UPDATE agendamento SET dt_inicial = '" . date('Y-m-d H:i:s', strtotime('-1 hour')) . "' WHERE id = {$agLink3}");
     $s = $abrir($agLink3, 'onConfirmar');
     igual('link: horario passado nao muda', EstadoAgenda::AGENDADO, $estado($agLink3));
     ok('link: avisa que o horario passou', strpos($s, 'já passou') !== false);
