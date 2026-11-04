@@ -107,10 +107,10 @@ try {
     $s = $salvar(['tipo_template' => 'EMAIL', 'titulo' => 'T', 'descricao' => MARCA_RESP . ' CONF EMAIL', 'template' => 'Texto'] + $base);
     $confEmail = $gravado('CONF EMAIL');
     ok('e-mail: salva', $confEmail !== null, substr($s, 0, 300));
-    igual('e-mail: sem respostas nem templates', [null, null, null, null], [$confEmail['respostas_confirmar'] ?? 'x', $confEmail['respostas_cancelar'] ?? 'x', $confEmail['template_confirmado_id'] ?? 'x', $confEmail['template_cancelado_id'] ?? 'x']);
+    igual('e-mail: sem respostas nem templates', [null, null, null, null], [$confEmail['respostas_confirmar'], $confEmail['respostas_cancelar'], $confEmail['template_confirmado_id'], $confEmail['template_cancelado_id']]);
     // outra categoria tambem nao guarda
     $s = $salvar(['categoria' => 'LEMBRETE', 'descricao' => MARCA_RESP . ' LEMBRETE'] + $base);
-    igual('outra categoria: sem respostas', null, $gravado('LEMBRETE')['respostas_confirmar'] ?? 'x');
+    igual('outra categoria: sem respostas', null, $gravado('LEMBRETE')['respostas_confirmar']);
 
     // ---------- template em uso fica protegido ----------
     $editar = ['id' => $sim, 'descricao' => MARCA_RESP . ' SIM', 'tipo_template' => 'WHATSAPP', 'categoria' => 'CONFIRMADO'];
