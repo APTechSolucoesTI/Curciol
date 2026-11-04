@@ -170,7 +170,9 @@ class EnviarMensagemForm extends TPage
             };
             $(document).off('change.curciolManual').on('change.curciolManual', '[name=manual]', window.curciolManual);
             window.curciolAgendar = function () {
-                $('[name=enviar_em]').closest('.tformrow').toggle($('[name=agendar]').is(':checked'));
+                var a = $('[name=agendar]').is(':checked');
+                $('[name=enviar_em]').closest('.tformrow').toggle(a);
+                $('[name=btn_enviar] span').contents().last().replaceWith(a ? ' Agendar' : ' Enviar');
             };
             $(document).off('change.curciolAgendar').on('change.curciolAgendar', '[name=agendar]', window.curciolAgendar);
             $(function () {
