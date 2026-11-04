@@ -3,11 +3,13 @@
  * Resposta do cliente ao WhatsApp de confirmacao do agendamento (03/11/2026).
  *
  * Tarefa agendada a cada minuto (cmd.php "class=ApchatRespostaService&method=processar"): para cada confirmacao enviada
- * que ainda espera resposta, le no banco do APChat a PRIMEIRA mensagem que o numero mandou depois do envio.
+ * que ainda espera resposta, le no banco do APChat as 3 PRIMEIRAS mensagens que o numero mandou depois do envio (usuario,
+ * 04/11/2026: uma saudacao automatica do cliente nao pode tomar o lugar do SIM). A primeira delas que for so SIM ou so NAO decide:
  *   - SIM (so a palavra: sim/Sim/SIM, com espaco, pontuacao ou emoji em volta): agendamento Confirmado (com o
  *     atendimento, como o Confirmar da equipe) e a mensagem "Resposta SIM" (template WHATSAPP_RESPOSTA_SIM);
  *   - NAO (nao/não/NÃO...): agendamento Cancelado e a mensagem de agradecimento (WHATSAPP_RESPOSTA_NAO);
- *   - qualquer outra coisa: nada automatico; a resposta fica registrada e o atendimento segue no APChat.
+ *   - frase, saudacao ou qualquer outra coisa: nao decide. Ate a 3a resposta continua esperando; se nenhuma das 3 for
+ *     SIM ou NAO, nada automatico (o que vier depois nao conta) e o atendimento segue no APChat.
  * So vale enquanto o agendamento esta Agendado e a data nao passou. Com mais de uma confirmacao para o mesmo numero,
  * vale a ultima enviada (as anteriores ficam "substituidas"). A resposta automatica vai para o mesmo numero da
  * confirmacao (na homologacao, o numero de teste digitado).
@@ -22,6 +24,7 @@ class ApchatRespostaService
     const NAO = 'NAO';
     const OUTRA = 'OUTRA';
     const SUBSTITUIDA = 'SUBSTITUIDA';   // outra confirmacao foi enviada depois para o mesmo numero
+    const RESPOSTAS_VALIDAS = 3;         // so as 3 primeiras respostas do cliente contam
     const ENCERRADA = 'ENCERRADA';       // agendamento mudou de estado ou a data passou sem resposta
 
     private static $database = 'escritorio';
@@ -127,10 +130,30 @@ class ApchatRespostaService
                 return self::ENCERRADA;
             }
 
-            $resposta = ApchatBancoService::primeiraRespostaDepois(APChatContactService::variantes((string) $p['destino']), (string) $p['enviado_em']);
+            $respostas = ApchatBancoService::primeirasRespostasDepois(APChatContactService::variantes((string) $p['destino']), (string) $p['enviado_em'], self::RESPOSTAS_VALIDAS);
 
-            if (!$resposta)
+            if (!$respostas)
             {
+                TTransaction::close();
+                return null;
+            }
+
+            $decisiva = null;
+            foreach ($respostas as $r)
+            {
+                if (self::classificar($r['body'] ?? '') !== self::OUTRA) { $decisiva = $r; break; }
+            }
+
+            $todas = mb_substr(implode(' / ', array_map([self::class, 'textoDaResposta'], $respostas)), 0, 2000);
+
+            // ainda pode vir SIM ou NAO: so guarda o que chegou, para aparecer na tela do agendamento
+            if (!$decisiva && count($respostas) < self::RESPOSTAS_VALIDAS)
+            {
+                if ((string) $mensagem->resposta_texto !== $todas)
+                {
+                    $mensagem->resposta_texto = $todas;
+                    $mensagem->store();
+                }
                 TTransaction::close();
                 return null;
             }
@@ -139,10 +162,11 @@ class ApchatRespostaService
             TSession::setValue('userid', (int) $p['system_user_id']);
             TSession::setValue('userunitid', (int) $agendamento->agenda->escritorio->system_unit_id);
 
-            $tipo = self::classificar($resposta['body'] ?? '');
+            $tipo = $decisiva ? self::classificar($decisiva['body'] ?? '') : self::OUTRA;
+            $ultima = $decisiva ?: end($respostas);
             $mensagem->resposta = $tipo;
-            $mensagem->resposta_texto = mb_substr((string) ($resposta['body'] ?? ''), 0, 2000) ?: ('(' . ($resposta['mediaType'] ?? 'sem texto') . ')');
-            $mensagem->respondido_em = date('Y-m-d H:i:s', strtotime((string) $resposta['createdAt']));
+            $mensagem->resposta_texto = $decisiva ? mb_substr(self::textoDaResposta($decisiva), 0, 2000) : $todas;
+            $mensagem->respondido_em = date('Y-m-d H:i:s', strtotime((string) $ultima['createdAt']));
 
             if ($tipo === self::SIM)
             {
@@ -169,7 +193,7 @@ class ApchatRespostaService
             }
             else
             {
-                $mensagem->resposta_obs = 'Resposta diferente de SIM/NÃO: nada automático.';
+                $mensagem->resposta_obs = 'Nenhuma das 3 primeiras respostas foi SIM ou NÃO: nada automático.';
             }
 
             $mensagem->store();
@@ -182,6 +206,12 @@ class ApchatRespostaService
             TTransaction::rollback();
             return 'ERRO (tenta de novo): ' . $e->getMessage();
         }
+    }
+
+    /** Texto da mensagem do cliente; audio, imagem etc. pelo tipo. */
+    private static function textoDaResposta(array $resposta): string
+    {
+        return trim((string) ($resposta['body'] ?? '')) ?: ('(' . ($resposta['mediaType'] ?? 'sem texto') . ')');
     }
 
     private static function mudarEstado(Agendamento $agendamento, int $estado): void

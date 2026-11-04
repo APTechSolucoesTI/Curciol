@@ -271,24 +271,24 @@ class ApchatBancoService
     // =================================================================
 
     /**
-     * Primeira mensagem que o cliente mandou (nao nossa) de um destes numeros depois de um momento.
+     * Primeiras mensagens que o cliente mandou (nao nossas) de um destes numeros depois de um momento, da mais antiga
+     * para a mais recente.
      *
      * @param string[] $numeros 55 + DDD + numero (com e sem o nono digito)
      * @param string   $desde   'Y-m-d H:i:s' no horario de Sao Paulo
-     * @return array|null {id, body, mediaType, createdAt}
+     * @return array linhas {id, body, mediaType, createdAt}
      */
-    public static function primeiraRespostaDepois(array $numeros, string $desde): ?array
+    public static function primeirasRespostasDepois(array $numeros, string $desde, int $limite): array
     {
-        if (self::$falso) { return self::$falso->primeiraRespostaDepois($numeros, $desde); }
+        if (self::$falso) { return self::$falso->primeirasRespostasDepois($numeros, $desde, $limite); }
         $st = self::conn()->prepare('SELECT m.id, m.body, m."mediaType", m."createdAt"
                                        FROM curciol.mensagens m
                                        JOIN curciol.contatos c ON c.id = m."contactId"
                                       WHERE c.number = ANY (?::varchar[])
                                         AND NOT m."fromMe" AND NOT COALESCE(m."isDeleted", false)
                                         AND m."createdAt" > ?::timestamptz
-                                      ORDER BY m."createdAt", m.id LIMIT 1');
+                                      ORDER BY m."createdAt", m.id LIMIT ' . (int) $limite);
         $st->execute([self::arrayPg($numeros), $desde]);
-        $r = $st->fetch();
-        return $r ?: null;
+        return $st->fetchAll();
     }
 }

@@ -1,7 +1,7 @@
 <?php
 // tests/agendamentos/RespostaWhatsappTest.php
 // Resposta SIM/NAO ao WhatsApp de confirmacao (03/11/2026; ApchatRespostaService): SIM confirma (com atendimento) e
-// manda a "confirmacao recebida", NAO cancela e agradece, outra resposta nao faz nada, so a ultima confirmacao do numero
+// manda a "confirmacao recebida", NAO cancela e agradece, so as 3 primeiras respostas contam, so a ultima confirmacao do numero
 // vale, agendamento que ja mudou encerra, erro no envio da resposta desfaz e tenta de novo.
 // NUNCA fala com o APChat de verdade: banco do APChat falso e API falsa.
 require __DIR__ . '/../bootstrap.php';
@@ -29,16 +29,16 @@ class ApchatBancoRespostasFalso
 {
     public $respostas = [];
     public function disponivel() { return true; }
-    public function primeiraRespostaDepois(array $numeros, string $desde)
+    public function primeirasRespostasDepois(array $numeros, string $desde, int $limite)
     {
-        foreach ($numeros as $n) { if (isset($this->respostas[$n])) { return $this->respostas[$n]; } }
-        return null;
+        foreach ($numeros as $n) { if (isset($this->respostas[$n])) { return array_slice($this->respostas[$n], 0, $limite); } }
+        return [];
     }
 }
 $banco = new ApchatBancoRespostasFalso();
 ApchatBancoService::usarFalso($banco);
 $responde = function (string $numero, string $texto) use ($banco) {
-    $banco->respostas[$numero] = ['id' => 1, 'body' => $texto, 'mediaType' => 'chat', 'createdAt' => date('Y-m-d H:i:s')];
+    $banco->respostas[$numero][] = ['id' => 1, 'body' => $texto, 'mediaType' => 'chat', 'createdAt' => date('Y-m-d H:i:s')];
 };
 
 $enviadas = [];
@@ -77,7 +77,7 @@ $rodar = function () { ob_start(); ApchatRespostaService::processar(); return ob
 
 try {
     // ---------- classificar: so a palavra ----------
-    foreach (['sim', 'Sim', 'SIM', ' sim ', 'Sim!', 'sim.', '*SIM*', 'Sim 👍'] as $t) { igual("SIM: '{$t}'", 'SIM', ApchatRespostaService::classificar($t)); }
+    foreach (['sim', 'Sim', 'SIM', 'sIm', ' sim ', 'Sim!', 'sim!', 'sim.', '*SIM*', 'Sim 👍'] as $t) { igual("SIM: '{$t}'", 'SIM', ApchatRespostaService::classificar($t)); }
     foreach (['não', 'nao', 'NÃO', 'Nao.', 'NAO!'] as $t) { igual("NAO: '{$t}'", 'NAO', ApchatRespostaService::classificar($t)); }
     foreach (['Sim, mas posso mudar o horário?', 'simm', 'sim sim', 's', 'ok', '', 'não posso'] as $t) { igual("OUTRA: '{$t}'", 'OUTRA', ApchatRespostaService::classificar($t)); }
     // assinatura de quem responde por um sistema de atendimento (caso real do teste de 03/11/2026)
@@ -119,13 +119,40 @@ try {
     igual('NAO: mensagem de agradecimento', 1, count($enviadas));
     ok('NAO: texto do agradecimento', strpos($enviadas[0]['body'] ?? '', 'Obrigado por avisar') !== false, $enviadas[0]['body'] ?? '');
 
-    // ---------- outra resposta ----------
+    // ---------- ate a 3a resposta: frase nao decide, a primeira que for so SIM ou NAO decide ----------
     $responde('5519912340003', 'Sim, mas posso mudar o horário?');
     $enviadas = [];
     $rodar();
-    igual('OUTRA: agendamento continua Agendado', EstadoAgenda::AGENDADO, $estado($agOutra));
-    igual('OUTRA: registrada', ['resposta' => 'OUTRA', 'resposta_texto' => 'Sim, mas posso mudar o horário?'], $resposta($mOutra));
-    igual('OUTRA: nenhuma mensagem automatica', 0, count($enviadas));
+    igual('frase: agendamento continua Agendado', EstadoAgenda::AGENDADO, $estado($agOutra));
+    igual('frase: continua esperando e guarda o que chegou', ['resposta' => null, 'resposta_texto' => 'Sim, mas posso mudar o horário?'], $resposta($mOutra));
+    igual('frase: nenhuma mensagem automatica', 0, count($enviadas));
+    $responde('5519912340003', 'Olá! Agradecemos o contato.');
+    $rodar();
+    igual('2 respostas sem SIM/NAO: continua Agendado', EstadoAgenda::AGENDADO, $estado($agOutra));
+    ok('2 respostas sem SIM/NAO: continua esperando', $resposta($mOutra)['resposta'] === null);
+    $responde('5519912340003', 'sIm!');
+    $rodar();
+    igual('3a resposta SIM: confirma', EstadoAgenda::CONFIRMADO, $estado($agOutra));
+    igual('3a resposta SIM: registra so o SIM', ['resposta' => 'SIM', 'resposta_texto' => 'sIm!'], $resposta($mOutra));
+    igual('3a resposta SIM: mensagem automatica', 1, count($enviadas));
+
+    // ---------- 3 respostas sem SIM/NAO: nada automatico e a 4a nao conta ----------
+    [$agTres, $mTres] = $novo('TRES', '5519912340007');
+    foreach (['Bom dia', 'Quem fala?', 'Sim, mas prefiro à tarde'] as $t) { $responde('5519912340007', $t); }
+    $enviadas = [];
+    $rodar();
+    igual('3 sem SIM/NAO: continua Agendado', EstadoAgenda::AGENDADO, $estado($agTres));
+    igual('3 sem SIM/NAO: registra as 3', ['resposta' => 'OUTRA', 'resposta_texto' => 'Bom dia / Quem fala? / Sim, mas prefiro à tarde'], $resposta($mTres));
+    igual('3 sem SIM/NAO: nenhuma mensagem automatica', 0, count($enviadas));
+    $responde('5519912340007', 'sim');
+    $rodar();
+    igual('4a resposta SIM: nao conta', EstadoAgenda::AGENDADO, $estado($agTres));
+    igual('4a resposta SIM: nada enviado', 0, count($enviadas));
+
+    // ---------- resposta esperando: aparece na tela ----------
+    [$agEspera, $mEspera] = $novo('ESPERA', '5519912340008');
+    $responde('5519912340008', 'Vou ver e já respondo');
+    $rodar();
 
     // ---------- duas confirmacoes para o mesmo numero: vale a ultima ----------
     [$agVelho, $mVelho] = $novo('VELHO', '5519912340004', '10 minutes');
@@ -162,9 +189,13 @@ try {
     // ---------- tela do agendamento mostra a resposta ----------
     TSession::setValue('userunitid', (int) q("SELECT e.system_unit_id u FROM escritorio e JOIN agenda a ON a.escritorio_id = e.id WHERE a.id = {$agendaId}")[0]['u']);
     ob_start();
-    (new AgendamentoFormView(['key' => $agOutra]))->show();
+    (new AgendamentoFormView(['key' => $agTres]))->show();
     $html = ob_get_clean();
-    ok('tela: mostra a resposta do cliente', strpos($html, 'Confirmação por WhatsApp enviada') !== false && strpos($html, 'posso mudar o horário') !== false);
+    ok('tela: mostra as respostas do cliente', strpos($html, 'Confirmação por WhatsApp enviada') !== false && strpos($html, 'prefiro à tarde') !== false);
+    ob_start();
+    (new AgendamentoFormView(['key' => $agEspera]))->show();
+    $html = ob_get_clean();
+    ok('tela: aguardando, com o que ja chegou', strpos($html, 'aguardando resposta') !== false && strpos($html, 'Vou ver e já respondo') !== false);
 } finally {
     ApchatBancoService::usarFalso(null);
     ApchatApiService::usarTransporte(null);
