@@ -964,7 +964,7 @@ class APChatContactService
                 }
             }
 
-            $nascimento = self::dataBr($pessoa->dt_nascimento_abertura);
+            $nascimento = self::dataApchat($pessoa->dt_nascimento_abertura);
 
             if ($nascimento)
             {
@@ -1041,7 +1041,8 @@ class APChatContactService
         return $lista;
     }
 
-    private static function dataBr($data): ?string
+    /** Nascimento para a API, em aaaa-mm-dd: com dd/mm/aaaa o APChat le como mes/dia e inverte quando o dia vai ate 12 (04/11/2026). */
+    private static function dataApchat($data): ?string
     {
         $data = trim((string) $data);
 
@@ -1055,7 +1056,7 @@ class APChatContactService
             return null;
         }
 
-        return "{$m[3]}/{$m[2]}/{$m[1]}";
+        return "{$m[1]}-{$m[2]}-{$m[3]}";
     }
 
     // =================================================================

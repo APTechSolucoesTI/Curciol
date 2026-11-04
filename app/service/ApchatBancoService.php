@@ -141,13 +141,12 @@ class ApchatBancoService
              ->execute([$id, $nome, $numero, $email !== null && $email !== '' ? $email : null, $campos['cpf'], $campos['primeiro_nome'], $campos['ultimo_nome'], $campos['razao_social'], $campos['nascimento']]);
     }
 
-    /** Os outros campos enviados ao APChat, no formato que a protecao compara: CPF so numeros, nascimento como o APChat grava (aaaa-mm-dd). */
+    /** Os outros campos enviados ao APChat, no formato que a protecao compara: CPF so numeros, nascimento em aaaa-mm-dd. */
     public static function camposDoEspelho(array $corpo): array
     {
         $texto = function ($campo) use ($corpo) { $v = trim((string) ($corpo[$campo] ?? '')); return $v !== '' ? $v : null; };
         $cpf = preg_replace('/\D/', '', (string) ($corpo['cpf'] ?? ''));
         $nascimento = $texto('birthdayDate');
-        if ($nascimento !== null && preg_match('~^(\d{1,2})/(\d{1,2})/(\d+)$~', $nascimento, $m)) { $nascimento = "{$m[3]}-{$m[2]}-{$m[1]}"; }
 
         return ['cpf' => $cpf !== '' ? $cpf : null, 'primeiro_nome' => $texto('firstName'), 'ultimo_nome' => $texto('lastName'), 'razao_social' => $texto('businessName'),
                 'nascimento' => $nascimento !== null ? substr($nascimento, 0, 10) : null];
