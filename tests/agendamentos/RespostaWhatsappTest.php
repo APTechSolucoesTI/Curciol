@@ -416,6 +416,8 @@ try {
     AmbienteService::forcarProducao(false);
     $html = $tela($param);
     ok('teste: mostra os contatos, nome | telefone | descricao, com a marca so no principal', strpos($html, 'TITULAR | (19) 98765-0021 | CELULAR [principal]') !== false && strpos($html, 'FILHA | (19) 98765-0022 | RECADO<') !== false);
+    preg_match_all('~<script[^>]*>(.*?)</script>~s', $html, $scripts);
+    ok('tela: sem comentario de linha nos scripts (o TScript junta tudo em uma linha)', !preg_grep('~(?<![:'"])//~', $scripts[1]));
     ok('tela: selo verde do principal', strpos($html, '#4CAF50') !== false && strpos($html, 'select2') !== false);
     ok('tela: botao Visualizar', strpos($html, 'name="btn_visualizar"') !== false && strpos($html, 'id="mensagem_visualizacao"') !== false);
     ob_start();

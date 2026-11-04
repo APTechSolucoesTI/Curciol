@@ -138,7 +138,8 @@ class EnviarMensagemForm extends TPage
         $row = $this->form->addFields([$caixaVariaveis]);
         $row->layout = ['col-sm-12'];
 
-        // Manual mostra o texto editavel no lugar da mensagem pronta; variavel entra no ponto do cursor
+        // Manual mostra o texto editavel no lugar da mensagem pronta; variavel entra no ponto do cursor; contato principal
+        // com o quadradinho verde. Sem comentario dentro do script: o TScript junta tudo em uma linha
         TScript::create("
             window.curciolManual = function () {
                 var m = $('[name=manual]').is(':checked');
@@ -149,7 +150,6 @@ class EnviarMensagemForm extends TPage
             $(document).off('change.curciolManual').on('change.curciolManual', '[name=manual]', window.curciolManual);
             $(function () {
                 window.curciolManual();
-                // contato: o principal com o quadradinho verde
                 if ($.fn.select2) {
                     var contato = function (o) {
                         if (!o.id) { return o.text; }
