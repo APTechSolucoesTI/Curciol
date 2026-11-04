@@ -189,12 +189,14 @@ class TemplateEscritorioForm extends TPage
             [new TLabel("Template enviado depois de cancelar (categoria Cancelamento):", '#ff0000', '14px', null, '100%'), $template_cancelado_id, $criarTemplate('cancelado')]);
         $rowRespostas->layout = ['col-sm-6', 'col-sm-6'];
 
+        // sempre pelo form: os filtros da listagem, atras da cortina, tem os mesmos nomes de campo
+        $form = 'form[name=' . self::$formName . ']';
         TScript::create("
             window.curciolRespostasTemplate = function () {
-                var mostra = $('[name=categoria]').val() === '" . TemplateEscritorio::CONFIRMACAO . "' && $('[name=tipo_template]').val() === '" . TemplateEscritorio::WHATSAPP . "';
-                $('#respostas_titulo, [name=respostas_confirmar], [name=ignorar_maiusculas], [name=template_confirmado_id]').closest('.tformrow').toggle(mostra);
+                var mostra = $('{$form} [name=categoria]').val() === '" . TemplateEscritorio::CONFIRMACAO . "' && $('{$form} [name=tipo_template]').val() === '" . TemplateEscritorio::WHATSAPP . "';
+                $('{$form} #respostas_titulo, {$form} [name=respostas_confirmar], {$form} [name=ignorar_maiusculas], {$form} [name=template_confirmado_id]').closest('.tformrow').toggle(mostra);
             };
-            $(document).off('change.curciolRespostas').on('change.curciolRespostas', '[name=categoria], [name=tipo_template]', window.curciolRespostasTemplate);
+            $(document).off('change.curciolRespostas').on('change.curciolRespostas', '{$form} [name=categoria], {$form} [name=tipo_template]', window.curciolRespostasTemplate);
             $(function () { window.curciolRespostasTemplate(); });
         ");
 

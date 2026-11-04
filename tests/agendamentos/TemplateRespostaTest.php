@@ -71,6 +71,7 @@ try {
     ok('form: uma resposta por campo, sem lista', preg_match('~<input[^>]*name="respostas_confirmar"~', $form) === 1 && preg_match('~<input[^>]*name="respostas_cancelar"~', $form) === 1);
     ok('form: botao para ignorar maiusculas, minusculas e acentos', strpos($form, 'name="ignorar_maiusculas"') !== false && strpos($form, 'acentos') !== false);
     igual('form: criar template nas duas respostas', 2, substr_count($form, 'onNovaResposta'));
+    ok('form: a secao olha os campos do proprio form, nao os filtros da listagem atras', strpos($form, "$('form[name=form_TemplateClinicaForm] [name=categoria]').val()") !== false && strpos($form, "$('[name=categoria]')") === false && strpos($form, "$('[name=tipo_template]')") === false);
     ok('form: sem lembrete', strpos($form, 'template_lembrete_id') === false);
 
     // ---------- salvar a confirmacao ----------
