@@ -79,7 +79,7 @@ class AgendaExcecaoForm extends TPage
 
         $ajuda = $editando
             ? 'Para mudar a agenda ou o período, remova esta exceção e crie outra.'
-            : 'A exceção só pode ser criada dentro de bloqueio, intervalo ou não atende. Durante ela, é possível marcar agendamentos e compromissos.';
+            : 'A exceção precisa pegar pelo menos uma parte de bloqueio, intervalo ou não atende. Durante ela, é possível marcar agendamentos e compromissos.';
         $linha = $this->form->addFields([new TLabel(new TImage('fas:info-circle #03A9F4') . ' ' . $ajuda, '#607D8B', '12px', 'I')]);
         $linha->layout = [' col-sm-12'];
 

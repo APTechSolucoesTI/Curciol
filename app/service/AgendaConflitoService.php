@@ -6,17 +6,15 @@
  * comeca) pode. Agenda que permite choque de horario aceita agendamento sobre agendamento, mas nunca sobre bloqueio
  * ou compromisso. Agendamentos cancelados e de quem nao compareceu nao ocupam o horario. Usa a transacao aberta.
  *
- * Horario de atendimento (30/10/2026): agendamento novo (ou mudando agenda/horario) so dentro do atendimento da agenda:
- * em dia que ela atende, dentro do horario e fora do intervalo. Compromisso e bloqueio podem sobrepor o intervalo e o nao
- * atende, e a tela avisa ao gravar (05/11/2026, ver avisosAtendimento).
+ * Horario de atendimento (revisto em 05/11/2026): agendamento e compromisso, a mesma regra: so em horario normal da agenda (dia
+ * que atende, dentro do horario, fora do intervalo) ou numa excecao, e sem outro agendamento ou compromisso no mesmo horario.
  *
- * Excecao (05/11/2026): periodo liberado que so pode ser criado dentro de bloqueio, intervalo ou nao atende. Durante ela valem
- * so as regras entre marcados: agendamento e compromisso nao se sobrepoem, mas o bloqueio, o intervalo e o nao atende daquele
- * trecho nao contam. Fora dela, tudo normal (o trecho de um horario que passa da excecao e conferido).
+ * Excecao: pode ficar sobre bloqueio, intervalo e nao atende; pode pegar horario normal, desde que pelo menos uma parte nao seja.
+ * Durante ela, o bloqueio, o intervalo e o nao atende daquele trecho nao contam; a sobreposicao entre marcados continua barrada.
  *
- * Compromisso (05/11/2026): tambem nao pode cair sobre agendamento nem sobre outro compromisso, nem em agenda que permite
- * choque de horario. Agendas convidadas (05/11/2026): valem as mesmas regras da agenda principal. Bloqueio novo sobre o que
- * ja esta marcado: confirmado ou em atendimento impede; o resto pede confirmacao (ver ocupacoes).
+ * Bloqueio: o contrario. Precisa pegar pelo menos uma parte de horario normal e nao entra sobre agendamento, compromisso, outro
+ * bloqueio ou excecao, seja qual for o estado (tem que cancelar ou reagendar antes). Sobre cancelado pode, mas o cancelado que
+ * fica sob o bloqueio nao muda mais de estado (ver exigirPodeSairDeCancelado).
  */
 class AgendaConflitoService
 {
@@ -59,7 +57,7 @@ class AgendaConflitoService
         if ($r = $st->fetch(PDO::FETCH_OBJ)) { throw new Exception(self::mensagem('um compromisso', $nomeAgenda, $r)); }
     }
 
-    /** Compromisso: fora de bloqueio, de agendamento e de outro compromisso; pode sobrepor o intervalo e o nao atende. */
+    /** Compromisso: a mesma regra do agendamento. So em horario normal ou em excecao, sem agendamento nem outro compromisso. */
     public static function exigirLivreCompromisso(int $agendaId, string $inicio, string $fim, int $ignorarCompromissoId = 0): void
     {
         if ($agendaId <= 0 || trim($inicio) === '' || trim($fim) === '') { return; }
@@ -71,6 +69,7 @@ class AgendaConflitoService
         foreach (self::foraDeExcecoes($agendaId, $inicio, $fim) as [$de, $ate])
         {
             self::exigirSemBloqueio($agendaId, $de, $ate, $nomeAgenda);
+            self::exigirAtendimento($agendaId, $de, $ate, ' Para liberar este horário, crie uma exceção em Adicionar > Exceção.');
         }
 
         foreach (self::ocupacoes($agendaId, $inicio, $fim, $ignorarCompromissoId) as $o)
@@ -80,7 +79,7 @@ class AgendaConflitoService
     }
 
     /**
-     * Compromisso ou bloqueio gravado sobre o intervalo ou o nao atende: o aviso de cada periodo, sem repetir.
+     * Bloqueio gravado pegando tambem o intervalo ou o nao atende: o aviso de cada periodo, sem repetir.
      * $periodos: [[agenda, inicio, fim]]. Usa a transacao aberta.
      */
     public static function avisosAtendimento(array $periodos): array
@@ -173,8 +172,8 @@ class AgendaConflitoService
     }
 
     /**
-     * Excecao nova: todo o periodo tem que estar dentro de bloqueio, intervalo ou nao atende. A folga de 1 minuto e para o
-     * intervalo cadastrado como 12:01 a 12:59 aceitar a excecao de 12:00 a 13:00.
+     * Excecao nova: pelo menos uma parte do periodo tem que estar em bloqueio, intervalo ou nao atende. Todo em horario normal, nao
+     * ha o que liberar.
      */
     public static function exigirPeriodoDeExcecao(int $agendaId, string $inicio, string $fim): void
     {
@@ -188,11 +187,85 @@ class AgendaConflitoService
         self::exigirSemExcecao($agendaId, $inicio, $fim);
 
         $normais = self::subtrair(self::trechosDeAtendimento($agenda, $inicio, $fim), self::periodosNoHorario('bloqueio', $agendaId, $inicio, $fim));
+        $emHorarioNormal = 0;
         foreach ($normais as [$de, $ate])
+        {
+            $emHorarioNormal += strtotime($ate) - strtotime($de);
+        }
+        if ($emHorarioNormal >= strtotime($fim) - strtotime($inicio))
+        {
+            throw new Exception("A exceção precisa pegar pelo menos uma parte de bloqueio, intervalo ou não atende. Nesse período, a agenda {$agenda->nome} atende normalmente.");
+        }
+    }
+
+    /**
+     * O periodo pega horario normal da agenda? A folga de 1 minuto e para o intervalo cadastrado como 12:01 a 12:59: o bloqueio de
+     * 12:00 a 13:00 esta so no intervalo.
+     */
+    public static function temHorarioNormal(int $agendaId, string $inicio, string $fim): bool
+    {
+        $agenda = Agenda::find($agendaId);
+        if (!$agenda)
+        {
+            return false;
+        }
+        foreach (self::trechosDeAtendimento($agenda, self::minuto($inicio), self::minuto($fim)) as [$de, $ate])
         {
             if (strtotime($ate) - strtotime($de) > 60)
             {
-                throw new Exception("A exceção só pode ser criada dentro de bloqueio, intervalo ou não atende. Em " . date('d/m/Y', strtotime($de)) . ", das " . substr($de, 11, 5) . " às " . substr($ate, 11, 5) . ", a agenda {$agenda->nome} atende normalmente.");
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Bloqueio novo (ou mudando agenda/horario): precisa pegar horario normal e o periodo tem que estar livre. Agendamento,
+     * compromisso e outro bloqueio barram, seja qual for o estado; cancelado e de quem nao compareceu nao ocupam.
+     */
+    public static function exigirPodeBloquear(int $agendaId, string $inicio, string $fim, int $ignorarBloqueioId = 0): void
+    {
+        $inicio = self::minuto($inicio);
+        $fim = self::minuto($fim);
+        if ($fim <= $inicio) { throw new Exception('O fim do horário tem que ser depois do início.'); }
+
+        $agenda = Agenda::find($agendaId);
+        $nomeAgenda = $agenda ? ' na agenda ' . $agenda->nome : '';
+        if (!self::temHorarioNormal($agendaId, $inicio, $fim))
+        {
+            throw new Exception("O bloqueio precisa pegar pelo menos uma parte do horário normal de atendimento{$nomeAgenda}. Esse período está todo em intervalo ou não atende.");
+        }
+
+        self::exigirSemExcecao($agendaId, $inicio, $fim);
+
+        $st = TTransaction::get()->prepare("SELECT dt_inicio AS dt_inicial, dt_final, observacao AS detalhe FROM bloqueio
+                                             WHERE agenda_id = ? AND id <> ? AND dt_inicio < ? AND dt_final > ? ORDER BY dt_inicio LIMIT 1");
+        $st->execute([$agendaId, $ignorarBloqueioId, $fim, $inicio]);
+        if ($r = $st->fetch(PDO::FETCH_OBJ))
+        {
+            throw new Exception(self::mensagem('um bloqueio', $nomeAgenda, $r));
+        }
+
+        $marcados = self::sobreposicoesDoBloqueio([[$agendaId, $inicio, $fim]]);
+        $linhas = array_merge($marcados['impedem'], $marcados['avisam']);
+        if ($linhas)
+        {
+            throw new Exception("Não é possível bloquear este horário{$nomeAgenda}. Cancele ou reagende antes:<br><br>" . self::listaParaAviso($linhas));
+        }
+    }
+
+    /**
+     * Agendamento cancelado (ou de quem nao compareceu) sob um bloqueio criado depois nao volta a ocupar o horario: nao muda de
+     * estado. Numa excecao, o bloqueio daquele trecho nao conta.
+     */
+    public static function exigirPodeSairDeCancelado(int $agendaId, string $inicio, string $fim): void
+    {
+        foreach (self::foraDeExcecoes($agendaId, $inicio, $fim) as [$de, $ate])
+        {
+            if (self::periodosNoHorario('bloqueio', $agendaId, $de, $ate))
+            {
+                throw new Exception('Este agendamento não pode mudar de situação porque há um bloqueio nesse horário. Para atender esse cliente, crie um novo agendamento em outro horário.');
             }
         }
     }

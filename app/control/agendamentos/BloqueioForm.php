@@ -10,6 +10,8 @@ class BloqueioForm extends TPage
     private static $formName = 'form_Bloqueio';
     /** Periodos gravados neste salvar, para conferir o que ja esta marcado: [[agenda, inicio, fim]] */
     private $periodosGravados = [];
+    /** Repeticoes que nao foram criadas por nao pegarem horario normal. */
+    private $repeticoesIgnoradas = 0;
 
     /**
      * Form constructor
@@ -112,8 +114,6 @@ class BloqueioForm extends TPage
         $this->form->appendPage("Informações gerais");
 
         $this->form->addFields([new THidden('current_tab')]);
-        // bloqueio sobre o que ja esta marcado: confirmado pelo usuario (ver onSave)
-        $this->form->addFields([new THidden('bloqueio_sobreposicao_confirmada')]);
         $this->form->setTabFunction("$('[name=current_tab]').val($(this).attr('data-current_page'));");
 
         $row1 = $this->form->addFields([new TLabel("Código:", null, '14px', null, '100%'),$id]);
@@ -283,42 +283,21 @@ class BloqueioForm extends TPage
                 }else{
                     $object->modificacao_user_id = TSession::getValue('userid');
                 }
+                // novo ou mudando agenda/horario: precisa pegar horario normal e o periodo tem que estar livre
                 $antes = $new ? null : Bloqueio::find((int) $object->id);
-                $object->store(); // save the object
-
-                // editando sem mudar agenda nem horario, nao confere
                 if (!$antes || (int) $antes->agenda_id !== (int) $object->agenda_id
                     || substr((string) $antes->dt_inicio, 0, 16) !== substr(str_replace('T', ' ', (string) $object->dt_inicio), 0, 16)
                     || substr((string) $antes->dt_final, 0, 16) !== substr(str_replace('T', ' ', (string) $object->dt_final), 0, 16))
                 {
+                    AgendaConflitoService::exigirPodeBloquear((int) $object->agenda_id, (string) $object->dt_inicio, (string) $object->dt_final, (int) $object->id);
                     $this->periodosGravados[] = [(int) $object->agenda_id, (string) $object->dt_inicio, (string) $object->dt_final];
                 }
+                $object->store(); // save the object
 
                 if ($new)
                 {
                     $this->clonar($object, $data);
                 }
-            }
-
-            // bloqueio em cima de uma excecao: remova a excecao primeiro (ela liberaria o horario do bloqueio)
-            foreach ($this->periodosGravados as [$agendaPeriodo, $inicioPeriodo, $fimPeriodo])
-            {
-                AgendaConflitoService::exigirSemExcecao($agendaPeriodo, $inicioPeriodo, $fimPeriodo);
-            }
-
-            // 05/11/2026: bloqueio sobre o que ja esta marcado. Confirmado ou em atendimento impede; o resto pede confirmacao.
-            $sobreposicoes = AgendaConflitoService::sobreposicoesDoBloqueio($this->periodosGravados);
-            if ($sobreposicoes['impedem'])
-            {
-                throw new Exception('Não é possível bloquear este horário porque há agendamento confirmado ou em atendimento:<br><br>' . AgendaConflitoService::listaParaAviso($sobreposicoes['impedem']));
-            }
-            if ($sobreposicoes['avisam'] && empty($param['bloqueio_sobreposicao_confirmada']))
-            {
-                TTransaction::rollback();
-                $this->form->setData($this->form->getData());
-                new TQuestion('O bloqueio ficará sobre o que já está marcado:<br><br>' . AgendaConflitoService::listaParaAviso($sobreposicoes['avisam']) . '<br><br>Eles continuam na agenda. Deseja bloquear mesmo assim?',
-                              new TAction([__CLASS__, 'onConfirmarSobreposicao'], ['static' => 1]), null, 'Bloqueio sobre horário marcado', 'Bloquear mesmo assim', 'Não bloquear');
-                return;
             }
 
             $avisosAtendimento = AgendaConflitoService::avisosAtendimento($this->periodosGravados);
@@ -334,6 +313,10 @@ class BloqueioForm extends TPage
             {
                 new TMessage('warning', 'Bloqueio salvo. Ele está sobrepondo o período sem atendimento:<br><br>' . AgendaConflitoService::listaParaAviso($avisosAtendimento));
             }
+            if ($this->repeticoesIgnoradas > 0)
+            {
+                TToast::show('warning', "{$this->repeticoesIgnoradas} repetição(ões) não criada(s): caem fora do horário normal da agenda", 'topRight', 'fas:exclamation-triangle');
+            }
 
             TScript::create("$('#agendamentos').data('fullcalendar').refetchEvents()");
                         TScript::create("Template.closeRightPanel();"); 
@@ -347,13 +330,6 @@ class BloqueioForm extends TPage
             TTransaction::rollback(); // undo all pending operations
         }
     }
-    /** "Bloquear mesmo assim": salva de novo, agora com a sobreposicao confirmada. */
-    public static function onConfirmarSobreposicao($param = null)
-    {
-        TScript::create("(function () { var f = $('form[name=" . self::$formName . "]'); f.find('[name=bloqueio_sobreposicao_confirmada]').val('1');"
-            . " f.find('[onclick*=\"method=onSave\"]').first().click(); })();");
-    }
-
     public static function onDeleteBloqueio($param = null) 
     {
         try 
@@ -553,6 +529,13 @@ class BloqueioForm extends TPage
         $newObject->dt_final = date('Y-m-d H:i:s', strtotime("{$newObject->dt_inicio} +{$minutesDiff} minutes"));
         //$newObject->agendamento_original_id = $object->id;
 
+        // repeticao que cai toda fora do horario normal (ex.: fim de semana em "todos os dias") nao e criada; as outras seguem a regra
+        if (!AgendaConflitoService::temHorarioNormal((int) $newObject->agenda_id, (string) $newObject->dt_inicio, (string) $newObject->dt_final))
+        {
+            $this->repeticoesIgnoradas++;
+            return;
+        }
+        AgendaConflitoService::exigirPodeBloquear((int) $newObject->agenda_id, (string) $newObject->dt_inicio, (string) $newObject->dt_final);
         $newObject->store();
         $this->periodosGravados[] = [(int) $newObject->agenda_id, (string) $newObject->dt_inicio, (string) $newObject->dt_final];
 

@@ -79,14 +79,14 @@ try {
     igual('criar: antes de abrir', null, $periodo($h('07:00'), $h('08:30')));
     igual('criar: depois de fechar', null, $periodo($h('18:00'), $h('20:00')));
     igual('criar: no sabado (nao atende)', null, $periodo($h('10:00', $sab), $h('12:00', $sab)));
-    ok('nao cria: em horario normal', strpos((string) $periodo($h('10:00'), $h('11:00')), 'só pode ser criada') !== false);
-    ok('nao cria: comeca no normal e entra no intervalo, mostrando o trecho', strpos((string) ($m = $periodo($h('11:00'), $h('12:30'))), '11:00') !== false && strpos((string) $m, 'só pode ser criada') !== false, (string) $m);
-    ok('nao cria: do fechado para o normal', strpos((string) $periodo($h('08:00'), $h('10:00')), 'só pode ser criada') !== false);
+    ok('nao cria: todo em horario normal', strpos((string) $periodo($h('10:00'), $h('11:00')), 'precisa pegar') !== false);
+    igual('criar: parte em horario normal e parte no intervalo', null, $periodo($h('11:00'), $h('12:30')));
+    igual('criar: parte fechada e parte em horario normal', null, $periodo($h('08:00'), $h('10:00')));
     ok('nao cria: fim antes do inicio', strpos((string) $periodo($h('13:00'), $h('12:00')), 'depois do início') !== false);
 
     $bloqueio($h('14:00'), $h('16:00'));
     igual('criar: dentro de bloqueio', null, $periodo($h('14:30'), $h('15:00')));
-    ok('nao cria: passa do fim do bloqueio', strpos((string) $periodo($h('15:30'), $h('16:30')), 'só pode ser criada') !== false);
+    igual('criar: parte no bloqueio e parte em horario normal', null, $periodo($h('15:30'), $h('16:30')));
     $bloqueio($h('10:00'), $h('12:01'));
     igual('criar: bloqueio emendado com o intervalo', null, $periodo($h('11:00'), $h('12:30')));
     igual('criar: sexta a noite ate o sabado inteiro (varios dias, tudo fechado)', null, $periodo($h('19:00', date('Y-m-d', strtotime($sab . ' -1 day'))), $h('20:00', $sab)));
@@ -98,6 +98,8 @@ try {
     // ---------- durante a excecao ----------
     ok('sem excecao: agendamento no intervalo barra e indica a excecao', strpos((string) $livre($h('12:15'), $h('12:45')), 'Exceção') !== false);
     ok('sem excecao: agendamento em bloqueio barra', strpos((string) $livre($h('14:30'), $h('15:00')), 'um bloqueio') !== false);
+    ok('sem excecao: compromisso no intervalo barra e indica a excecao', strpos((string) $livreComp($h('12:15'), $h('12:45')), 'Exceção') !== false);
+    ok('sem excecao: compromisso no sabado barra', strpos((string) $livreComp($h('10:30', $sab), $h('11:00', $sab)), 'não atende') !== false);
     ok('sem excecao: compromisso em bloqueio barra', strpos((string) $livreComp($h('14:30'), $h('15:00')), 'um bloqueio') !== false);
 
     $exI = $excecao($h('12:00'), $h('13:00'));
@@ -113,6 +115,9 @@ try {
     ok('agendamento: passa da excecao e entra no bloqueio: barra', strpos((string) $livre($h('15:00'), $h('15:45')), 'um bloqueio') !== false);
     ok('agendamento: passa do horario da excecao no sabado: barra', strpos((string) $livre($h('11:30', $sab), $h('12:30', $sab)), 'não atende') !== false);
     igual('compromisso: no bloqueio liberado', null, $livreComp($h('14:30'), $h('15:00')));
+    igual('compromisso: no intervalo liberado', null, $livreComp($h('12:15'), $h('12:45')));
+    igual('compromisso: no nao atende liberado', null, $livreComp($h('10:30', $sab), $h('11:00', $sab)));
+    ok('compromisso: passa da excecao no sabado: barra', strpos((string) $livreComp($h('11:30', $sab), $h('12:30', $sab)), 'não atende') !== false);
     igual('compromisso: dentro da excecao, sem aviso', [], $avisos($h('12:15'), $h('12:45')));
     ok('compromisso: fora da excecao continua avisando', strpos((string) (($avisos($h('18:30'), $h('19:00')))[0] ?? ''), 'fora do atendimento') !== false);
 
@@ -125,6 +130,7 @@ try {
 
     // ---------- bloqueio novo sobre excecao ----------
     ok('bloqueio novo sobre excecao: nao pode', strpos((string) $erro(fn() => AgendaConflitoService::exigirSemExcecao($agenda, $h('12:15'), $h('13:30'))), 'uma exceção') !== false);
+    ok('bloqueio pela regra completa, sobre excecao: nao pode', strpos((string) $erro(fn() => AgendaConflitoService::exigirPodeBloquear($agenda, $h('12:30'), $h('13:30'))), 'uma exceção') !== false);
     igual('bloqueio novo fora da excecao: pode', null, $erro(fn() => AgendaConflitoService::exigirSemExcecao($agenda, $h('16:00'), $h('17:00'))));
 
     // ---------- tela ----------
@@ -134,7 +140,7 @@ try {
     $dt = fn($d) => date('d/m/Y H:i', strtotime($d));
     $qt = fn() => (int) q("SELECT count(*) c FROM agenda_excecao WHERE observacao = '" . MARCA_EX . " TELA'")[0]['c'];
     $s = $form(['id' => '', 'agendas' => [$agenda], 'dt_inicio' => $dt($h('16:30')), 'dt_final' => $dt($h('17:00')), 'observacao' => MARCA_EX . ' TELA']);
-    ok('tela: recusa em horario normal, com o motivo', strpos($s, 'só pode ser criada') !== false && $qt() === 0, substr(strip_tags($s), -300));
+    ok('tela: recusa em horario normal, com o motivo', strpos($s, 'precisa pegar') !== false && $qt() === 0, substr(strip_tags($s), -300));
     $s = $form(['id' => '', 'agendas' => [$agenda], 'dt_inicio' => $dt($h('19:00')), 'dt_final' => $dt($h('20:00')), 'observacao' => MARCA_EX . ' TELA']);
     igual('tela: grava no nao atende', 1, $qt());
     $tela = (int) q("SELECT id FROM agenda_excecao WHERE observacao = '" . MARCA_EX . " TELA'")[0]['id'];

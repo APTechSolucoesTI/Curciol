@@ -698,6 +698,13 @@ class Agendamento extends TRecord
             $st = TTransaction::get()->prepare('SELECT dt_inicial, dt_final, estado_agenda_id FROM agendamento WHERE id = ?');
             $st->execute([(int) $object->id]);
             $this->horarioAnterior = $st->fetch(PDO::FETCH_ASSOC) ?: null;
+
+            $antes = $this->horarioAnterior;
+            $naoOcupam = [(string) EstadoAgenda::CANCELADO, (string) EstadoAgenda::NAO_COMPARECEU];
+            if ($antes && !empty($object->estado_agenda_id) && in_array((string) $antes['estado_agenda_id'], $naoOcupam, true) && !in_array((string) $object->estado_agenda_id, $naoOcupam, true))
+            {
+                AgendaConflitoService::exigirPodeSairDeCancelado((int) ($object->agenda_id ?? $this->agenda_id), (string) ($object->dt_inicial ?: $antes['dt_inicial']), (string) ($object->dt_final ?: $antes['dt_final']));
+            }
         }
 
         if ($object->dt_inicial) {

@@ -27,6 +27,7 @@ function limparAS(): void
     x("DELETE FROM convidado_compromisso WHERE compromisso_id IN (SELECT id FROM compromisso WHERE observacao LIKE {$obs})");
     x("DELETE FROM compromisso WHERE observacao LIKE {$obs}");
     x("DELETE FROM bloqueio WHERE observacao LIKE {$obs}");
+    x("DELETE FROM agenda_excecao WHERE observacao LIKE {$obs}");
     x("DELETE FROM pessoa WHERE nome LIKE {$obs}");
 }
 limparAS();
@@ -135,8 +136,8 @@ try {
     x("UPDATE agendamento SET estado_agenda_id = " . EstadoAgenda::CANCELADO . " WHERE id = {$ag}");
     igual('bloqueio sobre cancelado: nada', ['impedem' => [], 'avisam' => []], $sobre($h('09:00'), $h('10:00')));
 
-    // ---------- compromisso e bloqueio sobre o nao atende e o intervalo: podem, avisando ----------
-    igual('compromisso antes de abrir: pode', null, $erro(fn() => AgendaConflitoService::exigirLivreCompromisso($a1, $h('07:00'), $h('07:30'))));
+    // ---------- compromisso nao entra no nao atende nem no intervalo; o aviso e do bloqueio ----------
+    ok('compromisso antes de abrir: barra', strpos((string) $erro(fn() => AgendaConflitoService::exigirLivreCompromisso($a1, $h('07:00'), $h('07:30'))), 'fora do atendimento') !== false);
     $avisos = function (array $periodos) { TTransaction::open('escritorio'); $r = AgendaConflitoService::avisosAtendimento($periodos); TTransaction::close(); return $r; };
     igual('aviso: dentro do atendimento nao tem', [], $avisos([[$a1, $h('12:30'), $h('13:00')]]));
     $r = $avisos([[$a1, $h('07:00'), $h('07:30')], [$a1, $h('07:00'), $h('07:30')]]);
@@ -156,27 +157,64 @@ try {
     }
 
     // ---------- pelo onSave real do bloqueio ----------
-    x("UPDATE agendamento SET estado_agenda_id = " . EstadoAgenda::AGENDADO . " WHERE id = {$ag}");
-    $form = function (array $extra) use ($a1, $h) {
-        $p = ['id' => '', 'agenda_id' => $a1, 'agendas' => [$a1], 'dt_inicio' => date('d/m/Y H:i', strtotime($h('09:00'))), 'dt_final' => date('d/m/Y H:i', strtotime($h('10:00'))), 'observacao' => MARCA_AS . ' FORM', 'habilitar_repeticao' => 'N'] + $extra;
+    $form = function (array $extra, string $ini = '09:00', string $fim = '10:00') use ($a1, $h) {
+        $p = ['id' => '', 'agenda_id' => $a1, 'agendas' => [$a1], 'dt_inicio' => date('d/m/Y H:i', strtotime($h($ini))), 'dt_final' => date('d/m/Y H:i', strtotime($h($fim))), 'observacao' => MARCA_AS . ' FORM', 'habilitar_repeticao' => 'N'] + $extra;
         $_POST = $p; $_REQUEST = $p;
         return saida(function () use ($p) { (new BloqueioForm($p))->onSave($p); });
     };
     $qtd = fn() => (int) q("SELECT count(*) c FROM bloqueio WHERE observacao = '" . MARCA_AS . " FORM'")[0]['c'];
-    $s = $form([]);
-    ok('tela: sobre agendado pergunta', strpos($s, 'Deseja bloquear mesmo assim') !== false, substr($s, 0, 400));
-    igual('tela: sem confirmar nao grava', 0, $qtd());
-    $s = $form(['bloqueio_sobreposicao_confirmada' => '1']);
-    igual('tela: confirmado grava', 1, $qtd());
-    x("DELETE FROM bloqueio WHERE observacao = '" . MARCA_AS . " FORM'");
-    x("UPDATE agendamento SET estado_agenda_id = " . EstadoAgenda::CONFIRMADO . " WHERE id = {$ag}");
-    $s = $form(['bloqueio_sobreposicao_confirmada' => '1']);
-    ok('tela: sobre confirmado nao passa, nem confirmando', strpos($s, 'há agendamento confirmado') !== false, substr($s, 0, 400));
-    igual('tela: sobre confirmado nada gravado', 0, $qtd());
+    $limparForm = fn() => x("DELETE FROM bloqueio WHERE observacao = '" . MARCA_AS . " FORM'");
+    foreach ([EstadoAgenda::AGENDADO => 'agendado', EstadoAgenda::CONFIRMADO => 'confirmado', EstadoAgenda::EM_ATENDIMENTO => 'em atendimento'] as $estado => $nome)
+    {
+        x("UPDATE agendamento SET estado_agenda_id = {$estado} WHERE id = {$ag}");
+        $s = $form([]);
+        ok("tela: bloqueio sobre {$nome} nao passa e manda cancelar ou reagendar", strpos($s, 'Cancele ou reagende') !== false && strpos($s, MARCA_AS) !== false && $qtd() === 0, substr($s, -400));
+    }
+    $s = $form([], '11:30', '11:45');
+    ok('tela: bloqueio sobre compromisso nao passa', strpos($s, 'Cancele ou reagende') !== false && strpos($s, 'Compromisso em') !== false && $qtd() === 0, substr($s, -400));
 
-    // repeticao anual e aviso, pela tela
+    // bloqueio sobre bloqueio
+    $form([], '13:00', '13:30');
+    igual('tela: bloqueio em horario livre grava', 1, $qtd());
+    $s = $form([], '13:15', '13:45');
+    ok('tela: bloqueio sobre bloqueio nao passa', strpos($s, 'um bloqueio') !== false && $qtd() === 1, substr($s, -400));
+    $meu = (int) q("SELECT id FROM bloqueio WHERE observacao = '" . MARCA_AS . " FORM'")[0]['id'];
+    igual('bloqueio editado no proprio horario nao barra nele mesmo', null, $erro(fn() => AgendaConflitoService::exigirPodeBloquear($a1, $h('13:00'), $h('13:45'), $meu)));
+    $limparForm();
+
+    // precisa pegar horario normal
+    $s = $form([], '07:00', '07:30');
+    ok('tela: bloqueio todo antes de abrir nao passa', strpos($s, 'precisa pegar') !== false && $qtd() === 0, substr($s, -400));
+    $s = $form([], '07:30', '08:30');
+    ok('tela: parte fechada e parte normal grava e avisa', $qtd() === 1 && strpos($s, 'está sobrepondo') !== false, substr($s, -400));
+    $limparForm();
+    x("UPDATE agenda SET horario_inicio_intervalo = '12:01', horario_fim_intervalo = '12:59' WHERE id = {$a1}");
+    igual('so o intervalo, de 12:00 a 13:00: nao tem horario normal', false, (function () use ($a1, $h) { TTransaction::open('escritorio'); $r = AgendaConflitoService::temHorarioNormal($a1, $h('12:00'), $h('13:00')); TTransaction::close(); return $r; })());
+    x("UPDATE agenda SET horario_inicio_intervalo = NULL, horario_fim_intervalo = NULL WHERE id = {$a1}");
+
+    // cancelado: pode bloquear por cima, mas ele nao muda mais de estado
+    x("UPDATE agendamento SET estado_agenda_id = " . EstadoAgenda::CANCELADO . " WHERE id = {$ag}");
+    $mudar = fn($estado) => $erro(function () use ($ag, $estado) { $o = new Agendamento($ag); $o->estado_agenda_id = $estado; $o->store(); });
+    igual('sem bloqueio: cancelado pode mudar de estado', null, $mudar(EstadoAgenda::AGENDADO));
+    x("UPDATE agendamento SET estado_agenda_id = " . EstadoAgenda::CANCELADO . " WHERE id = {$ag}");
+    $s = $form([]);
+    igual('tela: bloqueio sobre cancelado grava', 1, $qtd());
+    ok('cancelado sob bloqueio: nao muda de estado', strpos((string) $mudar(EstadoAgenda::AGENDADO), 'não pode mudar de situação') !== false);
+    ok('cancelado sob bloqueio: nem para confirmado', strpos((string) $mudar(EstadoAgenda::CONFIRMADO), 'não pode mudar de situação') !== false);
+    igual('cancelado sob bloqueio: continua cancelado', (int) EstadoAgenda::CANCELADO, (int) q("SELECT estado_agenda_id e FROM agendamento WHERE id = {$ag}")[0]['e']);
+    igual('cancelado sob bloqueio: guardar sem mudar o estado pode', null, $mudar(EstadoAgenda::CANCELADO));
+    x("INSERT INTO agenda_excecao (agenda_id, dt_inicio, dt_final, observacao) VALUES ({$a1}, '" . $h('09:00') . "', '" . $h('10:00') . "', '" . MARCA_AS . "')");
+    igual('cancelado sob bloqueio, com excecao: pode mudar', null, $mudar(EstadoAgenda::AGENDADO));
+    x("DELETE FROM agenda_excecao WHERE observacao = '" . MARCA_AS . "'");
+    x("UPDATE agendamento SET estado_agenda_id = " . EstadoAgenda::CANCELADO . " WHERE id = {$ag}");
+    $limparForm();
+    igual('bloqueio removido: cancelado volta a poder mudar', null, $mudar(EstadoAgenda::AGENDADO));
+    x("UPDATE agendamento SET estado_agenda_id = " . EstadoAgenda::CANCELADO . " WHERE id = {$ag}");
+
+    // repeticao anual e aviso, pela tela (agenda atendendo todos os dias, para as datas nao cairem em dia fechado)
+    x("UPDATE agenda SET dias = '0,1,2,3,4,5,6' WHERE id = {$a1}");
     $anual = function (array $extra) use ($a1, $h) {
-        $p = ['id' => '', 'agenda_id' => $a1, 'agendas' => [$a1], 'dt_inicio' => date('d/m/Y H:i', strtotime($h('07:00'))), 'dt_final' => date('d/m/Y H:i', strtotime($h('07:30'))), 'observacao' => MARCA_AS . ' ANUAL'] + $extra;
+        $p = ['id' => '', 'agenda_id' => $a1, 'agendas' => [$a1], 'dt_inicio' => date('d/m/Y H:i', strtotime($h('07:30'))), 'dt_final' => date('d/m/Y H:i', strtotime($h('08:30'))), 'observacao' => MARCA_AS . ' ANUAL'] + $extra;
         $_POST = $p; $_REQUEST = $p;
         return saida(function () use ($p) { (new BloqueioForm($p))->onSave($p); });
     };
@@ -184,7 +222,17 @@ try {
     $datas = array_column(q("SELECT to_char(dt_inicio, 'YYYY-MM-DD') d FROM bloqueio WHERE observacao = '" . MARCA_AS . " ANUAL' ORDER BY dt_inicio"), 'd');
     $esperadas = [$dia, date('Y-m-d', strtotime($dia . ' +1 year')), date('Y-m-d', strtotime($dia . ' +2 years'))];
     igual('tela: bloqueio anual cria a original e as repeticoes', $esperadas, $datas);
-    ok('tela: bloqueio fora do horario grava e avisa', strpos($s, 'está sobrepondo') !== false && strpos($s, 'fora do atendimento') !== false, substr($s, -500));
+    ok('tela: bloqueio pegando fora do horario grava e avisa', strpos($s, 'está sobrepondo') !== false && strpos($s, 'fora do atendimento') !== false, substr($s, -500));
+    x("UPDATE agenda SET dias = '1,2,3,4,5' WHERE id = {$a1}");
+
+    // "todos os dias" com fim de semana fechado: as repeticoes do fim de semana nao sao criadas
+    $segunda = date('Y-m-d', strtotime('next monday', strtotime($dia . ' +40 days')));
+    $p = ['id' => '', 'agenda_id' => $a1, 'agendas' => [$a1], 'dt_inicio' => date('d/m/Y H:i', strtotime($segunda . ' 09:00')), 'dt_final' => date('d/m/Y H:i', strtotime($segunda . ' 09:30')), 'observacao' => MARCA_AS . ' DIARIO',
+          'habilitar_repeticao' => 'S', 'tipo_repeticao' => 'TD', 'quantidade_repeticoes' => '6', 'repetir_ate' => ''];
+    $_POST = $p; $_REQUEST = $p;
+    saida(function () use ($p) { (new BloqueioForm($p))->onSave($p); });
+    $diarios = array_column(q("SELECT EXTRACT(DOW FROM dt_inicio)::int d FROM bloqueio WHERE observacao = '" . MARCA_AS . " DIARIO' ORDER BY dt_inicio"), 'd');
+    ok('repeticao diaria: cria os dias uteis e pula o fim de semana', count($diarios) >= 5 && !array_intersect($diarios, [0, 6]), json_encode($diarios));
 } finally {
     while (TTransaction::get()) { TTransaction::rollback(); }
     $_POST = []; $_REQUEST = [];
