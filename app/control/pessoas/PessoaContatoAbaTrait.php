@@ -744,7 +744,7 @@ trait PessoaContatoAbaTrait
                if(!element.attr('edit')){
                    element.attr('edit', base64_encode(element.html()));
                }
-               setTimeout(function () { var f = $('form[name=" . self::$formName . "]'); f.find('input[name=\"pessoa_contato_pessoa_nome\"]').prop('readonly', f.find('input[name=\"pessoa_contato_pessoa_principal\"]').is(':checked')); }, 100);
+               $('form[name=" . self::$formName . "] input[name=\"pessoa_contato_pessoa_nome\"]').prop('readonly', " . (($data->pessoa_contato_pessoa_principal ?? '') === 'S' ? 'true' : 'false') . ");
             ");
 
         }

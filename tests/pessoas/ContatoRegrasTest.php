@@ -192,6 +192,13 @@ try {
     $s = $adicionar(['pessoa_contato_pessoa_telefone' => '19912340085', 'pessoa_contato_pessoa_nome' => 'NOME DIGITADO', 'pessoa_contato_pessoa_principal' => 'S']);
     ok('Adicionar: numero livre vira principal com o nome do cadastro', strpos(strip_tags($naLista($s)), MARCA_CR . ' ESCOLHA') !== false && strpos(strip_tags($naLista($s)), 'NOME DIGITADO') === false, strip_tags($naLista($s)));
 
+    $abrirLinha = function (string $principal) {
+        $item = (object) ['nome' => 'X', 'telefone' => '19912340087', 'principal' => $principal, '__row__id' => 'bL', '__display__' => (object) ['nome' => 'X', 'telefone' => '19912340087', 'principal' => $principal]];
+        return saida(function () use ($item) { ClienteForm::onEditDetailPessoaContato(['__row__data' => base64_encode(serialize($item))]); });
+    };
+    ok('abrir contato principal: nome travado', strpos($abrirLinha('S'), ".prop('readonly', true)") !== false);
+    ok('abrir contato nao principal: nome livre', strpos($abrirLinha('N'), ".prop('readonly', false)") !== false);
+
     // ---------- trocar o contato principal: o e-mail e o nome do anterior ----------
     $TEL_P = '19912340074'; $TEL_N = '19912340075';
     $cenario = function (string $sufixo, array $principal, array $outro) {
