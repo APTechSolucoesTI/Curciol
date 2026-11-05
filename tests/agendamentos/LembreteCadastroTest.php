@@ -349,7 +349,7 @@ try {
     // as regras de conflito nao dependem do filtro
     TTransaction::open('escritorio');
     $erro = '';
-    try { AgendaConflitoService::exigirLivre($agendaId, "{$dia} 22:30", "{$dia} 23:00", 0, true); } catch (Exception $ex) { $erro = $ex->getMessage(); }
+    try { AgendaConflitoService::exigirLivreCompromisso($agendaId, "{$dia} 22:30", "{$dia} 23:00"); } catch (Exception $ex) { $erro = $ex->getMessage(); }
     TTransaction::close();
     ok('sem agenda no filtro: conflito com o bloqueio continua barrando', strpos($erro, 'bloqueio') !== false, $erro);
 

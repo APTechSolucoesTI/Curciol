@@ -109,7 +109,7 @@ try {
     igual('agendamento: no bloqueio liberado', null, $livre($h('14:30'), $h('15:00')));
     igual('agendamento: no nao atende liberado (sabado)', null, $livre($h('10:30', $sab), $h('11:00', $sab)));
     igual('agendamento: antes de abrir, liberado', null, $livre($h('08:00'), $h('08:30')));
-    igual('agendamento: comeca no normal e termina no intervalo liberado', null, $livre($h('11:30', date('Y-m-d', strtotime($seg . ' +0 day'))), $h('12:00')) === null ? null : 'erro');
+    igual('agendamento: comeca no intervalo liberado e termina no horario normal', null, $livre($h('12:30'), $h('13:30')));
     ok('agendamento: passa da excecao e entra no bloqueio: barra', strpos((string) $livre($h('15:00'), $h('15:45')), 'um bloqueio') !== false);
     ok('agendamento: passa do horario da excecao no sabado: barra', strpos((string) $livre($h('11:30', $sab), $h('12:30', $sab)), 'não atende') !== false);
     igual('compromisso: no bloqueio liberado', null, $livreComp($h('14:30'), $h('15:00')));
