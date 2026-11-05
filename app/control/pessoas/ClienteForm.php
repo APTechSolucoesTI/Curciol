@@ -1316,6 +1316,7 @@ class ClienteForm extends TPage
             $action = new TAction(array($this, 'onDelete'));
             $action->setParameters($param);
             $action->setParameter('delete', 1);
+            $action->setParameter('static', '1');
 
             new TQuestion(AdiantiCoreTranslator::translate('Do you really want to delete ?'), $action);   
         }

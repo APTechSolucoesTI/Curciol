@@ -890,6 +890,7 @@ class RepresentanteLegalForm extends TPage
             $action = new TAction(array($this, 'onDelete'));
             $action->setParameters($param); // pass the key paramseter ahead
             $action->setParameter('delete', 1);
+            $action->setParameter('static', '1');
             // shows a dialog to the user
             new TQuestion(AdiantiCoreTranslator::translate('Do you really want to delete ?'), $action);   
         }
