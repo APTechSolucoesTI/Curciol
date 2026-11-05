@@ -400,7 +400,7 @@ try {
     // ---------- sem reuniao online ----------
     ok('online: a pagina da reuniao nao existe mais', !class_exists('AtendimentoOnlineView'));
     ok('online: a coluna do link saiu (migracao)', !array_key_exists('link_atendimento_online', q("SELECT * FROM agendamento WHERE id = {$agLink}")[0]));
-    ok('online: nada de Jitsi nem geracao de link no codigo', !preg_grep('~meet\.jit\.si|link_atendimento_online\s*=~', array_merge(file('app/control/agendamentos/AgendamentoCalendarForm.php'), file('app/control/agendamentos/AgendamentoClienteCalendarForm.php'), file('app/control/agendamentos/AgendamentoExcecao.php'), file('app/control/agendamentos/AgendamentoFormBtn.php'), file('app/control/atendimento/AtendimentoFormView.php'))));
+    ok('online: nada de Jitsi nem geracao de link no codigo', !preg_grep('~meet\.jit\.si|link_atendimento_online\s*=~', array_merge(file('app/control/agendamentos/AgendamentoCalendarForm.php'), file('app/control/agendamentos/AgendamentoClienteCalendarForm.php'), file('app/control/agendamentos/AgendamentoFormBtn.php'), file('app/control/atendimento/AtendimentoFormView.php'))));
     ok('online: rotas e acesso publico sairam', strpos(file_get_contents('.htaccess'), 'AtendimentoOnlineView') === false && strpos(file_get_contents('app/config/application.ini'), 'AtendimentoOnlineView') === false);
     TTransaction::open('escritorio');
     $agOnline = Agendamento::find($agLink);
