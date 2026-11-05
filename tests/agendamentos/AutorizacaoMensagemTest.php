@@ -83,7 +83,7 @@ try {
     saida(function () { MensagemAgendadaService::rodada(); });
     igual('lembrete nao sai', 0, count($enviadas));
     $l = q("SELECT situacao, motivo FROM mensagem_agendada WHERE agendamento_id = {$ag}")[0];
-    igual('lembrete cancelado com o motivo', [MensagemAgendada::CANCELADA, 'O cliente não autoriza receber mensagens'], [$l['situacao'], $l['motivo']]);
+    igual('lembrete cancelado com o motivo', [MensagemAgendada::CANCELADA, 'O cliente tirou a autorização'], [$l['situacao'], $l['motivo']]);
 
     // ---------- cadastro do cliente ----------
     $form = file_get_contents('app/control/pessoas/ClienteForm.php');

@@ -681,6 +681,7 @@ class ContraparteForm extends TPage
             {
                 $data->aceita_receber_mensagen_whatsapp = 'F';
             }
+            MensagemAgendadaService::exigirCadastroDoCliente($data->id ?? null, $data->aceita_receber_mensagen_whatsapp);
 
             $data->telefone = preg_replace('/[^0-9]/', '', $data->telefone);
             $data->cpf_cnpj = preg_replace('/[^0-9]/', '', $data->cpf_cnpj);

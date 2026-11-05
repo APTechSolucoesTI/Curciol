@@ -101,6 +101,49 @@ class MensagemAgendadaService
         }
     }
 
+    /** Lembretes aguardando o envio, em todos os agendamentos do cliente. */
+    public static function pendentesDoCliente(int $clienteId): array
+    {
+        return MensagemAgendada::where('situacao', '=', MensagemAgendada::PENDENTE)
+                               ->where('agendamento_id', 'in', "(SELECT id FROM agendamento WHERE cliente_id = {$clienteId})")
+                               ->orderBy('enviar_em')
+                               ->load() ?: [];
+    }
+
+    /** O cliente tirou a autorizacao: os lembretes saem e, ao autorizar de novo, e preciso agendar outra vez. */
+    public static function cancelarPendentesDoCliente(int $clienteId): void
+    {
+        foreach (self::pendentesDoCliente($clienteId) as $lembrete)
+        {
+            self::encerrar($lembrete, MensagemAgendada::CANCELADA, 'O cliente tirou a autorização');
+        }
+    }
+
+    /** Pergunta antes de tirar a autorizacao de quem tem lembrete agendado. */
+    public static function perguntaAoTirarAutorizacao(array $lembretes): string
+    {
+        $datas = array_map(function ($l) { return date('d/m/Y H:i', strtotime($l->enviar_em)); }, $lembretes);
+
+        return (count($lembretes) > 1 ? 'Este cliente tem lembretes agendados para ' : 'Este cliente tem um lembrete agendado para ') . AgendamentoService::camposPorExtenso($datas) . '.<br><br>'
+             . 'Se tirar a autorização, ' . (count($lembretes) > 1 ? 'eles serão cancelados' : 'ele será cancelado') . '. Ao autorizar de novo, será preciso agendar outra vez.<br><br>Tirar a autorização?';
+    }
+
+    /** Fora do cadastro do cliente nao ha como perguntar: com lembrete agendado, a autorizacao so sai por la. */
+    public static function exigirCadastroDoCliente($pessoaId, $autoriza): void
+    {
+        if (empty($pessoaId) || $autoriza === 'T')
+        {
+            return;
+        }
+
+        $pessoa = Pessoa::find((int) $pessoaId);
+
+        if ($pessoa && $pessoa->aceita_receber_mensagen_whatsapp === 'T' && self::pendentesDoCliente((int) $pessoa->id))
+        {
+            throw new Exception('Este cliente tem lembrete agendado. Para tirar a autorização, use o cadastro do cliente.');
+        }
+    }
+
     /** Arquivo da trava do envio (os testes seguram a trava para o cron nao pegar o que eles criam). */
     public static function arquivoDaTrava(): string
     {
@@ -203,7 +246,7 @@ class MensagemAgendadaService
         }
         if (!MensagemService::autorizado($agendamento))
         {
-            return 'O cliente não autoriza receber mensagens';
+            return 'O cliente tirou a autorização';
         }
         return null;
     }

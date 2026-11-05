@@ -291,6 +291,7 @@ class ClienteForm extends TPage
 
         $row1 = $this->form->addFields([new TLabel("Código:", null, '12px', null, '100%'),$id],[new TLabel("Autoriza receber mensagens pelo WhatsApp/E-mail?", null, '12px', null, '100%'),$aceita_receber_mensagen_whatsapp,new TLabel(new TImage('fas:info-circle #03A9F4')."Lembretes, confirmações de agendamento e atendimento via WhatsApp ou e-mail", '#607D8B', '9px', 'I')]);
         $row1->layout = ['col-sm-6',' col-sm-6'];
+        $this->form->addFields([new THidden('autorizacao_retirada_confirmada')]);
 
         $bcontainer_654b89b1308c8 = new BootstrapFormBuilder('bcontainer_654b89b1308c8');
         $this->bcontainer_654b89b1308c8 = $bcontainer_654b89b1308c8;
@@ -1102,7 +1103,27 @@ class ClienteForm extends TPage
             // contato principal: telefone dos Dados valido e a situacao de antes (ver PessoaContatoService)
             PessoaContatoService::exigirTelefoneValido($data->telefone);
             $contatos_antes = PessoaContatoService::estadoAtual($data->id ?? null);
+
+            // LGPD (05/11/2026): tirar a autorizacao de quem tem lembrete agendado pede confirmacao; confirmado, os lembretes sao cancelados
+            $tirou_autorizacao = !empty($pessoa_gravada) && $pessoa_gravada->aceita_receber_mensagen_whatsapp === 'T' && $data->aceita_receber_mensagen_whatsapp !== 'T';
+            $lembretes_agendados = $tirou_autorizacao ? MensagemAgendadaService::pendentesDoCliente((int) $pessoa_gravada->id) : [];
+            if ($lembretes_agendados && empty($param['autorizacao_retirada_confirmada']))
+            {
+                $pergunta = MensagemAgendadaService::perguntaAoTirarAutorizacao($lembretes_agendados);
+                TTransaction::rollbackAll();
+                new TQuestion($pergunta, new TAction([__CLASS__, 'onConfirmarRetirarAutorizacao'], ['static' => 1]), new TAction([__CLASS__, 'onManterAutorizacao'], ['static' => 1]),
+                              'Lembrete agendado', 'Tirar a autorização', 'Manter a autorização');
+                // para o salvar como os outros avisos do onSave (nos testes, excecao em vez de encerrar o processo)
+                if (!empty($GLOBALS['__salvar_sem_exit'])) { throw new RuntimeException('AUTORIZACAO_NAO_CONFIRMADA'); }
+                exit;
+            }
+
             $object->store(); // save the object 
+
+            if ($tirou_autorizacao)
+            {
+                MensagemAgendadaService::cancelarPendentesDoCliente((int) $pessoa_gravada->id);
+            }
 
             $repository = ClassificacoesCliente::where('pessoa_id', '=', $object->id);
             $repository->delete(); 
@@ -1120,7 +1141,7 @@ class ClienteForm extends TPage
             }
 
             $this->saveFile($object, $data, 'foto', $foto_dir);
-            TForm::sendData(self::$formName, (object)['id' => $object->id]);
+            TForm::sendData(self::$formName, (object)['id' => $object->id, 'autorizacao_retirada_confirmada' => '']);
 
             $loadPageParam = [];
 
@@ -1450,6 +1471,21 @@ class ClienteForm extends TPage
         {
             new TMessage('error', $e->getMessage());    
         }
+    }
+
+    /** "Tirar a autorização" no aviso de lembrete agendado: salva de novo, agora confirmado. */
+    public static function onConfirmarRetirarAutorizacao($param = null)
+    {
+        $form = json_encode(self::$formName);
+        TScript::create("(function () { var f = $('form[name=' + {$form} + ']'); f.find('[name=autorizacao_retirada_confirmada]').val('1');"
+            . " f.find('[onclick*=\"method=onSave\"]').first().click(); })();");
+    }
+
+    /** "Manter a autorização": a opcao volta a ficar marcada e nada foi gravado. */
+    public static function onManterAutorizacao($param = null)
+    {
+        $form = json_encode(self::$formName);
+        TScript::create("$('form[name=' + {$form} + '] [name=aceita_receber_mensagen_whatsapp]').prop('checked', true);");
     }
 
     public static function onVisualizarCadastrado($param = null) 

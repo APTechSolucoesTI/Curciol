@@ -981,6 +981,10 @@ class PessoaEditHeaderList extends TPage
                 {
                     PessoaDocumentoService::exigirRgValido($value, $object->tipo_pessoa_id);
                 }
+                elseif ($column === 'aceita_receber_mensagen_whatsapp')
+                {
+                    MensagemAgendadaService::exigirCadastroDoCliente($object->id, $value);
+                }
 
                 // contato principal: o telefone e o e-mail dos Dados e os do contato principal andam juntos (PessoaContatoService)
                 $contatos_antes = null;
