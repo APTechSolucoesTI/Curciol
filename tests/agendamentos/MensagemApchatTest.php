@@ -77,8 +77,10 @@ try {
     igual('producao: vazio = telefone do cliente', '5519987650001', MensagemService::destinoWhatsapp($ag, ''));
     igual('producao: vazio = e-mail do cliente', 'cliente.teste@exemplo.com.br', MensagemService::destinoEmail($ag, ''));
     $ag->cliente->aceita_receber_mensagen_whatsapp = 'F';
-    lanca('producao: cliente nao aceita WhatsApp', fn() => MensagemService::destinoWhatsapp($ag, ''), 'não aceita');
-    igual('producao: outro numero digitado nao depende da autorizacao do cliente', '5519912340000', MensagemService::destinoWhatsapp($ag, '19 91234-0000'));
+    lanca('sem autorizacao: nao envia WhatsApp', fn() => MensagemService::enviarWhatsapp($ag, null, 'oi', null, ''), 'não autorizou');
+    lanca('sem autorizacao: nem para outro numero digitado', fn() => MensagemService::enviarWhatsapp($ag, null, 'oi', null, '19 91234-0000'), 'não autorizou');
+    lanca('sem autorizacao: nao envia e-mail', fn() => MensagemService::enviarEmail($ag, 'T', 'oi', null, 'outro@exemplo.com.br'), 'não autorizou');
+    $ag->cliente->aceita_receber_mensagen_whatsapp = 'T';
     AmbienteService::forcarProducao(null);
     ok('sem app/config/ambiente.php nesta maquina = ambiente de teste', !AmbienteService::producao() || is_file(AmbienteService::ARQUIVO));
 

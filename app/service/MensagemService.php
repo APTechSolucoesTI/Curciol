@@ -53,6 +53,7 @@ class MensagemService
 
     const MSG_TESTE_SEM_DESTINO = 'Ambiente de teste: digite %s que vai receber a mensagem (o do cliente não é permitido).';
     const MSG_TESTE_DO_CLIENTE  = 'Ambiente de teste: %s é do cliente %s. Digite um destino de teste.';
+    const MSG_SEM_AUTORIZACAO   = 'O cliente não autorizou receber mensagens. Para enviar, clique em Visualizar cliente, ative a autorização e salve.';
 
     /** Variaveis dos templates do agendamento: [variavel => descricao]. */
     public static function variaveis(): array
@@ -271,12 +272,6 @@ class MensagemService
             throw new Exception(sprintf(self::MSG_TESTE_DO_CLIENTE, 'este número', $agendamento->cliente->nome));
         }
 
-        // a autorizacao e do cliente: vale quando a mensagem vai para um numero dele
-        if ($ehDoCliente && $agendamento->cliente->aceita_receber_mensagen_whatsapp != 'T')
-        {
-            throw new Exception('O cliente não aceita receber mensagens de WhatsApp.');
-        }
-
         return APChatContactService::numeroCanonico($numero);
     }
     
@@ -347,11 +342,28 @@ class MensagemService
         return array_values(array_unique($emails));
     }
 
+    /** LGPD (05/11/2026): o cliente autorizou receber mensagens do agendamento, por WhatsApp e por e-mail? */
+    public static function autorizado(Agendamento $agendamento): bool
+    {
+        return $agendamento->cliente->aceita_receber_mensagen_whatsapp === 'T';
+    }
+
+    /** Sem a autorizacao nada sai, para nenhum destino. */
+    public static function exigirAutorizacao(Agendamento $agendamento): void
+    {
+        if (!self::autorizado($agendamento))
+        {
+            throw new Exception(self::MSG_SEM_AUTORIZACAO);
+        }
+    }
+
     /**
      * WhatsApp pelo APChat. $titulo e $texto ainda com as variaveis (trocadas aqui). Fica registrado em mensagem.
      */
     public static function enviarWhatsapp(Agendamento $agendamento, ?string $titulo, string $texto, $template_escritorio_id, ?string $digitado): Mensagem
     {
+        self::exigirAutorizacao($agendamento);
+
         $numero = self::destinoWhatsapp($agendamento, $digitado);
         $texto = trim(TemplateEscritorio::replace($agendamento, $texto));
 
@@ -373,6 +385,8 @@ class MensagemService
      */
     public static function enviarEmail(Agendamento $agendamento, ?string $titulo, string $texto, $template_escritorio_id, ?string $digitado): Mensagem
     {
+        self::exigirAutorizacao($agendamento);
+
         $email = self::destinoEmail($agendamento, $digitado);
         $titulo = trim(TemplateEscritorio::replace($agendamento, (string) $titulo));
         $texto = TemplateEscritorio::replace($agendamento, $texto);

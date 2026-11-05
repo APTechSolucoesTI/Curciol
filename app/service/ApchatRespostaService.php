@@ -301,7 +301,8 @@ class ApchatRespostaService
     {
         $template = $templateId ? TemplateEscritorio::find($templateId) : null;
 
-        if (!$template || $template->habilitado != 'T')
+        // o cliente que tirou a autorizacao depois da confirmacao: a resposta dele vale, mas nada mais e enviado
+        if (!$template || $template->habilitado != 'T' || !MensagemService::autorizado($agendamento))
         {
             return;
         }

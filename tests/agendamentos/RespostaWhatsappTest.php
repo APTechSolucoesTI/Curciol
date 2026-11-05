@@ -68,7 +68,7 @@ $confirmacaoId = (int) (q("SELECT t.id FROM template_escritorio t JOIN agenda a 
 $novo = function (string $nome, string $destino, string $enviadaHa = '1 minute') use ($agendaId, $confirmacaoId) {
     TTransaction::open('escritorio');
     $c = TTransaction::get();
-    $st = $c->prepare('INSERT INTO pessoa (nome, tipo_pessoa_id) VALUES (?, 1) RETURNING id');
+    $st = $c->prepare("INSERT INTO pessoa (nome, tipo_pessoa_id, aceita_receber_mensagen_whatsapp) VALUES (?, 1, 'T') RETURNING id");
     $st->execute([MARCA_RESP . ' ' . $nome]);
     $pessoa = (int) $st->fetchColumn();
     $st = $c->prepare("INSERT INTO agendamento (cliente_id, estado_agenda_id, agenda_id, dt_inicial, dt_final) VALUES (?, ?, ?, now() + interval '1 day', now() + interval '1 day 30 minutes') RETURNING id");
@@ -119,6 +119,16 @@ try {
     $enviadas = [];
     $rodar();
     igual('SIM: rodar de novo nao repete nada', 0, count($enviadas));
+
+    // ---------- o cliente tirou a autorizacao depois da confirmacao: a resposta vale, nada mais e enviado ----------
+    [$agSemAut, $mSemAut] = $novo('SEM AUTORIZACAO', '5519912340040');
+    x("UPDATE pessoa SET aceita_receber_mensagen_whatsapp = 'F' WHERE id = (SELECT cliente_id FROM agendamento WHERE id = {$agSemAut})");
+    $responde('5519912340040', 'Sim');
+    $enviadas = [];
+    $rodar();
+    igual('sem autorizacao: a resposta do cliente confirma', EstadoAgenda::CONFIRMADO, $estado($agSemAut));
+    igual('sem autorizacao: resposta registrada', 'SIM', $resposta($mSemAut)['resposta']);
+    igual('sem autorizacao: nenhuma mensagem automatica', 0, count($enviadas));
 
     // ---------- NAO ----------
     $responde('5519912340002', 'NÃO.');

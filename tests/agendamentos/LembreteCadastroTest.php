@@ -51,7 +51,7 @@ $agendaId = (int) q("SELECT a.id FROM agenda a JOIN escritorio e ON e.id = a.esc
 
 $cliente = function (string $nome, array $campos = [], int $tipo = 1) {
     TTransaction::open('escritorio');
-    $st = TTransaction::get()->prepare('INSERT INTO pessoa (nome, tipo_pessoa_id) VALUES (?, ?) RETURNING id');
+    $st = TTransaction::get()->prepare("INSERT INTO pessoa (nome, tipo_pessoa_id, aceita_receber_mensagen_whatsapp) VALUES (?, ?, 'T') RETURNING id");
     $st->execute([MARCA_LEMBRETE . ' ' . $nome, $tipo]);
     $id = (int) $st->fetchColumn();
     foreach ($campos as $c => $v) { $u = TTransaction::get()->prepare("UPDATE pessoa SET {$c} = ? WHERE id = ?"); $u->execute([$v, $id]); }

@@ -128,7 +128,21 @@ class AgendamentoFormView extends TPage
         $row3 = $this->form->addFields([$label18,$text9]);
         $row3->layout = [' col-sm-12'];
 
-        $row5 = $this->form->addFields([$enviar_whatsapp,$enviar_email]);
+        // LGPD: sem a autorizacao do cliente os botoes de envio ficam bloqueados
+        $botoesEnvio = [$enviar_whatsapp,$enviar_email];
+
+        if (!MensagemService::autorizado($agendamento))
+        {
+            $enviar_whatsapp->getAction()->disable();
+            $enviar_email->getAction()->disable();
+
+            $avisoAutorizacao = new TElement('span');
+            $avisoAutorizacao->style = 'color:#d32f2f;font-size:13px;margin:0 8px;';
+            $avisoAutorizacao->add('<i class="fas fa-exclamation-triangle"></i> <b>O cliente não autorizou receber mensagens.</b> Para enviar, clique em Visualizar cliente, no topo, ative a autorização e salve.');
+            $botoesEnvio[] = $avisoAutorizacao;
+        }
+
+        $row5 = $this->form->addFields($botoesEnvio);
         $row5->layout = [' col-sm-12'];
 
         foreach (self::linhasDaConfirmacao($agendamento) as $linha)

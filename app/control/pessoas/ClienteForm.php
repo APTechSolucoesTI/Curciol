@@ -289,7 +289,7 @@ class ClienteForm extends TPage
         $this->form->addFields([new THidden('current_tab')]);
         $this->form->setTabFunction("$('[name=current_tab]').val($(this).attr('data-current_page'));");
 
-        $row1 = $this->form->addFields([new TLabel("Código:", null, '12px', null, '100%'),$id],[new TLabel("Autoriza receber mensagens pelo WhatsApp?", null, '12px', null, '100%'),$aceita_receber_mensagen_whatsapp,new TLabel(new TImage('fas:info-circle #03A9F4')."Lembretes e confirmações de agendamento e o atendimento do escritório pelo WhatsApp. O contato vai para o APChat sempre que o telefone é válido.", '#607D8B', '9px', 'I')]);
+        $row1 = $this->form->addFields([new TLabel("Código:", null, '12px', null, '100%'),$id],[new TLabel("Autoriza receber mensagens pelo WhatsApp/E-mail?", null, '12px', null, '100%'),$aceita_receber_mensagen_whatsapp,new TLabel(new TImage('fas:info-circle #03A9F4')."Lembretes, confirmações de agendamento e atendimento via WhatsApp ou e-mail", '#607D8B', '9px', 'I')]);
         $row1->layout = ['col-sm-6',' col-sm-6'];
 
         $bcontainer_654b89b1308c8 = new BootstrapFormBuilder('bcontainer_654b89b1308c8');

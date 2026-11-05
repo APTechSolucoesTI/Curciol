@@ -27,6 +27,8 @@ class MensagemAgendadaService
             throw new Exception('Informe a data e a hora do envio.');
         }
 
+        MensagemService::exigirAutorizacao($agendamento);
+
         $enviarEm = $data->format('Y-m-d H:i:00');
 
         if ($enviarEm <= date('Y-m-d H:i:s'))
@@ -198,6 +200,10 @@ class MensagemAgendadaService
         if ((string) $agendamento->dt_inicial <= date('Y-m-d H:i:s'))
         {
             return 'O horário do agendamento já passou';
+        }
+        if (!MensagemService::autorizado($agendamento))
+        {
+            return 'O cliente não autoriza receber mensagens';
         }
         return null;
     }
