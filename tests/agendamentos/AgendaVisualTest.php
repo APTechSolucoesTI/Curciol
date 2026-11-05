@@ -26,6 +26,7 @@ function limparAgendaMulti(): void
     x("DELETE FROM convidado_compromisso WHERE compromisso_id IN (SELECT id FROM compromisso WHERE observacao LIKE '{$m}%')");
     x("DELETE FROM compromisso WHERE observacao LIKE '{$m}%'");
     x("DELETE FROM bloqueio WHERE observacao LIKE '{$m}%'");
+    x("DELETE FROM agenda_excecao WHERE observacao LIKE '{$m}%'");
     $ags = "(SELECT id FROM agendamento WHERE cliente_id IN (SELECT id FROM pessoa WHERE nome LIKE '{$m}%'))";
     x("DELETE FROM agendamento_procedimento WHERE agendamento_id IN {$ags}");
     x("DELETE FROM estado_agendamento WHERE agendamento_id IN {$ags}");
@@ -56,7 +57,7 @@ try {
     // ---------- tela e filtros ----------
     $html = saida(function () { (new AgendamentosFilterForm([]))->show(); });
     ok('tela: Adicionar (compromisso, bloqueio, excecao) e Limpar filtros no cabecalho; clientes, agendas, periodo e legenda', strpos($html, 'Adicionar') !== false && strpos($html, 'CompromissoForm') !== false && strpos($html, 'BloqueioForm') !== false
-        && strpos($html, 'AgendamentoExcecao') !== false && strpos($html, 'onLimparFiltros') !== false && strpos($html, 'data-nome="cliente_id"') !== false && strpos($html, 'data-nome="agenda_id"') !== false
+        && strpos($html, 'AgendaExcecaoForm') !== false && strpos($html, 'onLimparFiltros') !== false && strpos($html, 'data-nome="cliente_id"') !== false && strpos($html, 'data-nome="agenda_id"') !== false
         && strpos($html, 'dt_busca_fim') !== false && strpos($html, 'agd-alternar') !== false && strpos($html, 'Estado do agendamento') !== false, substr(strip_tags($html), 0, 200));
     $pos = function ($t) use ($html) { $p = strpos($html, $t); return $p === false ? -1 : $p; };
     ok('tela: Limpar filtros entre Novo agendamento e Atualizar', $pos('Novo agendamento') > 0 && $pos('Novo agendamento') < $pos('Limpar filtros') && $pos('Limpar filtros') < $pos('Atualizar'));
@@ -122,24 +123,25 @@ try {
     $s = saida(function () { (new BloqueioForm($_POST))->onSave($_POST); });
     igual('bloqueio: um em cada agenda marcada', [$a1, $a2], array_map('intval', array_column(q("SELECT agenda_id FROM bloqueio WHERE observacao = '" . MARCA_AV . " bloqueio' ORDER BY agenda_id"), 'agenda_id')), substr(strip_tags($s), 0, 200));
 
-    // ---------- excecao (agendamento) em varias agendas ----------
+    // ---------- agendamentos da tela (antes vinham da tela antiga de excecao) ----------
     x("INSERT INTO pessoa (nome, tipo_pessoa_id) VALUES ('" . MARCA_AV . " CLIENTE', 1)");
     $cliente = (int) q("SELECT id FROM pessoa WHERE nome = '" . MARCA_AV . " CLIENTE'")[0]['id'];
-    $html = saida(function () { (new AgendamentoExcecao([]))->show(); });
-    ok('excecao nova: agendas no mesmo campo do filtro, que atualiza o profissional ao fechar', strpos($html, 'data-nome="agendas"') !== false && strpos($html, 'method=onChange') !== false, substr(strip_tags($html), 0, 160));
-    post(['id' => '', 'cliente_id' => (string) $cliente, 'especialidade_id' => '', 'dt_inicial' => '17/01/2030 09:00', 'dt_final' => '17/01/2030 09:30', 'online' => 'F', 'habilitar_repeticao' => 'N',
-          'observacao' => MARCA_AV, 'agendas' => [(string) $a1, (string) $a2],
-          'agendamento_procedimento_agendamento_id' => [''], 'agendamento_procedimento_agendamento___row__id' => ['1'], 'agendamento_procedimento_agendamento___row__data' => [''],
-          'agendamento_procedimento_agendamento_parceiro_id' => [(string) $proc['parceiro_id']], 'agendamento_procedimento_agendamento_procedimento_id' => [(string) $proc['procedimento_id']],
-          'agendamento_procedimento_agendamento_valor' => ['100,00'], 'agendamento_procedimento_agendamento_quantidade' => ['1,00'], 'agendamento_procedimento_agendamento_valor_total' => ['100,00']]);
-    $s = saida(function () { (new AgendamentoExcecao($_POST))->onSave($_POST); });
-    $criados = q("SELECT a.agenda_id, (SELECT count(*) FROM agendamento_procedimento p WHERE p.agendamento_id = a.id) procs FROM agendamento a WHERE a.cliente_id = {$cliente} ORDER BY a.agenda_id");
-    igual('excecao: um agendamento em cada agenda, com os procedimentos', [[$a1, 1], [$a2, 1]], array_map(function ($r) { return [(int) $r['agenda_id'], (int) $r['procs']]; }, $criados), substr(strip_tags($s), 0, 300));
+    foreach ([$a1, $a2] as $agendaFixa) {
+        $novoAg = (int) q("INSERT INTO agendamento (cliente_id, estado_agenda_id, agenda_id, dt_inicial, dt_final, online, observacao) VALUES ({$cliente}, " . EstadoAgenda::AGENDADO . ", {$agendaFixa}, '2030-01-17 09:00', '2030-01-17 09:30', 'F', '" . MARCA_AV . "') RETURNING id")[0]['id'];
+        x("INSERT INTO agendamento_procedimento (agendamento_id, procedimento_id, parceiro_id, quantidade, valor, valor_total) VALUES ({$novoAg}, {$proc['procedimento_id']}, {$proc['parceiro_id']}, 1, 100, 100)");
+    }
+    // excecao da agenda: liberada so durante o que o teste confere
+    $comExcecao = function (int $agenda, string $ini, string $fim, callable $f) {
+        x("INSERT INTO agenda_excecao (agenda_id, dt_inicio, dt_final, observacao) VALUES ({$agenda}, '{$ini}', '{$fim}', '" . MARCA_AV . " excecao')");
+        $r = $f();
+        x("DELETE FROM agenda_excecao WHERE observacao = '" . MARCA_AV . " excecao'");
+        return $r;
+    };
 
     // ---------- horario livre na agenda (30/10/2026) ----------
-    $livre = function (int $agenda, string $ini, string $fim, bool $excecao = false) {
+    $livre = function (int $agenda, string $ini, string $fim) {
         TTransaction::open('escritorio');
-        try { AgendaConflitoService::exigirLivre($agenda, $ini, $fim, 0, $excecao); TTransaction::close(); return ''; }
+        try { AgendaConflitoService::exigirLivre($agenda, $ini, $fim); TTransaction::close(); return ''; }
         catch (Throwable $e) { TTransaction::rollback(); return $e->getMessage(); }
     };
     $livreCompromisso = function (int $agenda, string $ini, string $fim) {
@@ -151,8 +153,6 @@ try {
     $choque = q("SELECT fl_permite_choque_horario f FROM agenda WHERE id = {$a1}")[0]['f'];
     if ($choque !== 'T') {
         ok('conflito: outro agendamento no mesmo horario', strpos($livre($a1, '2030-01-17 09:15', '2030-01-17 09:45'), 'Já existe um agendamento') !== false);
-        $s = saida(function () { (new AgendamentoExcecao($_POST))->onSave($_POST); });
-        ok('conflito: a excecao de novo no mesmo horario e recusada, com o motivo', strpos($s, 'Já existe um agendamento') !== false && count(q("SELECT 1 FROM agendamento WHERE cliente_id = {$cliente}")) === 2, substr(strip_tags($s), 0, 300));
     }
     $m = $livre($a1, '2030-01-16 11:00', '2030-01-16 12:00');
     ok('conflito: bloqueio no horario (com data e horas na mensagem)', strpos($m, 'Já existe um bloqueio') !== false && strpos($m, '16/01/2030 das 08:00 às 12:00') !== false, $m);
@@ -172,7 +172,7 @@ try {
         $ini = $folga . ' ' . substr($cfg['hi'], 0, 5);
         $m = $livre($a1, $ini, $mais($ini, 30));
         ok('atendimento: dia em que a agenda nao atende e recusado (e sugere a excecao)', strpos($m, 'não atende em') !== false && strpos($m, 'Exceção') !== false, $m);
-        igual('atendimento: a excecao pode no dia em que a agenda nao atende', '', $livre($a1, $ini, $mais($ini, 30), true));
+        igual('atendimento: com excecao, pode no dia em que a agenda nao atende', '', $comExcecao($a1, $ini, $mais($ini, 30), fn() => $livre($a1, $ini, $mais($ini, 30))));
     }
     $m = $livre($a1, $mais($abre, -60), $mais($abre, -30));
     ok('atendimento: antes do horario da agenda e recusado', strpos($m, 'fora do atendimento') !== false, $m);
@@ -181,7 +181,7 @@ try {
         $ii = $mais($util . ' ' . substr($cfg['ii'], 0, 5), 0);
         $m = $livre($a1, $ii, $mais($ii, 30));
         ok('atendimento: no intervalo da agenda e recusado', strpos($m, 'intervalo da agenda') !== false, $m);
-        igual('atendimento: a excecao pode no intervalo', '', $livre($a1, $ii, $mais($ii, 30), true));
+        igual('atendimento: com excecao, pode no intervalo', '', $comExcecao($a1, $ii, $mais($ii, 30), fn() => $livre($a1, $ii, $mais($ii, 30))));
         $m = $livreCompromisso($a1, $ii, $mais($ii, 30));
         igual('compromisso: no intervalo da agenda pode', '', $m);
         post(['id' => '', 'tipo_compromisso_id' => (string) $tipoCompromisso, 'dt_inicio' => date('d/m/Y H:i', strtotime($ii)), 'dt_final' => date('d/m/Y H:i', strtotime($mais($ii, 30))), 'habilitar_repeticao' => 'N',
@@ -192,7 +192,8 @@ try {
     }
     $meio = $mais($abre, 60);
     x("INSERT INTO bloqueio (agenda_id, dt_inicio, dt_final, observacao) VALUES ({$a1}, '{$meio}', '" . $mais($meio, 60) . "', '" . MARCA_AV . " bloqueio atendimento')");
-    ok('excecao: sobre bloqueio continua recusada', strpos($livre($a1, $meio, $mais($meio, 30), true), 'Já existe um bloqueio') !== false);
+    ok('sem excecao: sobre bloqueio e recusado', strpos($livre($a1, $meio, $mais($meio, 30)), 'Já existe um bloqueio') !== false);
+    igual('com excecao: sobre bloqueio pode', '', $comExcecao($a1, $meio, $mais($meio, 30), fn() => $livre($a1, $meio, $mais($meio, 30))));
     ok('compromisso: sobre bloqueio e recusado', strpos($livreCompromisso($a1, $meio, $mais($meio, 30)), 'Já existe um bloqueio') !== false);
     igual('compromisso: no atendimento e fora de bloqueio pode', '', $livreCompromisso($a1, $abre, $mais($abre, 30)));
     if ($folga) {
@@ -260,7 +261,7 @@ try {
     AgendamentoProcedimentoPadrao::completar(null, $item);
     ok('o parceiro do item e gravado sozinho', (int) $item->parceiro_id > 0);
     TTransaction::close();
-    foreach (['AgendamentoFormBtn', 'AgendamentoCalendarForm', 'AgendamentoExcecao'] as $tela) {
+    foreach (['AgendamentoFormBtn', 'AgendamentoCalendarForm'] as $tela) {
         $html = saida(function () use ($tela) { (new $tela([]))->show(); });
         ok("{$tela}: sem a coluna Parceiro nos procedimentos", strpos($html, '>Parceiro<') === false && strpos($html, 'Procedimento') !== false, substr(strip_tags($html), 0, 160));
     }

@@ -27,7 +27,7 @@ class AgendaVisual
     }
 
     /** Camada de cada tipo na mesma agenda: o de numero maior fica por cima (o intervalo, 4, vem do fundo da agenda). */
-    const CAMADAS = ['agendamento' => 1, 'compromisso' => 2, 'bloqueio' => 3];
+    const CAMADAS = ['agendamento' => 1, 'compromisso' => 2, 'bloqueio' => 3, 'excecao' => 5];
 
     /**
      * Aplica ao evento do FullCalendar o estilo do tipo (agendamento, compromisso, bloqueio) na cor da agenda e poe o
@@ -178,6 +178,20 @@ class AgendaVisual
             if (empty($e['camada']) || !isset($e['agenda_id']) || empty($e['start']) || empty($e['end']) || !empty($e['allDay'])) { continue; }
             $cobertura[(string) $e['agenda_id']][(int) $e['camada']][] = [$ts($e['start']), $ts($e['end'])];
         }
+        // durante a excecao, o bloqueio e o intervalo nao cobrem o que esta marcado nela
+        foreach ($cobertura as $agenda => $camadas) {
+            foreach ($camadas[5] ?? [] as [$ci, $cf]) {
+                foreach ([3, 4] as $c) {
+                    $novos = [];
+                    foreach ($cobertura[$agenda][$c] ?? [] as [$pi, $pf]) {
+                        if ($cf <= $pi || $ci >= $pf) { $novos[] = [$pi, $pf]; continue; }
+                        if ($ci > $pi) { $novos[] = [$pi, $ci]; }
+                        if ($cf < $pf) { $novos[] = [$cf, $pf]; }
+                    }
+                    if (isset($cobertura[$agenda][$c])) { $cobertura[$agenda][$c] = $novos; }
+                }
+            }
+        }
         return $cobertura;
     }
 
@@ -189,6 +203,8 @@ class AgendaVisual
         $pedacos = [[$ts($e['start']), $ts($e['end'])]];
         foreach ($cobertura[(string) ($e['agenda_id'] ?? '')] ?? [] as $outra => $intervalos) {
             if ($outra <= $camada) { continue; }
+            // a excecao so corta o bloqueio: o que esta marcado nela aparece
+            if ($outra === 5 && $camada !== 3) { continue; }
             foreach ($intervalos as [$ci, $cf]) {
                 $novos = [];
                 foreach ($pedacos as [$pi, $pf]) {
@@ -272,6 +288,7 @@ class AgendaVisual
             . '<span class="agd-leg"><span class="agd-amostra agd-am-comp" ' . $exemplo . '></span>Compromisso (tracejado, cor da agenda)</span>'
             . '<span class="agd-leg"><span class="agd-amostra agd-am-bloq" ' . $exemplo . '></span>Bloqueio (listrado, cor da agenda)</span>'
             . '<span class="agd-leg"><span class="agd-amostra agd-am-fundo"></span>Intervalo / não atende</span>'
+            . '<span class="agd-leg"><span class="agd-amostra agd-am-excecao"></span>Exceção (horário liberado)</span>'
             . '<span class="agd-leg"><span class="agd-amostra agd-am-incompleto"></span>Cadastro incompleto</span>'
             . '<span class="agd-leg"><i class="fas fa-lock" style="width:22px;text-align:center;color:#b45309"></i>Bloqueio no dia (sem agenda no filtro)</span>'
             . '</div>');
@@ -363,6 +380,8 @@ class AgendaVisual
             /* bloqueio listrado e compromisso tracejado, na cor da agenda */
             #agendamentos .fc-event.agd-bloqueio { background-image: repeating-linear-gradient(135deg, rgba(255,255,255,.55) 0 7px, rgba(255,255,255,0) 7px 14px); }
             #agendamentos .fc-event.agd-compromisso { border-style: dashed; border-width: 1.5px; }
+            #agendamentos .fc-event.agd-excecao { background: #e8f5e9 !important; border: 1.5px dotted #2e7d32 !important; color: #1b5e20 !important; }
+            .agd-am-excecao { background: #e8f5e9; border: 1.5px dotted #2e7d32; }
             #agendamentos .agd-ev-texto { background: rgba(255,255,255,.85); border-radius: 3px; padding: 0 3px; }
 
             /* cadastro incompleto: borda fina vermelha (a cor da borda do evento vem inline) */

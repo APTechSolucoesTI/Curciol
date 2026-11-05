@@ -132,7 +132,7 @@ class AgendamentosFilterForm extends TPage
         $adicionar->setButtonClass('btn btn-default btn-sm dropdown-toggle');
         $adicionar->addAction('Compromisso', new TAction(['CompromissoForm', 'onShow']), 'fas:briefcase #000000');
         $adicionar->addAction('Bloqueio', new TAction(['BloqueioForm', 'onShow']), 'fas:ban #607D8B');
-        $adicionar->addAction('Exceção', new TAction(['AgendamentoExcecao', 'onShow']), 'fas:calendar-plus #2196F3');
+        $adicionar->addAction('Exceção', new TAction(['AgendaExcecaoForm', 'onShow']), 'fas:calendar-plus #2196F3');
         $this->form->addHeaderWidget($adicionar);
 
         $btnCliente = $this->form->addHeaderAction("Cliente", new TAction(['ClienteForm', 'onShow'], ['fechar_ao_salvar' => 1]), 'fas:user-plus #4CAF50');

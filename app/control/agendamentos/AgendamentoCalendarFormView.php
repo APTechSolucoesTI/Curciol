@@ -316,6 +316,25 @@ class AgendamentoCalendarFormView extends TPage
                 }
             }
 
+            // excecao da agenda (05/11/2026): sem agenda no filtro nao aparece, como o intervalo e o nao atende
+            if (!empty($agenda_id))
+            {
+                foreach (AgendaExcecao::getObjects($criteriaBloqueio) ?: [] as $excecao)
+                {
+                    $agendaExcecao = Agenda::find($excecao->agenda_id);
+                    $evento = [];
+                    $evento['start'] = str_replace(' ', 'T', $excecao->dt_inicio);
+                    $evento['end'] = str_replace(' ', 'T', $excecao->dt_final);
+                    $evento['title'] = "<div class='agd-ev'><span class='agd-ev-l1'><i class='fas fa-unlock'></i> <span class='agd-ev-texto'>Exceção"
+                        . ($agendaExcecao ? ' · ' . htmlspecialchars((string) $agendaExcecao->nome) : '') . "</span></span>"
+                        . "<span class='agd-ev-l2'><span class='agd-ev-texto'>" . htmlspecialchars((string) $excecao->observacao) . "</span></span></div>";
+                    $evento['id'] = 'excecao-' . $excecao->id;
+                    $evento['title'] = AgendaVisual::resumo($evento['title'], 'Exceção', ['Horário' => AgendaVisual::horarioTexto($excecao->dt_inicio, $excecao->dt_final),
+                        'Agenda' => $agendaExcecao->nome ?? '', 'Observação' => $excecao->observacao]);
+                    $return[] = AgendaVisual::estilizar($evento, 'excecao', $agendaExcecao->cor ?? null, $excecao->agenda_id);
+                }
+            }
+
             // --------------------- COMPROMISSO ---------------------------------------------------------------------------------------------------------
             $criteriaCompromisso = new TCriteria;
             $criteriaCompromisso->add(new TFilter('dt_inicio', '<=', substr($param['end'], 0, 10).' 23:59:59'));
@@ -475,7 +494,11 @@ class AgendamentoCalendarFormView extends TPage
 
     public static function onClick($param)
     {
-        if (!empty($param['key']) && strpos($param['key'], 'bloqueio') !== false)
+        if (!empty($param['key']) && strpos($param['key'], 'excecao-') === 0)
+        {
+            AdiantiCoreApplication::loadPage('AgendaExcecaoForm', 'onEdit', ['key' => str_replace('excecao-', '', $param['key'])]);
+        }
+        elseif (!empty($param['key']) && strpos($param['key'], 'bloqueio') !== false)
         {
             AdiantiCoreApplication::loadPage('BloqueioForm', 'onEdit', ['key' => str_replace('bloqueio-', '', $param['key'])]);
         }

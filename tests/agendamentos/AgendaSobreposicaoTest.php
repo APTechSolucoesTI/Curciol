@@ -150,7 +150,7 @@ try {
     igual('anual ate uma data', ['2028-03-10', '2029-03-10'], DateService::gerarRepeticoesAnuais('2027-03-10', '2029-12-31'));
     igual('anual por quantidade', ['2028-03-10', '2029-03-10', '2030-03-10'], DateService::gerarRepeticoesAnuaisByQuantidade('2027-03-10', 3));
     igual('anual: 29 de fevereiro nao escorrega', ['2029-02-28', '2030-02-28', '2031-02-28', '2032-02-29'], DateService::gerarRepeticoesAnuaisByQuantidade('2028-02-29', 4));
-    foreach (['AgendamentoCalendarForm', 'AgendamentoExcecao', 'AgendamentoFormBtn', 'BloqueioForm', 'CompromissoForm'] as $tela)
+    foreach (['AgendamentoCalendarForm', 'AgendamentoFormBtn', 'BloqueioForm', 'CompromissoForm'] as $tela)
     {
         ok("{$tela}: repeticao anual sem o erro de depuracao", strpos(file_get_contents("app/control/agendamentos/{$tela}.php"), "'==' .json_encode") === false);
     }

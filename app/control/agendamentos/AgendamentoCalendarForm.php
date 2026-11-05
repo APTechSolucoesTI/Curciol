@@ -738,7 +738,7 @@ class AgendamentoCalendarForm extends TPage
                     $agendamento->dt_final = $data->dt_final;
                     $agendamento->dt_inicial = $data->dt_inicial;
 
-                    if (! $agendamento->validate()) 
+                    if (! $agendamento->validate() && AgendaConflitoService::foraDeExcecoes((int) $agenda->id, (string) $data->dt_inicial, (string) $data->dt_final)) 
                     {
                         throw new Exception('Não são permitidos agendamentos nesse horário');
                         TScript::create("preventRightPanel()");

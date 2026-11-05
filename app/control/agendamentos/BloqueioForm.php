@@ -300,6 +300,12 @@ class BloqueioForm extends TPage
                 }
             }
 
+            // bloqueio em cima de uma excecao: remova a excecao primeiro (ela liberaria o horario do bloqueio)
+            foreach ($this->periodosGravados as [$agendaPeriodo, $inicioPeriodo, $fimPeriodo])
+            {
+                AgendaConflitoService::exigirSemExcecao($agendaPeriodo, $inicioPeriodo, $fimPeriodo);
+            }
+
             // 05/11/2026: bloqueio sobre o que ja esta marcado. Confirmado ou em atendimento impede; o resto pede confirmacao.
             $sobreposicoes = AgendaConflitoService::sobreposicoesDoBloqueio($this->periodosGravados);
             if ($sobreposicoes['impedem'])
