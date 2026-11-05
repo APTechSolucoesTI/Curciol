@@ -61,8 +61,9 @@ $agendamento = function (int $agenda, string $ini, string $fim, $estado = Estado
 };
 $compromisso = function (int $agenda, string $ini, string $fim) {
     TTransaction::open('escritorio');
-    $st = TTransaction::get()->prepare('INSERT INTO compromisso (agenda_id, dt_inicio, dt_final, observacao) VALUES (?, ?, ?, ?) RETURNING id');
-    $st->execute([$agenda, $ini, $fim, MARCA_AS]);
+    $tipo = (int) TTransaction::get()->query('SELECT id FROM tipo_compromisso ORDER BY id LIMIT 1')->fetchColumn();
+    $st = TTransaction::get()->prepare('INSERT INTO compromisso (agenda_id, tipo_compromisso_id, dt_inicio, dt_final, observacao) VALUES (?, ?, ?, ?, ?) RETURNING id');
+    $st->execute([$agenda, $tipo, $ini, $fim, MARCA_AS]);
     $id = (int) $st->fetchColumn();
     TTransaction::close();
     return $id;

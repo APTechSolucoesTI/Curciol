@@ -208,9 +208,9 @@ try {
         igual('mudou o telefone do principal: a copia na outra pessoa acompanha (descricao fica)', ['19998760041', 'MÃE', MARCA . ' MAE'], [$c['telefone'], $c['descricao'], $c['nome']]);
         igual('mudou o telefone do principal: contato com outro numero nao e mexido', '19998760099', estado($outra)['contatos'][0]['telefone']);
         $antes = PessoaContatoService::estadoAtual($mae);
-        sql("UPDATE pessoa_contato SET nome = 'NOME NOVO' WHERE id = {$cm}");
+        sql("UPDATE pessoa SET nome = '" . MARCA . " NOME NOVO' WHERE id = {$mae}");
         PessoaContatoService::aplicarPrincipal($mae, $antes);
-        igual('mudou o nome do principal: a copia acompanha', 'NOME NOVO', estado($filha)['contatos'][0]['nome']);
+        igual('mudou o nome do cadastro: o principal e a copia acompanham', MARCA . ' NOME NOVO', estado($filha)['contatos'][0]['nome']);
         // com idapchat a copia e achada pelo id (o mesmo numero no APChat), mesmo que o numero dela esteja diferente
         sql("UPDATE pessoa_contato SET idapchat = 777001 WHERE id IN ({$cm}, {$cf})");
         sql("UPDATE pessoa_contato SET telefone = '19998760040' WHERE id = {$cf}");

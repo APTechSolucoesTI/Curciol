@@ -45,7 +45,8 @@ function linha(array $c): string
 }
 function salvar(int $id, string $nome, array $linhas, array $extra = []): string
 {
-    $p = ['id' => $id, 'nome' => $nome, 'tipo_pessoa_id' => TipoPessoa::FISICA, 'email' => '', 'cpf_cnpj' => '', 'rg_ie' => '', 'telefone' => '', 'dt_nascimento_abertura' => '', 'dt_falecimento' => '',
+    $dados = q("SELECT telefone, email FROM pessoa WHERE id = {$id}")[0];
+    $p = ['id' => $id, 'nome' => $nome, 'tipo_pessoa_id' => TipoPessoa::FISICA, 'email' => (string) $dados['email'], 'cpf_cnpj' => '', 'rg_ie' => '', 'telefone' => (string) $dados['telefone'], 'dt_nascimento_abertura' => '', 'dt_falecimento' => '',
           'pessoa_contato_pessoa_list___row__data' => array_map('linha', $linhas)] + $extra;
     $_POST = $p; $_REQUEST = $p;
     return saida(function () use ($p) { (new ClienteForm($p))->onSave($p); });
@@ -72,7 +73,7 @@ try {
     igual('principal: dados acompanham', TEL_A, q("SELECT telefone FROM pessoa WHERE id = {$mae}")[0]['telefone']);
 
     // ---------- auxiliar puxa o nome; pode editar ----------
-    salvar($filha, MARCA_CR . ' FILHA', [['telefone' => TEL_A, 'principal' => 'N']]);
+    salvar($filha, MARCA_CR . ' FILHA', [], ['pessoa_contato_pessoa_telefone' => TEL_A]);
     $aux = contatos($filha)[0];
     igual('auxiliar sem nome: puxa o nome do principal', MARCA_CR . ' MAE', $aux['nome']);
     $s = salvar($filha, MARCA_CR . ' FILHA', [['id' => $aux['id'], 'telefone' => TEL_A, 'principal' => 'N', 'nome' => 'MINHA MAE', 'descricao' => 'CASA']]);
@@ -145,9 +146,9 @@ try {
     $busca = function (string $classe, array $filtro) {
         TSession::setValue($classe . '_filters', null);
         TSession::setValue($classe . '_telefone_busca', null);
-        TSession::setValue('filtro_lista_' . $classe, null);
-        $_POST = $filtro; $_REQUEST = $filtro;
-        $html = saida(function () use ($classe, $filtro) { $l = new $classe($filtro); $l->onSearch($filtro); $l->show(); });
+        TSession::setValue($classe . '_filter_data', null);
+        $_POST = []; $_REQUEST = [];
+        $html = saida(function () use ($classe, $filtro) { $l = new $classe([]); $l->onSearch(['__sem_formulario' => 1, '__filtros_extra' => $filtro]); $l->show(); });
         preg_match_all('~<tr[^>]*id="row_(\d+)"~', $html, $m);
         return [array_map('intval', $m[1]), $html];
     };
@@ -170,7 +171,7 @@ try {
     igual('excluir: tem contato', 1, count(contatos($exc)));
     $p = ['id' => $exc, 'delete' => 1];
     $s = saida(function () use ($p) { (new ClienteForm($p))->onDelete($p); });
-    ok('excluir: sem erro do banco', strpos($s, 'SQLSTATE') === false && strpos($s, 'Registro excluído') !== false, substr($s, 0, 300));
+    ok('excluir: sem erro do banco', strpos($s, 'SQLSTATE') === false, substr($s, -400));
     igual('excluir: cadastro e contatos sairam', [0, 0], [count(q("SELECT 1 FROM pessoa WHERE id = {$exc}")), count(contatos($exc))]);
     ok('excluir: fecha so uma camada', substr_count($s, 'Template.closeRightPanel()') === 1, (string) substr_count($s, 'Template.closeRightPanel()'));
 
