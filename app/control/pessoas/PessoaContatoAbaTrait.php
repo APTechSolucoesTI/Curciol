@@ -156,6 +156,8 @@ trait PessoaContatoAbaTrait
 
         // troca de numero confirmada pelo usuario (aviso do APChat no salvar; ver salvarContatos)
         $this->form->addFields([new THidden('apchat_troca_confirmada')]);
+        // nome ja escolhido na pergunta do contato encontrado (ver perguntarNomeDoContato)
+        $this->form->addFields([new THidden('pessoa_contato_nome_decidido')]);
 
         // aberto no meio de outra tarefa: ao salvar, fecha e volta para ela (ver Navegacao::continuarNoRegistro)
         $fecharAoSalvar = new THidden('fechar_ao_salvar');
@@ -207,6 +209,13 @@ trait PessoaContatoAbaTrait
             $grid_data = $this->contatoDaTela($data);
             $grid_data->__row__id = $__row__id;
 
+            if ($dono = self::donoComNomeDiferente($data, (array) $param))
+            {
+                TTransaction::close();
+                self::perguntarNomeDoContato($dono, $data, 'adicionar');
+                return;
+            }
+
             $__row__data = array_merge($grid_data->toArray(), (array)$grid_data->getVirtualData());
             $__row__data['__row__id'] = $__row__id;
             $__row__data['__display__']['nome'] =  $grid_data->nome;
@@ -245,6 +254,7 @@ trait PessoaContatoAbaTrait
             $data->pessoa_contato_pessoa_email = '';
             $data->pessoa_contato_pessoa_principal = '';
             $data->pessoa_contato_pessoa__row__id = '';
+            $data->pessoa_contato_nome_decidido = '';
 
             TForm::sendData(self::$formName, $data);
             TScript::create("
@@ -271,6 +281,7 @@ trait PessoaContatoAbaTrait
         catch (Exception $e) // in case of exception
         {
             TTransaction::rollbackAll();
+            TForm::sendData(self::$formName, (object) ['pessoa_contato_nome_decidido' => ''], false, false);
             new TMessage('error', $e->getMessage()); // shows the exception error message
         }
     }
@@ -341,6 +352,70 @@ trait PessoaContatoAbaTrait
     }
 
     /**
+     * Contato novo, ou que mudou de numero, com um nome digitado diferente do contato principal que tem esse numero em outro
+     * cadastro: o dono do numero, para o usuario escolher qual nome fica (05/11/2026). null: nada a perguntar.
+     */
+    private static function donoComNomeDiferente($data, array $param): ?array
+    {
+        if (!empty($data->pessoa_contato_nome_decidido) || ($data->pessoa_contato_pessoa_principal ?? '') === 'S')
+        {
+            return null;
+        }
+        $digitado = trim((string) ($data->pessoa_contato_pessoa_nome ?? ''));
+        $numero = PessoaContatoService::telefoneValido($data->pessoa_contato_pessoa_telefone ?? '');
+        if ($digitado === '' || $numero === null || self::telefoneDaLinhaEmEdicao($param) === $numero)
+        {
+            return null;
+        }
+        $dono = PessoaContatoService::donoDoPrincipal($numero, $data->id ?? null);
+        if (!$dono || mb_strtoupper(trim($dono['nome'])) === mb_strtoupper($digitado))
+        {
+            return null;
+        }
+
+        return $dono;
+    }
+
+    /** $depois: 'adicionar' (botao da aba) ou 'salvar' (rodape). */
+    private static function perguntarNomeDoContato(array $dono, $data, string $depois): void
+    {
+        $numero = PessoaContatoService::telefoneValido($data->pessoa_contato_pessoa_telefone ?? '');
+        $digitado = trim((string) $data->pessoa_contato_pessoa_nome);
+        $rotulo = function (string $nome) { return addslashes(htmlspecialchars(mb_strimwidth($nome, 0, 35, '…'), ENT_NOQUOTES)); };
+        $acao = function (string $usar) use ($numero, $depois) {
+            return new TAction([__CLASS__, 'onEscolherNomeContato'], ['static' => 1, 'usar' => $usar, 'telefone' => $numero, 'depois' => $depois]);
+        };
+        new TQuestion('Encontramos o contato <b>' . htmlspecialchars($dono['nome']) . '</b> com o número <b>' . PessoaContatoService::formatarTelefone($numero) . '</b>.<br><br>Qual nome deseja usar neste contato?',
+                      $acao('encontrado'), $acao('digitado'), 'Contato encontrado', 'Usar ' . $rotulo($dono['nome']), 'Manter ' . $rotulo($digitado));
+    }
+
+    /** Resposta da pergunta: acerta o nome e continua o que estava sendo feito. */
+    public static function onEscolherNomeContato($param = null)
+    {
+        try
+        {
+            $js = "var f = $('form[name=" . self::$formName . "]');";
+            if (($param['usar'] ?? '') === 'encontrado')
+            {
+                TTransaction::open(self::$database);
+                $nome = PessoaContatoService::nomeDoTelefone($param['telefone'] ?? '');
+                TTransaction::close();
+                $js .= " f.find('input[name=\"pessoa_contato_pessoa_nome\"]').val(" . json_encode($nome, JSON_UNESCAPED_UNICODE) . ");";
+            }
+            $js .= " f.find('[name=pessoa_contato_nome_decidido]').val('1');";
+            $js .= (($param['depois'] ?? '') === 'salvar')
+                ? " f.find('[onclick*=\"method=onSave\"]').first().click();"
+                : " f.find('[id=\"64be92cf7046f\"]').click();";
+            TScript::create('(function () { ' . $js . ' })();');
+        }
+        catch (Exception $e)
+        {
+            TTransaction::rollbackAll();
+            new TMessage('error', $e->getMessage());
+        }
+    }
+
+    /**
      * Salvar do rodape com contato digitado na aba e sem clicar em Adicionar ou no Salvar da linha: antes gravava o resto e
      * dizia "Registro salvo", perdendo o contato sem avisar (05/11/2026). Agora o contato entra junto, com as mesmas regras.
      *
@@ -357,6 +432,14 @@ trait PessoaContatoAbaTrait
         }
 
         $contato = $this->contatoDaTela($data);
+        if ($dono = self::donoComNomeDiferente($data, $param))
+        {
+            TTransaction::rollbackAll();
+            self::perguntarNomeDoContato($dono, $data, 'salvar');
+            // para o salvar como os outros avisos do onSave (nos testes, excecao em vez de encerrar o processo)
+            if (!empty($GLOBALS['__salvar_sem_exit'])) { throw new RuntimeException('NOME_DO_CONTATO_NAO_ESCOLHIDO'); }
+            exit;
+        }
         $rowId = !empty($data->pessoa_contato_pessoa__row__id) ? $data->pessoa_contato_pessoa__row__id : 'b' . uniqid();
         $item = (object) ['id' => $contato->id ?: null, 'nome' => $contato->nome, 'descricao' => $contato->descricao, 'telefone' => $contato->telefone,
                           'email' => $contato->email, 'principal' => $contato->principal, '__row__id' => $rowId, '__display__' => []];
@@ -422,9 +505,8 @@ trait PessoaContatoAbaTrait
     }
 
     /**
-     * Saida do telefone na aba Contatos: avisa se o formato e invalido; se o numero ja e o principal de outra pessoa, o
-     * contato nao principal puxa o nome completo dela (depois pode ser editado). Reabrindo o contato sem mudar o numero, o
-     * nome fica como esta.
+     * Saida do telefone na aba Contatos: avisa se o formato e invalido; com o nome vazio, se o numero ja e o principal de outra
+     * pessoa, preenche o nome dela. Com um nome digitado nao mexe: o Adicionar pergunta qual fica (perguntarNomeDoContato).
      */
     public static function onTelefoneContatoSaida($param = null)
     {
@@ -436,7 +518,7 @@ trait PessoaContatoAbaTrait
                 TToast::show('error', PessoaContatoService::MSG_TELEFONE_INVALIDO, 'topRight', 'fas:exclamation-circle');
                 return;
             }
-            if ($telefone === '' || ($param['pessoa_contato_pessoa_principal'] ?? '') === 'S' || self::telefoneDaLinhaEmEdicao($param) === PessoaContatoService::telefoneValido($telefone))
+            if ($telefone === '' || ($param['pessoa_contato_pessoa_principal'] ?? '') === 'S' || trim((string) ($param['pessoa_contato_pessoa_nome'] ?? '')) !== '')
             {
                 return;
             }
@@ -445,7 +527,9 @@ trait PessoaContatoAbaTrait
             TTransaction::close();
             if ($dono)
             {
-                TForm::sendData(self::$formName, (object) ['pessoa_contato_pessoa_nome' => $dono['nome']], false, false);
+                // a resposta pode chegar depois do Adicionar: so preenche se o telefone ainda e esse e o nome continua vazio
+                TScript::create("(function () { var f = $('form[name=" . self::$formName . "]'); var n = f.find('input[name=\"pessoa_contato_pessoa_nome\"]');"
+                    . " if (f.find('input[name=\"pessoa_contato_pessoa_telefone\"]').val().replace(/[^0-9]/g, '') === " . json_encode(preg_replace('/\D/', '', $telefone)) . " && n.val() === '') { n.val(" . json_encode($dono['nome'], JSON_UNESCAPED_UNICODE) . "); } })();");
             }
         }
         catch (Exception $e)

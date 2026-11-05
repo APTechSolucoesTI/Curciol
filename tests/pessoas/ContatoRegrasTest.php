@@ -136,6 +136,51 @@ try {
     ok('digitado incompleto: avisa em vez de dizer que salvou', strpos($s, 'Informe o telefone ou o e-mail') !== false && strpos($s, 'Registro salvo') === false, substr($s, 0, 300));
     igual('digitado incompleto: nada gravado', 1, count(contatos($novo)));
 
+    // ---------- nome digitado diferente do contato encontrado: o usuario escolhe ----------
+    $base = pessoa(MARCA_CR . ' ESCOLHA');
+    $campos = ['pessoa_contato_pessoa_telefone' => TEL_C, 'pessoa_contato_pessoa_nome' => "D'AVILA"];
+    $s = salvar($base, MARCA_CR . ' ESCOLHA', [], $campos);
+    ok('Salvar: pergunta qual nome usar', strpos($s, 'Qual nome deseja usar') !== false && strpos($s, 'NOME_DO_CONTATO_NAO_ESCOLHIDO') !== false, substr($s, 0, 300));
+    ok('pergunta: mostra o contato encontrado e os dois nomes', strpos($s, MARCA_CR . ' MAE NOVA') !== false && strpos($s, 'Usar ') !== false && strpos($s, "Manter D\\'AVILA") !== false, substr($s, -500));
+    igual('Salvar: sem escolher, nada gravado', 0, count(contatos($base)));
+    salvar($base, MARCA_CR . ' ESCOLHA', [], $campos + ['pessoa_contato_nome_decidido' => '1']);
+    igual('Salvar: manteve o nome digitado', "D'AVILA", contatos($base)[0]['nome'] ?? null);
+    x("DELETE FROM pessoa_contato WHERE pessoa_id = {$base}");
+
+    $adicionar = function (array $p) use ($base) {
+        $p = ['id' => $base, 'nome' => MARCA_CR . ' ESCOLHA'] + $p;
+        $_POST = $p; $_REQUEST = $p;
+        return saida(function () use ($p) { (new ClienteForm($p))->onAddDetailPessoaContatoPessoa($p); });
+    };
+    $s = $adicionar($campos);
+    ok('Adicionar: pergunta e nao coloca na lista', strpos($s, 'Qual nome deseja usar') !== false && strpos($s, 'Contato incluído') === false, substr($s, 0, 300));
+    ok('Adicionar: a resposta volta para o Adicionar', strpos($s, 'depois=adicionar') !== false, substr($s, -400));
+    $s = $adicionar($campos + ['pessoa_contato_nome_decidido' => '1']);
+    ok('Adicionar: escolhido, entra na lista', strpos($s, 'Qual nome deseja usar') === false && strpos($s, 'Contato incluído') !== false, substr($s, 0, 300));
+    $s = $adicionar(['pessoa_contato_pessoa_telefone' => TEL_C, 'pessoa_contato_pessoa_nome' => MARCA_CR . ' MAE NOVA']);
+    ok('Adicionar: nome igual ao encontrado nao pergunta', strpos($s, 'Qual nome deseja usar') === false, substr($s, 0, 300));
+    $s = $adicionar(['pessoa_contato_pessoa_telefone' => TEL_C]);
+    ok('Adicionar: nome vazio puxa o encontrado sem perguntar', strpos($s, 'Qual nome deseja usar') === false && strpos($s, MARCA_CR . ' MAE NOVA') !== false, substr($s, 0, 300));
+    $s = $adicionar(['pessoa_contato_pessoa_telefone' => '19912340079', 'pessoa_contato_pessoa_nome' => 'NINGUEM TEM']);
+    ok('Adicionar: numero sem principal nao pergunta', strpos($s, 'Qual nome deseja usar') === false, substr($s, 0, 300));
+    $linhaGrade = 'bgrade' . uniqid();
+    $emEdicao = ['pessoa_contato_pessoa__row__id' => $linhaGrade, 'pessoa_contato_pessoa_list___row__data' => [linha(['telefone' => TEL_C, 'nome' => 'NOME PROPRIO', '__row__id' => $linhaGrade])]];
+    $s = $adicionar($emEdicao + ['pessoa_contato_pessoa_telefone' => TEL_C, 'pessoa_contato_pessoa_nome' => 'NOME PROPRIO']);
+    ok('editando sem mudar o numero: nao pergunta, o nome e dele', strpos($s, 'Qual nome deseja usar') === false, substr($s, 0, 300));
+    $emEdicaoOutro = ['pessoa_contato_pessoa__row__id' => $linhaGrade, 'pessoa_contato_pessoa_list___row__data' => [linha(['telefone' => TEL_A, 'nome' => 'NOME PROPRIO', '__row__id' => $linhaGrade])]];
+    $s = $adicionar($emEdicaoOutro + ['pessoa_contato_pessoa_telefone' => TEL_C, 'pessoa_contato_pessoa_nome' => 'NOME PROPRIO']);
+    ok('editando e mudando para o numero de outro: pergunta', strpos($s, 'Qual nome deseja usar') !== false, substr($s, 0, 300));
+
+    $s = saida(function () { ClienteForm::onEscolherNomeContato(['usar' => 'encontrado', 'telefone' => TEL_C, 'depois' => 'adicionar']); });
+    ok('resposta Usar: poe o nome encontrado e clica no Adicionar', strpos($s, MARCA_CR . ' MAE NOVA') !== false && strpos($s, 'pessoa_contato_nome_decidido') !== false && strpos($s, '64be92cf7046f') !== false, substr($s, 0, 400));
+    $s = saida(function () { ClienteForm::onEscolherNomeContato(['usar' => 'digitado', 'telefone' => TEL_C, 'depois' => 'salvar']); });
+    ok('resposta Manter: nao mexe no nome e clica no Salvar', strpos($s, MARCA_CR . ' MAE NOVA') === false && strpos($s, 'pessoa_contato_nome_decidido') !== false && strpos($s, 'method=onSave') !== false, substr($s, 0, 400));
+
+    $s = saida(function () { ClienteForm::onTelefoneContatoSaida(['pessoa_contato_pessoa_telefone' => TEL_C, 'pessoa_contato_pessoa_nome' => 'DIGITADO']); });
+    ok('sair do telefone com nome digitado: nao troca o nome', strpos($s, MARCA_CR . ' MAE NOVA') === false, substr($s, 0, 300));
+    $s = saida(function () { ClienteForm::onTelefoneContatoSaida(['pessoa_contato_pessoa_telefone' => TEL_C, 'pessoa_contato_pessoa_nome' => '']); });
+    ok('sair do telefone sem nome: preenche, se o telefone ainda for esse', strpos($s, MARCA_CR . ' MAE NOVA') !== false && strpos($s, TEL_C) !== false, substr($s, 0, 300));
+
     // ---------- aberto no meio de outra tarefa: fecha ao salvar ----------
     $s = salvar($novo, MARCA_CR . ' RODAPE', [['id' => $c[0]['id'], 'email' => 'digitado@example.invalid', 'nome' => 'ALTERADO']], ['fechar_ao_salvar' => '1']);
     ok('fechar_ao_salvar: fecha e nao reabre o cadastro', strpos($s, 'Template.closeRightPanel()') !== false && strpos($s, 'class=ClienteForm&method=onEdit') === false, substr($s, 0, 300));
