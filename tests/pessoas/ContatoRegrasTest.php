@@ -208,9 +208,9 @@ try {
     ok('marcar principal com e-mail no anterior: pergunta', strpos($s, 'antigo@example.invalid') !== false && strpos($s, 'Levar para o novo principal') !== false && strpos($s, 'Manter no contato anterior') !== false, substr($s, -500));
     igual('marcar principal: sem responder, a grade nao muda', '', $naLista($s));
     $s = $pela($t1, MARCA_CR . ' TROCA A', $grade1, $marcar + ['pessoa_contato_email_decidido' => 'levar']);
-    ok('levar: o novo fica com o e-mail, o nome do cliente e como principal', strpos($naLista($s), 'antigo@example.invalid') !== false && strpos($naLista($s), MARCA_CR . ' TROCA A') !== false, $naLista($s));
+    ok('levar, na grade: o e-mail vai para o novo e so ele tem o nome do cliente', strpos($naLista($s), 'antigo@example.invalid') !== false && substr_count($naLista($s), MARCA_CR . ' TROCA A') === 1, $naLista($s));
     $s = $pela($t1, MARCA_CR . ' TROCA A', $grade1, ['pessoa_contato_pessoa__row__id' => 'bC', 'pessoa_contato_pessoa_telefone' => '19912340076', 'pessoa_contato_pessoa_principal' => 'S', 'pessoa_contato_email_decidido' => 'manter']);
-    ok('manter: o anterior fica sem o nome do cliente na grade', strpos(json_encode(array_map(fn($b) => (string) base64_decode($b), [])), 'x') === false && strpos($s, 'Qual') === false, substr($s, 0, 200));
+    ok('manter, na grade: o e-mail fica no anterior e so o novo tem o nome do cliente', strpos($naLista($s), 'antigo@example.invalid') !== false && substr_count($naLista($s), MARCA_CR . ' TROCA A') === 1, $naLista($s));
 
     // pelo Salvar do rodape: grava
     $novoNoRodape = ['pessoa_contato_pessoa_id' => $n1['id'], 'pessoa_contato_pessoa__row__id' => 'bB', 'pessoa_contato_pessoa_telefone' => $TEL_N, 'pessoa_contato_pessoa_principal' => 'S'];
@@ -259,7 +259,7 @@ try {
 
     // nome dado de proposito ao anterior fica; so sai o nome do cliente
     [$t6, $p6, $n6] = $cenario('F', ['telefone' => '19912340083'], ['telefone' => '19912340084', 'nome' => MARCA_CR . ' TROCA F']);
-    igual('antes: dois com o nome do cliente', 2, count(array_filter(contatos($t6), fn($c) => $c['nome'] === MARCA_CR . ' TROCA F')));
+    igual('primeiro principal definido: o outro contato ja fica sem o nome do cliente', 1, count(array_filter(contatos($t6), fn($c) => $c['nome'] === MARCA_CR . ' TROCA F')));
     $grade6 = [['id' => $p6['id'], 'telefone' => '19912340083', 'nome' => 'NOME DE PROPOSITO', 'principal' => 'N', '__row__id' => 'bA'], ['id' => $n6['id'], 'telefone' => '19912340084', 'nome' => 'OUTRO', 'principal' => 'S', '__row__id' => 'bB']];
     salvar($t6, MARCA_CR . ' TROCA F', $grade6);
     igual('nome de proposito no anterior: fica', 'NOME DE PROPOSITO', $estado($t6, (int) $p6['id'])['nome']);
