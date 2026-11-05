@@ -371,6 +371,7 @@ class AgendaVisual
 
             /* bloqueio sem agenda no filtro: icone no topo do dia */
             #agendamentos .agd-bloq-topo { color: #b45309; font-size: 11px; margin-left: 6px; cursor: default; }
+            #agendamentos .fc-daygrid-day-top { align-items: center; }
 
             /* intervalo e "nao atende" da agenda: hachurado cinza no fundo da coluna */
             #agendamentos .fc-bg-event.agd-fundo { background: repeating-linear-gradient(135deg, #e3e6ea 0 3px, #f8f9fa 3px 7px); opacity: 1; }
