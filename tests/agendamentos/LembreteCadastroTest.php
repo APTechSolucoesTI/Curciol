@@ -305,6 +305,7 @@ try {
         ok("duas agendas: {$agDuas} sem o aviso na tela", strpos($html, 'Cadastro incompleto:') === false && strpos($html, 'Completar cadastro') === false);
     }
     TSession::setValue('agendamentos_filter_agenda_id', $filtroAntes);
+    ok('agenda: cadeado do topo sem a interrogacao no mouse', strpos(AgendaVisual::estilo(), 'cursor: help') === false && strpos(AgendaVisual::estilo(), '.agd-bloq-topo { color: #b45309; font-size: 11px; margin-left: 6px; cursor: default; }') !== false);
     foreach (['agd-ev-l1', 'agd-ev-hora', 'agd-ev-l2'] as $linhaCartao) {
         ok("agenda: {$linhaCartao} em 10px", strpos(AgendaVisual::estilo(), ".{$linhaCartao} { display: block; font-size: 10px;") !== false);
     }

@@ -370,7 +370,7 @@ class AgendaVisual
             #agendamentos .fc-list-event.agd-incompleto { outline: 1px solid #e53935; outline-offset: -1px; }
 
             /* bloqueio sem agenda no filtro: icone no topo do dia */
-            #agendamentos .agd-bloq-topo { color: #b45309; font-size: 11px; margin-left: 6px; cursor: help; }
+            #agendamentos .agd-bloq-topo { color: #b45309; font-size: 11px; margin-left: 6px; cursor: default; }
 
             /* intervalo e "nao atende" da agenda: hachurado cinza no fundo da coluna */
             #agendamentos .fc-bg-event.agd-fundo { background: repeating-linear-gradient(135deg, #e3e6ea 0 3px, #f8f9fa 3px 7px); opacity: 1; }
