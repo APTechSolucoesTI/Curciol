@@ -178,7 +178,7 @@ class ClienteForm extends TPage
         $btnVerificarNome->setAction(new TAction([$this, 'onChangeNome'],['static' => 1]), "");
         $atendimento_historico->setAction(new TAction(['HistoricosAtendimentoCliente', 'onShow']));
         $button_buscar_pessoa_endereco_pessoa->setAction(new TAction([$this, 'onSearchCep'],['static' => 1]), "Buscar");
-        $button_novo_pessoa_representantes_legais_pessoa_juridica->setAction(new TAction(['RepresentanteLegalForm', 'onShow']), "Novo");
+        $button_novo_pessoa_representantes_legais_pessoa_juridica->setAction(new TAction(['RepresentanteLegalForm', 'onShow'], ['fechar_ao_salvar' => 1]), "Novo");
         $button_adicionar_pessoa_endereco_pessoa->setAction(new TAction([$this, 'onAddDetailPessoaEnderecoPessoa'],['static' => 1]), "Adicionar");
         $btnRepresentanteAdicionar_pessoa_representantes_legais_pessoa_juridica->setAction(new TAction([$this, 'onAddDetailPessoaRepresentantesLegaisPessoaJuridica'],['static' => 1]), "Adicionar");
         $btnBuscarCNPJ->setAction(new TAction(['ModalBuscarCNPJ', 'onShow'],['campo' => '["nome", "telefone" ,"cpf_cnpj", "pessoa_endereco_pessoa_cep" ,"pessoa_endereco_pessoa_cidade_id", "pessoa_endereco_pessoa_id", "pessoa_endereco_pessoa_bairro", "pessoa_endereco_pessoa_rua" ,"pessoa_endereco_pessoa_numero" ,"pessoa_endereco_pessoa_complemento"]',"form" => self::$formName,"page" => "ClienteForm.php"]), "Buscar");
@@ -524,7 +524,7 @@ class ClienteForm extends TPage
         $btn_onclear = $this->form->addAction("Cancelar", new TAction([$this, 'onClear']), 'fas:eraser #dd5a43');
         $this->btn_onclear = $btn_onclear;
 
-        $btn_onshow = $this->form->addAction("Sair", new TAction(['ClienteList', 'onShow']), 'fas:arrow-left #000000');
+        $btn_onshow = $this->form->addAction("Sair", new TAction([__CLASS__, 'onFecharCortina'], ['static' => 1]), 'fas:arrow-left #000000');
         $this->btn_onshow = $btn_onshow;
 
         $btn_delete = $this->form->addHeaderAction("Excluír", new TAction([$this, 'onDelete'],['static' => 1]), 'fas:trash-alt #F44336');
@@ -1289,6 +1289,7 @@ class ClienteForm extends TPage
                 }else{
 
                     $object->deleteComposite('PessoaGrupo', 'pessoa_id', $object->id);
+                    PessoaContatoService::excluirContatos((int) $object->id);
                     $object->deleteComposite('PessoaEndereco', 'pessoa_id', $object->id); 
                     $object->delete();
                 }
@@ -1296,20 +1297,12 @@ class ClienteForm extends TPage
                 TTransaction::close();
                 $param['delete']=NULL;
 
-                if(!empty($atendimento)){
-                    $loadPageParam['key'] = $atendimento;
-                    TApplication::loadPage('AtendimentoFormView', 'onShow', $loadPageParam);
-                }else if(!empty($agendamento)){
-                    $loadPageParam['key'] = $agendamento;
-                    TApplication::loadPage('AgendamentoFormView', 'onShow', $loadPageParam);
-                }else{
-                    Navegacao::voltarParaLista('ClienteList', __CLASS__);
-                }
+                APChatContactService::aposExcluirPessoa((int) $param['id']);
+                Navegacao::voltarParaLista('ClienteList', __CLASS__);
                 TSession::setValue(__CLASS__.'_filter_data', NULL);
                 TSession::setValue(__CLASS__.'_filters', NULL);
 
                 TToast::show('success', "Registro excluído", 'topRight', 'far:check-circle');
-                TScript::create("Template.closeRightPanel();");
 
             }
             catch (Exception $e) // in case of exception
@@ -1341,7 +1334,6 @@ class ClienteForm extends TPage
                 // veio do agendamento: ao salvar ou sair, a cortina fecha e volta para ele
                 if(!empty($param['agendamento'])){
                     $this->form->getField('voltar_agendamento')->setValue((int) $param['agendamento']);
-                    $this->btn_onshow->setAction(new TAction([__CLASS__, 'onFecharCortina'], ['static' => 1]), 'Sair');
                 }
 
                 $object = new Pessoa($key); // instantiates the Active Record 
@@ -1461,12 +1453,6 @@ class ClienteForm extends TPage
         {
             new TMessage('error', $e->getMessage());    
         }
-    }
-
-    /** "Sair" do cadastro aberto pelo agendamento: volta para ele, sem gravar. */
-    public static function onFecharCortina($param = null)
-    {
-        TScript::create("Template.closeRightPanel();");
     }
 
     /** "Tirar a autorização" no aviso de lembrete agendado: salva de novo, agora confirmado. */

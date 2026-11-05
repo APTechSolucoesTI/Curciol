@@ -492,6 +492,11 @@ class AgendamentoCalendarForm extends TPage
                 || substr((string) $antes->dt_final, 0, 16) !== substr((string) $object->dt_final, 0, 16))
             {
                 AgendaConflitoService::exigirLivre((int) $object->agenda_id, (string) $object->dt_inicial, (string) $object->dt_final, (int) $object->id);
+                if ($antes)
+                {
+                    $convidadas = array_values(array_diff(array_map('intval', Convidado::where('agendamento_id', '=', (int) $object->id)->getIndexedArray('agenda_id', 'agenda_id')), [(int) $object->agenda_id]));
+                    AgendaConflitoService::exigirLivreConvidados($convidadas, (string) $object->dt_inicial, (string) $object->dt_final, (int) $object->id);
+                }
             }
             $mudouAgendaParceria = $antes && ((int) $antes->agenda_id !== (int) $object->agenda_id
                 || (int) $antes->parceria_levantamento_id !== (int) $object->parceria_levantamento_id);

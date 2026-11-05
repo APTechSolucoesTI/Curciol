@@ -796,7 +796,7 @@ class AtendimentoFormView extends TPage
         try 
         {
             TScript::create("$(\"[page_name='ClienteForm']\").remove()");
-            TApplication::loadPage('ClienteForm', 'onEdit', ['key' => $param['cliente_id']]);
+            TApplication::loadPage('ClienteForm', 'onEdit', ['key' => $param['cliente_id'], 'fechar_ao_salvar' => 1]);
             TTransaction::open(self::$database);
             $historicos = AtendimentoHistorico::where('atendimento_id','=', $param['key'])->count();
             if($historicos>0){

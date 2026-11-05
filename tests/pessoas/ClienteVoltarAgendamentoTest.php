@@ -52,7 +52,7 @@ try {
     // ---------- aberto pelo agendamento ----------
     $html = $abrir(['agendamento' => 777]);
     ok('aberto pelo agendamento: o formulario guarda de onde veio', (bool) preg_match('~name="voltar_agendamento"[^>]*value="777"|value="777"[^>]*name="voltar_agendamento"~', $html));
-    ok('aberto pelo agendamento: Sair fecha a cortina', strpos($html, 'method=onFecharCortina') !== false && strpos($html, 'class=ClienteList') === false);
+    ok('aberto pelo agendamento: Sair fecha a cortina', strpos($html, 'method=onFecharCortina') !== false && strpos($html, 'class=ClienteList&method=onShow') === false);
     $s = $salvar(['voltar_agendamento' => '777']);
     ok('salvar: fecha a cortina e atualiza o agendamento aberto', strpos($s, 'Template.closeRightPanel()') !== false && strpos($s, 'class=AgendamentoFormView&method=onShow&key=777') !== false, substr($s, 0, 400));
     ok('salvar: nao reabre o cadastro', strpos($s, 'class=ClienteForm&method=onEdit') === false, substr($s, 0, 300));
@@ -63,7 +63,7 @@ try {
     TSession::setValue('atendimento', 888);
     $html = $abrir([]);
     ok('aberto pela lista: sem agendamento', (bool) preg_match('~name="voltar_agendamento"~', $html) && !preg_match('~value="777"~', $html));
-    ok('aberto pela lista: Sair normal', strpos($html, 'method=onFecharCortina') === false && strpos($html, 'class=ClienteList') !== false);
+    ok('aberto pela lista: Sair tambem so fecha a cortina, mantendo os filtros', strpos($html, 'method=onFecharCortina') !== false && strpos($html, 'class=ClienteList&method=onShow') === false);
     $s = $salvar([]);
     ok('salvar: nao vai para agendamento nenhum', strpos($s, 'AgendamentoFormView') === false && strpos($s, 'AtendimentoFormView') === false, substr($s, 0, 400));
     ok('salvar: continua no cadastro', strpos($s, 'class=ClienteForm') !== false && strpos($s, 'method=onEdit') !== false, substr($s, 0, 400));

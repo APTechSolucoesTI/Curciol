@@ -164,7 +164,7 @@ class ContaPagarForm extends TPage
         $total_valor_parcelas->setValue('0,00');
 
         $btnGerarParcelas->setAction(new TAction([$this, 'onGerarParcelas']), "Atualizar parcelas");
-        $btnAddNewFornecedor->setAction(new TAction(['FornecedorForm', 'onShow'],['page' => 'ContaPagar']), "");
+        $btnAddNewFornecedor->setAction(new TAction(['FornecedorForm', 'onShow'],['page' => 'ContaPagar', 'fechar_ao_salvar' => 1]), "");
         $btnCancelarParcelas->setAction(new TAction(['ModalCancelarParcelas', 'onShow'],['conta_id' => $param['key'] ?? null,"page" => "ContaPagarForm"]), "Cancelar parcelas");
         $btnEditarParcelas->setAction(new TAction(['ModalEditarParcelasAberto', 'onShow'],['conta_id' => $param['key'] ?? null,"total_conta" => $param['total_conta'] ?? null,"page" => "ContaPagarForm"]), "Editar Parcelas");
 

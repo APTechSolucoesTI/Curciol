@@ -7,6 +7,8 @@ class AgendamentoFormBtn extends TPage
     private static $database = 'escritorio';
     private static $activeRecord = 'Agendamento';
     private static $primaryKey = 'id';
+    /** Agendas convidadas a conferir tambem nas repeticoes. */
+    private $convidadosAConferir = [];
     private static $formName = 'form_AgendamentoFormBtn';
 
     use BuilderMasterDetailFieldListTrait;
@@ -504,6 +506,8 @@ class AgendamentoFormBtn extends TPage
             // compromisso no mesmo horario) e dentro do atendimento dela (dia que atende, horario, fora do intervalo)
             AgendamentoFinanceiroService::exigirAgendaParceria((int) $object->id, (int) $object->agenda_id, (int) $object->parceria_levantamento_id);
             AgendaConflitoService::exigirLivre((int) $object->agenda_id, (string) $object->dt_inicial, (string) $object->dt_final, (int) $object->id);
+            $this->convidadosAConferir = AgendaConflitoService::convidadosPostados((array) $param, 'convidado_agendamento_agenda_id', (int) $object->agenda_id);
+            AgendaConflitoService::exigirLivreConvidados($this->convidadosAConferir, (string) $object->dt_inicial, (string) $object->dt_final, (int) $object->id);
             $object->store(); // save the object 
 
             if ($new)
@@ -803,6 +807,7 @@ class AgendamentoFormBtn extends TPage
         // Curciol (30/10/2026): a repeticao tambem nao pode cair sobre agendamento, bloqueio ou compromisso da agenda, nem
         // fora do atendimento dela (dia que nao atende, fora do horario, intervalo)
         AgendaConflitoService::exigirLivre((int) $newObject->agenda_id, (string) $newObject->dt_inicial, (string) $newObject->dt_final);
+        AgendaConflitoService::exigirLivreConvidados($this->convidadosAConferir, (string) $newObject->dt_inicial, (string) $newObject->dt_final);
         $newObject->store();
 
         // preenche procedimentos

@@ -130,6 +130,8 @@ class PessoaContatoService
 
         // numero de cada contato (troca de numero no APChat, 03/11/2026)
         $estado['contatos'] = self::numerosDosContatos($pessoaId);
+        // quem mais tem o numero do principal (aviso da troca de numero, 05/11/2026)
+        $estado['copias_principal'] = self::outrasPessoasDoNumero($estado['principal_telefone'], $pessoaId);
 
         return $estado;
     }
@@ -176,13 +178,63 @@ class PessoaContatoService
         return ['trocas' => $trocas, 'removidos' => $removidos];
     }
 
-    /** Aviso obrigatorio antes de gravar uma troca de numero (03/11/2026). */
-    public static function mensagemTrocaDeNumero(array $trocas): string
+    /**
+     * Outras pessoas com esse numero em algum contato: [['id' => , 'nome' => ]].
+     */
+    public static function outrasPessoasDoNumero($telefone, $pessoaId): array
+    {
+        $numero = self::telefoneValido($telefone);
+        if ($numero === null)
+        {
+            return [];
+        }
+        $st = TTransaction::get()->prepare("SELECT DISTINCT p.id, p.nome FROM pessoa_contato c JOIN pessoa p ON p.id = c.pessoa_id
+                                             WHERE regexp_replace(COALESCE(c.telefone, ''), '\D', '', 'g') IN (?, ?) AND c.pessoa_id <> ? ORDER BY p.nome");
+        $st->execute([$numero, '55' . $numero, (int) $pessoaId]);
+
+        return $st->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    private static function listaDePessoas(array $pessoas): string
+    {
+        $nomes = array_map(function ($p) { return htmlspecialchars((string) $p['nome']) . ' (código ' . (int) $p['id'] . ')'; }, $pessoas);
+
+        return implode(', ', $nomes);
+    }
+
+    /**
+     * Aviso obrigatorio antes de gravar uma troca de numero (03/11/2026). Troca do principal: mostra quem mais tem o numero,
+     * porque todos passam para o novo (05/11/2026). Troca de um contato cujo numero continua em outro cadastro: so ele muda.
+     */
+    public static function mensagemTrocaDeNumero(array $trocas, array $antes = [], $pessoaId = null): string
     {
         $linhas = [];
-        foreach ($trocas as [$antigo, $novo])
+        $soEsteContato = !empty($trocas);
+        foreach ($trocas as [$antigo, $novo, $contatoId])
         {
-            $linhas[] = 'Você está trocando o número <b>' . self::formatarTelefone($antigo) . '</b> por <b>' . self::formatarTelefone($novo) . '</b>.';
+            $linha = 'Você está trocando o número <b>' . self::formatarTelefone($antigo) . '</b> por <b>' . self::formatarTelefone($novo) . '</b>.';
+            if ((int) $contatoId === (int) ($antes['principal_id'] ?? 0))
+            {
+                $soEsteContato = false;
+                if (!empty($antes['copias_principal']))
+                {
+                    $linha .= '<br>Este número também está nos contatos de: <b>' . self::listaDePessoas($antes['copias_principal']) . '</b>. Todos esses contatos serão atualizados para o número novo, com o nome deste cadastro.';
+                }
+            }
+            elseif ($outras = self::outrasPessoasDoNumero($antigo, $pessoaId))
+            {
+                $linha .= '<br>O número antigo continua nos contatos de: <b>' . self::listaDePessoas($outras) . '</b>. Só este contato muda.';
+            }
+            else
+            {
+                $soEsteContato = false;
+            }
+            $linhas[] = $linha;
+        }
+
+        if ($soEsteContato)
+        {
+            return implode('<br>', $linhas) . '<br><br>Confirmar a troca?';
         }
 
         return implode('<br>', $linhas) . '<br><br>No APChat, o contato do número antigo deixará de existir: todo o histórico (conversas, tickets e '
@@ -234,56 +286,64 @@ class PessoaContatoService
     }
 
     /**
-     * O contato principal e a propria pessoa (03/11/2026): mudou o nome nos Dados cadastrais, o nome do principal
-     * acompanha - quando era o nome antigo ou estava vazio (nome dado de proposito, ex.: o responsavel numa empresa,
-     * fica). As copias do numero em outras pessoas acompanham em seguida (propagarPrincipal), e o envio leva ao APChat.
+     * O contato principal e a propria pessoa: tem sempre o nome do cadastro (05/11/2026; contato de outra pessoa fica como
+     * nao principal). As copias do numero em outras pessoas acompanham em seguida (propagarPrincipal), e o envio leva ao
+     * APChat (primeiro nome e sobrenome).
      */
     private static function nomeDoPrincipalAcompanha(int $pessoaId, array $antes): void
     {
-        if (!empty($antes['novo']))
-        {
-            return;
-        }
         $st = TTransaction::get()->prepare('SELECT nome FROM pessoa WHERE id = ?');
         $st->execute([$pessoaId]);
-        $novo = trim((string) $st->fetchColumn());
-        $velho = trim((string) ($antes['nome'] ?? ''));
-        if ($novo === '' || mb_strtoupper($novo) === mb_strtoupper($velho))
+        $nome = trim((string) $st->fetchColumn());
+        if ($nome === '')
         {
             return;
         }
         TTransaction::get()->prepare("UPDATE pessoa_contato SET nome = ?, updated_at = now()
-                                       WHERE pessoa_id = ? AND principal = 'S' AND (COALESCE(btrim(nome), '') = '' OR upper(btrim(nome)) = upper(?))")
-            ->execute([$novo, $pessoaId, $velho]);
+                                       WHERE pessoa_id = ? AND principal = 'S' AND nome IS DISTINCT FROM ?")
+            ->execute([$nome, $pessoaId, $nome]);
     }
 
     /**
      * O mesmo numero em outras pessoas (contatos nao principais, ex.: "MAE" no cadastro da filha) acompanha o contato
      * principal: mudou o telefone ou o nome do principal, as copias mudam junto (a descricao nao, e de cada uma). Acha as
-     * copias pelo idapchat (um por numero) ou, antes da exportacao ao APChat, pelo numero de antes.
+     * copias pelo idapchat (um por numero) ou, antes da exportacao ao APChat, pelo numero de antes. Quem ja tinha o numero
+     * que agora e principal (principal novo ou numero novo) tambem recebe o nome (05/11/2026).
      *
      * @return int quantos contatos mudaram
      */
     public static function propagarPrincipal($pessoaId, array $antes): int
     {
-        if (empty($antes['principal_id']))
-        {
-            return 0;
-        }
         $conn = TTransaction::get();
-        $st = $conn->prepare("SELECT id, nome, telefone, idapchat FROM pessoa_contato WHERE id = ? AND pessoa_id = ? AND principal = 'S'");
-        $st->execute([(int) $antes['principal_id'], (int) $pessoaId]);
+        $st = $conn->prepare("SELECT id, nome, telefone, idapchat FROM pessoa_contato WHERE pessoa_id = ? AND principal = 'S'");
+        $st->execute([(int) $pessoaId]);
         $p = $st->fetch(PDO::FETCH_ASSOC);
-        $telAntes = self::telefoneValido($antes['principal_telefone'] ?? '');
         $telAgora = $p ? self::telefoneValido($p['telefone']) : null;
-        if (!$p || !$telAntes || !$telAgora)
+        if (!$p || !$telAgora)
         {
             return 0;
         }
         $nome = trim((string) $p['nome']);
+        $mesmoContato = !empty($antes['principal_id']) && (int) $antes['principal_id'] === (int) $p['id'];
+        $telAntes = $mesmoContato ? self::telefoneValido($antes['principal_telefone'] ?? '') : null;
         if ($telAntes === $telAgora && ($nome === '' || $nome === trim((string) ($antes['principal_nome'] ?? ''))))
         {
             return 0;
+        }
+
+        // quem ja tem o numero de agora recebe o nome do principal
+        $mudaram = 0;
+        if ($nome !== '')
+        {
+            $st = $conn->prepare("UPDATE pessoa_contato SET nome = ?, updated_at = now()
+                                   WHERE principal = 'N' AND id <> ? AND nome IS DISTINCT FROM ?
+                                     AND regexp_replace(COALESCE(telefone, ''), '\D', '', 'g') IN (?, ?)");
+            $st->execute([$nome, (int) $p['id'], $nome, $telAgora, '55' . $telAgora]);
+            $mudaram += $st->rowCount();
+        }
+        if (!$telAntes)
+        {
+            return $mudaram;
         }
 
         // pelo numero de antes; com idapchat, tambem pelo id (copia exportada cujo numero ja estava diferente)
@@ -300,7 +360,70 @@ class PessoaContatoService
                                WHERE principal = 'N' AND id <> ? AND (" . $filtro . ')');
         $st->execute(array_merge([$telAgora, $nome, $telAntes !== $telAgora ? 'true' : 'false', (int) $p['id']], $args));
 
-        return $st->rowCount();
+        return $mudaram + $st->rowCount();
+    }
+
+    /** @var array [pessoa => numeros] dos contatos apagados com o cadastro, para o APChat depois do commit */
+    private static $excluidos = [];
+
+    /** Cadastro excluido: os contatos vao junto (usa a transacao aberta). */
+    public static function excluirContatos(int $pessoaId): void
+    {
+        self::$excluidos[$pessoaId] = array_values(array_unique(array_filter(self::numerosDosContatos($pessoaId))));
+        TTransaction::get()->prepare('DELETE FROM pessoa_contato WHERE pessoa_id = ?')->execute([$pessoaId]);
+    }
+
+    /** Numeros guardados por excluirContatos (uma vez so). */
+    public static function numerosExcluidos(int $pessoaId): array
+    {
+        $numeros = self::$excluidos[$pessoaId] ?? [];
+        unset(self::$excluidos[$pessoaId]);
+
+        return $numeros;
+    }
+
+    /** Condicao SQL: o telefone (so os numeros) contem o que foi pesquisado, com ou sem o 55 do pais. */
+    private static function condicaoTelefone(string $digitos): string
+    {
+        $coluna = "regexp_replace(COALESCE(telefone, ''), '\D', '', 'g')";
+        $condicao = "{$coluna} LIKE '%{$digitos}%'";
+        if (strlen($digitos) >= 12 && strpos($digitos, '55') === 0)
+        {
+            $condicao .= " OR {$coluna} LIKE '%" . substr($digitos, 2) . "%'";
+        }
+
+        return '(' . $condicao . ')';
+    }
+
+    /**
+     * Filtro das listas de pessoas (05/11/2026): acha quem tem o numero em qualquer contato, principal ou nao. A coluna
+     * Telefone continua mostrando so o principal. Texto sem numeros: procura como antes.
+     */
+    public static function filtroTelefone($texto): TFilter
+    {
+        $digitos = preg_replace('/\D/', '', (string) $texto);
+        if ($digitos === '')
+        {
+            return new TFilter('unaccent(CAST(telefone AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $texto) . '%');
+        }
+        $condicao = self::condicaoTelefone($digitos);
+
+        return new TFilter('id', 'IN', "(SELECT pessoa_id FROM pessoa_contato WHERE {$condicao} UNION SELECT id FROM pessoa WHERE {$condicao})");
+    }
+
+    /**
+     * Quando o unico filtro da lista e o telefone, vem primeiro quem tem o numero como principal; o resto na ordem da lista.
+     * $ordem: a coluna da lista (nome ou id).
+     */
+    public static function ordenarTelefone(TCriteria $criteria, $telefone, $filtros, string $ordem): void
+    {
+        $digitos = preg_replace('/\D/', '', (string) $telefone);
+        if ($digitos === '' || count((array) $filtros) !== 1 || !preg_match('/^[a-z_]+$/', $ordem))
+        {
+            return;
+        }
+        $condicao = self::condicaoTelefone($digitos);
+        $criteria->setProperty('order', "(id IN (SELECT pessoa_id FROM pessoa_contato WHERE principal = 'S' AND {$condicao})) DESC, {$ordem}");
     }
 
     /**

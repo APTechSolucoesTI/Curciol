@@ -10,6 +10,10 @@
  * atendimento da agenda: em dia que ela atende, dentro do horario e fora do intervalo. A excecao existe para marcar
  * agendamento no intervalo ou quando a agenda nao atende (nunca sobre bloqueio). Compromisso longo (de varios dias ou
  * de 8 horas ou mais, o "dia inteiro" da agenda) pode pegar intervalo e nao atende, como o bloqueio.
+ *
+ * Compromisso (05/11/2026): tambem nao pode cair sobre agendamento nem sobre outro compromisso, nem em agenda que permite
+ * choque de horario. Agendas convidadas (05/11/2026): valem as mesmas regras da agenda principal. Bloqueio novo sobre o que
+ * ja esta marcado: confirmado ou em atendimento impede; o resto pede confirmacao (ver ocupacoes).
  */
 class AgendaConflitoService
 {
@@ -50,7 +54,7 @@ class AgendaConflitoService
     }
 
     /** Compromisso: fora de bloqueio e, se nao for longo, so no horario de atendimento da agenda. */
-    public static function exigirLivreCompromisso(int $agendaId, string $inicio, string $fim): void
+    public static function exigirLivreCompromisso(int $agendaId, string $inicio, string $fim, int $ignorarCompromissoId = 0): void
     {
         if ($agendaId <= 0 || trim($inicio) === '' || trim($fim) === '') { return; }
         $inicio = self::minuto($inicio);
@@ -60,7 +64,105 @@ class AgendaConflitoService
         if (!self::longo($inicio, $fim)) {
             self::exigirAtendimento($agendaId, $inicio, $fim);
         }
-        self::exigirSemBloqueio($agendaId, $inicio, $fim, $agenda ? ' na agenda ' . $agenda->nome : '');
+        $nomeAgenda = $agenda ? ' na agenda ' . $agenda->nome : '';
+        self::exigirSemBloqueio($agendaId, $inicio, $fim, $nomeAgenda);
+
+        foreach (self::ocupacoes($agendaId, $inicio, $fim, $ignorarCompromissoId) as $o)
+        {
+            throw new Exception(self::mensagem($o['tipo'] === 'agendamento' ? 'um agendamento' : 'um compromisso', $nomeAgenda, (object) $o));
+        }
+    }
+
+    /** Agendas convidadas de um agendamento: as mesmas regras da principal. */
+    public static function exigirLivreConvidados(array $agendas, string $inicio, string $fim, int $ignorarAgendamentoId = 0, bool $excecao = false): void
+    {
+        foreach ($agendas as $agenda)
+        {
+            self::exigirLivre((int) $agenda, $inicio, $fim, $ignorarAgendamentoId, $excecao);
+        }
+    }
+
+    /** Agendas convidadas de um compromisso: as mesmas regras da principal. */
+    public static function exigirLivreConvidadosCompromisso(array $agendas, string $inicio, string $fim, int $ignorarCompromissoId = 0): void
+    {
+        foreach ($agendas as $agenda)
+        {
+            self::exigirLivreCompromisso((int) $agenda, $inicio, $fim, $ignorarCompromissoId);
+        }
+    }
+
+    /** Agendas convidadas que vieram da tela, sem repetir e sem a principal. */
+    public static function convidadosPostados(array $param, string $campo, int $agendaPrincipal = 0): array
+    {
+        $agendas = array_unique(array_filter(array_map('intval', (array) ($param[$campo] ?? []))));
+
+        return array_values(array_diff($agendas, [$agendaPrincipal]));
+    }
+
+    /**
+     * O que ja esta marcado no horario da agenda (ela sendo a principal ou convidada), do mais cedo ao mais tarde.
+     * Agendamento cancelado e de quem nao compareceu nao ocupa.
+     *
+     * @return array [['tipo' => 'agendamento'|'compromisso', 'id', 'estado', 'dt_inicial', 'dt_final', 'detalhe']]
+     */
+    public static function ocupacoes(int $agendaId, string $inicio, string $fim, int $ignorarCompromissoId = 0): array
+    {
+        $inicio = self::minuto($inicio);
+        $fim = self::minuto($fim);
+        $c = TTransaction::get();
+
+        $st = $c->prepare("SELECT 'agendamento' AS tipo, a.id, a.estado_agenda_id AS estado, a.dt_inicial, a.dt_final, p.nome AS detalhe
+                             FROM agendamento a LEFT JOIN pessoa p ON p.id = a.cliente_id
+                            WHERE (a.agenda_id = :agenda OR a.id IN (SELECT agendamento_id FROM convidado WHERE agenda_id = :agenda2))
+                              AND COALESCE(a.ativo, 'T') = 'T' AND a.estado_agenda_id NOT IN (:cancelado, :faltou)
+                              AND a.dt_inicial < :fim AND a.dt_final > :inicio ORDER BY a.dt_inicial");
+        $st->execute([':agenda' => $agendaId, ':agenda2' => $agendaId, ':cancelado' => (int) EstadoAgenda::CANCELADO, ':faltou' => (int) EstadoAgenda::NAO_COMPARECEU, ':fim' => $fim, ':inicio' => $inicio]);
+        $lista = $st->fetchAll(PDO::FETCH_ASSOC);
+
+        $st = $c->prepare("SELECT 'compromisso' AS tipo, c.id, 0 AS estado, c.dt_inicio AS dt_inicial, c.dt_final, t.nome AS detalhe
+                             FROM compromisso c LEFT JOIN tipo_compromisso t ON t.id = c.tipo_compromisso_id
+                            WHERE (c.agenda_id = :agenda OR c.id IN (SELECT compromisso_id FROM convidado_compromisso WHERE agenda_id = :agenda2))
+                              AND c.id <> :ignorar AND c.dt_inicio < :fim AND c.dt_final > :inicio ORDER BY c.dt_inicio");
+        $st->execute([':agenda' => $agendaId, ':agenda2' => $agendaId, ':ignorar' => $ignorarCompromissoId, ':fim' => $fim, ':inicio' => $inicio]);
+
+        return array_merge($lista, $st->fetchAll(PDO::FETCH_ASSOC));
+    }
+
+    /**
+     * Bloqueio novo (ou mudando agenda/horario) sobre o que ja esta marcado. $periodos: [[agenda, inicio, fim]].
+     * Agendamento confirmado ou em atendimento impede o bloqueio; o resto pede confirmacao.
+     *
+     * @return array ['impedem' => [linha de texto], 'avisam' => [linha de texto]]
+     */
+    public static function sobreposicoesDoBloqueio(array $periodos): array
+    {
+        $vistos = [];
+        $res = ['impedem' => [], 'avisam' => []];
+        foreach ($periodos as [$agenda, $inicio, $fim])
+        {
+            foreach (self::ocupacoes((int) $agenda, (string) $inicio, (string) $fim) as $o)
+            {
+                $chave = $o['tipo'] . $o['id'];
+                if (isset($vistos[$chave])) { continue; }
+                $vistos[$chave] = true;
+                $quando = date('d/m/Y H:i', strtotime((string) $o['dt_inicial'])) . ' às ' . date('H:i', strtotime((string) $o['dt_final']));
+                $nome = trim((string) $o['detalhe']) !== '' ? ' (' . htmlspecialchars(mb_strimwidth(trim((string) $o['detalhe']), 0, 60, '…')) . ')' : '';
+                $linha = ($o['tipo'] === 'agendamento' ? 'Agendamento' : 'Compromisso') . " em {$quando}{$nome}";
+                $impede = $o['tipo'] === 'agendamento' && in_array((string) $o['estado'], [EstadoAgenda::CONFIRMADO, EstadoAgenda::EM_ATENDIMENTO], true);
+                $res[$impede ? 'impedem' : 'avisam'][] = $linha;
+            }
+        }
+
+        return $res;
+    }
+
+    /** Lista curta para aviso: ate 10 linhas e quantas ficaram de fora. */
+    public static function listaParaAviso(array $linhas): string
+    {
+        $mostrar = array_slice($linhas, 0, 10);
+        $resto = count($linhas) - count($mostrar);
+
+        return implode('<br>', $mostrar) . ($resto > 0 ? "<br>e mais {$resto}." : '');
     }
 
     /**

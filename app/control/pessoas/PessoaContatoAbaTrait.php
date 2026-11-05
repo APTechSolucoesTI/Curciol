@@ -32,7 +32,7 @@ trait PessoaContatoAbaTrait
         $pessoa_contato_pessoa_principal = new TCheckButton('pessoa_contato_pessoa_principal');
         $button_adicionar_pessoa_contato_pessoa = new TButton('button_adicionar_pessoa_contato_pessoa');
 
-        $pessoa_contato_pessoa_nome->setTip("De quem é o contato. Preenchido sozinho quando o telefone já é o principal de alguém.");
+        $pessoa_contato_pessoa_nome->setTip("De quem é o contato. Preenchido sozinho quando o telefone já é o principal de alguém. No principal, é o nome do cadastro.");
         $pessoa_contato_pessoa_nome->forceUpperCase();
         $pessoa_contato_pessoa_descricao->setTip("Casa, Escritório, Celular, Filha... (opcional)");
         $pessoa_contato_pessoa_descricao->forceUpperCase();
@@ -70,6 +70,13 @@ trait PessoaContatoAbaTrait
             });"
         );
 
+        // contato principal: o nome e o do cadastro e nao se edita (05/11/2026)
+        TScript::create("window.curciolContatoPrincipal = function (chave) {
+            var f = chave.closest('form'); var n = f.find('input[name=\"pessoa_contato_pessoa_nome\"]');
+            if (chave.is(':checked')) { n.val(String(f.find('input[name=\"nome\"]').val() || '').toUpperCase()).prop('readonly', true); } else { n.prop('readonly', false); }
+        };
+        $(document).off('change.curciolContato', 'input[name=\"pessoa_contato_pessoa_principal\"]').on('change.curciolContato', 'input[name=\"pessoa_contato_pessoa_principal\"]', function () { window.curciolContatoPrincipal($(this)); });");
+
         $this->form->appendPage("Contatos");
 
         $this->detailFormPessoaContatoPessoa = new BootstrapFormBuilder('detailFormPessoaContatoPessoa');
@@ -83,7 +90,7 @@ trait PessoaContatoAbaTrait
         $row = $this->detailFormPessoaContatoPessoa->addFields([new TLabel("Telefone:", null, '12px', null, '100%'),$pessoa_contato_pessoa_telefone],[new TLabel("Email:", null, '12px', null, '100%'),$pessoa_contato_pessoa_email]);
         $row->layout = ['col-sm-6','col-sm-6'];
 
-        $row = $this->detailFormPessoaContatoPessoa->addFields([new TLabel(new TImage('fas:info-circle #03A9F4')." Informe o telefone, o e-mail ou os dois. Só um contato é o principal: marcar outro tira a marca do anterior. O principal tem o telefone e o e-mail da aba Dados cadastrais: mudar um muda o outro. Um telefone só pode ser principal de uma pessoa.", '#607D8B', '11px', 'I')]);
+        $row = $this->detailFormPessoaContatoPessoa->addFields([new TLabel(new TImage('fas:info-circle #03A9F4')." Informe o telefone, o e-mail ou os dois. Só um contato é o principal: marcar outro tira a marca do anterior. O principal tem o nome do cadastro e o telefone e o e-mail da aba Dados cadastrais: mudar um muda o outro. Contato de outra pessoa fica como não principal. Um telefone só pode ser principal de uma pessoa.", '#607D8B', '11px', 'I')]);
         $row->layout = [' col-sm-12'];
 
         $row = $this->detailFormPessoaContatoPessoa->addFields([$button_adicionar_pessoa_contato_pessoa]);
@@ -150,6 +157,11 @@ trait PessoaContatoAbaTrait
         // troca de numero confirmada pelo usuario (aviso do APChat no salvar; ver salvarContatos)
         $this->form->addFields([new THidden('apchat_troca_confirmada')]);
 
+        // aberto no meio de outra tarefa: ao salvar, fecha e volta para ela (ver Navegacao::continuarNoRegistro)
+        $fecharAoSalvar = new THidden('fechar_ao_salvar');
+        $fecharAoSalvar->setValue(!empty($_REQUEST['fechar_ao_salvar']) ? '1' : '');
+        $this->form->addFields([$fecharAoSalvar]);
+
         // novo cadastro aberto pela tela "Contatos sem vinculo" do APChat: ja vem com o numero (e o nome, se for nome)
         $numero = PessoaContatoService::telefoneValido($_REQUEST['apchat_numero'] ?? '');
         if ($numero && empty($_REQUEST['key']) && empty($_REQUEST['id']))
@@ -167,6 +179,12 @@ trait PessoaContatoAbaTrait
         }
     }
 
+    /** Sair: fecha a cortina e volta para a tela de baixo, sem gravar e mantendo os filtros (05/11/2026). */
+    public static function onFecharCortina($param = null)
+    {
+        TScript::create("Template.closeRightPanel();");
+    }
+
     /** "Sim" no aviso de troca de numero: salva de novo, agora com a troca confirmada. */
     public static function onConfirmarTrocaNumero($param = null)
     {
@@ -181,64 +199,13 @@ trait PessoaContatoAbaTrait
         {
             $data = $this->form->getData();
 
-            $data->pessoa_contato_pessoa_telefone = preg_replace('/[^0-9]/', '', (string) $data->pessoa_contato_pessoa_telefone);
-            $data->pessoa_contato_pessoa_email = trim((string) $data->pessoa_contato_pessoa_email);
-            $data->pessoa_contato_pessoa_principal = (($data->pessoa_contato_pessoa_principal ?? '') === 'S') ? 'S' : 'N';
-
-            // telefone ou e-mail (um dos dois basta); telefone preenchido precisa ser valido
-            $errors = [];
-            if ($data->pessoa_contato_pessoa_telefone === '' && $data->pessoa_contato_pessoa_email === '')
-            {
-                $errors[] = PessoaContatoService::MSG_CONTATO_VAZIO;
-            }
-            if ($data->pessoa_contato_pessoa_telefone !== '' && PessoaContatoService::telefoneValido($data->pessoa_contato_pessoa_telefone) === null)
-            {
-                $errors[] = PessoaContatoService::MSG_TELEFONE_INVALIDO;
-            }
-            try
-            {
-                (new TEmailValidator)->validate("Email", $data->pessoa_contato_pessoa_email);
-            }
-            catch(Exception $e)
-            {
-                $errors[] = $e->getMessage() . '.';
-            }
-            if(count($errors) > 0)
-            {
-                throw new Exception(implode('<br>', $errors));
-            }
-
-            if ($data->pessoa_contato_pessoa_telefone !== '')
-            {
-                $data->pessoa_contato_pessoa_telefone = PessoaContatoService::telefoneValido($data->pessoa_contato_pessoa_telefone);
-            }
-
-            $__row__id = !empty($data->pessoa_contato_pessoa__row__id) ? $data->pessoa_contato_pessoa__row__id : 'b'.uniqid();
+            $editando = !empty($data->pessoa_contato_pessoa__row__id);
+            $__row__id = $editando ? $data->pessoa_contato_pessoa__row__id : 'b'.uniqid();
 
             TTransaction::open(self::$database);
 
-            // um telefone so pode ser principal de uma pessoa
-            if ($data->pessoa_contato_pessoa_principal === 'S' && ($dono = PessoaContatoService::donoDoPrincipal($data->pessoa_contato_pessoa_telefone, $data->id ?? null)))
-            {
-                throw new Exception(PessoaContatoService::mensagemTelefoneDeOutro($data->pessoa_contato_pessoa_telefone, $dono));
-            }
-
-            // sem nome: o principal e da propria pessoa; nos outros, o dono do telefone (quem o tem como principal)
-            if (trim((string) $data->pessoa_contato_pessoa_nome) === '')
-            {
-                $data->pessoa_contato_pessoa_nome = ($data->pessoa_contato_pessoa_principal === 'S')
-                    ? mb_strtoupper(trim((string) ($data->nome ?? '')))
-                    : PessoaContatoService::nomeDoTelefone($data->pessoa_contato_pessoa_telefone);
-            }
-
-            $grid_data = new PessoaContato();
+            $grid_data = $this->contatoDaTela($data);
             $grid_data->__row__id = $__row__id;
-            $grid_data->nome = trim((string) $data->pessoa_contato_pessoa_nome) !== '' ? $data->pessoa_contato_pessoa_nome : null;
-            $grid_data->descricao = trim((string) $data->pessoa_contato_pessoa_descricao) !== '' ? $data->pessoa_contato_pessoa_descricao : null;
-            $grid_data->id = $data->pessoa_contato_pessoa_id;
-            $grid_data->telefone = $data->pessoa_contato_pessoa_telefone !== '' ? $data->pessoa_contato_pessoa_telefone : null;
-            $grid_data->email = $data->pessoa_contato_pessoa_email !== '' ? $data->pessoa_contato_pessoa_email : null;
-            $grid_data->principal = $data->pessoa_contato_pessoa_principal;
 
             $__row__data = array_merge($grid_data->toArray(), (array)$grid_data->getVirtualData());
             $__row__data['__row__id'] = $__row__id;
@@ -286,7 +253,19 @@ trait PessoaContatoAbaTrait
                {
                    element.html(base64_decode(element.attr('add')));
                }
+               $('form[name=" . self::$formName . "] input[name=\"pessoa_contato_pessoa_nome\"]').prop('readonly', false);
             ");
+
+            // o Salvar da linha grava de verdade (05/11/2026: so atualizava a grade, e quem fechava perdia a alteracao);
+            // o Adicionar so inclui na lista, como nos enderecos
+            if ($editando)
+            {
+                TScript::create("setTimeout(function () { $('form[name=" . self::$formName . "]').find('[onclick*=\"method=onSave\"]').first().click(); }, 300);");
+            }
+            else
+            {
+                TToast::show('info', 'Contato incluído na lista. Clique em Salvar, no rodapé, para gravar.', 'topRight', 'fas:info-circle');
+            }
 
         }
         catch (Exception $e) // in case of exception
@@ -294,6 +273,121 @@ trait PessoaContatoAbaTrait
             TTransaction::rollbackAll();
             new TMessage('error', $e->getMessage()); // shows the exception error message
         }
+    }
+
+    /**
+     * Campos da aba Contatos -> contato pronto: valida e completa o nome. Usa a transacao aberta.
+     * Principal: o nome do cadastro. Nao principal sem nome: o do dono do telefone (quem o tem como principal).
+     */
+    private function contatoDaTela($data): PessoaContato
+    {
+        $telefone = preg_replace('/[^0-9]/', '', (string) ($data->pessoa_contato_pessoa_telefone ?? ''));
+        $email = trim((string) ($data->pessoa_contato_pessoa_email ?? ''));
+        $principal = (($data->pessoa_contato_pessoa_principal ?? '') === 'S') ? 'S' : 'N';
+
+        // telefone ou e-mail (um dos dois basta); telefone preenchido precisa ser valido
+        $errors = [];
+        if ($telefone === '' && $email === '')
+        {
+            $errors[] = PessoaContatoService::MSG_CONTATO_VAZIO;
+        }
+        if ($telefone !== '' && PessoaContatoService::telefoneValido($telefone) === null)
+        {
+            $errors[] = PessoaContatoService::MSG_TELEFONE_INVALIDO;
+        }
+        try
+        {
+            (new TEmailValidator)->validate("Email", $email);
+        }
+        catch(Exception $e)
+        {
+            $errors[] = $e->getMessage() . '.';
+        }
+        if(count($errors) > 0)
+        {
+            throw new Exception(implode('<br>', $errors));
+        }
+
+        if ($telefone !== '')
+        {
+            $telefone = PessoaContatoService::telefoneValido($telefone);
+        }
+
+        // um telefone so pode ser principal de uma pessoa
+        if ($principal === 'S' && ($dono = PessoaContatoService::donoDoPrincipal($telefone, $data->id ?? null)))
+        {
+            throw new Exception(PessoaContatoService::mensagemTelefoneDeOutro($telefone, $dono));
+        }
+
+        $nome = trim((string) ($data->pessoa_contato_pessoa_nome ?? ''));
+        if ($principal === 'S')
+        {
+            $nome = mb_strtoupper(trim((string) ($data->nome ?? '')));
+        }
+        elseif ($nome === '')
+        {
+            $nome = PessoaContatoService::nomeDoTelefone($telefone);
+        }
+
+        $contato = new PessoaContato();
+        $contato->nome = $nome !== '' ? $nome : null;
+        $contato->descricao = trim((string) ($data->pessoa_contato_pessoa_descricao ?? '')) !== '' ? $data->pessoa_contato_pessoa_descricao : null;
+        $contato->id = $data->pessoa_contato_pessoa_id ?? null;
+        $contato->telefone = $telefone !== '' ? $telefone : null;
+        $contato->email = $email !== '' ? $email : null;
+        $contato->principal = $principal;
+
+        return $contato;
+    }
+
+    /**
+     * Salvar do rodape com contato digitado na aba e sem clicar em Adicionar ou no Salvar da linha: antes gravava o resto e
+     * dizia "Registro salvo", perdendo o contato sem avisar (05/11/2026). Agora o contato entra junto, com as mesmas regras.
+     *
+     * @return array $param com a grade atualizada
+     */
+    private function incorporarContatoDigitado(array $param): array
+    {
+        $data = $this->form->getData();
+        $digitado = trim((string) ($data->pessoa_contato_pessoa_nome ?? '')) . trim((string) ($data->pessoa_contato_pessoa_descricao ?? ''))
+                  . preg_replace('/[^0-9]/', '', (string) ($data->pessoa_contato_pessoa_telefone ?? '')) . trim((string) ($data->pessoa_contato_pessoa_email ?? ''));
+        if ($digitado === '')
+        {
+            return $param;
+        }
+
+        $contato = $this->contatoDaTela($data);
+        $rowId = !empty($data->pessoa_contato_pessoa__row__id) ? $data->pessoa_contato_pessoa__row__id : 'b' . uniqid();
+        $item = (object) ['id' => $contato->id ?: null, 'nome' => $contato->nome, 'descricao' => $contato->descricao, 'telefone' => $contato->telefone,
+                          'email' => $contato->email, 'principal' => $contato->principal, '__row__id' => $rowId, '__display__' => []];
+
+        $linhas = [];
+        $trocou = false;
+        foreach ((array) ($param['pessoa_contato_pessoa_list___row__data'] ?? []) as $serializado)
+        {
+            $linha = unserialize(base64_decode((string) $serializado));
+            if (!is_object($linha))
+            {
+                continue;
+            }
+            if (($linha->__row__id ?? '') === $rowId)
+            {
+                $linha = $item;
+                $trocou = true;
+            }
+            elseif ($contato->principal === 'S')
+            {
+                $linha->principal = 'N';
+            }
+            $linhas[] = base64_encode(serialize($linha));
+        }
+        if (!$trocou)
+        {
+            $linhas[] = base64_encode(serialize($item));
+        }
+        $param['pessoa_contato_pessoa_list___row__data'] = $linhas;
+
+        return $param;
     }
 
     /**
@@ -328,8 +422,9 @@ trait PessoaContatoAbaTrait
     }
 
     /**
-     * Saida do telefone na aba Contatos: avisa se o formato e invalido; se o numero ja e o principal de alguem e o nome
-     * esta vazio, sugere o nome.
+     * Saida do telefone na aba Contatos: avisa se o formato e invalido; se o numero ja e o principal de outra pessoa, o
+     * contato nao principal puxa o nome completo dela (depois pode ser editado). Reabrindo o contato sem mudar o numero, o
+     * nome fica como esta.
      */
     public static function onTelefoneContatoSaida($param = null)
     {
@@ -341,22 +436,42 @@ trait PessoaContatoAbaTrait
                 TToast::show('error', PessoaContatoService::MSG_TELEFONE_INVALIDO, 'topRight', 'fas:exclamation-circle');
                 return;
             }
-            if (trim((string) ($param['pessoa_contato_pessoa_nome'] ?? '')) !== '' || $telefone === '')
+            if ($telefone === '' || ($param['pessoa_contato_pessoa_principal'] ?? '') === 'S' || self::telefoneDaLinhaEmEdicao($param) === PessoaContatoService::telefoneValido($telefone))
             {
                 return;
             }
             TTransaction::open(self::$database);
-            $nome = PessoaContatoService::nomeDoTelefone($param['pessoa_contato_pessoa_telefone']);
+            $dono = PessoaContatoService::donoDoPrincipal($telefone, $param['id'] ?? null);
             TTransaction::close();
-            if ($nome !== '')
+            if ($dono)
             {
-                TForm::sendData(self::$formName, (object) ['pessoa_contato_pessoa_nome' => $nome], false, false);
+                TForm::sendData(self::$formName, (object) ['pessoa_contato_pessoa_nome' => $dono['nome']], false, false);
             }
         }
         catch (Exception $e)
         {
             TTransaction::rollbackAll();
         }
+    }
+
+    /** Telefone gravado na linha da grade que esta sendo editada (null: contato novo). */
+    private static function telefoneDaLinhaEmEdicao($param): ?string
+    {
+        $rowId = (string) ($param['pessoa_contato_pessoa__row__id'] ?? '');
+        if ($rowId === '')
+        {
+            return null;
+        }
+        foreach ((array) ($param['pessoa_contato_pessoa_list___row__data'] ?? []) as $serializado)
+        {
+            $linha = unserialize(base64_decode((string) $serializado));
+            if (is_object($linha) && ($linha->__row__id ?? '') === $rowId)
+            {
+                return PessoaContatoService::telefoneValido($linha->telefone ?? '');
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -419,6 +534,7 @@ trait PessoaContatoAbaTrait
                if(!element.attr('edit')){
                    element.attr('edit', base64_encode(element.html()));
                }
+               setTimeout(function () { var chave = $('form[name=" . self::$formName . "] input[name=\"pessoa_contato_pessoa_principal\"]'); if (chave.length) { window.curciolContatoPrincipal(chave); } }, 100);
             ");
 
         }
@@ -469,8 +585,15 @@ trait PessoaContatoAbaTrait
      */
     protected function salvarContatos(Pessoa $object, $param, array $antes, bool $comRepresentantes = false): void
     {
-        $marcados = array_count_values((array) ($param['pessoa_contato_pessoa_list_principal'] ?? []));
-        if (($marcados['S'] ?? 0) > 1)
+        $param = $this->incorporarContatoDigitado((array) $param);
+
+        $marcados = 0;
+        foreach ((array) ($param['pessoa_contato_pessoa_list___row__data'] ?? []) as $serializado)
+        {
+            $linha = unserialize(base64_decode((string) $serializado));
+            if (is_object($linha) && ($linha->principal ?? '') === 'S') { $marcados++; }
+        }
+        if ($marcados > 1)
         {
             throw new Exception(PessoaContatoService::MSG_VARIOS_PRINCIPAIS);
         }
@@ -501,8 +624,9 @@ trait PessoaContatoAbaTrait
         $mudancas = PessoaContatoService::trocasDeNumero($antes['contatos'] ?? [], PessoaContatoService::numerosDosContatos($object->id));
         if ($mudancas['trocas'] && empty($param['apchat_troca_confirmada']))
         {
+            $mensagemTroca = PessoaContatoService::mensagemTrocaDeNumero($mudancas['trocas'], $antes, $object->id);
             TTransaction::rollbackAll();
-            new TQuestion(PessoaContatoService::mensagemTrocaDeNumero($mudancas['trocas']),
+            new TQuestion($mensagemTroca,
                           new TAction([__CLASS__, 'onConfirmarTrocaNumero'], ['static' => 1]), null, 'Troca de número', 'Confirmar a troca', 'Cancelar');
             // para o salvar como os outros avisos do onSave (nos testes, excecao em vez de encerrar o processo)
             if (!empty($GLOBALS['__salvar_sem_exit'])) { throw new RuntimeException('TROCA_DE_NUMERO_NAO_CONFIRMADA'); }

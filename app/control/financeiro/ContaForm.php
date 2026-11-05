@@ -178,7 +178,7 @@ class ContaForm extends TPage
         $id->setValue($param["key"] ?? "");
         $total_valor_parcelas->setValue('0,00');
 
-        $button_->setAction(new TAction(['ClienteForm', 'onShow'],['page' => 'ContaReceber']), "");
+        $button_->setAction(new TAction(['ClienteForm', 'onShow'],['page' => 'ContaReceber', 'fechar_ao_salvar' => 1]), "");
         $button_atualizar_parcelas->setAction(new TAction([$this, 'onGerarParcelas']), "Atualizar parcelas");
         $btnCancelarParcelas->setAction(new TAction(['ModalCancelarParcelas', 'onShow'],['conta_id' => $param['key'] ?? null,"page" => "ContaForm"]), "Cancelar parcelas");
         $btnEditarParcelas->setAction(new TAction(['ModalEditarParcelasAberto', 'onShow'],['conta_id' => $param['key'] ?? null,"total_conta" => $param['total_conta'] ?? null,"page" => "ContaForm"]), "Editar parcelas");

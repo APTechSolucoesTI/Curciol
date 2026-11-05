@@ -8,6 +8,8 @@ class BloqueioForm extends TPage
     private static $activeRecord = 'Bloqueio';
     private static $primaryKey = 'id';
     private static $formName = 'form_Bloqueio';
+    /** Periodos gravados neste salvar, para conferir o que ja esta marcado: [[agenda, inicio, fim]] */
+    private $periodosGravados = [];
 
     /**
      * Form constructor
@@ -110,6 +112,8 @@ class BloqueioForm extends TPage
         $this->form->appendPage("Informações gerais");
 
         $this->form->addFields([new THidden('current_tab')]);
+        // bloqueio sobre o que ja esta marcado: confirmado pelo usuario (ver onSave)
+        $this->form->addFields([new THidden('bloqueio_sobreposicao_confirmada')]);
         $this->form->setTabFunction("$('[name=current_tab]').val($(this).attr('data-current_page'));");
 
         $row1 = $this->form->addFields([new TLabel("Código:", null, '14px', null, '100%'),$id]);
@@ -279,12 +283,36 @@ class BloqueioForm extends TPage
                 }else{
                     $object->modificacao_user_id = TSession::getValue('userid');
                 }
+                $antes = $new ? null : Bloqueio::find((int) $object->id);
                 $object->store(); // save the object
+
+                // editando sem mudar agenda nem horario, nao confere
+                if (!$antes || (int) $antes->agenda_id !== (int) $object->agenda_id
+                    || substr((string) $antes->dt_inicio, 0, 16) !== substr(str_replace('T', ' ', (string) $object->dt_inicio), 0, 16)
+                    || substr((string) $antes->dt_final, 0, 16) !== substr(str_replace('T', ' ', (string) $object->dt_final), 0, 16))
+                {
+                    $this->periodosGravados[] = [(int) $object->agenda_id, (string) $object->dt_inicio, (string) $object->dt_final];
+                }
 
                 if ($new)
                 {
                     $this->clonar($object, $data);
                 }
+            }
+
+            // 05/11/2026: bloqueio sobre o que ja esta marcado. Confirmado ou em atendimento impede; o resto pede confirmacao.
+            $sobreposicoes = AgendaConflitoService::sobreposicoesDoBloqueio($this->periodosGravados);
+            if ($sobreposicoes['impedem'])
+            {
+                throw new Exception('Não é possível bloquear este horário porque há agendamento confirmado ou em atendimento:<br><br>' . AgendaConflitoService::listaParaAviso($sobreposicoes['impedem']));
+            }
+            if ($sobreposicoes['avisam'] && empty($param['bloqueio_sobreposicao_confirmada']))
+            {
+                TTransaction::rollback();
+                $this->form->setData($this->form->getData());
+                new TQuestion('O bloqueio ficará sobre o que já está marcado:<br><br>' . AgendaConflitoService::listaParaAviso($sobreposicoes['avisam']) . '<br><br>Eles continuam na agenda. Deseja bloquear mesmo assim?',
+                              new TAction([__CLASS__, 'onConfirmarSobreposicao'], ['static' => 1]), null, 'Bloqueio sobre horário marcado', 'Bloquear mesmo assim', 'Não bloquear');
+                return;
             }
 
             // get the generated {PRIMARY_KEY}
@@ -307,6 +335,13 @@ class BloqueioForm extends TPage
             TTransaction::rollback(); // undo all pending operations
         }
     }
+    /** "Bloquear mesmo assim": salva de novo, agora com a sobreposicao confirmada. */
+    public static function onConfirmarSobreposicao($param = null)
+    {
+        TScript::create("(function () { var f = $('form[name=" . self::$formName . "]'); f.find('[name=bloqueio_sobreposicao_confirmada]').val('1');"
+            . " f.find('[onclick*=\"method=onSave\"]').first().click(); })();");
+    }
+
     public static function onDeleteBloqueio($param = null) 
     {
         try 
@@ -509,6 +544,7 @@ class BloqueioForm extends TPage
         //$newObject->agendamento_original_id = $object->id;
 
         $newObject->store();
+        $this->periodosGravados[] = [(int) $newObject->agenda_id, (string) $newObject->dt_inicio, (string) $newObject->dt_final];
 
     }
 

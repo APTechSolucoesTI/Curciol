@@ -361,7 +361,7 @@ class RepresentanteLegalForm extends TPage
         $btn_onclear = $this->form->addAction("Cancelar", new TAction([$this, 'onClear']), 'fas:eraser #dd5a43');
         $this->btn_onclear = $btn_onclear;
 
-        $btn_onshow = $this->form->addAction("Sair", new TAction(['RepresentantesLegaisList', 'onShow']), 'fas:arrow-left #000000');
+        $btn_onshow = $this->form->addAction("Sair", new TAction([__CLASS__, 'onFecharCortina'], ['static' => 1]), 'fas:arrow-left #000000');
         $this->btn_onshow = $btn_onshow;
 
         $btn_ondelete = $this->form->addHeaderAction("Excluir", new TAction([$this, 'onDelete']), 'fas:trash-alt #FF0000');
@@ -863,6 +863,7 @@ class RepresentanteLegalForm extends TPage
                 }else{
                     // deletes the object from the database
                     $object->deleteComposite('PessoaGrupo', 'pessoa_id', $object->id);
+                    PessoaContatoService::excluirContatos((int) $object->id);
                     $object->deleteComposite('PessoaEndereco', 'pessoa_id', $object->id); 
                     $object->delete();
                 }
@@ -870,6 +871,7 @@ class RepresentanteLegalForm extends TPage
                 // close the transaction
                 TTransaction::close();
 
+                APChatContactService::aposExcluirPessoa((int) $param['id']);
                 Navegacao::voltarParaLista('RepresentantesLegaisList', __CLASS__);
                 TToast::show('success', "Registro excluído", 'topRight', 'far:check-circle');
 

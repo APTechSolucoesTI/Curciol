@@ -1264,6 +1264,30 @@ class APChatContactService
         self::$trocas[$pessoa_id] = ['trocas' => $trocas, 'removidos' => $removidos];
     }
 
+    /**
+     * Cadastro excluido (depois do commit): os numeros que sairam da Curciol ficam como ex-contato no APChat, como quando se
+     * exclui um contato pela aba. Nunca lanca excecao.
+     */
+    public static function aposExcluirPessoa(int $pessoa_id): void
+    {
+        $numeros = PessoaContatoService::numerosExcluidos($pessoa_id);
+        if (!$numeros)
+        {
+            return;
+        }
+        try
+        {
+            TTransaction::open(self::$database);
+            self::registrarTrocas($pessoa_id, [], $numeros);
+            self::processarTrocas($pessoa_id, [], ApchatContatoLog::ORIGEM_CADASTRO);
+            TTransaction::close();
+        }
+        catch (Throwable $e)
+        {
+            TTransaction::rollbackAll();
+        }
+    }
+
     /** Algum contato da Curciol ainda tem esse numero (com ou sem o nono digito)? */
     private static function numeroEmUso(string $numero): bool
     {

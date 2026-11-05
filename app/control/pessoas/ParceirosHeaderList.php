@@ -657,7 +657,7 @@ class ParceirosHeaderList extends TPage
         if (isset($data->telefone) AND ( (is_scalar($data->telefone) AND $data->telefone !== '') OR (is_array($data->telefone) AND (!empty($data->telefone)) )) )
         {
 
-            $filters[] = new TFilter('unaccent(CAST(telefone AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->telefone) . '%');// create the filter 
+            $filters[] = PessoaContatoService::filtroTelefone($data->telefone);// create the filter 
         }
 
         if (isset($data->email) AND ( (is_scalar($data->email) AND $data->email !== '') OR (is_array($data->email) AND (!empty($data->email)) )) )
@@ -698,7 +698,7 @@ class ParceirosHeaderList extends TPage
 
             $globalCriteria->add(new TFilter('unaccent(CAST(nome AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->globfiltpar) . '%'), ' OR ');
 
-            $globalCriteria->add(new TFilter('unaccent(CAST(telefone AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->globfiltpar) . '%'), ' OR ');
+            $globalCriteria->add(PessoaContatoService::filtroTelefone($data->globfiltpar), ' OR ');
 
             $filters[] = $globalCriteria;
         }
@@ -719,6 +719,7 @@ class ParceirosHeaderList extends TPage
         $this->form->setData($data);
 
         // keep the search data in the session
+        TSession::setValue(__CLASS__.'_telefone_busca', $data->telefone ?? null); // telefone como unico filtro: principal primeiro
         TSession::setValue(__CLASS__.'_filter_data', $data);
         TSession::setValue(__CLASS__.'_filters', $filters);
 
@@ -768,6 +769,7 @@ class ParceirosHeaderList extends TPage
             }
 
             $criteria->setProperties($param); // order, offset
+            PessoaContatoService::ordenarTelefone($criteria, TSession::getValue(__CLASS__.'_telefone_busca'), TSession::getValue(__CLASS__.'_filters'), (string) $param['order']);
             $criteria->setProperty('limit', $this->limit);
 
             if($filters = TSession::getValue(__CLASS__.'_filters'))

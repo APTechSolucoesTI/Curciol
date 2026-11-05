@@ -695,7 +695,7 @@ class Agendamento extends TRecord
         $this->horarioAnterior = null;
         if (!empty($object->id))
         {
-            $st = TTransaction::get()->prepare('SELECT dt_inicial, dt_final FROM agendamento WHERE id = ?');
+            $st = TTransaction::get()->prepare('SELECT dt_inicial, dt_final, estado_agenda_id FROM agendamento WHERE id = ?');
             $st->execute([(int) $object->id]);
             $this->horarioAnterior = $st->fetch(PDO::FETCH_ASSOC) ?: null;
         }
@@ -733,7 +733,8 @@ class Agendamento extends TRecord
 
         $historico = new EstadoAgendamento();
         $historico->agendamento_id = $object->id;
-        $historico->estado_agenda_id = $object->estado_agenda_id;
+        // a tela de edicao nao manda o estado: vale o que esta gravado
+        $historico->estado_agenda_id = !empty($object->estado_agenda_id) ? $object->estado_agenda_id : $antes['estado_agenda_id'];
         $historico->system_users_id = TSession::getValue('userid');
         $historico->atribuido_em = date('Y-m-d H:i:s');
         $historico->evento = EstadoAgendamento::EVENTO_HORARIO;

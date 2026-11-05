@@ -639,7 +639,7 @@ class PessoaList extends TPage
         if (isset($data->telefone) AND ( (is_scalar($data->telefone) AND $data->telefone !== '') OR (is_array($data->telefone) AND (!empty($data->telefone)) )) )
         {
 
-            $filters[] = new TFilter('unaccent(CAST(telefone AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->telefone) . '%');// create the filter 
+            $filters[] = PessoaContatoService::filtroTelefone($data->telefone);// create the filter 
         }
 
         if (isset($data->email) AND ( (is_scalar($data->email) AND $data->email !== '') OR (is_array($data->email) AND (!empty($data->email)) )) )
@@ -663,7 +663,7 @@ class PessoaList extends TPage
         if (isset($data->telefone_col) AND ( (is_scalar($data->telefone_col) AND $data->telefone_col !== '') OR (is_array($data->telefone_col) AND (!empty($data->telefone_col)) )) )
         {
 
-            $filters[] = new TFilter('unaccent(CAST(telefone AS TEXT))', 'ilike', '%' . TratamentosService::removerAcentos((string) $data->telefone_col) . '%');// create the filter 
+            $filters[] = PessoaContatoService::filtroTelefone($data->telefone_col);// create the filter 
         }
 
         if (isset($data->email_col) AND ( (is_scalar($data->email_col) AND $data->email_col !== '') OR (is_array($data->email_col) AND (!empty($data->email_col)) )) )
@@ -701,6 +701,7 @@ class PessoaList extends TPage
         $this->form->setData($data);
 
         // keep the search data in the session
+        TSession::setValue(__CLASS__.'_telefone_busca', $data->telefone_col ?? ($data->telefone ?? null)); // telefone como unico filtro: principal primeiro
         TSession::setValue(__CLASS__.'_filter_data', $data);
         TSession::setValue(__CLASS__.'_filters', $filters);
 
@@ -743,6 +744,7 @@ class PessoaList extends TPage
             }
 
             $criteria->setProperties($param); // order, offset
+            PessoaContatoService::ordenarTelefone($criteria, TSession::getValue(__CLASS__.'_telefone_busca'), TSession::getValue(__CLASS__.'_filters'), (string) $param['order']);
             $criteria->setProperty('limit', $this->limit);
 
             if($filters = TSession::getValue(__CLASS__.'_filters'))

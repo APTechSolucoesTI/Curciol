@@ -59,6 +59,13 @@ class Navegacao
      */
     public static function continuarNoRegistro(string $formulario, int $id, array $param = []): void
     {
+        // aberto no meio de outra tarefa (agenda, atendimento, conta, cadastro de cima): fecha e volta para ela (05/11/2026)
+        if (!empty($param['fechar_ao_salvar']))
+        {
+            TScript::create('Template.closeRightPanel();');
+            return;
+        }
+
         self::atualizarListaAoFechar();
         $abrir = ['key' => $id, 'id' => $id, 'target_container' => 'adianti_right_panel'];
         if (isset($param['current_tab']) && ctype_digit((string) $param['current_tab'])) {

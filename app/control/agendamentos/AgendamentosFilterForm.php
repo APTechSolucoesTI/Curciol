@@ -135,7 +135,7 @@ class AgendamentosFilterForm extends TPage
         $adicionar->addAction('Exceção', new TAction(['AgendamentoExcecao', 'onShow']), 'fas:calendar-plus #2196F3');
         $this->form->addHeaderWidget($adicionar);
 
-        $btnCliente = $this->form->addHeaderAction("Cliente", new TAction(['ClienteForm', 'onShow']), 'fas:user-plus #4CAF50');
+        $btnCliente = $this->form->addHeaderAction("Cliente", new TAction(['ClienteForm', 'onShow'], ['fechar_ao_salvar' => 1]), 'fas:user-plus #4CAF50');
         $this->btnCliente = $btnCliente;
 
         $btn_onshow = $this->form->addHeaderAction("Novo agendamento", new TAction(['AgendamentoFormBtn', 'onShow']), 'fas:calendar-plus #9C27B0');
