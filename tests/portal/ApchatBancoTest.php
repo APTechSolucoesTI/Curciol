@@ -226,7 +226,7 @@ try {
     TTransaction::get()->exec("UPDATE pessoa SET nome = '" . MARCA_BANCO . " J RENOMEADA' WHERE id = {$j}");
     PessoaContatoService::aplicarPrincipal($j, $antes);
     TTransaction::close();
-    igual('nome mudou: nome dado de proposito ao principal fica', 'RESPONSAVEL RH', q("SELECT nome FROM pessoa_contato WHERE pessoa_id = {$j} AND principal = 'S'")[0]['nome'] ?? null);
+    igual('nome mudou: o principal tem sempre o nome do cadastro', MARCA_BANCO . ' J RENOMEADA', q("SELECT nome FROM pessoa_contato WHERE pessoa_id = {$j} AND principal = 'S'")[0]['nome'] ?? null);
 
     // ---------- tela "Contatos sem vinculo": vincular a um cadastro existente ----------
     $apchat['contatos']['5511987669001'] = ['id' => 80950, 'name' => '~Filho da D'];
