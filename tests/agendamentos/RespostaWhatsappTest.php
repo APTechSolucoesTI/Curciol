@@ -121,9 +121,9 @@ try {
     igual('SIM: rodar de novo nao repete nada', 0, count($enviadas));
 
     // ---------- o cliente tirou a autorizacao depois da confirmacao: a resposta vale, nada mais e enviado ----------
-    [$agSemAut, $mSemAut] = $novo('SEM AUTORIZACAO', '5519912340040');
+    [$agSemAut, $mSemAut] = $novo('SEM AUTORIZACAO', '5519912340050');
     x("UPDATE pessoa SET aceita_receber_mensagen_whatsapp = 'F' WHERE id = (SELECT cliente_id FROM agendamento WHERE id = {$agSemAut})");
-    $responde('5519912340040', 'Sim');
+    $responde('5519912340050', 'Sim');
     $enviadas = [];
     $rodar();
     igual('sem autorizacao: a resposta do cliente confirma', EstadoAgenda::CONFIRMADO, $estado($agSemAut));
