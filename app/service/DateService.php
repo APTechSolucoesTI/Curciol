@@ -322,28 +322,37 @@ class DateService  extends TDate
      */
     public static function gerarRepeticoesAnuais($dt_inicial, $dt_final)
     {
-        $datas      = [];
-        
-        $inicio = new DateTime($dt_inicial);
-        $fim    = new DateTime($dt_final);
+        $datas = [];
+        $base = new DateTime($dt_inicial);
+        $fim = (new DateTime($dt_final))->format('Y-m-d');
 
-        while( TRUE )
+        for ($anos = 1; ; $anos++)
         {
-            $inicio = $inicio->modify('+1 year');
-            
-            if ($inicio->format('Y-m-d') > $fim->format('Y-m-d'))
+            $data = self::mesmaDataDepoisDeAnos($base, $anos);
+            if ($data > $fim)
             {
                 break;
             }
-            
-            $datas[] = $inicio->format('Y-m-d');
+            $datas[] = $data;
         }
-        
-        $datas = array_diff($datas, [$dt_inicial]);
-        sort($datas);
+
         return $datas;
     }
-    
+
+    /** A mesma data, $anos depois; 29 de fevereiro em ano que nao tem vira 28. */
+    private static function mesmaDataDepoisDeAnos(DateTime $base, int $anos): string
+    {
+        $ano = (int) $base->format('Y') + $anos;
+        $mes = (int) $base->format('m');
+        $dia = (int) $base->format('d');
+        if ($mes === 2 && $dia === 29 && !checkdate(2, 29, $ano))
+        {
+            $dia = 28;
+        }
+
+        return sprintf('%04d-%02d-%02d', $ano, $mes, $dia);
+    }
+
     /**
      * Gera um periodo de datas anual
      *
@@ -356,31 +365,17 @@ class DateService  extends TDate
      */
     public static function gerarRepeticoesAnuaisByQuantidade($dt_inicial, $quantidade)
     {
-        $datas      = [];
-        
-        $inicio = new DateTime($dt_inicial);
-        $fim    = new DateTime($dt_final);
+        $datas = [];
+        $base = new DateTime($dt_inicial);
 
-        while( TRUE )
+        for ($anos = 1; $anos <= (int) $quantidade; $anos++)
         {
-            $inicio = $inicio->modify('+1 year');
-            
-            if ($inicio->format('Y-m-d') > $dt_inicial)
-            {
-                $datas[] = $inicio->format('Y-m-d');
-            }
-            
-            if (count($datas) >= $quantidade)
-            {
-                break;
-            }
+            $datas[] = self::mesmaDataDepoisDeAnos($base, $anos);
         }
-        
-        $datas = array_diff($datas, [$dt_inicial]);
-        sort($datas);
+
         return $datas;
     }
-    
+
     /**
      * Gera um periodo de datas semanais
      *

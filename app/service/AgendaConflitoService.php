@@ -6,10 +6,10 @@
  * comeca) pode. Agenda que permite choque de horario aceita agendamento sobre agendamento, mas nunca sobre bloqueio
  * ou compromisso. Agendamentos cancelados e de quem nao compareceu nao ocupam o horario. Usa a transacao aberta.
  *
- * Horario de atendimento (30/10/2026): agendamento e compromisso novos (ou mudando agenda/horario) so dentro do
- * atendimento da agenda: em dia que ela atende, dentro do horario e fora do intervalo. A excecao existe para marcar
- * agendamento no intervalo ou quando a agenda nao atende (nunca sobre bloqueio). Compromisso longo (de varios dias ou
- * de 8 horas ou mais, o "dia inteiro" da agenda) pode pegar intervalo e nao atende, como o bloqueio.
+ * Horario de atendimento (30/10/2026): agendamento novo (ou mudando agenda/horario) so dentro do atendimento da agenda:
+ * em dia que ela atende, dentro do horario e fora do intervalo. A excecao existe para marcar agendamento no intervalo ou
+ * quando a agenda nao atende (nunca sobre bloqueio). Compromisso e bloqueio podem sobrepor o intervalo e o nao atende, e a
+ * tela avisa ao gravar (05/11/2026, ver avisosAtendimento).
  *
  * Compromisso (05/11/2026): tambem nao pode cair sobre agendamento nem sobre outro compromisso, nem em agenda que permite
  * choque de horario. Agendas convidadas (05/11/2026): valem as mesmas regras da agenda principal. Bloqueio novo sobre o que
@@ -53,7 +53,7 @@ class AgendaConflitoService
         if ($r = $st->fetch(PDO::FETCH_OBJ)) { throw new Exception(self::mensagem('um compromisso', $nomeAgenda, $r)); }
     }
 
-    /** Compromisso: fora de bloqueio e, se nao for longo, so no horario de atendimento da agenda. */
+    /** Compromisso: fora de bloqueio, de agendamento e de outro compromisso; pode sobrepor o intervalo e o nao atende. */
     public static function exigirLivreCompromisso(int $agendaId, string $inicio, string $fim, int $ignorarCompromissoId = 0): void
     {
         if ($agendaId <= 0 || trim($inicio) === '' || trim($fim) === '') { return; }
@@ -61,9 +61,6 @@ class AgendaConflitoService
         $fim = self::minuto($fim);
         if ($fim <= $inicio) { throw new Exception('O fim do horário tem que ser depois do início.'); }
         $agenda = Agenda::find($agendaId);
-        if (!self::longo($inicio, $fim)) {
-            self::exigirAtendimento($agendaId, $inicio, $fim);
-        }
         $nomeAgenda = $agenda ? ' na agenda ' . $agenda->nome : '';
         self::exigirSemBloqueio($agendaId, $inicio, $fim, $nomeAgenda);
 
@@ -71,6 +68,28 @@ class AgendaConflitoService
         {
             throw new Exception(self::mensagem($o['tipo'] === 'agendamento' ? 'um agendamento' : 'um compromisso', $nomeAgenda, (object) $o));
         }
+    }
+
+    /**
+     * Compromisso ou bloqueio gravado sobre o intervalo ou o nao atende: o aviso de cada periodo, sem repetir.
+     * $periodos: [[agenda, inicio, fim]]. Usa a transacao aberta.
+     */
+    public static function avisosAtendimento(array $periodos): array
+    {
+        $avisos = [];
+        foreach ($periodos as [$agenda, $inicio, $fim])
+        {
+            try
+            {
+                self::exigirAtendimento((int) $agenda, (string) $inicio, (string) $fim);
+            }
+            catch (Exception $e)
+            {
+                $avisos[$e->getMessage()] = true;
+            }
+        }
+
+        return array_keys($avisos);
     }
 
     /** Agendas convidadas de um agendamento: as mesmas regras da principal. */

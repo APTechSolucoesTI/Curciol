@@ -135,6 +135,26 @@ try {
     x("UPDATE agendamento SET estado_agenda_id = " . EstadoAgenda::CANCELADO . " WHERE id = {$ag}");
     igual('bloqueio sobre cancelado: nada', ['impedem' => [], 'avisam' => []], $sobre($h('09:00'), $h('10:00')));
 
+    // ---------- compromisso e bloqueio sobre o nao atende e o intervalo: podem, avisando ----------
+    igual('compromisso antes de abrir: pode', null, $erro(fn() => AgendaConflitoService::exigirLivreCompromisso($a1, $h('07:00'), $h('07:30'))));
+    $avisos = function (array $periodos) { TTransaction::open('escritorio'); $r = AgendaConflitoService::avisosAtendimento($periodos); TTransaction::close(); return $r; };
+    igual('aviso: dentro do atendimento nao tem', [], $avisos([[$a1, $h('12:30'), $h('13:00')]]));
+    $r = $avisos([[$a1, $h('07:00'), $h('07:30')], [$a1, $h('07:00'), $h('07:30')]]);
+    ok('aviso: fora do horario, sem repetir', count($r) === 1 && strpos($r[0], 'fora do atendimento') !== false, json_encode($r));
+    x("UPDATE agenda SET horario_inicio_intervalo = '13:00', horario_fim_intervalo = '14:00' WHERE id = {$a1}");
+    $r = $avisos([[$a1, $h('13:00'), $h('13:30')]]);
+    ok('aviso: no intervalo', strpos($r[0] ?? '', 'intervalo da agenda') !== false, json_encode($r));
+    x("UPDATE agenda SET horario_inicio_intervalo = NULL, horario_fim_intervalo = NULL WHERE id = {$a1}");
+
+    // ---------- repeticao anual ----------
+    igual('anual ate uma data', ['2028-03-10', '2029-03-10'], DateService::gerarRepeticoesAnuais('2027-03-10', '2029-12-31'));
+    igual('anual por quantidade', ['2028-03-10', '2029-03-10', '2030-03-10'], DateService::gerarRepeticoesAnuaisByQuantidade('2027-03-10', 3));
+    igual('anual: 29 de fevereiro nao escorrega', ['2029-02-28', '2030-02-28', '2031-02-28', '2032-02-29'], DateService::gerarRepeticoesAnuaisByQuantidade('2028-02-29', 4));
+    foreach (['AgendamentoCalendarForm', 'AgendamentoExcecao', 'AgendamentoFormBtn', 'BloqueioForm', 'CompromissoForm'] as $tela)
+    {
+        ok("{$tela}: repeticao anual sem o erro de depuracao", strpos(file_get_contents("app/control/agendamentos/{$tela}.php"), "'==' .json_encode") === false);
+    }
+
     // ---------- pelo onSave real do bloqueio ----------
     x("UPDATE agendamento SET estado_agenda_id = " . EstadoAgenda::AGENDADO . " WHERE id = {$ag}");
     $form = function (array $extra) use ($a1, $h) {
@@ -153,6 +173,18 @@ try {
     $s = $form(['bloqueio_sobreposicao_confirmada' => '1']);
     ok('tela: sobre confirmado nao passa, nem confirmando', strpos($s, 'há agendamento confirmado') !== false, substr($s, 0, 400));
     igual('tela: sobre confirmado nada gravado', 0, $qtd());
+
+    // repeticao anual e aviso, pela tela
+    $anual = function (array $extra) use ($a1, $h) {
+        $p = ['id' => '', 'agenda_id' => $a1, 'agendas' => [$a1], 'dt_inicio' => date('d/m/Y H:i', strtotime($h('07:00'))), 'dt_final' => date('d/m/Y H:i', strtotime($h('07:30'))), 'observacao' => MARCA_AS . ' ANUAL'] + $extra;
+        $_POST = $p; $_REQUEST = $p;
+        return saida(function () use ($p) { (new BloqueioForm($p))->onSave($p); });
+    };
+    $s = $anual(['habilitar_repeticao' => 'S', 'tipo_repeticao' => 'A', 'quantidade_repeticoes' => '2', 'repetir_ate' => '']);
+    $datas = array_column(q("SELECT to_char(dt_inicio, 'YYYY-MM-DD') d FROM bloqueio WHERE observacao = '" . MARCA_AS . " ANUAL' ORDER BY dt_inicio"), 'd');
+    $esperadas = [$dia, date('Y-m-d', strtotime($dia . ' +1 year')), date('Y-m-d', strtotime($dia . ' +2 years'))];
+    igual('tela: bloqueio anual cria a original e as repeticoes', $esperadas, $datas);
+    ok('tela: bloqueio fora do horario grava e avisa', strpos($s, 'está sobrepondo') !== false && strpos($s, 'fora do atendimento') !== false, substr($s, -500));
 } finally {
     while (TTransaction::get()) { TTransaction::rollback(); }
     $_POST = []; $_REQUEST = [];

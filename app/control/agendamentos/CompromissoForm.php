@@ -9,6 +9,8 @@ class CompromissoForm extends TPage
     private static $primaryKey = 'id';
     /** Agendas convidadas a conferir tambem nas repeticoes. */
     private $convidadosAConferir = [];
+    /** Periodos gravados neste salvar, para avisar o que sobrepoe o intervalo ou o nao atende: [[agenda, inicio, fim]] */
+    private $periodosGravados = [];
     private static $formName = 'form_CompromissoForm';
 
     use BuilderMasterDetailFieldListTrait;
@@ -324,8 +326,8 @@ class CompromissoForm extends TPage
                 $object->modificacao_user_id = TSession::getValue('userid');
             }
 
-            // Curciol (30/10/2026): compromisso so no atendimento da agenda (dia que atende, horario, fora do intervalo) e
-            // fora de bloqueio; editando sem mudar agenda nem horario, nao confere
+            // compromisso fora de bloqueio, de agendamento e de outro compromisso; sobre o intervalo ou o nao atende pode, avisando
+            // (05/11/2026); editando sem mudar agenda nem horario, nao confere
             $antes = $new ? null : Compromisso::find((int) $object->id);
             $mudouHorario = !$antes || (int) $antes->agenda_id !== (int) $object->agenda_id
                 || substr((string) $antes->dt_inicio, 0, 16) !== substr(str_replace('T', ' ', (string) $object->dt_inicio), 0, 16)
@@ -333,6 +335,7 @@ class CompromissoForm extends TPage
             if ($mudouHorario)
             {
                 AgendaConflitoService::exigirLivreCompromisso((int) $object->agenda_id, (string) $object->dt_inicio, (string) $object->dt_final, (int) $object->id);
+                $this->periodosGravados[] = [(int) $object->agenda_id, (string) $object->dt_inicio, (string) $object->dt_final];
             }
 
             // agendas convidadas: as mesmas regras; com varias agendas marcadas, os convidados sao conferidos uma vez so
@@ -373,9 +376,14 @@ class CompromissoForm extends TPage
             $data->id = $object->id; 
 
             $this->form->setData($data); // fill form data
+            $avisosAtendimento = AgendaConflitoService::avisosAtendimento($this->periodosGravados);
             TTransaction::close(); // close the transaction
 
             TToast::show('success', AgendaSelecaoMultipla::mensagem('compromissos', count($agendas)), 'topRight', 'far:check-circle');
+            if ($avisosAtendimento)
+            {
+                new TMessage('warning', 'Compromisso salvo. Ele está sobrepondo o período sem atendimento:<br><br>' . AgendaConflitoService::listaParaAviso($avisosAtendimento));
+            }
             TApplication::loadPage('AgendamentosFilterForm', 'onShow', $loadPageParam); 
 
             TScript::create("$('#agendamentos').data('fullcalendar').refetchEvents()");
@@ -536,7 +544,6 @@ private function clonar($object, $data)
                         $inicio,
                         $data->repetir_ate
                     );
-                    throw new Exception($inicio . '==' .json_encode($repeticoes));
                 }
                 else
                 {
@@ -575,7 +582,6 @@ private function clonar($object, $data)
                         $inicio,
                         $data->quantidade_repeticoes
                     );
-                    throw new Exception($inicio . '==' .json_encode($repeticoes));
                 }
                 else
                 {
@@ -628,6 +634,7 @@ private function clonar($object, $data)
         // Curciol (30/10/2026): a repeticao tambem so no atendimento da agenda e fora de bloqueio
         AgendaConflitoService::exigirLivreCompromisso((int) $newObject->agenda_id, (string) $newObject->dt_inicio, (string) $newObject->dt_final);
         AgendaConflitoService::exigirLivreConvidadosCompromisso($this->convidadosAConferir, (string) $newObject->dt_inicio, (string) $newObject->dt_final);
+        $this->periodosGravados[] = [(int) $newObject->agenda_id, (string) $newObject->dt_inicio, (string) $newObject->dt_final];
         $newObject->store();
 
     }

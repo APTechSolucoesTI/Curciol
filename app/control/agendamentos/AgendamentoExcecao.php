@@ -631,7 +631,6 @@ class AgendamentoExcecao extends TPage
                         $inicio,
                         $data->repetir_ate
                     );
-                    throw new Exception($inicio . '==' .json_encode($repeticoes));
                 }
                 else
                 {
@@ -670,7 +669,6 @@ class AgendamentoExcecao extends TPage
                         $inicio,
                         $data->quantidade_repeticoes
                     );
-                    throw new Exception($inicio . '==' .json_encode($repeticoes));
                 }
                 else
                 {

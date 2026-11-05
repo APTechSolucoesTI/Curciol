@@ -183,12 +183,12 @@ try {
         ok('atendimento: no intervalo da agenda e recusado', strpos($m, 'intervalo da agenda') !== false, $m);
         igual('atendimento: a excecao pode no intervalo', '', $livre($a1, $ii, $mais($ii, 30), true));
         $m = $livreCompromisso($a1, $ii, $mais($ii, 30));
-        ok('compromisso: no intervalo da agenda e recusado', strpos($m, 'intervalo da agenda') !== false, $m);
+        igual('compromisso: no intervalo da agenda pode', '', $m);
         post(['id' => '', 'tipo_compromisso_id' => (string) $tipoCompromisso, 'dt_inicio' => date('d/m/Y H:i', strtotime($ii)), 'dt_final' => date('d/m/Y H:i', strtotime($mais($ii, 30))), 'habilitar_repeticao' => 'N',
               'convidado_compromisso_compromisso_id' => [''], 'convidado_compromisso_compromisso___row__id' => ['1'], 'convidado_compromisso_compromisso___row__data' => [''], 'convidado_compromisso_compromisso_agenda_id' => [''],
               'agendas' => [(string) $a1], 'observacao' => MARCA_AV . ' no intervalo']);
         $s = saida(function () { (new CompromissoForm($_POST))->onSave($_POST); });
-        ok('compromisso: a tela recusa no intervalo, com o motivo', strpos($s, 'intervalo da agenda') !== false && !q("SELECT 1 FROM compromisso WHERE observacao = '" . MARCA_AV . " no intervalo'"), substr(strip_tags($s), 0, 200));
+        ok('compromisso: a tela grava no intervalo e avisa', strpos($s, 'sobrepondo') !== false && strpos($s, 'intervalo da agenda') !== false && q("SELECT 1 FROM compromisso WHERE observacao = '" . MARCA_AV . " no intervalo'"), substr(strip_tags($s), 0, 200));
     }
     $meio = $mais($abre, 60);
     x("INSERT INTO bloqueio (agenda_id, dt_inicio, dt_final, observacao) VALUES ({$a1}, '{$meio}', '" . $mais($meio, 60) . "', '" . MARCA_AV . " bloqueio atendimento')");
@@ -196,7 +196,7 @@ try {
     ok('compromisso: sobre bloqueio e recusado', strpos($livreCompromisso($a1, $meio, $mais($meio, 30)), 'Já existe um bloqueio') !== false);
     igual('compromisso: no atendimento e fora de bloqueio pode', '', $livreCompromisso($a1, $abre, $mais($abre, 30)));
     if ($folga) {
-        ok('compromisso curto: no dia em que a agenda nao atende e recusado', strpos($livreCompromisso($a1, "{$folga} 10:00", "{$folga} 10:30"), 'não atende em') !== false);
+        igual('compromisso curto: no dia em que a agenda nao atende pode', '', $livreCompromisso($a1, "{$folga} 10:00", "{$folga} 10:30"));
         igual('compromisso longo (dia todo ou varios dias): pode pegar o nao atende e o intervalo, como o bloqueio', ['', ''],
             [$livreCompromisso($a1, "{$folga} 08:00", "{$folga} 18:00"), $livreCompromisso($a1, "{$folga} 08:00", $mais("{$folga} 18:00", 13 * 60))]);
     }

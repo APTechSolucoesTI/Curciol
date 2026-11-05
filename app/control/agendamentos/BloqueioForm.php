@@ -315,6 +315,8 @@ class BloqueioForm extends TPage
                 return;
             }
 
+            $avisosAtendimento = AgendaConflitoService::avisosAtendimento($this->periodosGravados);
+
             // get the generated {PRIMARY_KEY}
             $data->id = $object->id; 
 
@@ -322,6 +324,10 @@ class BloqueioForm extends TPage
             TTransaction::close(); // close the transaction
 
             TToast::show('success', AgendaSelecaoMultipla::mensagem('bloqueios', count($agendas)), 'topRight', 'far:check-circle');
+            if ($avisosAtendimento)
+            {
+                new TMessage('warning', 'Bloqueio salvo. Ele está sobrepondo o período sem atendimento:<br><br>' . AgendaConflitoService::listaParaAviso($avisosAtendimento));
+            }
 
             TScript::create("$('#agendamentos').data('fullcalendar').refetchEvents()");
                         TScript::create("Template.closeRightPanel();"); 
@@ -454,7 +460,6 @@ class BloqueioForm extends TPage
                         $inicio,
                         $data->repetir_ate
                     );
-                    throw new Exception($inicio . '==' .json_encode($repeticoes));
                 }
                 else
                 {
@@ -493,7 +498,6 @@ class BloqueioForm extends TPage
                         $inicio,
                         $data->quantidade_repeticoes
                     );
-                    throw new Exception($inicio . '==' .json_encode($repeticoes));
                 }
                 else
                 {
