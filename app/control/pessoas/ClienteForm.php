@@ -291,7 +291,7 @@ class ClienteForm extends TPage
 
         $row1 = $this->form->addFields([new TLabel("Código:", null, '12px', null, '100%'),$id],[new TLabel("Autoriza receber mensagens pelo WhatsApp/E-mail?", null, '12px', null, '100%'),$aceita_receber_mensagen_whatsapp,new TLabel(new TImage('fas:info-circle #03A9F4')."Lembretes, confirmações de agendamento e atendimento via WhatsApp ou e-mail", '#607D8B', '9px', 'I')]);
         $row1->layout = ['col-sm-6',' col-sm-6'];
-        $this->form->addFields([new THidden('autorizacao_retirada_confirmada')]);
+        $this->form->addFields([new THidden('autorizacao_retirada_confirmada'), new THidden('voltar_agendamento')]);
 
         $bcontainer_654b89b1308c8 = new BootstrapFormBuilder('bcontainer_654b89b1308c8');
         $this->bcontainer_654b89b1308c8 = $bcontainer_654b89b1308c8;
@@ -1234,18 +1234,10 @@ class ClienteForm extends TPage
             // o cadastro completo tira o aviso de todos os agendamentos do cliente na agenda aberta, de onde quer que tenha sido salvo
             TScript::create("if ($('#agendamentos').data('fullcalendar')) { $('#agendamentos').data('fullcalendar').refetchEvents(); }");
 
-            $atendimento = TSession::getValue('atendimento');
-
-            $agendamento = TSession::getValue('agendamento');
-
-            if(!empty($atendimento)){
-                $loadPageParam['key'] = $atendimento;
-                TApplication::loadPage('AtendimentoFormView', 'onShow', $loadPageParam);
+            // aberto pelo botao Visualizar cliente do agendamento: a cortina fecha e o agendamento de baixo volta atualizado
+            if(!empty($param['voltar_agendamento'])){
                 TToast::show('success', "Registro salvo", 'topRight', 'far:check-circle');
-            }else if(!empty($agendamento)){
-                $loadPageParam['key'] = $agendamento;
-                TApplication::loadPage('AgendamentoFormView', 'onShow', $loadPageParam);
-                TToast::show('success', "Registro salvo", 'topRight', 'far:check-circle');
+                Navegacao::voltarParaAgendamento((int) $param['voltar_agendamento']);
             }else{
                 TSession::setValue(__CLASS__.'_filter_data', NULL);
                 TSession::setValue(__CLASS__.'_filters', NULL);
@@ -1346,12 +1338,10 @@ class ClienteForm extends TPage
                 $key = $param['key'];  // get the parameter $key
                 TTransaction::open(self::$database); // open a transaction
 
-                if(isset($param['atendimento'])){
-                    TSession::setValue('atendimento',$param['atendimento']);
-                }
-
-                if(isset($param['agendamento'])){
-                    TSession::setValue('agendamento',$param['agendamento']);
+                // veio do agendamento: ao salvar ou sair, a cortina fecha e volta para ele
+                if(!empty($param['agendamento'])){
+                    $this->form->getField('voltar_agendamento')->setValue((int) $param['agendamento']);
+                    $this->btn_onshow->setAction(new TAction([__CLASS__, 'onFecharCortina'], ['static' => 1]), 'Sair');
                 }
 
                 $object = new Pessoa($key); // instantiates the Active Record 
@@ -1471,6 +1461,12 @@ class ClienteForm extends TPage
         {
             new TMessage('error', $e->getMessage());    
         }
+    }
+
+    /** "Sair" do cadastro aberto pelo agendamento: volta para ele, sem gravar. */
+    public static function onFecharCortina($param = null)
+    {
+        TScript::create("Template.closeRightPanel();");
     }
 
     /** "Tirar a autorização" no aviso de lembrete agendado: salva de novo, agora confirmado. */

@@ -67,6 +67,16 @@ class Navegacao
         AdiantiCoreApplication::loadPage(preg_replace('/[^A-Za-z0-9_]/', '', $formulario), 'onEdit', $abrir);
     }
 
+    /** Cadastro aberto de dentro do agendamento: a cortina fecha e o agendamento que estava aberto se atualiza. */
+    public static function voltarParaAgendamento(int $agendamentoId): void
+    {
+        TScript::create("Template.closeRightPanel();
+            if ($('[page_name=AgendamentoFormView]').length) {
+                Adianti.waitMessage = false;
+                __adianti_load_page('index.php?class=AgendamentoFormView&method=onShow&key={$agendamentoId}&register_state=false');
+            }");
+    }
+
     /** Fecha a cortina atual e atualiza a lista de baixo (ex.: registro excluido). */
     public static function fecharCortinaEAtualizar(): void
     {
