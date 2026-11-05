@@ -97,7 +97,7 @@ try {
     ok('excecao dentro de outra: avisa de tal hora a tal hora e nao cria', $r['acao'] === 'ja_existe' && strpos($r['mensagem'], 'Já existe uma exceção') !== false && strpos($r['mensagem'], 'das 12:01 às 12:59') !== false, json_encode($r));
     $r = $plano($h('12:30'), $h('13:30'));
     igual('excecao passando da outra: estende', ['estender', $h('12:01'), $h('13:30'), [[$h('12:59'), $h('13:30')]]], [$r['acao'], $r['inicio'], $r['fim'], $r['novos']]);
-    igual('excecao so encostada: e outra', 'criar', $plano($h('12:59'), $h('13:30'))['acao']);
+    igual('excecao so encostada: e outra', 'criar', $plano($h('11:00'), $h('12:01'))['acao']);
     x("DELETE FROM agenda_excecao WHERE id = {$ex}");
 
     // ---------- durante a excecao ----------
