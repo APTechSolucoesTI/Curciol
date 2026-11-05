@@ -158,6 +158,8 @@ trait PessoaContatoAbaTrait
         $this->form->addFields([new THidden('apchat_troca_confirmada')]);
         // nome ja escolhido na pergunta do contato encontrado (ver perguntarNomeDoContato)
         $this->form->addFields([new THidden('pessoa_contato_nome_decidido')]);
+        // para onde vai o e-mail do principal anterior: 'levar' ou 'manter' (ver perguntarEmailDoPrincipal)
+        $this->form->addFields([new THidden('pessoa_contato_email_decidido')]);
 
         // aberto no meio de outra tarefa: ao salvar, fecha e volta para ela (ver Navegacao::continuarNoRegistro)
         $fecharAoSalvar = new THidden('fechar_ao_salvar');
@@ -216,6 +218,16 @@ trait PessoaContatoAbaTrait
                 return;
             }
 
+            // trocando o principal: o e-mail do anterior vai para o novo ou fica nele?
+            $anterior = ($grid_data->principal === 'S') ? self::principalAnteriorDaGrade((array) $param, $__row__id) : null;
+            if (self::precisaEscolherEmail($grid_data, $anterior, $data))
+            {
+                TTransaction::close();
+                self::perguntarEmailDoPrincipal($grid_data, $anterior, 'adicionar');
+                return;
+            }
+            $emailDoAnterior = self::aplicarEscolhaDoEmail($grid_data, $anterior, $data);
+
             $__row__data = array_merge($grid_data->toArray(), (array)$grid_data->getVirtualData());
             $__row__data['__row__id'] = $__row__id;
             $__row__data['__display__']['nome'] =  $grid_data->nome;
@@ -235,7 +247,7 @@ trait PessoaContatoAbaTrait
             $dados = null;
             if ($grid_data->principal === 'S')
             {
-                $this->desmarcarOutrosPrincipais($param, $__row__id);
+                $this->desmarcarOutrosPrincipais($param, $__row__id, $emailDoAnterior);
                 $dados = ['telefone' => PessoaContatoService::formatarTelefone($grid_data->telefone), 'email' => (string) $grid_data->email];
             }
 
@@ -255,6 +267,7 @@ trait PessoaContatoAbaTrait
             $data->pessoa_contato_pessoa_principal = '';
             $data->pessoa_contato_pessoa__row__id = '';
             $data->pessoa_contato_nome_decidido = '';
+            $data->pessoa_contato_email_decidido = '';
 
             TForm::sendData(self::$formName, $data);
             TScript::create("
@@ -281,7 +294,7 @@ trait PessoaContatoAbaTrait
         catch (Exception $e) // in case of exception
         {
             TTransaction::rollbackAll();
-            TForm::sendData(self::$formName, (object) ['pessoa_contato_nome_decidido' => ''], false, false);
+            TForm::sendData(self::$formName, (object) ['pessoa_contato_nome_decidido' => '', 'pessoa_contato_email_decidido' => ''], false, false);
             new TMessage('error', $e->getMessage()); // shows the exception error message
         }
     }
@@ -415,6 +428,87 @@ trait PessoaContatoAbaTrait
         }
     }
 
+    /** A linha da grade marcada como principal, fora a que esta sendo gravada. */
+    private static function principalAnteriorDaGrade(array $param, string $rowIdAtual): ?object
+    {
+        foreach ((array) ($param['pessoa_contato_pessoa_list___row__data'] ?? []) as $serializado)
+        {
+            $linha = unserialize(base64_decode((string) $serializado));
+            if (is_object($linha) && ($linha->principal ?? '') === 'S' && ($linha->__row__id ?? '') !== $rowIdAtual)
+            {
+                return $linha;
+            }
+        }
+
+        return null;
+    }
+
+    private static function linhaSemTelefoneNemEmail(object $linha): bool
+    {
+        return trim((string) ($linha->telefone ?? '')) === '' && trim((string) ($linha->email ?? '')) === '';
+    }
+
+    /** O principal anterior tem um e-mail diferente do novo e ainda nao foi respondido para onde ele vai. */
+    private static function precisaEscolherEmail(PessoaContato $novo, ?object $anterior, $data): bool
+    {
+        if (!$anterior || !empty($data->pessoa_contato_email_decidido))
+        {
+            return false;
+        }
+        $emailAnterior = mb_strtolower(trim((string) ($anterior->email ?? '')));
+
+        return $emailAnterior !== '' && $emailAnterior !== mb_strtolower(trim((string) $novo->email));
+    }
+
+    /**
+     * Respondido "levar": o novo principal recebe o e-mail do anterior.
+     * @return string|null o e-mail que fica no anterior ('' sem e-mail); null: o anterior continua com o dele
+     */
+    private static function aplicarEscolhaDoEmail(PessoaContato $novo, ?object $anterior, $data): ?string
+    {
+        if (!$anterior || ($data->pessoa_contato_email_decidido ?? '') !== 'levar')
+        {
+            return null;
+        }
+        $doNovo = trim((string) $novo->email);
+        $novo->email = trim((string) ($anterior->email ?? '')) !== '' ? trim((string) $anterior->email) : ($doNovo !== '' ? $doNovo : null);
+        $igual = mb_strtolower($doNovo) === mb_strtolower(trim((string) ($anterior->email ?? '')));
+
+        return $igual ? '' : $doNovo;
+    }
+
+    /** $depois: 'adicionar' (botao da aba) ou 'salvar' (rodape). */
+    private static function perguntarEmailDoPrincipal(PessoaContato $novo, object $anterior, string $depois): void
+    {
+        $emailAnterior = htmlspecialchars(trim((string) $anterior->email));
+        $telefone = trim((string) ($anterior->telefone ?? ''));
+        $qual = $telefone !== '' ? ' <b>' . PessoaContatoService::formatarTelefone($telefone) . '</b>' : '';
+        $texto = "O contato principal atual{$qual} tem o e-mail <b>{$emailAnterior}</b>.<br><br>Esse e-mail vai para o novo contato principal ou continua no contato anterior?";
+        if (trim((string) $novo->email) !== '')
+        {
+            $texto .= '<br><br>Se for para o novo, o e-mail <b>' . htmlspecialchars(trim((string) $novo->email)) . '</b> dele passa para o contato anterior.';
+        }
+        elseif ($telefone === '')
+        {
+            $texto .= '<br><br>Se for para o novo, o contato anterior, que só tem esse e-mail, será excluído.';
+        }
+        $texto .= '<br><br>O e-mail dos Dados cadastrais será sempre o do contato principal.';
+        $acao = function (string $usar) use ($depois) {
+            return new TAction([__CLASS__, 'onEscolherEmailPrincipal'], ['static' => 1, 'usar' => $usar, 'depois' => $depois]);
+        };
+        new TQuestion($texto, $acao('levar'), $acao('manter'), 'E-mail do contato principal', 'Levar para o novo principal', 'Manter no contato anterior');
+    }
+
+    /** Resposta da pergunta do e-mail: guarda a escolha e continua o que estava sendo feito. */
+    public static function onEscolherEmailPrincipal($param = null)
+    {
+        $usar = ($param['usar'] ?? '') === 'levar' ? 'levar' : 'manter';
+        $continuar = (($param['depois'] ?? '') === 'salvar')
+            ? " f.find('[onclick*=\"method=onSave\"]').first().click();"
+            : " f.find('[id=\"64be92cf7046f\"]').click();";
+        TScript::create("(function () { var f = $('form[name=" . self::$formName . "]'); f.find('[name=pessoa_contato_email_decidido]').val('{$usar}');{$continuar} })();");
+    }
+
     /**
      * Salvar do rodape com contato digitado na aba e sem clicar em Adicionar ou no Salvar da linha: antes gravava o resto e
      * dizia "Registro salvo", perdendo o contato sem avisar (05/11/2026). Agora o contato entra junto, com as mesmas regras.
@@ -441,6 +535,15 @@ trait PessoaContatoAbaTrait
             exit;
         }
         $rowId = !empty($data->pessoa_contato_pessoa__row__id) ? $data->pessoa_contato_pessoa__row__id : 'b' . uniqid();
+        $anterior = ($contato->principal === 'S') ? self::principalAnteriorDaGrade($param, $rowId) : null;
+        if (self::precisaEscolherEmail($contato, $anterior, $data))
+        {
+            TTransaction::rollbackAll();
+            self::perguntarEmailDoPrincipal($contato, $anterior, 'salvar');
+            if (!empty($GLOBALS['__salvar_sem_exit'])) { throw new RuntimeException('EMAIL_DO_PRINCIPAL_NAO_ESCOLHIDO'); }
+            exit;
+        }
+        $emailDoAnterior = self::aplicarEscolhaDoEmail($contato, $anterior, $data);
         $item = (object) ['id' => $contato->id ?: null, 'nome' => $contato->nome, 'descricao' => $contato->descricao, 'telefone' => $contato->telefone,
                           'email' => $contato->email, 'principal' => $contato->principal, '__row__id' => $rowId, '__display__' => []];
 
@@ -458,9 +561,15 @@ trait PessoaContatoAbaTrait
                 $linha = $item;
                 $trocou = true;
             }
-            elseif ($contato->principal === 'S')
+            elseif ($contato->principal === 'S' && ($linha->principal ?? '') === 'S')
             {
                 $linha->principal = 'N';
+                $linha->nome = null;
+                if ($emailDoAnterior !== null)
+                {
+                    $linha->email = $emailDoAnterior !== '' ? $emailDoAnterior : null;
+                    if (self::linhaSemTelefoneNemEmail($linha)) { continue; }
+                }
             }
             $linhas[] = base64_encode(serialize($linha));
         }
@@ -559,9 +668,10 @@ trait PessoaContatoAbaTrait
     }
 
     /**
-     * Na grade (antes de salvar): as outras linhas marcadas como principal passam a "Não".
+     * Na grade (antes de salvar): as outras linhas marcadas como principal passam a "Não" e ficam sem o nome do cliente.
+     * $emailDoAnterior: o e-mail que fica nelas ('' sem e-mail); null: continuam com o delas. Sem telefone nem e-mail, a linha sai.
      */
-    private function desmarcarOutrosPrincipais($param, string $rowIdAtual): void
+    private function desmarcarOutrosPrincipais($param, string $rowIdAtual, ?string $emailDoAnterior = null): void
     {
         foreach ((array) ($param['pessoa_contato_pessoa_list___row__data'] ?? []) as $serializado)
         {
@@ -572,8 +682,20 @@ trait PessoaContatoAbaTrait
             }
 
             $item->principal = 'N';
+            $item->nome = null;
             $item->__display__ = (object) ($item->__display__ ?? []);
             $item->__display__->principal = 'N';
+            $item->__display__->nome = '';
+            if ($emailDoAnterior !== null)
+            {
+                $item->email = $emailDoAnterior !== '' ? $emailDoAnterior : null;
+                $item->__display__->email = $emailDoAnterior;
+                if (self::linhaSemTelefoneNemEmail($item))
+                {
+                    TDataGrid::removeRowById('pessoa_contato_pessoa_list', $item->__row__id);
+                    continue;
+                }
+            }
 
             $contato = new PessoaContato();
             foreach (['id', 'nome', 'descricao', 'telefone', 'email', 'principal'] as $campo)

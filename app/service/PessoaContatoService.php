@@ -280,9 +280,31 @@ class PessoaContatoService
     {
         $aviso = self::acertarPrincipalComDados($pessoaId, $antes);
         self::nomeDoPrincipalAcompanha((int) $pessoaId, $antes);
+        self::limparNomeAoTrocarPrincipal((int) $pessoaId, $antes);
         self::propagarPrincipal($pessoaId, $antes);
 
         return $aviso;
+    }
+
+    /**
+     * Trocou o contato principal (05/11/2026): os outros contatos da pessoa nao ficam com o nome dela, para nao ter dois com o
+     * nome do cliente. Nome dado de proposito ao contato, diferente do cadastro, fica.
+     */
+    private static function limparNomeAoTrocarPrincipal(int $pessoaId, array $antes): void
+    {
+        $conn = TTransaction::get();
+        $st = $conn->prepare("SELECT id FROM pessoa_contato WHERE pessoa_id = ? AND principal = 'S'");
+        $st->execute([$pessoaId]);
+        $atual = (int) $st->fetchColumn();
+        if (!$atual || $atual === (int) ($antes['principal_id'] ?? 0))
+        {
+            return;
+        }
+        $st = $conn->prepare('SELECT nome FROM pessoa WHERE id = ?');
+        $st->execute([$pessoaId]);
+        $conn->prepare("UPDATE pessoa_contato SET nome = NULL, updated_at = now()
+                         WHERE pessoa_id = ? AND principal = 'N' AND upper(btrim(nome)) IN (upper(btrim(?)), upper(btrim(?)))")
+            ->execute([$pessoaId, (string) $st->fetchColumn(), (string) ($antes['nome'] ?? '')]);
     }
 
     /**

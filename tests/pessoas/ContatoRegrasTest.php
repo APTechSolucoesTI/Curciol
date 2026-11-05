@@ -183,6 +183,92 @@ try {
     $s = saida(function () { ClienteForm::onTelefoneContatoSaida(['pessoa_contato_pessoa_telefone' => TEL_C, 'pessoa_contato_pessoa_nome' => '']); });
     ok('sair do telefone sem nome: preenche, se o telefone ainda for esse', strpos($s, MARCA_CR . ' MAE NOVA') !== false && strpos($s, TEL_C) !== false, substr($s, 0, 300));
 
+    // ---------- trocar o contato principal: o e-mail e o nome do anterior ----------
+    $TEL_P = '19912340074'; $TEL_N = '19912340075';
+    $cenario = function (string $sufixo, array $principal, array $outro) {
+        $id = pessoa(MARCA_CR . ' TROCA ' . $sufixo);
+        salvar($id, MARCA_CR . ' TROCA ' . $sufixo, [['principal' => 'S'] + $principal, $outro]);
+        $por = [];
+        foreach (contatos($id) as $c) { $por[$c['principal']] = $c; }
+        return [$id, $por['S'], $por['N']];
+    };
+    $estado = function (int $id, int $contato) { return q("SELECT nome, email, telefone, principal FROM pessoa_contato WHERE id = {$contato} AND pessoa_id = {$id}")[0] ?? null; };
+    $dadosPessoa = function (int $id) { return q("SELECT telefone, email FROM pessoa WHERE id = {$id}")[0]; };
+
+    // pelo Adicionar / Salvar da linha, a grade muda na tela
+    $pela = function (int $id, string $nome, array $linhas, array $campos) {
+        $p = ['id' => $id, 'nome' => $nome, 'pessoa_contato_pessoa_list___row__data' => array_map('linha', $linhas)] + $campos;
+        $_POST = $p; $_REQUEST = $p;
+        return saida(function () use ($p) { (new ClienteForm($p))->onAddDetailPessoaContatoPessoa($p); });
+    };
+    [$t1, $p1, $n1] = $cenario('A', ['telefone' => $TEL_P, 'email' => 'antigo@example.invalid'], ['telefone' => $TEL_N, 'nome' => 'AUXILIAR']);
+    $grade1 = [['id' => $p1['id'], 'telefone' => $TEL_P, 'email' => 'antigo@example.invalid', 'nome' => $p1['nome'], 'principal' => 'S', '__row__id' => 'bA'], ['id' => $n1['id'], 'telefone' => $TEL_N, 'nome' => 'AUXILIAR', 'principal' => 'N', '__row__id' => 'bB']];
+    $marcar = ['pessoa_contato_pessoa__row__id' => 'bB', 'pessoa_contato_pessoa_id' => $n1['id'], 'pessoa_contato_pessoa_telefone' => $TEL_N, 'pessoa_contato_pessoa_principal' => 'S'];
+    $s = $pela($t1, MARCA_CR . ' TROCA A', $grade1, $marcar);
+    ok('marcar principal com e-mail no anterior: pergunta', strpos($s, 'antigo@example.invalid') !== false && strpos($s, 'Levar para o novo principal') !== false && strpos($s, 'Manter no contato anterior') !== false, substr($s, -500));
+    igual('marcar principal: sem responder, a grade nao muda', '', $naLista($s));
+    $s = $pela($t1, MARCA_CR . ' TROCA A', $grade1, $marcar + ['pessoa_contato_email_decidido' => 'levar']);
+    ok('levar: o novo fica com o e-mail, o nome do cliente e como principal', strpos($naLista($s), 'antigo@example.invalid') !== false && strpos($naLista($s), MARCA_CR . ' TROCA A') !== false, $naLista($s));
+    $s = $pela($t1, MARCA_CR . ' TROCA A', $grade1, ['pessoa_contato_pessoa__row__id' => 'bC', 'pessoa_contato_pessoa_telefone' => '19912340076', 'pessoa_contato_pessoa_principal' => 'S', 'pessoa_contato_email_decidido' => 'manter']);
+    ok('manter: o anterior fica sem o nome do cliente na grade', strpos(json_encode(array_map(fn($b) => (string) base64_decode($b), [])), 'x') === false && strpos($s, 'Qual') === false, substr($s, 0, 200));
+
+    // pelo Salvar do rodape: grava
+    $novoNoRodape = ['pessoa_contato_pessoa_id' => $n1['id'], 'pessoa_contato_pessoa__row__id' => 'bB', 'pessoa_contato_pessoa_telefone' => $TEL_N, 'pessoa_contato_pessoa_principal' => 'S'];
+    $s = salvar($t1, MARCA_CR . ' TROCA A', $grade1, $novoNoRodape);
+    ok('rodape: pergunta do e-mail', strpos($s, 'EMAIL_DO_PRINCIPAL_NAO_ESCOLHIDO') !== false && strpos($s, 'Levar para o novo principal') !== false, substr($s, 0, 300));
+    igual('rodape: sem responder, nada muda', 'S', $estado($t1, (int) $p1['id'])['principal']);
+    salvar($t1, MARCA_CR . ' TROCA A', $grade1, $novoNoRodape + ['pessoa_contato_email_decidido' => 'levar']);
+    $a = $estado($t1, (int) $p1['id']); $b = $estado($t1, (int) $n1['id']);
+    igual('levar: anterior sem principal, sem nome e sem e-mail', ['N', null, null], [$a['principal'], $a['nome'], $a['email']]);
+    igual('levar: novo principal com o nome do cliente e o e-mail', ['S', MARCA_CR . ' TROCA A', 'antigo@example.invalid'], [$b['principal'], $b['nome'], $b['email']]);
+    igual('levar: Dados com o telefone e o e-mail do novo', [$TEL_N, 'antigo@example.invalid'], array_values($dadosPessoa($t1)));
+
+    [$t2, $p2, $n2] = $cenario('B', ['telefone' => '19912340077', 'email' => 'fica@example.invalid'], ['telefone' => '19912340078', 'nome' => 'AUX']);
+    $grade2 = [['id' => $p2['id'], 'telefone' => '19912340077', 'email' => 'fica@example.invalid', 'nome' => $p2['nome'], 'principal' => 'S', '__row__id' => 'bA'], ['id' => $n2['id'], 'telefone' => '19912340078', 'nome' => 'AUX', 'principal' => 'N', '__row__id' => 'bB']];
+    salvar($t2, MARCA_CR . ' TROCA B', $grade2, ['pessoa_contato_pessoa_id' => $n2['id'], 'pessoa_contato_pessoa__row__id' => 'bB', 'pessoa_contato_pessoa_telefone' => '19912340078', 'pessoa_contato_pessoa_principal' => 'S', 'pessoa_contato_email_decidido' => 'manter']);
+    $a = $estado($t2, (int) $p2['id']); $b = $estado($t2, (int) $n2['id']);
+    igual('manter: anterior sem nome, com o e-mail', ['N', null, 'fica@example.invalid'], [$a['principal'], $a['nome'], $a['email']]);
+    igual('manter: novo principal sem e-mail', ['S', MARCA_CR . ' TROCA B', null], [$b['principal'], $b['nome'], $b['email']]);
+    igual('manter: e-mail dos Dados e o do novo (vazio)', '', (string) $dadosPessoa($t2)['email']);
+
+    [$t3, $p3, $n3] = $cenario('C', ['email' => 'um@example.invalid'], ['email' => 'dois@example.invalid', 'nome' => 'AUX']);
+    $grade3 = [['id' => $p3['id'], 'email' => 'um@example.invalid', 'nome' => $p3['nome'], 'principal' => 'S', '__row__id' => 'bA'], ['id' => $n3['id'], 'email' => 'dois@example.invalid', 'nome' => 'AUX', 'principal' => 'N', '__row__id' => 'bB']];
+    $marca3 = ['pessoa_contato_pessoa_id' => $n3['id'], 'pessoa_contato_pessoa__row__id' => 'bB', 'pessoa_contato_pessoa_email' => 'dois@example.invalid', 'pessoa_contato_pessoa_principal' => 'S'];
+    $s = salvar($t3, MARCA_CR . ' TROCA C', $grade3, $marca3);
+    ok('os dois com e-mail: avisa que o do novo passa para o anterior', strpos($s, 'dois@example.invalid') !== false && strpos($s, 'passa para o contato anterior') !== false, substr($s, -500));
+    salvar($t3, MARCA_CR . ' TROCA C', $grade3, $marca3 + ['pessoa_contato_email_decidido' => 'levar']);
+    igual('os dois com e-mail, levar: troca entre eles', ['dois@example.invalid', 'um@example.invalid'], [$estado($t3, (int) $p3['id'])['email'], $estado($t3, (int) $n3['id'])['email']]);
+
+    [$t4, $p4, $n4] = $cenario('D', ['email' => 'unico@example.invalid'], ['telefone' => '19912340079', 'nome' => 'AUX']);
+    $grade4 = [['id' => $p4['id'], 'email' => 'unico@example.invalid', 'nome' => $p4['nome'], 'principal' => 'S', '__row__id' => 'bA'], ['id' => $n4['id'], 'telefone' => '19912340079', 'nome' => 'AUX', 'principal' => 'N', '__row__id' => 'bB']];
+    $marca4 = ['pessoa_contato_pessoa_id' => $n4['id'], 'pessoa_contato_pessoa__row__id' => 'bB', 'pessoa_contato_pessoa_telefone' => '19912340079', 'pessoa_contato_pessoa_principal' => 'S'];
+    $s = salvar($t4, MARCA_CR . ' TROCA D', $grade4, $marca4);
+    ok('anterior so com e-mail: avisa que sera excluido', strpos($s, 'será excluído') !== false, substr($s, -500));
+    salvar($t4, MARCA_CR . ' TROCA D', $grade4, $marca4 + ['pessoa_contato_email_decidido' => 'levar']);
+    igual('anterior so com e-mail, levar: sai e fica um contato so', [1, 'S', 'unico@example.invalid'], [count(contatos($t4)), contatos($t4)[0]['principal'], contatos($t4)[0]['email']]);
+
+    [$t5, $p5, $n5] = $cenario('E', ['telefone' => '19912340080'], ['telefone' => '19912340082', 'nome' => 'AUX']);
+    $grade5 = [['id' => $p5['id'], 'telefone' => '19912340080', 'nome' => $p5['nome'], 'principal' => 'S', '__row__id' => 'bA'], ['id' => $n5['id'], 'telefone' => '19912340082', 'nome' => 'AUX', 'principal' => 'N', '__row__id' => 'bB']];
+    $s = salvar($t5, MARCA_CR . ' TROCA E', $grade5, ['pessoa_contato_pessoa_id' => $n5['id'], 'pessoa_contato_pessoa__row__id' => 'bB', 'pessoa_contato_pessoa_telefone' => '19912340082', 'pessoa_contato_pessoa_principal' => 'S']);
+    ok('anterior sem e-mail: nao pergunta', strpos($s, 'Levar para o novo principal') === false, substr($s, 0, 300));
+    $a = $estado($t5, (int) $p5['id']);
+    igual('anterior sem e-mail: troca e o nome fica vazio', ['N', null], [$a['principal'], $a['nome']]);
+
+    $s = salvar($t5, MARCA_CR . ' TROCA E', [], ['pessoa_contato_pessoa_telefone' => TEL_C, 'pessoa_contato_pessoa_principal' => 'S']);
+    ok('numero que e principal de outro cadastro nao vira principal', strpos($s, 'já é o contato principal') !== false, substr($s, 0, 300));
+
+    // nome dado de proposito ao anterior fica; so sai o nome do cliente
+    [$t6, $p6, $n6] = $cenario('F', ['telefone' => '19912340083'], ['telefone' => '19912340084', 'nome' => MARCA_CR . ' TROCA F']);
+    igual('antes: dois com o nome do cliente', 2, count(array_filter(contatos($t6), fn($c) => $c['nome'] === MARCA_CR . ' TROCA F')));
+    $grade6 = [['id' => $p6['id'], 'telefone' => '19912340083', 'nome' => 'NOME DE PROPOSITO', 'principal' => 'N', '__row__id' => 'bA'], ['id' => $n6['id'], 'telefone' => '19912340084', 'nome' => 'OUTRO', 'principal' => 'S', '__row__id' => 'bB']];
+    salvar($t6, MARCA_CR . ' TROCA F', $grade6);
+    igual('nome de proposito no anterior: fica', 'NOME DE PROPOSITO', $estado($t6, (int) $p6['id'])['nome']);
+
+    $s = saida(function () { ClienteForm::onEscolherEmailPrincipal(['usar' => 'levar', 'depois' => 'salvar']); });
+    ok('resposta: guarda a escolha e clica no Salvar', strpos($s, "pessoa_contato_email_decidido]').val('levar')") !== false && strpos($s, 'method=onSave') !== false, substr($s, 0, 300));
+    $s = saida(function () { ClienteForm::onEscolherEmailPrincipal(['usar' => 'x', 'depois' => 'adicionar']); });
+    ok('resposta: qualquer outra coisa vale manter e clica no Adicionar', strpos($s, "val('manter')") !== false && strpos($s, '64be92cf7046f') !== false, substr($s, 0, 300));
+
     // ---------- aberto no meio de outra tarefa: fecha ao salvar ----------
     $s = salvar($novo, MARCA_CR . ' RODAPE', [['id' => $c[0]['id'], 'email' => 'digitado@example.invalid', 'nome' => 'ALTERADO']], ['fechar_ao_salvar' => '1']);
     ok('fechar_ao_salvar: fecha e nao reabre o cadastro', strpos($s, 'Template.closeRightPanel()') !== false && strpos($s, 'class=ClienteForm&method=onEdit') === false, substr($s, 0, 300));
