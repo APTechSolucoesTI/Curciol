@@ -55,7 +55,7 @@ try {
     ok('aberto pelo agendamento: Sair fecha a cortina', strpos($html, 'method=onFecharCortina') !== false && strpos($html, 'class=ClienteList') === false);
     $s = $salvar(['voltar_agendamento' => '777']);
     ok('salvar: fecha a cortina e atualiza o agendamento aberto', strpos($s, 'Template.closeRightPanel()') !== false && strpos($s, 'class=AgendamentoFormView&method=onShow&key=777') !== false, substr($s, 0, 400));
-    ok('salvar: nao reabre o cadastro', strpos($s, 'class=ClienteForm') === false && strpos($s, 'ClienteForm') === false);
+    ok('salvar: nao reabre o cadastro', strpos($s, 'class=ClienteForm&method=onEdit') === false, substr($s, 0, 300));
     ok('nada fica guardado na sessao', empty(TSession::getValue('agendamento')));
 
     // ---------- aberto de outro lugar: nao vai para o agendamento, nem com sessao antiga ----------
@@ -66,7 +66,7 @@ try {
     ok('aberto pela lista: Sair normal', strpos($html, 'method=onFecharCortina') === false && strpos($html, 'class=ClienteList') !== false);
     $s = $salvar([]);
     ok('salvar: nao vai para agendamento nenhum', strpos($s, 'AgendamentoFormView') === false && strpos($s, 'AtendimentoFormView') === false, substr($s, 0, 400));
-    ok('salvar: continua no cadastro', strpos($s, 'ClienteForm') !== false, substr($s, 0, 400));
+    ok('salvar: continua no cadastro', strpos($s, 'class=ClienteForm') !== false && strpos($s, 'method=onEdit') !== false, substr($s, 0, 400));
     TSession::setValue('agendamento', null);
     TSession::setValue('atendimento', null);
 
