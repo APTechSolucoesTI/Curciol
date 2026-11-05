@@ -152,15 +152,17 @@ try {
         $_POST = $p; $_REQUEST = $p;
         return saida(function () use ($p) { (new ClienteForm($p))->onAddDetailPessoaContatoPessoa($p); });
     };
+    // a linha da grade vai em base64 na resposta
+    $naLista = function (string $s) { preg_match_all("/ttable_replace_row_by_id\\('pessoa_contato_pessoa_list', '[^']+', '([^']+)'\\)/", $s, $m); return implode(' ', array_map('base64_decode', $m[1])); };
     $s = $adicionar($campos);
-    ok('Adicionar: pergunta e nao coloca na lista', strpos($s, 'Qual nome deseja usar') !== false && strpos($s, 'Contato incluído') === false, substr($s, 0, 300));
+    ok('Adicionar: pergunta e nao coloca na lista', strpos($s, 'Qual nome deseja usar') !== false && $naLista($s) === '', substr($s, 0, 300));
     ok('Adicionar: a resposta volta para o Adicionar', strpos($s, 'depois=adicionar') !== false, substr($s, -400));
     $s = $adicionar($campos + ['pessoa_contato_nome_decidido' => '1']);
-    ok('Adicionar: escolhido, entra na lista', strpos($s, 'Qual nome deseja usar') === false && strpos($s, 'Contato incluído') !== false, substr($s, 0, 300));
+    ok('Adicionar: escolhido, entra na lista', strpos($s, 'Qual nome deseja usar') === false && strpos($naLista($s), "D'AVILA") !== false, substr($s, 0, 300));
     $s = $adicionar(['pessoa_contato_pessoa_telefone' => TEL_C, 'pessoa_contato_pessoa_nome' => MARCA_CR . ' MAE NOVA']);
     ok('Adicionar: nome igual ao encontrado nao pergunta', strpos($s, 'Qual nome deseja usar') === false, substr($s, 0, 300));
     $s = $adicionar(['pessoa_contato_pessoa_telefone' => TEL_C]);
-    ok('Adicionar: nome vazio puxa o encontrado sem perguntar', strpos($s, 'Qual nome deseja usar') === false && strpos($s, MARCA_CR . ' MAE NOVA') !== false, substr($s, 0, 300));
+    ok('Adicionar: nome vazio puxa o encontrado sem perguntar', strpos($s, 'Qual nome deseja usar') === false && strpos($naLista($s), MARCA_CR . ' MAE NOVA') !== false, substr($s, 0, 300));
     $s = $adicionar(['pessoa_contato_pessoa_telefone' => '19912340079', 'pessoa_contato_pessoa_nome' => 'NINGUEM TEM']);
     ok('Adicionar: numero sem principal nao pergunta', strpos($s, 'Qual nome deseja usar') === false, substr($s, 0, 300));
     $linhaGrade = 'bgrade' . uniqid();
