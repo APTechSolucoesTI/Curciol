@@ -138,7 +138,7 @@ class AgendamentoFormView extends TPage
 
             $avisoAutorizacao = new TElement('span');
             $avisoAutorizacao->style = 'color:#d32f2f;font-size:13px;margin:0 8px;';
-            $avisoAutorizacao->add('<i class="fas fa-exclamation-triangle"></i> <b>O cliente não autorizou receber mensagens.</b> Para enviar, clique em Visualizar cliente, no topo, ative a autorização e salve.');
+            $avisoAutorizacao->add('<i class="fas fa-exclamation-triangle"></i> <b>O cliente não autorizou receber mensagens.</b>');
             $botoesEnvio[] = $avisoAutorizacao;
         }
 
@@ -704,8 +704,8 @@ class AgendamentoFormView extends TPage
     }
 
     /**
-     * Linhas acima dos botoes de estado (04/11/2026). Confirmacao cancelada: so o cancelamento, e o que veio antes dele nao
-     * aparece mais; confirmou de novo: o cancelamento sai da tela (fica no historico).
+     * Linhas acima dos botoes de estado (04/11/2026). A confirmacao so aparece com o agendamento confirmado: cancelou a
+     * confirmacao, ela sai da tela e o cancelamento nao aparece aqui. Os dois ficam na aba Historico.
      */
     private static function linhasDaConfirmacao(Agendamento $agendamento): array
     {
@@ -739,16 +739,11 @@ class AgendamentoFormView extends TPage
                                         FROM mensagem m JOIN template_escritorio t ON t.id = m.template_escritorio_id
                                        WHERE m.agendamento_id = {$id} AND m.tipo_mensagem = 'WHATSAPP' AND t.categoria = '" . TemplateEscritorio::CONFIRMACAO . "'
                                        ORDER BY m.enviado_em DESC, m.id DESC LIMIT 1")->fetch(PDO::FETCH_ASSOC);
-            if ($confirmacao && $confirmacao['enviado_em'] > $desde)
+            $confirmouMasMudou = $confirmacao && $confirmacao['resposta'] === ApchatRespostaService::SIM && $estado !== (int) EstadoAgenda::CONFIRMADO;
+            if ($confirmacao && $confirmacao['enviado_em'] > $desde && !$confirmouMasMudou)
             {
                 $linhas[] = '<i class="fab fa-whatsapp" style="color:#4CAF50"></i> ' . self::textoDaConfirmacao($agendamento, $confirmacao);
             }
-        }
-
-        if ($cancelada && $estado !== (int) EstadoAgenda::CONFIRMADO)
-        {
-            $linhas[] = '<i class="fas fa-calendar-minus" style="color:#F44336"></i> Confirmação cancelada por ' . htmlspecialchars((string) $cancelada['name'])
-                      . ' em ' . $data($cancelada['atribuido_em']) . ': ' . htmlspecialchars((string) $cancelada['observacao']);
         }
 
         return $linhas;
@@ -774,10 +769,6 @@ class AgendamentoFormView extends TPage
         if ($resposta === ApchatRespostaService::NAO && $estado === (int) EstadoAgenda::CANCELADO)
         {
             return '<b>Agendamento cancelado pelo cliente</b> - ' . $respondeu;
-        }
-        if ($resposta === ApchatRespostaService::SIM)
-        {
-            return $respondeu;
         }
         if (in_array($resposta, [ApchatRespostaService::NAO, ApchatRespostaService::OUTRA], true))
         {

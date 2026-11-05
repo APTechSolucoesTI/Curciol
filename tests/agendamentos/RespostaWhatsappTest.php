@@ -283,7 +283,8 @@ try {
     ob_start();
     (new AgendamentoFormView(['key' => $agSim]))->show();
     $html = ob_get_clean();
-    ok('cancelar confirmacao: tela mostra a observacao', strpos($html, 'Confirmação cancelada por') !== false && strpos($html, 'Cliente pediu para remarcar') !== false);
+    ok('cancelar confirmacao: o aviso nao aparece na aba do atendimento', strpos($html, 'Confirmação cancelada por') === false);
+    ok('cancelar confirmacao: a observacao fica no historico', strpos($html, 'Cliente pediu para remarcar') !== false);
     ok('cancelar confirmacao: some a resposta do cliente da tela', strpos($html, 'respondeu &quot;Sim!&quot;') === false || strpos($html, 'Automático') !== false);
     ok('historico: coluna Observacao e Automatico para a resposta do cliente', strpos($html, 'Observação') !== false && strpos($html, 'Automático') !== false && strpos($html, 'respondeu') !== false);
     ok('historico: a confirmacao cancelada aparece identificada', strpos($html, 'Confirmação cancelada (voltou para Agendado)') !== false);

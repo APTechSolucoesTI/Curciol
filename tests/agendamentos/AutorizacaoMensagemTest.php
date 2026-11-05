@@ -59,7 +59,8 @@ try {
     ok('tela: botao de WhatsApp bloqueado', strpos($botao($html, 'enviar_whatsapp'), 'disabled') !== false, $botao($html, 'enviar_whatsapp'));
     ok('tela: botao de e-mail bloqueado', strpos($botao($html, 'enviar_email'), 'disabled') !== false, $botao($html, 'enviar_email'));
     ok('tela: botoes sem acao', strpos($botao($html, 'enviar_whatsapp'), 'EnviarMensagemForm') === false && strpos($botao($html, 'enviar_email'), 'EnviarMensagemForm') === false);
-    ok('tela: aviso com o caminho', strpos($html, 'O cliente não autorizou receber mensagens.') !== false && strpos($html, 'Visualizar cliente') !== false);
+    ok('tela: aviso curto', strpos($html, 'O cliente não autorizou receber mensagens.') !== false && strpos($html, 'Para enviar, clique') === false);
+    ok('tela: botao Visualizar cliente continua no topo', strpos($html, 'Visualizar cliente') !== false);
 
     ok('WhatsApp barrado no servidor', strpos((string) $tentar(fn($a) => MensagemService::enviarWhatsapp($a, null, 'oi', null, $numero)), 'não autorizou') !== false);
     ok('e-mail barrado no servidor', strpos((string) $tentar(fn($a) => MensagemService::enviarEmail($a, 'T', 'oi', null, 'teste@example.invalid')), 'não autorizou') !== false);
