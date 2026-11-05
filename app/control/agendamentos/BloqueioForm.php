@@ -10,8 +10,14 @@ class BloqueioForm extends TPage
     private static $formName = 'form_Bloqueio';
     /** Periodos gravados neste salvar, para conferir o que ja esta marcado: [[agenda, inicio, fim]] */
     private $periodosGravados = [];
-    /** Repeticoes que nao foram criadas por nao pegarem horario normal. */
+    /** Repeticoes nao criadas: sem horario normal ou ja bloqueadas. */
     private $repeticoesIgnoradas = 0;
+    /** Algum bloqueio foi criado ou alterado neste salvar? */
+    private $gravou = false;
+    /** Avisos: ja existia, nada a criar */
+    private $jaExistentes = [];
+    /** Avisos: o que ja existia foi estendido */
+    private $estendidos = [];
 
     /**
      * Form constructor
@@ -285,22 +291,36 @@ class BloqueioForm extends TPage
                 }
                 // novo ou mudando agenda/horario: precisa pegar horario normal e o periodo tem que estar livre
                 $antes = $new ? null : Bloqueio::find((int) $object->id);
+                $molde = clone $object;
+                $gravar = true;
                 if (!$antes || (int) $antes->agenda_id !== (int) $object->agenda_id
                     || substr((string) $antes->dt_inicio, 0, 16) !== substr(str_replace('T', ' ', (string) $object->dt_inicio), 0, 16)
                     || substr((string) $antes->dt_final, 0, 16) !== substr(str_replace('T', ' ', (string) $object->dt_final), 0, 16))
                 {
-                    AgendaConflitoService::exigirPodeBloquear((int) $object->agenda_id, (string) $object->dt_inicio, (string) $object->dt_final, (int) $object->id);
-                    $this->periodosGravados[] = [(int) $object->agenda_id, (string) $object->dt_inicio, (string) $object->dt_final];
+                    $gravar = $this->aplicarPlano($object, $antes ? $object : null);
                 }
-                $object->store(); // save the object
+                if ($gravar)
+                {
+                    $object->store(); // save the object
+                    $this->gravou = true;
+                }
 
                 if ($new)
                 {
-                    $this->clonar($object, $data);
+                    $this->clonar($molde, $data);
                 }
             }
 
             $avisosAtendimento = AgendaConflitoService::avisosAtendimento($this->periodosGravados);
+
+            // so repetiu o que ja existia: avisa, nao cria nada e a tela continua aberta
+            if (!$this->gravou)
+            {
+                $this->form->setData($data);
+                TTransaction::close();
+                new TMessage('info', implode('<br><br>', $this->jaExistentes ?: ['Nenhum bloqueio foi criado.']));
+                return;
+            }
 
             // get the generated {PRIMARY_KEY}
             $data->id = $object->id; 
@@ -308,14 +328,19 @@ class BloqueioForm extends TPage
             $this->form->setData($data); // fill form data
             TTransaction::close(); // close the transaction
 
-            TToast::show('success', AgendaSelecaoMultipla::mensagem('bloqueios', count($agendas)), 'topRight', 'far:check-circle');
+            TToast::show('success', AgendaSelecaoMultipla::mensagem('bloqueios', count($agendas) - count($this->jaExistentes)), 'topRight', 'far:check-circle');
+            $informar = array_merge($this->jaExistentes, $this->estendidos);
             if ($avisosAtendimento)
             {
-                new TMessage('warning', 'Bloqueio salvo. Ele está sobrepondo o período sem atendimento:<br><br>' . AgendaConflitoService::listaParaAviso($avisosAtendimento));
+                $informar[] = 'Bloqueio salvo. Ele está sobrepondo o período sem atendimento:<br><br>' . AgendaConflitoService::listaParaAviso($avisosAtendimento);
+            }
+            if ($informar)
+            {
+                new TMessage($avisosAtendimento ? 'warning' : 'info', implode('<br><br>', $informar));
             }
             if ($this->repeticoesIgnoradas > 0)
             {
-                TToast::show('warning', "{$this->repeticoesIgnoradas} repetição(ões) não criada(s): caem fora do horário normal da agenda", 'topRight', 'fas:exclamation-triangle');
+                TToast::show('warning', "{$this->repeticoesIgnoradas} repetição(ões) não criada(s): sem horário normal ou já bloqueada(s)", 'topRight', 'fas:exclamation-triangle');
             }
 
             TScript::create("$('#agendamentos').data('fullcalendar').refetchEvents()");
@@ -330,6 +355,33 @@ class BloqueioForm extends TPage
             TTransaction::rollback(); // undo all pending operations
         }
     }
+    /**
+     * Confere o periodo e resolve o que ja existe na agenda. $alvo: o bloqueio que esta sendo editado.
+     * @return bool se ainda falta gravar $object
+     */
+    private function aplicarPlano(Bloqueio $object, ?Bloqueio $alvo): bool
+    {
+        $plano = AgendaConflitoService::planejarBloqueio((int) $object->agenda_id, (string) $object->dt_inicio, (string) $object->dt_final, (int) $object->id);
+        if ($plano['acao'] === 'ja_existe')
+        {
+            $this->jaExistentes[] = $plano['mensagem'];
+            return false;
+        }
+        foreach ($plano['novos'] as [$de, $ate])
+        {
+            $this->periodosGravados[] = [(int) $object->agenda_id, $de, $ate];
+        }
+        if ($plano['acao'] === 'estender')
+        {
+            AgendaConflitoService::fundirPeriodos('Bloqueio', $plano, (string) $object->observacao, $alvo);
+            $this->estendidos[] = $plano['mensagem'];
+            $this->gravou = true;
+            return false;
+        }
+
+        return true;
+    }
+
     public static function onDeleteBloqueio($param = null) 
     {
         try 
@@ -535,9 +587,17 @@ class BloqueioForm extends TPage
             $this->repeticoesIgnoradas++;
             return;
         }
-        AgendaConflitoService::exigirPodeBloquear((int) $newObject->agenda_id, (string) $newObject->dt_inicio, (string) $newObject->dt_final);
-        $newObject->store();
-        $this->periodosGravados[] = [(int) $newObject->agenda_id, (string) $newObject->dt_inicio, (string) $newObject->dt_final];
+        $plano = AgendaConflitoService::planejarBloqueio((int) $newObject->agenda_id, (string) $newObject->dt_inicio, (string) $newObject->dt_final);
+        if ($plano['acao'] === 'ja_existe')
+        {
+            $this->repeticoesIgnoradas++;
+            return;
+        }
+        if ($this->aplicarPlano($newObject, null))
+        {
+            $newObject->store();
+            $this->gravou = true;
+        }
 
     }
 

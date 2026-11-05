@@ -12,9 +12,12 @@
  * Excecao: pode ficar sobre bloqueio, intervalo e nao atende; pode pegar horario normal, desde que pelo menos uma parte nao seja.
  * Durante ela, o bloqueio, o intervalo e o nao atende daquele trecho nao contam; a sobreposicao entre marcados continua barrada.
  *
- * Bloqueio: o contrario. Precisa pegar pelo menos uma parte de horario normal e nao entra sobre agendamento, compromisso, outro
- * bloqueio ou excecao, seja qual for o estado (tem que cancelar ou reagendar antes). Sobre cancelado pode, mas o cancelado que
- * fica sob o bloqueio nao muda mais de estado (ver exigirPodeSairDeCancelado).
+ * Bloqueio: o contrario. Precisa pegar pelo menos uma parte de horario normal e nao entra sobre agendamento, compromisso ou
+ * excecao, seja qual for o estado (tem que cancelar ou reagendar antes). Sobre cancelado pode, mas o cancelado que fica sob o
+ * bloqueio nao muda mais de estado (ver exigirPodeSairDeCancelado).
+ *
+ * Bloqueio sobre bloqueio e excecao sobre excecao: se so repete o que ja existe, avisa e nao cria; se passa do que existe,
+ * estende o existente em vez de criar outro (ver planoDoPeriodo).
  */
 class AgendaConflitoService
 {
@@ -184,8 +187,6 @@ class AgendaConflitoService
         $agenda = Agenda::find($agendaId);
         if (!$agenda) { throw new Exception('Agenda não encontrada.'); }
 
-        self::exigirSemExcecao($agendaId, $inicio, $fim);
-
         $normais = self::subtrair(self::trechosDeAtendimento($agenda, $inicio, $fim), self::periodosNoHorario('bloqueio', $agendaId, $inicio, $fim));
         $emHorarioNormal = 0;
         foreach ($normais as [$de, $ate])
@@ -220,39 +221,137 @@ class AgendaConflitoService
         return false;
     }
 
+    /** "em 04/01/2027 das 10:00 às 10:30" ou "de 04/01/2027 10:00 a 05/01/2027 17:00" */
+    private static function quando(string $inicio, string $fim): string
+    {
+        $i = strtotime($inicio);
+        $f = strtotime($fim);
+
+        return date('d/m/Y', $i) === date('d/m/Y', $f)
+            ? 'em ' . date('d/m/Y', $i) . ' das ' . date('H:i', $i) . ' às ' . date('H:i', $f)
+            : 'de ' . date('d/m/Y H:i', $i) . ' a ' . date('d/m/Y H:i', $f);
+    }
+
     /**
-     * Bloqueio novo (ou mudando agenda/horario): precisa pegar horario normal e o periodo tem que estar livre. Agendamento,
-     * compromisso e outro bloqueio barram, seja qual for o estado; cancelado e de quem nao compareceu nao ocupam.
+     * Periodo novo de bloqueio ou excecao contra os que ja existem na agenda. Encostar nao conta como sobrepor.
+     *
+     * @return array acao: 'criar', 'ja_existe' (nao passa do que existe: nada a fazer) ou 'estender' (passa: o existente cresce);
+     *               inicio/fim: o periodo final; novos: os trechos que ainda nao existiam; existentes: as linhas sobrepostas; mensagem
      */
-    public static function exigirPodeBloquear(int $agendaId, string $inicio, string $fim, int $ignorarBloqueioId = 0): void
+    private static function planoDoPeriodo(string $tabela, int $agendaId, string $inicio, string $fim, int $ignorarId = 0): array
     {
         $inicio = self::minuto($inicio);
         $fim = self::minuto($fim);
         if ($fim <= $inicio) { throw new Exception('O fim do horário tem que ser depois do início.'); }
 
+        $textos = $tabela === 'bloqueio' ? ['um bloqueio', 'O bloqueio', 'estendido', 'Nenhum bloqueio novo foi criado.'] : ['uma exceção', 'A exceção', 'estendida', 'Nenhuma exceção nova foi criada.'];
         $agenda = Agenda::find($agendaId);
         $nomeAgenda = $agenda ? ' na agenda ' . $agenda->nome : '';
-        if (!self::temHorarioNormal($agendaId, $inicio, $fim))
+
+        $st = TTransaction::get()->prepare("SELECT id, dt_inicio, dt_final, observacao FROM {$tabela} WHERE agenda_id = ? AND id <> ? AND dt_inicio < ? AND dt_final > ? ORDER BY dt_inicio");
+        $st->execute([$agendaId, $ignorarId, $fim, $inicio]);
+        $existentes = $st->fetchAll(PDO::FETCH_ASSOC);
+
+        if (!$existentes)
+        {
+            return ['acao' => 'criar', 'inicio' => $inicio, 'fim' => $fim, 'novos' => [[$inicio, $fim]], 'existentes' => [], 'mensagem' => ''];
+        }
+
+        $periodos = array_map(function ($r) { return [self::minuto((string) $r['dt_inicio']), self::minuto((string) $r['dt_final'])]; }, $existentes);
+        $novos = self::subtrair([[$inicio, $fim]], $periodos);
+        $quandos = implode(' e ', array_map(function ($p) { return self::quando($p[0], $p[1]); }, $periodos));
+
+        if (!$novos)
+        {
+            return ['acao' => 'ja_existe', 'inicio' => $inicio, 'fim' => $fim, 'novos' => [], 'existentes' => $existentes,
+                    'mensagem' => "Já existe {$textos[0]}{$nomeAgenda} {$quandos}. {$textos[3]}"];
+        }
+
+        $de = min(array_merge([$inicio], array_column($periodos, 0)));
+        $ate = max(array_merge([$fim], array_column($periodos, 1)));
+
+        return ['acao' => 'estender', 'inicio' => $de, 'fim' => $ate, 'novos' => $novos, 'existentes' => $existentes,
+                'mensagem' => "{$textos[1]} que já existia{$nomeAgenda} ({$quandos}) foi {$textos[2]} e agora fica " . self::quando($de, $ate) . '.'];
+    }
+
+    /**
+     * Bloqueio novo (ou mudando agenda/horario): o que fazer com os bloqueios que ja existem, ja validado. Precisa pegar horario
+     * normal; o trecho novo nao entra sobre excecao, agendamento nem compromisso, seja qual for o estado (cancelado e de quem nao
+     * compareceu nao ocupam).
+     */
+    public static function planejarBloqueio(int $agendaId, string $inicio, string $fim, int $ignorarBloqueioId = 0): array
+    {
+        $plano = self::planoDoPeriodo('bloqueio', $agendaId, $inicio, $fim, $ignorarBloqueioId);
+        if ($plano['acao'] === 'ja_existe')
+        {
+            return $plano;
+        }
+
+        $agenda = Agenda::find($agendaId);
+        $nomeAgenda = $agenda ? ' na agenda ' . $agenda->nome : '';
+        if (!self::temHorarioNormal($agendaId, $plano['inicio'], $plano['fim']))
         {
             throw new Exception("O bloqueio precisa pegar pelo menos uma parte do horário normal de atendimento{$nomeAgenda}. Esse período está todo em intervalo ou não atende.");
         }
 
-        self::exigirSemExcecao($agendaId, $inicio, $fim);
-
-        $st = TTransaction::get()->prepare("SELECT dt_inicio AS dt_inicial, dt_final, observacao AS detalhe FROM bloqueio
-                                             WHERE agenda_id = ? AND id <> ? AND dt_inicio < ? AND dt_final > ? ORDER BY dt_inicio LIMIT 1");
-        $st->execute([$agendaId, $ignorarBloqueioId, $fim, $inicio]);
-        if ($r = $st->fetch(PDO::FETCH_OBJ))
+        $linhas = [];
+        foreach ($plano['novos'] as [$de, $ate])
         {
-            throw new Exception(self::mensagem('um bloqueio', $nomeAgenda, $r));
+            self::exigirSemExcecao($agendaId, $de, $ate);
+            $marcados = self::sobreposicoesDoBloqueio([[$agendaId, $de, $ate]]);
+            $linhas = array_merge($linhas, $marcados['impedem'], $marcados['avisam']);
         }
-
-        $marcados = self::sobreposicoesDoBloqueio([[$agendaId, $inicio, $fim]]);
-        $linhas = array_merge($marcados['impedem'], $marcados['avisam']);
         if ($linhas)
         {
-            throw new Exception("Não é possível bloquear este horário{$nomeAgenda}. Cancele ou reagende antes:<br><br>" . self::listaParaAviso($linhas));
+            throw new Exception("Não é possível bloquear este horário{$nomeAgenda}. Cancele ou reagende antes:<br><br>" . self::listaParaAviso(array_values(array_unique($linhas))));
         }
+
+        return $plano;
+    }
+
+    /** Excecao nova: o que fazer com as excecoes que ja existem, ja validado (pelo menos uma parte fora do horario normal). */
+    public static function planejarExcecao(int $agendaId, string $inicio, string $fim): array
+    {
+        $plano = self::planoDoPeriodo('agenda_excecao', $agendaId, $inicio, $fim);
+        if ($plano['acao'] !== 'ja_existe')
+        {
+            self::exigirPeriodoDeExcecao($agendaId, $plano['inicio'], $plano['fim']);
+        }
+
+        return $plano;
+    }
+
+    /**
+     * Aplica o plano 'estender': $alvo (ou o primeiro existente) fica com o periodo final e os outros sobrepostos saem, para nao
+     * sobrar dois. As observacoes diferentes sao mantidas juntas. Usa a transacao aberta.
+     */
+    public static function fundirPeriodos(string $classe, array $plano, string $observacao, $alvo = null)
+    {
+        $existentes = $plano['existentes'];
+        if (!$alvo)
+        {
+            $alvo = new $classe((int) array_shift($existentes)['id']);
+        }
+
+        $textos = [];
+        foreach (array_merge([(string) $alvo->observacao], array_column($existentes, 'observacao'), [$observacao]) as $texto)
+        {
+            $texto = trim((string) $texto);
+            if ($texto !== '') { $textos[mb_strtoupper($texto)] = $texto; }
+        }
+
+        foreach ($existentes as $outro)
+        {
+            (new $classe((int) $outro['id']))->delete();
+        }
+
+        $alvo->dt_inicio = $plano['inicio'];
+        $alvo->dt_final = $plano['fim'];
+        $alvo->observacao = implode(' / ', $textos);
+        $alvo->modificacao_user_id = TSession::getValue('userid');
+        $alvo->store();
+
+        return $alvo;
     }
 
     /**
@@ -270,7 +369,7 @@ class AgendaConflitoService
         }
     }
 
-    /** Excecao ou bloqueio novo nao entra em cima de uma excecao que ja existe. */
+    /** Bloqueio novo nao entra em cima de uma excecao que ja existe. */
     public static function exigirSemExcecao(int $agendaId, string $inicio, string $fim): void
     {
         $inicio = self::minuto($inicio);
@@ -432,11 +531,7 @@ class AgendaConflitoService
 
     private static function mensagem(string $tipo, string $nomeAgenda, $r): string
     {
-        $ini = strtotime((string) $r->dt_inicial);
-        $fim = strtotime((string) $r->dt_final);
-        $quando = date('d/m/Y', $ini) === date('d/m/Y', $fim)
-            ? 'em ' . date('d/m/Y', $ini) . ' das ' . date('H:i', $ini) . ' às ' . date('H:i', $fim)
-            : 'de ' . date('d/m/Y H:i', $ini) . ' a ' . date('d/m/Y H:i', $fim);
+        $quando = self::quando((string) $r->dt_inicial, (string) $r->dt_final);
         $detalhe = trim((string) $r->detalhe) !== '' ? ' (' . htmlspecialchars(mb_strimwidth(trim((string) $r->detalhe), 0, 60, '…')) . ')' : '';
         return "Já existe {$tipo}{$nomeAgenda} {$quando}{$detalhe}. Escolha outro horário.";
     }

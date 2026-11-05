@@ -92,7 +92,12 @@ try {
     igual('criar: sexta a noite ate o sabado inteiro (varios dias, tudo fechado)', null, $periodo($h('19:00', date('Y-m-d', strtotime($sab . ' -1 day'))), $h('20:00', $sab)));
 
     $ex = $excecao($h('12:01'), $h('12:59'));
-    ok('nao cria: em cima de outra excecao', strpos((string) $periodo($h('12:30'), $h('12:45')), 'uma exceção') !== false);
+    $plano = function (string $i, string $f) use ($agenda) { TTransaction::open('escritorio'); $r = AgendaConflitoService::planejarExcecao($agenda, $i, $f); TTransaction::close(); return $r; };
+    $r = $plano($h('12:30'), $h('12:45'));
+    ok('excecao dentro de outra: avisa de tal hora a tal hora e nao cria', $r['acao'] === 'ja_existe' && strpos($r['mensagem'], 'Já existe uma exceção') !== false && strpos($r['mensagem'], 'das 12:01 às 12:59') !== false, json_encode($r));
+    $r = $plano($h('12:30'), $h('13:30'));
+    igual('excecao passando da outra: estende', ['estender', $h('12:01'), $h('13:30'), [[$h('12:59'), $h('13:30')]]], [$r['acao'], $r['inicio'], $r['fim'], $r['novos']]);
+    igual('excecao so encostada: e outra', 'criar', $plano($h('12:59'), $h('13:30'))['acao']);
     x("DELETE FROM agenda_excecao WHERE id = {$ex}");
 
     // ---------- durante a excecao ----------
@@ -130,7 +135,7 @@ try {
 
     // ---------- bloqueio novo sobre excecao ----------
     ok('bloqueio novo sobre excecao: nao pode', strpos((string) $erro(fn() => AgendaConflitoService::exigirSemExcecao($agenda, $h('12:15'), $h('13:30'))), 'uma exceção') !== false);
-    ok('bloqueio pela regra completa, sobre excecao: nao pode', strpos((string) $erro(fn() => AgendaConflitoService::exigirPodeBloquear($agenda, $h('12:30'), $h('13:30'))), 'uma exceção') !== false);
+    ok('bloqueio pela regra completa, sobre excecao: nao pode', strpos((string) $erro(fn() => AgendaConflitoService::planejarBloqueio($agenda, $h('12:30'), $h('13:30'))), 'uma exceção') !== false);
     igual('bloqueio novo fora da excecao: pode', null, $erro(fn() => AgendaConflitoService::exigirSemExcecao($agenda, $h('16:00'), $h('17:00'))));
 
     // ---------- tela ----------
@@ -149,6 +154,14 @@ try {
     $form(['id' => $tela, 'agenda_id' => $agenda, 'dt_inicio' => $dt($h('10:00')), 'dt_final' => $dt($h('11:00')), 'observacao' => MARCA_EX . ' TELA NOVA']);
     $g = q("SELECT to_char(dt_inicio, 'HH24:MI') i, observacao o FROM agenda_excecao WHERE id = {$tela}")[0];
     igual('tela: editando muda so a observacao', ['19:00', MARCA_EX . ' TELA NOVA'], [$g['i'], $g['o']]);
+
+    // excecao sobre excecao, pela tela
+    $s = $form(['id' => '', 'agendas' => [$agenda], 'dt_inicio' => $dt($h('19:10')), 'dt_final' => $dt($h('19:20')), 'observacao' => MARCA_EX . ' DE NOVO']);
+    ok('tela: dentro de outra excecao avisa e nao cria', strpos($s, 'Já existe uma exceção') !== false && strpos($s, 'das 19:00 às 20:00') !== false && !q("SELECT 1 FROM agenda_excecao WHERE observacao LIKE '%DE NOVO%'"), substr(strip_tags($s), -300));
+    $s = $form(['id' => '', 'agendas' => [$agenda], 'dt_inicio' => $dt($h('19:30')), 'dt_final' => $dt($h('20:30')), 'observacao' => MARCA_EX . ' MAIS']);
+    $g = q("SELECT to_char(dt_inicio, 'HH24:MI') i, to_char(dt_final, 'HH24:MI') f, observacao o FROM agenda_excecao WHERE id = {$tela}")[0];
+    igual('tela: passando da outra estende a mesma, sem criar', ['19:00', '20:30', 1], [$g['i'], $g['f'], count(q("SELECT 1 FROM agenda_excecao WHERE observacao LIKE '%MAIS%'"))]);
+    ok('tela: avisa que estendeu e guarda as duas observacoes', strpos($s, 'foi estendida') !== false && strpos($g['o'], 'TELA NOVA') !== false && strpos($g['o'], 'MAIS') !== false, $g['o']);
 
     // ---------- remover ----------
     $s = saida(function () use ($tela) { AgendaExcecaoForm::onRemover(['id' => $tela]); });

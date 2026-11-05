@@ -118,6 +118,7 @@ class AgendaExcecaoForm extends TPage
             $data = $this->form->getData();
             $gravada = !empty($data->id) ? AgendaExcecao::find((int) $data->id) : null;
             $quantidade = 1;
+            $avisos = [];
 
             if ($gravada)
             {
@@ -128,10 +129,22 @@ class AgendaExcecaoForm extends TPage
             else
             {
                 $agendas = AgendaSelecaoMultipla::marcadas((array) $param);
-                $quantidade = count($agendas);
+                $quantidade = 0;
                 foreach ($agendas as $agenda)
                 {
-                    AgendaConflitoService::exigirPeriodoDeExcecao((int) $agenda, (string) $data->dt_inicio, (string) $data->dt_final);
+                    $plano = AgendaConflitoService::planejarExcecao((int) $agenda, (string) $data->dt_inicio, (string) $data->dt_final);
+                    if ($plano['acao'] === 'ja_existe')
+                    {
+                        $avisos[] = $plano['mensagem'];
+                        continue;
+                    }
+                    $quantidade++;
+                    if ($plano['acao'] === 'estender')
+                    {
+                        AgendaConflitoService::fundirPeriodos('AgendaExcecao', $plano, (string) $data->observacao);
+                        $avisos[] = $plano['mensagem'];
+                        continue;
+                    }
                     $excecao = new AgendaExcecao();
                     $excecao->agenda_id = (int) $agenda;
                     $excecao->dt_inicio = $data->dt_inicio;
@@ -140,11 +153,24 @@ class AgendaExcecaoForm extends TPage
                     $excecao->criacao_user_id = TSession::getValue('userid');
                     $excecao->store();
                 }
+
+                // so repetiu o que ja existia: avisa, nao cria nada e a tela continua aberta
+                if ($quantidade === 0)
+                {
+                    $this->form->setData($data);
+                    TTransaction::close();
+                    new TMessage('info', implode('<br><br>', $avisos));
+                    return;
+                }
             }
 
             TTransaction::close();
 
             TToast::show('success', $quantidade > 1 ? "{$quantidade} exceções salvas, uma em cada agenda marcada" : 'Registro salvo', 'topRight', 'far:check-circle');
+            if ($avisos)
+            {
+                new TMessage('info', implode('<br><br>', $avisos));
+            }
             self::voltarParaAgenda();
         }
         catch (Exception $e)

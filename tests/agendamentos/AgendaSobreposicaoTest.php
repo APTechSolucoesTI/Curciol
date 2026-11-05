@@ -162,8 +162,8 @@ try {
         $_POST = $p; $_REQUEST = $p;
         return saida(function () use ($p) { (new BloqueioForm($p))->onSave($p); });
     };
-    $qtd = fn() => (int) q("SELECT count(*) c FROM bloqueio WHERE observacao = '" . MARCA_AS . " FORM'")[0]['c'];
-    $limparForm = fn() => x("DELETE FROM bloqueio WHERE observacao = '" . MARCA_AS . " FORM'");
+    $qtd = fn() => (int) q("SELECT count(*) c FROM bloqueio WHERE observacao LIKE '" . MARCA_AS . " FORM%'")[0]['c'];
+    $limparForm = fn() => x("DELETE FROM bloqueio WHERE observacao LIKE '" . MARCA_AS . " FORM%'");
     foreach ([EstadoAgenda::AGENDADO => 'agendado', EstadoAgenda::CONFIRMADO => 'confirmado', EstadoAgenda::EM_ATENDIMENTO => 'em atendimento'] as $estado => $nome)
     {
         x("UPDATE agendamento SET estado_agenda_id = {$estado} WHERE id = {$ag}");
@@ -176,10 +176,50 @@ try {
     // bloqueio sobre bloqueio
     $form([], '13:00', '13:30');
     igual('tela: bloqueio em horario livre grava', 1, $qtd());
+    $horas = fn() => array_map(fn($r) => $r['i'] . '-' . $r['f'], q("SELECT to_char(dt_inicio, 'HH24:MI') i, to_char(dt_final, 'HH24:MI') f FROM bloqueio WHERE observacao LIKE '" . MARCA_AS . " FORM%' AND agenda_id = {$a1} ORDER BY dt_inicio"));
+    $s = $form([], '13:10', '13:20');
+    ok('tela: bloqueio dentro de outro avisa de tal hora a tal hora e nao cria', strpos($s, 'Já existe um bloqueio') !== false && strpos($s, 'das 13:00 às 13:30') !== false && $qtd() === 1, substr(strip_tags($s), -300));
     $s = $form([], '13:15', '13:45');
-    ok('tela: bloqueio sobre bloqueio nao passa', strpos($s, 'um bloqueio') !== false && $qtd() === 1, substr($s, -400));
-    $meu = (int) q("SELECT id FROM bloqueio WHERE observacao = '" . MARCA_AS . " FORM'")[0]['id'];
-    igual('bloqueio editado no proprio horario nao barra nele mesmo', null, $erro(fn() => AgendaConflitoService::exigirPodeBloquear($a1, $h('13:00'), $h('13:45'), $meu)));
+    igual('tela: bloqueio passando do outro estende o mesmo', ['13:00-13:45'], $horas());
+    ok('tela: avisa que estendeu', strpos($s, 'foi estendido') !== false && strpos($s, 'das 13:00 às 13:45') !== false, substr(strip_tags($s), -300));
+    $s = $form([], '12:30', '13:15');
+    igual('tela: estende tambem para antes', ['12:30-13:45'], $horas());
+
+    // o trecho novo tem que estar livre
+    $marcado14 = $agendamento($a1, $h('14:00'), $h('14:30'));
+    $s = $form([], '13:30', '14:15');
+    ok('tela: estender sobre agendamento nao passa', strpos($s, 'Cancele ou reagende') !== false && $horas() === ['12:30-13:45'], substr(strip_tags($s), -300));
+    x("UPDATE agendamento SET estado_agenda_id = " . EstadoAgenda::CANCELADO . " WHERE id = {$marcado14}");
+
+    // emendando dois: ficam um so
+    $form([], '15:00', '15:30');
+    igual('dois bloqueios separados', ['12:30-13:45', '15:00-15:30'], $horas());
+    $form([], '13:30', '15:15');
+    igual('novo que emenda os dois: fica um so', ['12:30-15:30'], $horas());
+    x("UPDATE bloqueio SET observacao = '" . MARCA_AS . " FORM' WHERE observacao LIKE '" . MARCA_AS . " FORM%'");
+
+    // editando um bloqueio ate pegar outro
+    $form([], '16:00', '16:30');
+    $editado = (int) q("SELECT id FROM bloqueio WHERE observacao LIKE '" . MARCA_AS . " FORM%' AND dt_inicio = '" . $h('16:00') . "'")[0]['id'];
+    $p = ['id' => $editado, 'agenda_id' => $a1, 'dt_inicio' => date('d/m/Y H:i', strtotime($h('15:15'))), 'dt_final' => date('d/m/Y H:i', strtotime($h('16:30'))), 'observacao' => MARCA_AS . ' FORM', 'habilitar_repeticao' => 'N'];
+    $_POST = $p; $_REQUEST = $p;
+    saida(function () use ($p) { (new BloqueioForm($p))->onSave($p); });
+    igual('editar ate pegar outro: fica um so, o editado', [['12:30-16:30'], 1], [$horas(), count(q("SELECT 1 FROM bloqueio WHERE id = {$editado}"))]);
+    TTransaction::open('escritorio');
+    $planoProprio = AgendaConflitoService::planejarBloqueio($a1, $h('12:30'), $h('16:45'), $editado);
+    TTransaction::close();
+    igual('bloqueio editado nao conta com ele mesmo', 'criar', $planoProprio['acao']);
+
+    // varias agendas: numa ja existe, na outra cria
+    if ($a2)
+    {
+        $p = ['id' => '', 'agenda_id' => $a1, 'agendas' => [$a1, $a2], 'dt_inicio' => date('d/m/Y H:i', strtotime($h('13:00'))), 'dt_final' => date('d/m/Y H:i', strtotime($h('13:30'))), 'observacao' => MARCA_AS . ' FORM DUAS', 'habilitar_repeticao' => 'N'];
+        $_POST = $p; $_REQUEST = $p;
+        $s = saida(function () use ($p) { (new BloqueioForm($p))->onSave($p); });
+        igual('duas agendas: cria so onde nao existia', [$a2], array_map('intval', array_column(q("SELECT agenda_id FROM bloqueio WHERE observacao = '" . MARCA_AS . " FORM DUAS'"), 'agenda_id')));
+        ok('duas agendas: avisa a que ja existia', strpos($s, 'Já existe um bloqueio') !== false, substr(strip_tags($s), -300));
+    }
+    x("DELETE FROM bloqueio WHERE observacao LIKE '" . MARCA_AS . " FORM%'");
     $limparForm();
 
     // precisa pegar horario normal
