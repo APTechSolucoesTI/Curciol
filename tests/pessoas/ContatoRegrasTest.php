@@ -208,9 +208,11 @@ try {
     ok('marcar principal com e-mail no anterior: pergunta', strpos($s, 'antigo@example.invalid') !== false && strpos($s, 'Levar para o novo principal') !== false && strpos($s, 'Manter no contato anterior') !== false, substr($s, -500));
     igual('marcar principal: sem responder, a grade nao muda', '', $naLista($s));
     $s = $pela($t1, MARCA_CR . ' TROCA A', $grade1, $marcar + ['pessoa_contato_email_decidido' => 'levar']);
-    ok('levar, na grade: o e-mail vai para o novo e so ele tem o nome do cliente', strpos($naLista($s), 'antigo@example.invalid') !== false && substr_count($naLista($s), MARCA_CR . ' TROCA A') === 1, $naLista($s));
+    ok('Salvar da linha: limpa os campos antes de gravar, para o contato nao voltar por cima da grade', strpos($s, "[name=pessoa_contato_pessoa_email]") !== false && strpos($s, "[name=pessoa_contato_email_decidido]") !== false && strpos($s, 'method=onSave') !== false, substr($s, -500));
+    $s = $pela($t1, MARCA_CR . ' TROCA A', $grade1, $marcar + ['pessoa_contato_email_decidido' => 'levar']);
+    ok('levar, na grade: o e-mail vai para o novo e so ele tem o nome do cliente', strpos(strip_tags($naLista($s)), 'antigo@example.invalid') !== false && substr_count(strip_tags($naLista($s)), MARCA_CR . ' TROCA A') === 1, strip_tags($naLista($s)));
     $s = $pela($t1, MARCA_CR . ' TROCA A', $grade1, ['pessoa_contato_pessoa__row__id' => 'bC', 'pessoa_contato_pessoa_telefone' => '19912340076', 'pessoa_contato_pessoa_principal' => 'S', 'pessoa_contato_email_decidido' => 'manter']);
-    ok('manter, na grade: o e-mail fica no anterior e so o novo tem o nome do cliente', strpos($naLista($s), 'antigo@example.invalid') !== false && substr_count($naLista($s), MARCA_CR . ' TROCA A') === 1, $naLista($s));
+    ok('manter, na grade: o e-mail fica no anterior e so o novo tem o nome do cliente', strpos(strip_tags($naLista($s)), 'antigo@example.invalid') !== false && substr_count(strip_tags($naLista($s)), MARCA_CR . ' TROCA A') === 1, strip_tags($naLista($s)));
 
     // pelo Salvar do rodape: grava
     $novoNoRodape = ['pessoa_contato_pessoa_id' => $n1['id'], 'pessoa_contato_pessoa__row__id' => 'bB', 'pessoa_contato_pessoa_telefone' => $TEL_N, 'pessoa_contato_pessoa_principal' => 'S'];

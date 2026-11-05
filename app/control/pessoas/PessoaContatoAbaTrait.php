@@ -234,7 +234,7 @@ trait PessoaContatoAbaTrait
             $__row__data['__display__']['descricao'] =  $param['pessoa_contato_pessoa_descricao'] ?? null;
             $__row__data['__display__']['id'] =  $param['pessoa_contato_pessoa_id'] ?? null;
             $__row__data['__display__']['telefone'] =  $param['pessoa_contato_pessoa_telefone'] ?? null;
-            $__row__data['__display__']['email'] =  $param['pessoa_contato_pessoa_email'] ?? null;
+            $__row__data['__display__']['email'] =  $grid_data->email;
             $__row__data['__display__']['principal'] =  $data->pessoa_contato_pessoa_principal;
 
             $grid_data->__row__data = base64_encode(serialize((object)$__row__data));
@@ -283,7 +283,12 @@ trait PessoaContatoAbaTrait
             // o Adicionar so inclui na lista, como nos enderecos
             if ($editando)
             {
-                TScript::create("setTimeout(function () { $('form[name=" . self::$formName . "]').find('[onclick*=\"method=onSave\"]').first().click(); }, 300);");
+                // limpa os campos aqui mesmo: o Salvar nao pode ler de novo o contato que ja foi para a grade (a limpeza do sendData pode
+                // terminar depois do clique, e o e-mail digitado voltaria por cima da escolha feita na pergunta)
+                TScript::create("setTimeout(function () { var f = $('form[name=" . self::$formName . "]');"
+                    . " f.find('[name=pessoa_contato_pessoa_nome],[name=pessoa_contato_pessoa_descricao],[name=pessoa_contato_pessoa_id],[name=pessoa_contato_pessoa_telefone],[name=pessoa_contato_pessoa_email],[name=pessoa_contato_pessoa__row__id],[name=pessoa_contato_nome_decidido],[name=pessoa_contato_email_decidido]').val('');"
+                    . " f.find('[name=pessoa_contato_pessoa_principal]').prop('checked', false);"
+                    . " f.find('[onclick*=\"method=onSave\"]').first().click(); }, 300);");
             }
             else
             {
