@@ -183,6 +183,15 @@ try {
     $s = saida(function () { ClienteForm::onTelefoneContatoSaida(['pessoa_contato_pessoa_telefone' => TEL_C, 'pessoa_contato_pessoa_nome' => '']); });
     ok('sair do telefone sem nome: preenche, se o telefone ainda for esse', strpos($s, MARCA_CR . ' MAE NOVA') !== false && strpos($s, TEL_C) !== false, substr($s, 0, 300));
 
+    // ---------- a chave de principal nao mexe no nome; a validacao e no Adicionar ----------
+    $html = saida(function () { (new ClienteForm([]))->show(); });
+    ok('chave de principal: nao troca o nome ao ser clicada', strpos($html, 'change.curciolContato') !== false && strpos($html, 'curciolContatoPrincipal') === false, substr($html, 0, 200));
+    $s = $adicionar(['pessoa_contato_pessoa_telefone' => TEL_C, 'pessoa_contato_pessoa_nome' => 'NOME DIGITADO', 'pessoa_contato_pessoa_principal' => 'S']);
+    ok('Adicionar: numero principal de outro cadastro e recusado', strpos($s, 'já é o contato principal') !== false && $naLista($s) === '', substr($s, 0, 300));
+    ok('Adicionar recusado: nao limpa o nome digitado', strpos($s, "'pessoa_contato_pessoa_nome', ''") === false, substr($s, 0, 300));
+    $s = $adicionar(['pessoa_contato_pessoa_telefone' => '19912340085', 'pessoa_contato_pessoa_nome' => 'NOME DIGITADO', 'pessoa_contato_pessoa_principal' => 'S']);
+    ok('Adicionar: numero livre vira principal com o nome do cadastro', strpos(strip_tags($naLista($s)), MARCA_CR . ' ESCOLHA') !== false && strpos(strip_tags($naLista($s)), 'NOME DIGITADO') === false, strip_tags($naLista($s)));
+
     // ---------- trocar o contato principal: o e-mail e o nome do anterior ----------
     $TEL_P = '19912340074'; $TEL_N = '19912340075';
     $cenario = function (string $sufixo, array $principal, array $outro) {

@@ -70,12 +70,11 @@ trait PessoaContatoAbaTrait
             });"
         );
 
-        // contato principal: o nome e o do cadastro e nao se edita (05/11/2026)
-        TScript::create("window.curciolContatoPrincipal = function (chave) {
-            var f = chave.closest('form'); var n = f.find('input[name=\"pessoa_contato_pessoa_nome\"]');
-            if (chave.is(':checked')) { n.val(String(f.find('input[name=\"nome\"]').val() || '').toUpperCase()).prop('readonly', true); } else { n.prop('readonly', false); }
-        };
-        $(document).off('change.curciolContato', 'input[name=\"pessoa_contato_pessoa_principal\"]').on('change.curciolContato', 'input[name=\"pessoa_contato_pessoa_principal\"]', function () { window.curciolContatoPrincipal($(this)); });");
+        // a chave de principal nao mexe no nome digitado: quem valida e o Adicionar, e so se o numero puder ser principal o nome
+        // passa a ser o do cadastro (contatoDaTela). Desligar a chave libera o campo, travado ao abrir um contato ja principal.
+        TScript::create("$(document).off('change.curciolContato', 'input[name=\"pessoa_contato_pessoa_principal\"]').on('change.curciolContato', 'input[name=\"pessoa_contato_pessoa_principal\"]', function () {
+            if (!$(this).is(':checked')) { $(this).closest('form').find('input[name=\"pessoa_contato_pessoa_nome\"]').prop('readonly', false); }
+        });");
 
         $this->form->appendPage("Contatos");
 
@@ -745,7 +744,7 @@ trait PessoaContatoAbaTrait
                if(!element.attr('edit')){
                    element.attr('edit', base64_encode(element.html()));
                }
-               setTimeout(function () { var chave = $('form[name=" . self::$formName . "] input[name=\"pessoa_contato_pessoa_principal\"]'); if (chave.length) { window.curciolContatoPrincipal(chave); } }, 100);
+               setTimeout(function () { var f = $('form[name=" . self::$formName . "]'); f.find('input[name=\"pessoa_contato_pessoa_nome\"]').prop('readonly', f.find('input[name=\"pessoa_contato_pessoa_principal\"]').is(':checked')); }, 100);
             ");
 
         }
