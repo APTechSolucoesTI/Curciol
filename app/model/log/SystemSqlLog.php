@@ -13,7 +13,7 @@ class SystemSqlLog extends TRecord
 {
     const TABLENAME = 'system_sql_log';
     const PRIMARYKEY= 'id';
-    const IDPOLICY =  'max'; // {max, serial}
+    const IDPOLICY =  'serial'; // {max, serial}
     
     /**
      * Constructor method

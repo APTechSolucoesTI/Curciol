@@ -1141,7 +1141,6 @@ class ClienteForm extends TPage
             }
 
             $this->saveFile($object, $data, 'foto', $foto_dir);
-            TForm::sendData(self::$formName, (object)['id' => $object->id, 'autorizacao_retirada_confirmada' => '']);
 
             $loadPageParam = [];
 
@@ -1217,6 +1216,7 @@ class ClienteForm extends TPage
             $this->form->setData($data); // fill form data
 
             TTransaction::close(); // close the transaction
+            TForm::sendData(self::$formName, (object)['id' => $object->id, 'autorizacao_retirada_confirmada' => '']);
 
             /*
                 APCHAT: sincronizacao do contato, so depois do commit. O

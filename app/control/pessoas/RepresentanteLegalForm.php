@@ -760,7 +760,6 @@ class RepresentanteLegalForm extends TPage
             $object->store(); // save the object 
 
             $this->saveFile($object, $data, 'foto', $foto_dir);
-            TForm::sendData(self::$formName, (object)['id' => $object->id]);
 
             $loadPageParam = [];
 
@@ -810,6 +809,7 @@ class RepresentanteLegalForm extends TPage
 
             $this->form->setData($data); // fill form data
             TTransaction::close(); // close the transaction
+            TForm::sendData(self::$formName, (object)['id' => $object->id]);
             // APChat: toda pessoa com telefone valido vai para os contatos (so depois do commit; nunca impede o cadastro)
             $sincronizacao_apchat = APChatContactService::sincronizarPessoa($object->id, [$telefone_anterior_apchat]);
             if (in_array($sincronizacao_apchat->situacao, [ApchatContatoLog::SITUACAO_ERRO, ApchatContatoLog::SITUACAO_PENDENTE]))

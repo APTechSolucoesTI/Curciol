@@ -14,72 +14,25 @@ class SystemAccessLogService
     /**
      * Register login
      */
-    public static function registerLogin( $impersonated = false, $impersonated_by = null )
+    public static function registerLogin($impersonated = false, $impersonated_by = null)
     {
-        $cur_conn = serialize(TTransaction::getDatabaseInfo());
-        $new_conn = serialize(TConnection::getDatabaseInfo('log'));
-        
-        $open_transaction = ($cur_conn !== $new_conn);
-        
-        if ($open_transaction)
-        {
-            TTransaction::open('log');
-        }
-        
-        $object = new SystemAccessLog;
-        $object->login = TSession::getValue('login');
-        $object->sessionid = session_id();
-        $object->login_time = date("Y-m-d H:i:s");
-        $object->login_year = date("Y");
-        $object->login_month = date("m");
-        $object->login_day = date("d");
-        $object->impersonated = ($impersonated ? 'Y' : 'N');
-        $object->impersonated_by = $impersonated_by;
-        $object->access_ip = isset($_SERVER['REMOTE_ADDR']) ? $_SERVER['REMOTE_ADDR'] : null;
-        $object->store();
-        
-        if ($open_transaction)
-        {
-            TTransaction::close();
-        }
+        SystemLogWriter::inserir('system_access_log', [
+            'login' => TSession::getValue('login'), 'sessionid' => session_id(),
+            'login_time' => date('Y-m-d H:i:s'),
+            'login_year' => date('Y'), 'login_month' => date('m'), 'login_day' => date('d'),
+            'impersonated' => $impersonated ? 'Y' : 'N', 'impersonated_by' => $impersonated_by,
+            'access_ip' => $_SERVER['REMOTE_ADDR'] ?? null,
+        ]);
     }
-    
-    /**
-     * Register logout
-     */
+
     public static function registerLogout()
     {
-        $cur_conn = serialize(TTransaction::getDatabaseInfo());
-        $new_conn = serialize(TConnection::getDatabaseInfo('log'));
-        
-        $open_transaction = ($cur_conn !== $new_conn);
-        
-        if ($open_transaction)
-        {
-            TTransaction::open('log');
-        }
-        
-        // get logs by session id
-        $logs = SystemAccessLog::where('sessionid', '=', session_id())->load();
-        if (count($logs)>0)
-        {
-            $log = $logs[0];
-            if ($log instanceof SystemAccessLog);
-            {
-                $log->logout_time = date("Y-m-d H:i:s");
-            }
-            $log->store();
-        }
-        
-        if ($open_transaction)
-        {
-            TTransaction::close();
-        }
+        SystemLogWriter::executar(function (PDO $conn) {
+            $conn->prepare('UPDATE system_access_log SET logout_time = ? WHERE id = (SELECT id FROM system_access_log WHERE sessionid = ? ORDER BY id DESC LIMIT 1)')
+                 ->execute([date('Y-m-d H:i:s'), session_id()]);
+        });
     }
-    
-    /**
-     *
-     */
+
     public static function getStatsByDay()
     {
         TTransaction::open('log');
