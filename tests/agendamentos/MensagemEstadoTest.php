@@ -125,7 +125,7 @@ try {
     $quando = date('d/m/Y H:i', strtotime('+1 day'));
     $s = $enviar(['template' => $lembreteT, 'agendar' => 'S', 'enviar_em' => $quando]);
     igual('agendar: nao envia na hora', 2, count($enviadas), $erroDe($s));
-    igual('agendar: linha de agendado no historico', 'LEMBRETE_AGENDADO', end($hist = $historico()) ?: '');
+    igual('agendar: linha de agendado no historico', 'LEMBRETE_AGENDADO', array_slice($historico(), -1)[0] ?? '');
     x("UPDATE mensagem_agendada SET enviar_em = '" . date('Y-m-d H:i:s', strtotime('-1 minute')) . "' WHERE agendamento_id = {$ag}");
     TSession::setValue('userid', null);
     saida(function () { MensagemAgendadaService::rodada(); });
