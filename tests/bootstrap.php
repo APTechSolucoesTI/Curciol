@@ -61,6 +61,10 @@ function tokenApchatDeTeste(): void
         $conn->exec("DROP SCHEMA {$schema} CASCADE");
     });
     $conn->exec("CREATE TABLE {$schema}.escritorio (LIKE public.escritorio INCLUDING ALL)");
+    foreach (['apchat_fila', 'apchat_contato_ignorado', 'apchat_contato_log'] as $tabela)
+    {
+        $conn->exec("CREATE TABLE {$schema}.{$tabela} (LIKE public.{$tabela} INCLUDING ALL)");
+    }
     $colunas = $conn->query("SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'escritorio' AND column_name NOT IN ('url_apchat', 'token_apchat') ORDER BY ordinal_position")->fetchAll(PDO::FETCH_COLUMN);
     $lista = implode(', ', array_map(fn($coluna) => '"' . str_replace('"', '""', $coluna) . '"', $colunas));
     $conn->exec("INSERT INTO {$schema}.escritorio ({$lista}) SELECT {$lista} FROM public.escritorio");

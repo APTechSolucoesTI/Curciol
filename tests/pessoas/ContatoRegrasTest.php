@@ -153,7 +153,7 @@ try {
         return saida(function () use ($p) { (new ClienteForm($p))->onAddDetailPessoaContatoPessoa($p); });
     };
     // a linha da grade vai em base64 na resposta
-    $naLista = function (string $s) { preg_match_all("/ttable_replace_row_by_id\\('pessoa_contato_pessoa_list', '[^']+', '([^']+)'\\)/", $s, $m); return implode(' ', array_map('base64_decode', $m[1])); };
+    $naLista = function (string $s) { preg_match_all("/ttable_replace_row_by_id\\('[^']*pessoa_contato_pessoa_list[^']*', '[^']+', '([^']+)'\\)/", $s, $m); return implode(' ', array_map('base64_decode', $m[1])); };
     $s = $adicionar($campos);
     ok('Adicionar: pergunta e nao coloca na lista', strpos($s, 'Qual nome deseja usar') !== false && $naLista($s) === '', substr($s, 0, 300));
     ok('Adicionar: a resposta volta para o Adicionar', strpos($s, 'depois=adicionar') !== false, substr($s, -400));

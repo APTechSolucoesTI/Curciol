@@ -36,7 +36,7 @@ function linha(?int $id, string $descricao, string $telefone, string $principal,
 /** linhas da grade que a tela trocou na tela: [row id => html] */
 function linhasTrocadas(string $saida): array
 {
-    preg_match_all("/ttable_replace_row_by_id\\('pessoa_contato_pessoa_list', '([^']+)', '([^']+)'\\)/", $saida, $m, PREG_SET_ORDER);
+    preg_match_all("/ttable_replace_row_by_id\\('[^']*pessoa_contato_pessoa_list[^']*', '([^']+)', '([^']+)'\\)/", $saida, $m, PREG_SET_ORDER);
     $r = [];
     foreach ($m as $x) { $r[$x[1]] = base64_decode($x[2]); }
     return $r;
