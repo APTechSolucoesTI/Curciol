@@ -695,6 +695,11 @@ class Agendamento extends TRecord
 
     public function onBeforeStore($object)
     {
+        if (!empty($object->id))
+        {
+            $st = TTransaction::get()->prepare('SELECT id FROM agendamento WHERE id = ? FOR UPDATE');
+            $st->execute([(int) $object->id]);
+        }
         $this->registrarEstadoAnterior($object);
         $this->horarioAnterior = null;
         if (!empty($object->id))

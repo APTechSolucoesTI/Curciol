@@ -16,116 +16,49 @@ class SystemChangeLogService
      */
     public static function register($activeRecord, $lastState, $currentState)
     {
-        $table = $activeRecord->getEntity();
-        $pk    = $activeRecord->getPrimaryKey();
-        
-        $created_col = $activeRecord->getCreatedAtColumn();
-        $updated_col = $activeRecord->getUpdatedAtColumn();
-        $deleted_col = $activeRecord->getDeletedAtColumn();
-        
-        $e        = new Exception;
-        $uniqid   = TTransaction::getUniqId();
-        $cur_conn = serialize(TTransaction::getDatabaseInfo());
-        $new_conn = serialize(TConnection::getDatabaseInfo('log'));
-        
-        $open_transaction = ($cur_conn !== $new_conn);
-        
-        if ($open_transaction)
+        try
         {
-            TTransaction::open('log');
-        }
-        
-        if($lastState)
-        {
-            foreach ($lastState as $key => $value)
+            $lastState = (array) $lastState;
+            $currentState = (array) $currentState;
+            $ignorar = [$activeRecord->getCreatedAtColumn(), $activeRecord->getUpdatedAtColumn(), $activeRecord->getDeletedAtColumn()];
+            $alteracoes = [];
+            foreach ($lastState as $coluna => $valor)
             {
-                if (!in_array($key, array_keys($currentState)) && !in_array($key, [$created_col, $updated_col, $deleted_col]) && ( (string) $value !== ''))
+                if (!array_key_exists($coluna, $currentState) && !in_array($coluna, $ignorar) && (string) $valor !== '')
                 {
-                    // deleted
-                    $log = new SystemChangeLog;
-                    $log->tablename  = $table;
-                    $log->logdate    = date('Y-m-d H:i:s');
-                    $log->log_year   = date('Y');
-                    $log->log_month  = date('m');
-                    $log->log_day    = date('d');
-                    $log->login      = TSession::getValue('login');
-                    $log->primarykey = $pk;
-                    $log->pkvalue    = $activeRecord->$pk;
-                    $log->operation  = 'deleted';
-                    $log->columnname = $key;
-                    $log->oldvalue   = (string) $value;
-                    $log->newvalue   = '';
-                    $log->access_ip  = isset($_SERVER['REMOTE_ADDR']) ? $_SERVER['REMOTE_ADDR'] : null;
-                    $log->transaction_id  = $uniqid;
-                    $log->log_trace  = $e->getTraceAsString();
-                    $log->session_id = session_id();
-                    $log->class_name = isset($_REQUEST['class']) ? $_REQUEST['class'] : '';
-                    $log->php_sapi   = php_sapi_name();
-                    $log->store();
+                    $alteracoes[] = ['deleted', $coluna, (string) $valor, ''];
                 }
             }
-        }
-        
-        if($currentState)
-        {
-            foreach ($currentState as $key => $value)
+            foreach ($currentState as $coluna => $valor)
             {
-                if (isset($lastState[$key]) && ($value != $lastState[$key]) && !in_array($key, [$created_col, $updated_col, $deleted_col]))
+                if (in_array($coluna, $ignorar)) { continue; }
+                $texto = is_scalar($valor) || is_null($valor) ? $valor : serialize($valor);
+                if (array_key_exists($coluna, $lastState))
                 {
-                    // changed
-                    $log = new SystemChangeLog;
-                    $log->tablename  = $table;
-                    $log->logdate    = date('Y-m-d H:i:s');
-                    $log->log_year   = date('Y');
-                    $log->log_month  = date('m');
-                    $log->log_day    = date('d');
-                    $log->login      = TSession::getValue('login');
-                    $log->primarykey = $pk;
-                    $log->pkvalue    = $activeRecord->$pk;
-                    $log->operation  = 'changed';
-                    $log->columnname = $key;
-                    $log->oldvalue   = (string) $lastState[$key];
-                    $log->newvalue   = (string) is_scalar($value) ? $value : ( (is_null($value) ? NULL : serialize($value)) );
-                    $log->access_ip  = isset($_SERVER['REMOTE_ADDR']) ? $_SERVER['REMOTE_ADDR'] : null;
-                    $log->transaction_id  = $uniqid;
-                    $log->log_trace  = $e->getTraceAsString();
-                    $log->session_id = session_id();
-                    $log->class_name = isset($_REQUEST['class']) ? $_REQUEST['class'] : '';
-                    $log->php_sapi   = php_sapi_name();
-                    $log->store();
+                    if ($valor != $lastState[$coluna]) { $alteracoes[] = ['changed', $coluna, (string) $lastState[$coluna], $texto]; }
                 }
-                
-                if (!isset($lastState[$key]) && !empty($value) && !in_array($key, [$created_col, $updated_col, $deleted_col]))
-                {
-                    // created
-                    $log = new SystemChangeLog;
-                    $log->tablename  = $table;
-                    $log->logdate    = date('Y-m-d H:i:s');
-                    $log->log_year   = date('Y');
-                    $log->log_month  = date('m');
-                    $log->log_day    = date('d');
-                    $log->login      = TSession::getValue('login');
-                    $log->primarykey = $pk;
-                    $log->pkvalue    = $activeRecord->$pk;
-                    $log->operation  = 'created';
-                    $log->columnname = $key;
-                    $log->oldvalue   = '';
-                    $log->newvalue   = (string) is_scalar($value) ? $value : serialize($value);
-                    $log->access_ip  = isset($_SERVER['REMOTE_ADDR']) ? $_SERVER['REMOTE_ADDR'] : null;
-                    $log->transaction_id  = $uniqid;
-                    $log->log_trace  = $e->getTraceAsString();
-                    $log->session_id = session_id();
-                    $log->class_name = isset($_REQUEST['class']) ? $_REQUEST['class'] : '';
-                    $log->php_sapi   = php_sapi_name();
-                    $log->store();
-                }
+                elseif (!empty($valor)) { $alteracoes[] = ['created', $coluna, '', $texto]; }
             }
+            if (!$alteracoes) { return; }
+            $pk = $activeRecord->getPrimaryKey();
+            $dados = [$activeRecord->getEntity(), date('Y-m-d H:i:s'), date('Y'), date('m'), date('d'),
+                TSession::getValue('login'), $pk, $activeRecord->$pk,
+                $_SERVER['REMOTE_ADDR'] ?? null, TTransaction::getUniqId(), (new Exception)->getTraceAsString(),
+                session_id(), $_REQUEST['class'] ?? '', php_sapi_name()];
+            SystemLogWriter::executar(function (PDO $conn) use ($dados, $alteracoes) {
+                $conn->beginTransaction();
+                try
+                {
+                    $st = $conn->prepare('INSERT INTO system_change_log (tablename, logdate, log_year, log_month, log_day, login, primarykey, pkvalue, access_ip, transaction_id, log_trace, session_id, class_name, php_sapi, operation, columnname, oldvalue, newvalue) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+                    foreach ($alteracoes as $alteracao) { $st->execute(array_merge($dados, $alteracao)); }
+                    $conn->commit();
+                }
+                finally { if ($conn->inTransaction()) { $conn->rollBack(); } }
+            });
         }
-        
-        
-        if ($open_transaction)
+        catch (Throwable $e)
         {
-            TTransaction::close();
+            error_log('Curciol: falha ao preparar auditoria (' . get_class($e) . ').');
         }
     }
 }
