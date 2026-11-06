@@ -43,7 +43,7 @@ ok('coluna anterior_publicacao existe com padrao false (parcela nova nao e anter
 TSession::setValue('userid', 1);
 TTransaction::open('escritorio');
 $pid = function (string $nome) { $st = TTransaction::get()->prepare('SELECT id FROM pessoa WHERE normalize(nome, NFC) = normalize(?, NFC) ORDER BY id LIMIT 1'); $st->execute([$nome]); return (int) $st->fetchColumn(); };
-$jac = $pid('JOSÉ ALMIR CURCIOL'); $juan = $pid('JUAN WILLIAN DE OLIVEIRA'); $curciol = $pid('CURCIOL SOCIEDADE DE ADVOGADOS');
+$jac = $pid('JOSÉ ALMIR CURCIOL'); $juan = $pid('JUAN WILLIAN DE OLIVEIRA BARROS'); $curciol = $pid('CURCIOL SOCIEDADE DE ADVOGADOS');
 $benef = BeneficiarioCredito::where('nome', '=', 'Cliente + Honorários Contratuais')->first()->id;
 $parcJuan = ParceriaLevantamento::where('nome', '=', 'Parceria Juan')->first()->id;
 TTransaction::close();

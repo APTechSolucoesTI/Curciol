@@ -25,7 +25,7 @@ TSession::setValue('userid', null);
 TTransaction::open('escritorio');
 $escritorio = RepasseColaboradorService::pessoaDoEscritorio(1);
 $pid = function (string $nome) { $st = TTransaction::get()->prepare('SELECT id FROM pessoa WHERE normalize(nome, NFC) = normalize(?, NFC) ORDER BY id LIMIT 1'); $st->execute([$nome]); return (int) $st->fetchColumn(); };
-$jac = $pid('JOSÉ ALMIR CURCIOL'); $juan = $pid('JUAN WILLIAN DE OLIVEIRA'); $curciol = $pid('CURCIOL SOCIEDADE DE ADVOGADOS');
+$jac = $pid('JOSÉ ALMIR CURCIOL'); $juan = $pid('JUAN WILLIAN DE OLIVEIRA BARROS'); $curciol = $pid('CURCIOL SOCIEDADE DE ADVOGADOS');
 $cfg = FinanceiroConfiguracao::repasse();
 $benef = BeneficiarioCredito::where('nome', '=', 'Cliente + Honorários Contratuais')->first()->id;
 $parcJuan = ParceriaLevantamento::where('nome', '=', 'Parceria Juan')->first()->id;
@@ -106,8 +106,8 @@ try {
 
     // protecoes
     lanca('conta de repasse nao pode ser editada/excluida', function () use ($repJuanContrato) { LevantamentoFinanceiroService::exigirContaNaoGerada($repJuanContrato); }, 'repasse a colaborador');
-    ok('desfazer o levantamento recusado com repasse pago', mb_stripos((string) $S::podeDesfazer($f['etapa3_id']), 'colaborador') !== false, (string) $S::podeDesfazer($f['etapa3_id']));
-    lanca('desfazer o levantamento lanca o mesmo motivo', function () use ($S, $f) { $S::desfazer($f['etapa3_id']); }, 'colaborador');
+    ok('desfazer o levantamento recusado com recebimento quitado', mb_stripos((string) $S::podeDesfazer($f['etapa3_id']), 'quitada') !== false, (string) $S::podeDesfazer($f['etapa3_id']));
+    lanca('desfazer o levantamento lanca o mesmo motivo', function () use ($S, $f) { $S::desfazer($f['etapa3_id']); }, 'quitada');
 
     // desfazer o lote (ultima acao em lote do usuario): contas voltam a aberto, linhas saem do extrato, saldo volta
     LoteFinanceiroService::desfazer((int) $lote->id, 1);
@@ -122,7 +122,8 @@ try {
     igual('listar: repasses em aberto do Jac na requisicao', 2, count($lista));
     ok('listar: origem com cliente e processo', strpos(RepasseColaboradorService::origem($lista[0]), 'Processo') !== false, RepasseColaboradorService::origem($lista[0]));
 
-    // desfazer o levantamento agora apaga os repasses dele
+    // desquitar o recebimento apaga os repasses e permite desfazer o levantamento
+    Fixtures::desquitarRecebimento((int) $f['etapa3_id']);
     $S::desfazer($f['etapa3_id']);
     igual('desfazer: repasses do levantamento apagados', 0, count(q('SELECT id FROM repasse_colaborador WHERE levantamento_financeiro_id = ' . (int) $lf->id)));
 } finally {

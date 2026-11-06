@@ -71,6 +71,7 @@ try {
     ok('Word com o nome do cliente', strpos((string) $xml, htmlspecialchars($d['cliente'], ENT_XML1)) !== false);
     if ($zip->status === ZipArchive::ER_OK) { $zip->close(); }
 
+    Fixtures::desquitarRecebimento((int) $f['etapa3_id']);
     $S::desfazer($f['etapa3_id']);
 } finally {
     foreach ($arquivos as $a) { @unlink($a); }
@@ -89,6 +90,7 @@ try {
     ok('sucumbencia: sem prestacao de contas', !LevantamentoPrestacaoContasService::disponivel(LevantamentoFinanceiro::where('requisicao_pagamento_etapa3_id', '=', $f2['etapa3_id'])->first()));
     TTransaction::close();
     lanca('sucumbencia: gerar PDF recusa', function () use ($f2) { LevantamentoPrestacaoContasService::gerarPdf((int) $f2['etapa3_id']); }, 'não há prestação');
+    Fixtures::desquitarRecebimento((int) $f2['etapa3_id']);
     $S::desfazer($f2['etapa3_id']);
 } finally {
     Fixtures::limpar($f2);

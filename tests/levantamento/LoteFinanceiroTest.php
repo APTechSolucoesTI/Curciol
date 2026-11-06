@@ -32,7 +32,7 @@ TTransaction::open('escritorio');
 $unidade = (int) TTransaction::get()->query('SELECT system_unit_id FROM escritorio WHERE id = 1')->fetchColumn();
 TSession::setValue('userunitid', $unidade); TSession::setValue('userunitids', [$unidade]); // listagens filtram pela unidade do usuario
 $pid = function (string $nome) { $st = TTransaction::get()->prepare('SELECT id FROM pessoa WHERE normalize(nome, NFC) = normalize(?, NFC) ORDER BY id LIMIT 1'); $st->execute([$nome]); return (int) $st->fetchColumn(); };
-$jac = $pid('JOSÉ ALMIR CURCIOL'); $juan = $pid('JUAN WILLIAN DE OLIVEIRA'); $curciol = RepasseColaboradorService::pessoaDoEscritorio(1);
+$jac = $pid('JOSÉ ALMIR CURCIOL'); $juan = $pid('JUAN WILLIAN DE OLIVEIRA BARROS'); $curciol = RepasseColaboradorService::pessoaDoEscritorio(1);
 $benef = BeneficiarioCredito::where('nome', '=', 'Cliente + Honorários Contratuais')->first()->id;
 $parcJuan = ParceriaLevantamento::where('nome', '=', 'Parceria Juan')->first()->id;
 TTransaction::close();
