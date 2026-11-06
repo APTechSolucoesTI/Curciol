@@ -4,11 +4,11 @@
  *
  * Em cima, o contato do cliente que recebe: "Nome | Telefone | Descricao", o principal primeiro e com o selo verde.
  * Abaixo, o template e a opcao "Manual": sem ela, a mensagem pronta com as variaveis trocadas, sem edicao; com ela, o
- * texto do template fica editavel (ou tudo do zero, com "Nenhum"), com a lista de variaveis para clicar e o botao
- * Visualizar, que mostra como a mensagem sai para este agendamento.
+ * texto do template fica editavel, com a lista de variaveis para clicar e o botao Visualizar, que mostra como a mensagem
+ * sai para este agendamento.
  *
- * Com o agendamento confirmado, so os templates da categoria Lembrete, e o envio pode ser na hora ou agendado
- * (MensagemAgendadaService).
+ * Agendado: so templates de Confirmacao. Confirmado: so de Lembrete, na hora ou agendado (MensagemAgendadaService). Nos outros
+ * estados nao envia (MensagemService::exigirEnvioDoAgendamento, tambem no servidor).
  *
  * Fora da producao o contato so aparece: a mensagem vai SO para o numero/e-mail digitado (obrigatorio e nunca do cliente;
  * MensagemService).
@@ -70,7 +70,7 @@ class EnviarMensagemForm extends TPage
         // ---------- template e manual ----------
         $template = new TCombo('template');
         $template->setSize('100%');
-        $template->setDefaultOption('Nenhum (escrever do zero)');
+        $template->setDefaultOption(false);
         $template->setChangeAction(new TAction([$this, 'onChangeTemplate'], ['static' => 1]));
 
         $manual = new TCheckButton('manual');
@@ -237,6 +237,10 @@ class EnviarMensagemForm extends TPage
             {
                 throw new Exception('Agendamento não encontrado.');
             }
+            if (MensagemService::categoriaDoEnvio($agendamento) === null)
+            {
+                throw new Exception(MensagemService::MSG_ESTADO_SEM_ENVIO);
+            }
 
             $tipo = ($param['tipo'] ?? '') === TemplateEscritorio::EMAIL ? TemplateEscritorio::EMAIL : TemplateEscritorio::WHATSAPP;
             $data = new stdClass;
@@ -350,6 +354,7 @@ class EnviarMensagemForm extends TPage
             $ehEmail = $tipo === TemplateEscritorio::EMAIL;
             $template = self::templateDoEnvio($param, $agendamento);
             $manual = !empty($param['manual']);
+            MensagemService::exigirEnvioDoAgendamento($agendamento, $template, $manual, (string) ($ehEmail ? ($param['content_email'] ?? '') : ($param['content_whatsapp'] ?? '')));
 
             if ($manual)
             {
@@ -387,6 +392,10 @@ class EnviarMensagemForm extends TPage
                     : MensagemService::enviarWhatsapp($agendamento, $titulo, $texto, $templateId, $destino);
                 $paraDestino = $mensagem->destino;
                 $aviso = 'Mensagem enviada para %s';
+                if ($template->categoria === TemplateEscritorio::LEMBRETE)
+                {
+                    MensagemAgendadaService::registrarEnviadoNaHora($agendamento, $mensagem);
+                }
             }
 
             TTransaction::close();

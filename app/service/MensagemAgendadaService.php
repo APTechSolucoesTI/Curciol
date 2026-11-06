@@ -67,7 +67,48 @@ class MensagemAgendadaService
         $lembrete->tentativas = 0;
         $lembrete->store();
 
+        self::historico((int) $agendamento->id, EstadoAgendamento::EVENTO_LEMBRETE_AGENDADO,
+                        'Envio em ' . date('d/m/Y H:i', strtotime($enviarEm)) . ' - ' . self::descricaoDoDestino($lembrete->tipo_mensagem, $destino), (int) TSession::getValue('userid'));
+
         return $lembrete;
+    }
+
+    /** Lembrete enviado na hora pela tela: fica no historico, como o agendado. Usa a transacao aberta. */
+    public static function registrarEnviadoNaHora(Agendamento $agendamento, Mensagem $mensagem): void
+    {
+        self::historico((int) $agendamento->id, EstadoAgendamento::EVENTO_LEMBRETE_ENVIADO, self::descricaoDoDestino((string) $mensagem->tipo_mensagem, (string) $mensagem->destino), (int) TSession::getValue('userid'));
+    }
+
+    /** Lembretes enviados na hora, sem agendar. Podem ser varios. */
+    public static function enviadosNaHora(int $agendamentoId): array
+    {
+        $st = TTransaction::get()->prepare("SELECT m.enviado_em, m.tipo_mensagem, m.destino FROM mensagem m JOIN template_escritorio t ON t.id = m.template_escritorio_id
+                                             WHERE m.agendamento_id = ? AND t.categoria = ? AND NOT EXISTS (SELECT 1 FROM mensagem_agendada a WHERE a.mensagem_id = m.id)
+                                             ORDER BY m.enviado_em, m.id");
+        $st->execute([$agendamentoId, TemplateEscritorio::LEMBRETE]);
+
+        return $st->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    private static function descricaoDoDestino(string $tipo, string $destino): string
+    {
+        return $tipo === TemplateEscritorio::EMAIL ? 'E-mail para ' . $destino : 'WhatsApp para ' . PessoaContatoService::formatarTelefone($destino);
+    }
+
+    /** Uma linha no historico do agendamento, sem mudar o estado nem o registro da confirmacao. */
+    private static function historico(int $agendamentoId, string $evento, string $observacao, int $usuarioId): void
+    {
+        $agendamento = Agendamento::find($agendamentoId);
+        if (!$agendamento) { return; }
+
+        $historico = new EstadoAgendamento();
+        $historico->agendamento_id = $agendamentoId;
+        $historico->estado_agenda_id = $agendamento->estado_agenda_id;
+        $historico->system_users_id = $usuarioId > 0 ? $usuarioId : null;
+        $historico->atribuido_em = date('Y-m-d H:i:s');
+        $historico->evento = $evento;
+        $historico->observacao = mb_substr($observacao, 0, 300);
+        $historico->store();
     }
 
     /** Lembretes para mostrar na tela do agendamento (os cancelados nao aparecem). */
@@ -290,5 +331,12 @@ class MensagemAgendadaService
         $lembrete->motivo = $motivo;
         $lembrete->processado_em = date('Y-m-d H:i:s');
         $lembrete->store();
+
+        $eventos = [MensagemAgendada::ENVIADA => EstadoAgendamento::EVENTO_LEMBRETE_ENVIADO, MensagemAgendada::FALHOU => EstadoAgendamento::EVENTO_LEMBRETE_FALHOU, MensagemAgendada::CANCELADA => EstadoAgendamento::EVENTO_LEMBRETE_CANCELADO];
+        if (isset($eventos[$situacao]))
+        {
+            $destino = self::descricaoDoDestino((string) $lembrete->tipo_mensagem, (string) $lembrete->destino);
+            self::historico((int) $lembrete->agendamento_id, $eventos[$situacao], $destino . ($motivo ? ' - ' . $motivo : ''), (int) $lembrete->system_user_id);
+        }
     }
 }

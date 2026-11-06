@@ -53,6 +53,7 @@ class MensagemService
 
     const MSG_TESTE_SEM_DESTINO = 'Ambiente de teste: digite %s que vai receber a mensagem (o do cliente não é permitido).';
     const MSG_TESTE_DO_CLIENTE  = 'Ambiente de teste: %s é do cliente %s. Digite um destino de teste.';
+    const MSG_ESTADO_SEM_ENVIO  = 'Só é possível enviar mensagem com o agendamento Agendado ou Confirmado.';
     const MSG_SEM_AUTORIZACAO   = 'O cliente não autorizou receber mensagens. Para enviar, clique em Visualizar cliente, ative a autorização e salve.';
 
     /** Variaveis dos templates do agendamento: [variavel => descricao]. */
@@ -108,23 +109,53 @@ class MensagemService
         return $lista;
     }
 
-    /** Templates que a tela de envio oferece: com o agendamento confirmado, so os da categoria Lembrete. */
+    /** Categoria que os botoes de envio aceitam (06/11/2026): Agendado, Confirmacao; Confirmado, Lembrete; o resto nao envia. */
+    public static function categoriaDoEnvio(Agendamento $agendamento): ?string
+    {
+        switch ((int) $agendamento->estado_agenda_id)
+        {
+            case (int) EstadoAgenda::AGENDADO:   return TemplateEscritorio::CONFIRMACAO;
+            case (int) EstadoAgenda::CONFIRMADO: return TemplateEscritorio::LEMBRETE;
+        }
+
+        return null;
+    }
+
+    /**
+     * Regras do envio pela tela, tambem contra POST montado ou estado que mudou depois de abrir: sempre com um template da
+     * categoria do estado. Manual so edita esse template; na confirmacao, o texto tem que continuar pedindo uma resposta valida.
+     * As respostas automaticas apos SIM/NAO nao passam por aqui.
+     */
+    public static function exigirEnvioDoAgendamento(Agendamento $agendamento, ?TemplateEscritorio $template, bool $manual, string $texto): void
+    {
+        $categoria = self::categoriaDoEnvio($agendamento);
+
+        if ($categoria === null)
+        {
+            throw new Exception(self::MSG_ESTADO_SEM_ENVIO);
+        }
+        if (!$template || $template->categoria !== $categoria)
+        {
+            throw new Exception('Escolha um template de ' . TemplateEscritorio::CATEGORIAS[$categoria] . '.');
+        }
+        if ($manual && $categoria === TemplateEscritorio::CONFIRMACAO && self::templateRegistrado($template, true, $texto) === null)
+        {
+            throw new Exception('A mensagem de confirmação precisa continuar pedindo uma das respostas do template.');
+        }
+    }
+
+    /** Templates que a tela de envio oferece: so os da categoria do estado do agendamento. */
     public static function templatesDoAgendamento(Agendamento $agendamento, string $tipo): array
     {
-        $templates = self::templatesDoEnvio($tipo);
+        $categoria = self::categoriaDoEnvio($agendamento);
+        $permitidos = [];
 
-        if ((int) $agendamento->estado_agenda_id !== (int) EstadoAgenda::CONFIRMADO)
+        foreach (self::templatesDoEnvio($tipo) as $id => $rotulo)
         {
-            return $templates;
+            if ($categoria !== null && TemplateEscritorio::find($id)->categoria === $categoria) { $permitidos[$id] = $rotulo; }
         }
 
-        $lembretes = [];
-        foreach ($templates as $id => $rotulo)
-        {
-            if (TemplateEscritorio::find($id)->categoria === TemplateEscritorio::LEMBRETE) { $lembretes[$id] = $rotulo; }
-        }
-
-        return $lembretes;
+        return $permitidos;
     }
 
     /**
@@ -141,12 +172,9 @@ class MensagemService
             return null;
         };
 
-        if ((int) $agendamento->estado_agenda_id !== (int) EstadoAgenda::CONFIRMADO)
-        {
-            return $primeiro(TemplateEscritorio::CONFIRMACAO);
-        }
+        $categoria = self::categoriaDoEnvio($agendamento);
 
-        return $primeiro(TemplateEscritorio::LEMBRETE);
+        return $categoria !== null ? $primeiro($categoria) : null;
     }
 
     /**

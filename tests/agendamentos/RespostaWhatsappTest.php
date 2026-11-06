@@ -522,12 +522,14 @@ try {
 
     // Manual: texto editado, variaveis trocadas e sem pedir SIM nao espera resposta
     $enviadas = [];
-    $enviar(['contato' => (string) $filha, 'manual' => 'S', 'content_whatsapp' => 'Bom dia {$cliente}, segue o endereço']);
-    igual('manual: texto editado com variaveis trocadas', 'Bom dia ' . MARCA_RESP . ' ENVIO, segue o endereço', $enviadas[0]['body'] ?? '');
-    igual('manual sem pedir SIM: nao fica esperando resposta', [''], array_column(q("SELECT COALESCE(template_escritorio_id::text, '') t FROM mensagem WHERE agendamento_id = {$agEnvio} ORDER BY id DESC LIMIT 1"), 't'));
+    $enviar(['contato' => (string) $filha, 'manual' => 'S', 'content_whatsapp' => 'Bom dia {$cliente}, responda SIM']);
+    igual('manual: texto editado com variaveis trocadas', 'Bom dia ' . MARCA_RESP . ' ENVIO, responda SIM', $enviadas[0]['body'] ?? '');
+    $enviadas = [];
+    $s = $enviar(['contato' => (string) $filha, 'manual' => 'S', 'content_whatsapp' => 'Bom dia, segue o endereço']);
+    igual('manual em Agendado sem pedir resposta: nao envia avulso', 0, count($enviadas));
     $enviadas = [];
     $enviar(['contato' => (string) $filha, 'template' => '', 'manual' => 'S', 'content_whatsapp' => 'Do zero']);
-    igual('manual sem template: escreve do zero', 'Do zero', $enviadas[0]['body'] ?? '');
+    igual('manual sem template: nao envia', 0, count($enviadas));
     $enviadas = [];
     $s = $enviar(['contato' => (string) $filha, 'template' => '']);
     igual('sem template e sem Manual: nao envia', 0, count($enviadas));

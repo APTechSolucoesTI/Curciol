@@ -11,6 +11,16 @@ class EstadoAgendamento extends TRecord
     const EVENTO_CANCELADO_WHATSAPP = 'CANCELADO_WHATSAPP';
     const EVENTO_CONFIRMADO_EMAIL = 'CONFIRMADO_EMAIL';
     const EVENTO_CANCELADO_EMAIL = 'CANCELADO_EMAIL';
+    const EVENTO_LEMBRETE_AGENDADO = 'LEMBRETE_AGENDADO';
+    const EVENTO_LEMBRETE_ENVIADO = 'LEMBRETE_ENVIADO';
+    const EVENTO_LEMBRETE_FALHOU = 'LEMBRETE_FALHOU';
+    const EVENTO_LEMBRETE_CANCELADO = 'LEMBRETE_CANCELADO';
+    const ROTULOS_LEMBRETE = [
+        self::EVENTO_LEMBRETE_AGENDADO  => 'Lembrete agendado',
+        self::EVENTO_LEMBRETE_ENVIADO   => 'Lembrete enviado',
+        self::EVENTO_LEMBRETE_FALHOU    => 'Lembrete não enviado',
+        self::EVENTO_LEMBRETE_CANCELADO => 'Lembrete cancelado',
+    ];
     const PRIMARYKEY = 'id';
     const IDPOLICY   =  'serial'; // {max, serial}
 

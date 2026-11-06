@@ -131,7 +131,12 @@ class AgendamentoFormView extends TPage
         // LGPD: sem a autorizacao do cliente os botoes de envio ficam bloqueados
         $botoesEnvio = [$enviar_whatsapp,$enviar_email];
 
-        if (!MensagemService::autorizado($agendamento))
+        if (MensagemService::categoriaDoEnvio($agendamento) === null)
+        {
+            $enviar_whatsapp->getAction()->disable();
+            $enviar_email->getAction()->disable();
+        }
+        elseif (!MensagemService::autorizado($agendamento))
         {
             $enviar_whatsapp->getAction()->disable();
             $enviar_email->getAction()->disable();
@@ -154,6 +159,12 @@ class AgendamentoFormView extends TPage
         foreach (MensagemAgendadaService::doAgendamento((int) $agendamento->id) as $lembrete)
         {
             $rowLembrete = $this->form->addFields(self::linhaDoLembrete($lembrete));
+            $rowLembrete->layout = [' col-sm-12'];
+        }
+
+        foreach (MensagemAgendadaService::enviadosNaHora((int) $agendamento->id) as $enviado)
+        {
+            $rowLembrete = $this->form->addFields([new TLabel(self::linhaDoEnviadoNaHora($enviado), '#555', '13px', null, '100%')]);
             $rowLembrete->layout = [' col-sm-12'];
         }
 
@@ -277,7 +288,8 @@ class AgendamentoFormView extends TPage
 
         // a confirmacao cancelada volta para Agendado: sem isto a linha nao se distinguia de um Agendado qualquer
         $column_estado_agenda_nome->setTransformer(function($value, $object) {
-            return $object->evento === EstadoAgendamento::EVENTO_CONFIRMACAO_CANCELADA ? 'Confirmação cancelada (voltou para Agendado)' : $value;
+            if ($object->evento === EstadoAgendamento::EVENTO_CONFIRMACAO_CANCELADA) { return 'Confirmação cancelada (voltou para Agendado)'; }
+            return EstadoAgendamento::ROTULOS_LEMBRETE[$object->evento] ?? $value;
         });
 
         // sem usuario = o cliente respondeu (WhatsApp ou link do e-mail)
@@ -761,6 +773,15 @@ class AgendamentoFormView extends TPage
         }
 
         return 'Confirmação por WhatsApp enviada em ' . $quando($c['enviado_em']) . ' para ' . htmlspecialchars($numero) . ($c['resposta_obs'] ? ' - ' . htmlspecialchars($c['resposta_obs']) : '');
+    }
+
+    /** Linha do lembrete enviado na hora, sem passar pelo agendamento de envio. */
+    private static function linhaDoEnviadoNaHora(array $m): string
+    {
+        $ehEmail = $m['tipo_mensagem'] === TemplateEscritorio::EMAIL;
+        $para = htmlspecialchars($ehEmail ? (string) $m['destino'] : PessoaContatoService::formatarTelefone($m['destino']));
+
+        return '<i class="fas fa-check" style="color:#4CAF50"></i> Lembrete por ' . ($ehEmail ? 'e-mail' : 'WhatsApp') . ' enviado em ' . date('d/m/Y H:i', strtotime($m['enviado_em'])) . " - {$para}";
     }
 
     /** Linha do lembrete agendado na tela; enquanto nao saiu, com o botao de cancelar. */
