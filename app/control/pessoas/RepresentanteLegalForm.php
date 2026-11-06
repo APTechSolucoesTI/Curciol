@@ -7,7 +7,7 @@ class RepresentanteLegalForm extends TPage
     private static $database = 'escritorio';
     private static $activeRecord = 'Pessoa';
     private static $primaryKey = 'id';
-    private static $formName = 'form_Pessoa';
+    private static $formName = 'form_RepresentanteLegal';
 
     use BuilderMasterDetailTrait;
     use PessoaContatoAbaTrait;

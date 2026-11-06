@@ -240,7 +240,7 @@ trait PessoaContatoAbaTrait
             $row = $this->pessoa_contato_pessoa_list->addItem($grid_data);
             $row->id = $grid_data->__row__id;
 
-            TDataGrid::replaceRowById('pessoa_contato_pessoa_list', $grid_data->__row__id, $row);
+            TDataGrid::replaceRowById(self::$formName . ' [id=pessoa_contato_pessoa_list]', $grid_data->__row__id, $row);
 
             // so um principal por pessoa: o que era principal deixa de ser e o telefone e o e-mail dos Dados acompanham
             $dados = null;
@@ -270,7 +270,7 @@ trait PessoaContatoAbaTrait
 
             TForm::sendData(self::$formName, $data);
             TScript::create("
-               var element = $('#64be92cf7046f');
+               var element = $('form[name=" . self::$formName . "] [id=\"64be92cf7046f\"]');
                if(typeof element.attr('add') != 'undefined')
                {
                    element.html(base64_decode(element.attr('add')));
@@ -696,7 +696,7 @@ trait PessoaContatoAbaTrait
                 $item->__display__->email = $emailDoAnterior;
                 if (self::linhaSemTelefoneNemEmail($item))
                 {
-                    TDataGrid::removeRowById('pessoa_contato_pessoa_list', $item->__row__id);
+                    TDataGrid::removeRowById(self::$formName . ' [id=pessoa_contato_pessoa_list]', $item->__row__id);
                     continue;
                 }
             }
@@ -711,7 +711,7 @@ trait PessoaContatoAbaTrait
 
             $row = $this->pessoa_contato_pessoa_list->addItem($contato);
             $row->id = $item->__row__id;
-            TDataGrid::replaceRowById('pessoa_contato_pessoa_list', $item->__row__id, $row);
+            TDataGrid::replaceRowById(self::$formName . ' [id=pessoa_contato_pessoa_list]', $item->__row__id, $row);
         }
     }
 
@@ -736,7 +736,7 @@ trait PessoaContatoAbaTrait
 
             TForm::sendData(self::$formName, $data, $aggregate, $fireEvents);
             TScript::create("
-               var element = $('#64be92cf7046f');
+               var element = $('form[name=" . self::$formName . "] [id=\"64be92cf7046f\"]');
                if(!element.attr('add')){
                    element.attr('add', base64_encode(element.html()));
                }
@@ -772,9 +772,9 @@ trait PessoaContatoAbaTrait
 
             TForm::sendData(self::$formName, $data);
 
-            TDataGrid::removeRowById('pessoa_contato_pessoa_list', $__row__data->__row__id);
+            TDataGrid::removeRowById(self::$formName . ' [id=pessoa_contato_pessoa_list]', $__row__data->__row__id);
             TScript::create("
-               var element = $('#64be92cf7046f');
+               var element = $('form[name=" . self::$formName . "] [id=\"64be92cf7046f\"]');
                if(typeof element.attr('add') != 'undefined')
                {
                    element.html(base64_decode(element.attr('add')));
