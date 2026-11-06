@@ -53,6 +53,7 @@ class MensagemService
 
     const MSG_TESTE_SEM_DESTINO = 'Ambiente de teste: digite %s que vai receber a mensagem (o do cliente não é permitido).';
     const MSG_TESTE_DO_CLIENTE  = 'Ambiente de teste: %s é do cliente %s. Digite um destino de teste.';
+    const MSG_DESTINO_DE_OUTRO  = 'Escolha um contato deste cliente para receber a mensagem.';
     const MSG_ESTADO_SEM_ENVIO  = 'Só é possível enviar mensagem com o agendamento Agendado ou Confirmado.';
     const MSG_SEM_AUTORIZACAO   = 'O cliente não autorizou receber mensagens. Para enviar, clique em Visualizar cliente, ative a autorização e salve.';
 
@@ -267,7 +268,7 @@ class MensagemService
     
     /**
      * Numero que vai receber o WhatsApp (55 + DDD + numero).
-     * Producao: o digitado ou, vazio, o telefone do cliente. Teste: so o digitado, nunca um numero do cliente.
+     * Producao: um numero do proprio cliente ou, vazio, o telefone dele. Teste: so o digitado, nunca um numero do cliente.
      */
     public static function destinoWhatsapp(Agendamento $agendamento, ?string $digitado): string
     {
@@ -295,6 +296,12 @@ class MensagemService
 
         $ehDoCliente = array_intersect(APChatContactService::variantes($numero), $doCliente) !== [];
 
+        // producao: so um contato do proprio cliente, mesmo em POST montado ou lembrete gravado antes (06/11/2026)
+        if (!$ehDoCliente && AmbienteService::producao())
+        {
+            throw new Exception(self::MSG_DESTINO_DE_OUTRO);
+        }
+
         if ($ehDoCliente && !AmbienteService::producao())
         {
             throw new Exception(sprintf(self::MSG_TESTE_DO_CLIENTE, 'este número', $agendamento->cliente->nome));
@@ -304,7 +311,7 @@ class MensagemService
     }
     
     /**
-     * E-mail que vai receber a mensagem. Producao: o digitado ou, vazio, o do cliente. Teste: so o digitado, nunca um
+     * E-mail que vai receber a mensagem. Producao: um e-mail do proprio cliente ou, vazio, o dele. Teste: so o digitado, nunca um
      * e-mail do cliente.
      */
     public static function destinoEmail(Agendamento $agendamento, ?string $digitado): string
@@ -326,6 +333,10 @@ class MensagemService
         elseif ($email === '')
         {
             $email = mb_strtolower(trim((string) $agendamento->cliente->email));
+        }
+        elseif (!in_array($email, self::emailsDoCliente((int) $agendamento->cliente_id), true))
+        {
+            throw new Exception(self::MSG_DESTINO_DE_OUTRO);
         }
 
         if (!filter_var($email, FILTER_VALIDATE_EMAIL))
