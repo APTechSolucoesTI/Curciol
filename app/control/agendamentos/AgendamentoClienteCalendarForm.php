@@ -120,10 +120,7 @@ class AgendamentoClienteCalendarForm extends TPage
             $object->estado_agenda_id = EstadoAgenda::AGUARDANDO_VALIDACAO_ESCRITORIO;
             $object->cliente_id = TSession::getValue('portal_cliente_id');
 
-            if (! $object->validate())
-            {
-                throw new Exception('Verifique o horário. Existem bloqueios ou horarios de intervalo sobrepostos');
-            }
+            self::exigirHorarioDisponivel($object);
 
             if ($object->aceita_agendamento_online == 'F')
             {
@@ -269,6 +266,8 @@ class AgendamentoClienteCalendarForm extends TPage
                 $object->dt_inicial = str_replace('T', ' ', $param['start_time']);
                 $object->dt_final   = str_replace('T', ' ', $param['end_time']);
 
+                self::exigirHorarioDisponivel($object);
+
                 $object->store();
 
                 // close the transaction
@@ -279,6 +278,33 @@ class AgendamentoClienteCalendarForm extends TPage
         {
             new TMessage('error', '<b>Error</b> ' . $e->getMessage());
             TTransaction::rollback();
+        }
+    }
+
+    /** O portal nao reserva excecoes; detalhes dos conflitos ficam restritos a equipe. */
+    private static function exigirHorarioDisponivel(Agendamento $agendamento): void
+    {
+        try
+        {
+            $agendas = [(int) $agendamento->agenda_id];
+            if (!empty($agendamento->id))
+            {
+                foreach (Convidado::where('agendamento_id', '=', (int) $agendamento->id)->load() ?: [] as $convidado)
+                {
+                    $agendas[] = (int) $convidado->agenda_id;
+                }
+            }
+            foreach (array_unique($agendas) as $agenda)
+            {
+                AgendaConflitoService::exigirLivre($agenda, (string) $agendamento->dt_inicial, (string) $agendamento->dt_final, (int) $agendamento->id);
+                $st = TTransaction::get()->prepare('SELECT 1 FROM agenda_excecao WHERE agenda_id = ? AND dt_inicio < ? AND dt_final > ? LIMIT 1');
+                $st->execute([$agenda, $agendamento->dt_final, $agendamento->dt_inicial]);
+                if ($st->fetchColumn()) { throw new Exception('Horario reservado a equipe'); }
+            }
+        }
+        catch (Exception $e)
+        {
+            throw new Exception('Esse horário não está disponível. Escolha outro horário ou entre em contato com o escritório.');
         }
     }
 
