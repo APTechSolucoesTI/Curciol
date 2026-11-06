@@ -189,7 +189,10 @@ try {
     x("UPDATE pessoa SET nome = '" . MARCA_LEMBRETE . " PF NOVO NOME' WHERE id = {$pfCompleta}");
     ob_start(); MensagemAgendadaService::processar(); ob_end_clean();
     igual('outro rodando (a trava): pula', 0, count($enviadas));
+    TSession::setValue('userid', null);
     $rodar();
+    igual('cron sem sessao: restaura usuario ausente', null, TSession::getValue('userid'));
+    TSession::setValue('userid', 1);
     igual('na hora: enviou uma', 1, count($enviadas));
     ok('as variaveis sao trocadas no envio (nome novo)', strpos($enviadas[0]['body'] ?? '', 'PF NOVO NOME') !== false, json_encode($enviadas[0] ?? null));
     igual('foi para o numero de teste', '5519912345001', $enviadas[0]['number'] ?? '');
@@ -205,7 +208,10 @@ try {
     $l2 = $agendar($agOk, $tela('+1 day'));
     $vencer($l2);
     $falharEnvio = true;
+    TSession::setValue('userid', 987654321);
     $rodar();
+    igual('falha no envio: restaura usuario anterior', 987654321, TSession::getValue('userid'));
+    TSession::setValue('userid', 1);
     igual('falhou: continua pendente', 'PENDENTE', $situacao($l2)['situacao']);
     igual('falhou: conta a tentativa', 1, (int) $situacao($l2)['tentativas']);
     igual('falhou: desfaz o registro da mensagem', 1, count(q("SELECT 1 FROM mensagem WHERE agendamento_id = {$agOk}")));

@@ -188,6 +188,7 @@ class MensagemAgendadaService
     /** Um lembrete: o que aconteceu. Erro desfaz o envio e fica para a proxima rodada, ate o limite de tentativas. */
     private static function enviarUm(int $id): string
     {
+        $usuarioAnterior = TSession::getValue('userid');
         try
         {
             TTransaction::open(self::$database);
@@ -210,6 +211,12 @@ class MensagemAgendadaService
                 return "cancelado: {$motivo}";
             }
 
+            if ((int) $lembrete->system_user_id <= 0 || !SystemUsers::find((int) $lembrete->system_user_id))
+            {
+                throw new Exception('Usuário responsável pelo lembrete não encontrado.');
+            }
+            TSession::setValue('userid', (int) $lembrete->system_user_id);
+
             $mensagem = $lembrete->tipo_mensagem === TemplateEscritorio::EMAIL
                 ? MensagemService::enviarEmail($agendamento, $lembrete->titulo, (string) $lembrete->texto, $lembrete->template_escritorio_id, $lembrete->destino)
                 : MensagemService::enviarWhatsapp($agendamento, $lembrete->titulo, (string) $lembrete->texto, $lembrete->template_escritorio_id, $lembrete->destino);
@@ -223,10 +230,14 @@ class MensagemAgendadaService
             TTransaction::close();
             return 'enviado';
         }
-        catch (Exception $e)
+        catch (Throwable $e)
         {
             TTransaction::rollback();
             return self::registrarFalha($id, $e->getMessage());
+        }
+        finally
+        {
+            TSession::setValue('userid', $usuarioAnterior);
         }
     }
 
