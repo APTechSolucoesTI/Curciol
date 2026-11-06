@@ -523,7 +523,7 @@ class RepresentanteLegalForm extends TPage
             $row = $this->pessoa_endereco_pessoa_list->addItem($grid_data);
             $row->id = $grid_data->__row__id;
 
-            TDataGrid::replaceRowById('pessoa_endereco_pessoa_list', $grid_data->__row__id, $row);
+            TDataGrid::replaceRowById(self::$formName . ' [id=pessoa_endereco_pessoa_list]', $grid_data->__row__id, $row);
 
             TTransaction::close();
 
@@ -540,7 +540,7 @@ class RepresentanteLegalForm extends TPage
 
             TForm::sendData(self::$formName, $data);
             TScript::create("
-               var element = $('#60f6c58143f89');
+               var element = $('form[name=" . self::$formName . "] [id=\"60f6c58143f89\"]');
                if(typeof element.attr('add') != 'undefined')
                {
                    element.html(base64_decode(element.attr('add')));
@@ -577,7 +577,7 @@ class RepresentanteLegalForm extends TPage
 
             TForm::sendData(self::$formName, $data, $aggregate, $fireEvents);
             TScript::create("
-               var element = $('#60f6c58143f89');
+               var element = $('form[name=" . self::$formName . "] [id=\"60f6c58143f89\"]');
                if(!element.attr('add')){
                    element.attr('add', base64_encode(element.html()));
                }
@@ -613,9 +613,9 @@ class RepresentanteLegalForm extends TPage
 
             TForm::sendData(self::$formName, $data);
 
-            TDataGrid::removeRowById('pessoa_endereco_pessoa_list', $__row__data->__row__id);
+            TDataGrid::removeRowById(self::$formName . ' [id=pessoa_endereco_pessoa_list]', $__row__data->__row__id);
             TScript::create("
-               var element = $('#60f6c58143f89');
+               var element = $('form[name=" . self::$formName . "] [id=\"60f6c58143f89\"]');
                if(typeof element.attr('add') != 'undefined')
                {
                    element.html(base64_decode(element.attr('add')));
