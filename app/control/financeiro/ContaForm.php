@@ -1938,7 +1938,6 @@ class ContaForm extends TPage
                     }
 
                 }, $this->criteria_parcelas); 
-            ContratoFinanceiroService::restaurarVinculosDasParcelas($vinculosDasParcelas);
 
                 if($object->em_aberto){
                     if(!$object->cancelado){

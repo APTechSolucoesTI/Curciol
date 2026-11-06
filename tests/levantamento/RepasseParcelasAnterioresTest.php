@@ -108,7 +108,7 @@ try {
 
     // ---------- salvar a conta apaga e recria a parcela aberta: nada se perde ----------
     TTransaction::open('escritorio');
-    $st = TTransaction::get()->prepare('INSERT INTO contrato_pagamento_parcela (contrato_id, valor, numero_parcelas) VALUES (?, 1000, 1) RETURNING id');
+    $st = TTransaction::get()->prepare('INSERT INTO contrato_pagamento_parcela (contrato_id, contrato_opcao_pagamento_id, valor, numero_parcelas) VALUES (?, (SELECT MIN(contrato_opcao_pagamento_id) FROM contrato_pagamento_parcela), 1000, 1) RETURNING id');
     $st->execute([$f['contrato_id']]);
     $pagamento = (int) $st->fetchColumn();
     TTransaction::close();
