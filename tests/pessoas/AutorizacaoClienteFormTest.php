@@ -21,6 +21,7 @@ function limparAC(): void
     $ags = array_column(q("SELECT a.id FROM agendamento a JOIN pessoa p ON p.id = a.cliente_id WHERE p.nome LIKE '" . MARCA_AC . "%'"), 'id');
     $lista = $ags ? implode(',', array_map('intval', $ags)) : '0';
     x("DELETE FROM mensagem_agendada WHERE agendamento_id IN ({$lista})");
+    x("DELETE FROM estado_agendamento WHERE agendamento_id IN ({$lista})");
     x("DELETE FROM agendamento WHERE id IN ({$lista})");
     x("DELETE FROM apchat_contato_log WHERE pessoa_id IN (SELECT id FROM pessoa WHERE nome LIKE '" . MARCA_AC . "%')");
     x("DELETE FROM pessoa_grupo WHERE pessoa_id IN (SELECT id FROM pessoa WHERE nome LIKE '" . MARCA_AC . "%')");
