@@ -8,6 +8,11 @@ require_once 'init.php';
 // testes nunca leem nem gravam no banco real do APChat (03/11/2026); quem testa o banco usa ApchatBancoService::usarFalso
 ApchatBancoService::desligar();
 
+// Cada teste que usa HTTP deve instalar seu falso explicitamente.
+// Evita que salvar um cadastro de teste sincronize contatos na integracao real.
+APChatContactService::usarTransporte(function () { throw new LogicException('Teste sem transporte falso de contatos.'); });
+ApchatApiService::usarTransporte(function () { throw new LogicException('Teste sem transporte falso de mensagens.'); });
+
 $GLOBALS['__falhas'] = 0;
 
 function ok(string $nome, bool $cond, string $extra = ''): void
@@ -43,18 +48,23 @@ function fim(): void
  */
 function tokenApchatDeTeste(): void
 {
-    TTransaction::open('escritorio');
-    $c = TTransaction::get();
-    if (!(int) $c->query("SELECT count(*) FROM escritorio WHERE COALESCE(token_apchat, '') <> '' AND COALESCE(url_apchat, '') <> ''")->fetchColumn())
-    {
-        $c->exec("UPDATE escritorio SET token_apchat = COALESCE(NULLIF(token_apchat, ''), 'TOKEN-FALSO-DE-TESTE'), url_apchat = COALESCE(NULLIF(url_apchat, ''), 'http://apchat.falso.invalid') WHERE id = (SELECT min(id) FROM escritorio)");
-        register_shutdown_function(function () {
-            while (TTransaction::get()) { TTransaction::rollback(); }
-            TTransaction::open('escritorio');
-            TTransaction::get()->exec("UPDATE escritorio SET token_apchat = NULL WHERE token_apchat = 'TOKEN-FALSO-DE-TESTE'");
-            TTransaction::get()->exec("UPDATE escritorio SET url_apchat = NULL WHERE url_apchat = 'http://apchat.falso.invalid'");
-            TTransaction::close();
-        });
-    }
-    TTransaction::close();
+    static $isolado = false;
+    if ($isolado) { return; }
+    $original = TConnection::getDatabaseInfo('escritorio');
+    if ($original['name'] !== 'curciol_homologacao') { throw new LogicException('Configuracao falsa exige banco de homologacao.'); }
+    $conn = TConnection::openArray(array_merge($original, ['keep' => 0]));
+    $schema = 'teste_apchat_' . getmypid();
+    $conn->exec("CREATE SCHEMA {$schema}");
+    register_shutdown_function(function () use ($conn, $schema, $original) {
+        while (TTransaction::get()) { TTransaction::rollback(); }
+        TConnection::setDatabaseInfo('escritorio', $original);
+        $conn->exec("DROP SCHEMA {$schema} CASCADE");
+    });
+    $conn->exec("CREATE TABLE {$schema}.escritorio (LIKE public.escritorio INCLUDING ALL)");
+    $colunas = $conn->query("SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'escritorio' AND column_name NOT IN ('url_apchat', 'token_apchat') ORDER BY ordinal_position")->fetchAll(PDO::FETCH_COLUMN);
+    $lista = implode(', ', array_map(fn($coluna) => '"' . str_replace('"', '""', $coluna) . '"', $colunas));
+    $conn->exec("INSERT INTO {$schema}.escritorio ({$lista}) SELECT {$lista} FROM public.escritorio");
+    $conn->exec("UPDATE {$schema}.escritorio SET token_apchat = 'TOKEN-FALSO-DE-TESTE', url_apchat = 'http://apchat.falso.invalid'");
+    TConnection::setDatabaseInfo('escritorio', array_merge($original, ['keep' => 0, 'opts' => "options='-c search_path={$schema},public'"]));
+    $isolado = true;
 }

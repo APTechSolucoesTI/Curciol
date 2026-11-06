@@ -56,7 +56,7 @@ function gravados(int $id): array { return array_map(fn($c) => ['id' => (int) $c
 
 limparCR();
 $GLOBALS['__salvar_sem_exit'] = true;
-ApchatApiService::usarTransporte(function ($url, $corpo, $token) { return ['status' => 201, 'corpo' => '{"success":true,"contact":{"id":1}}', 'erro' => '']; });
+APChatContactService::usarTransporte(function ($url, $corpo, $token) { return ['status' => 201, 'corpo' => '{"success":true,"data":{"id":1}}', 'erro' => '']; });
 TSession::setValue('userid', 1);
 $unidade = (int) q('SELECT e.system_unit_id u FROM agenda a JOIN escritorio e ON e.id = a.escritorio_id ORDER BY a.id LIMIT 1')[0]['u'];
 TSession::setValue('userunitid', $unidade);
@@ -336,7 +336,7 @@ try {
 } finally {
     while (TTransaction::get()) { TTransaction::rollback(); }
     $_POST = []; $_REQUEST = [];
-    ApchatApiService::usarTransporte(null);
+    APChatContactService::usarTransporte(null);
     limparCR();
 }
 

@@ -5,6 +5,7 @@
 // mensagem, erros da API e teste de conexao. NUNCA fala com o APChat de verdade (transporte falso) nem envia e-mail;
 // tudo numa transacao desfeita no fim.
 require __DIR__ . '/../bootstrap.php';
+tokenApchatDeTeste();
 
 $chamadas = [];
 $resposta = ['status' => 201, 'corpo' => '{"success":true}', 'erro' => ''];

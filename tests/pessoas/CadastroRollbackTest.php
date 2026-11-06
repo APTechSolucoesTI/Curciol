@@ -2,7 +2,7 @@
 require __DIR__ . '/../bootstrap.php';
 if (!class_exists('TApplication')) { class TApplication extends AdiantiCoreApplication {} }
 $GLOBALS['__salvar_sem_exit'] = true;
-ApchatApiService::usarTransporte(fn() => ['status' => 201, 'corpo' => '{"success":true,"contact":{"id":1}}', 'erro' => '']);
+APChatContactService::usarTransporte(fn() => ['status' => 201, 'corpo' => '{"success":true,"data":{"id":1}}', 'erro' => '']);
 TSession::setValue('userid', 1);
 TTransaction::open('escritorio');
 $unidade = (int) TTransaction::get()->query('SELECT system_unit_id FROM escritorio ORDER BY id LIMIT 1')->fetchColumn();
@@ -50,7 +50,7 @@ try {
     }
     $c->prepare('DELETE FROM pessoa WHERE nome = ?')->execute([$marca]);
     TTransaction::close();
-    ApchatApiService::usarTransporte(null);
 }
 }
+APChatContactService::usarTransporte(null);
 fim();
