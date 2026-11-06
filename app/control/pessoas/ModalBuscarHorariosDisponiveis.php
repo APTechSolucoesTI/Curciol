@@ -31,9 +31,7 @@ class ModalBuscarHorariosDisponiveis extends TWindow
         // define the form title
         $this->form->setFormTitle("Horários disponíveis");
 
-        if(!empty($param['convidado_agendamento_agenda_id'])){
-            TSession::setValue('convidado_agendamento_id', $param['convidado_agendamento_agenda_id']);
-        }
+        TSession::setValue('convidado_agendamento_id', (array) ($param['convidado_agendamento_agenda_id'] ?? []));
 
         $btnRadioDia = new TRadioGroup('btnRadioDia');
         $btnRadioHorario = new TCheckGroup('btnRadioHorario');
@@ -62,7 +60,7 @@ class ModalBuscarHorariosDisponiveis extends TWindow
         for ($tentativa = 0; count($radios) < 30 && $tentativa < 400; $tentativa++)
         {
             $date = date('Y-m-d', strtotime('today +' . $tentativa . ' days'));
-            if (AgendaHorarioDisponivelService::listar((int) $agenda_id, $date, $convidadas))
+            if (AgendaHorarioDisponivelService::listar((int) $agenda_id, $date, $convidadas, true))
             {
                 $radios[$date] = DateService::getDayWeek($date) . ' - ' . date('d/m/Y', strtotime($date));
             }
