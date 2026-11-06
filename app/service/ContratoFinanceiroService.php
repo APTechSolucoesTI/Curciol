@@ -34,6 +34,27 @@ class ContratoFinanceiroService
         }
     }
 
+    /**
+     * Salvar a conta apaga e recria as parcelas abertas com o mesmo id: sem isto perdiam a ligacao com o pagamento do contrato e as
+     * marcas fora do modelo. Guarda antes de apagar; restaura depois de recriar. Usa a transacao aberta.
+     */
+    public static function vinculosDasParcelas(int $contaId): array
+    {
+        $st = TTransaction::get()->prepare("SELECT id, contrato_parcela_id, anterior_publicacao, recebido_sem_repasse FROM lancamento
+            WHERE conta_id = ? AND dt_pagamento IS NULL AND (contrato_parcela_id IS NOT NULL OR anterior_publicacao OR recebido_sem_repasse IS NOT NULL)");
+        $st->execute([$contaId]);
+        return $st->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public static function restaurarVinculosDasParcelas(array $vinculos): void
+    {
+        $st = TTransaction::get()->prepare('UPDATE lancamento SET contrato_parcela_id = ?, anterior_publicacao = ?, recebido_sem_repasse = ? WHERE id = ?');
+        foreach ($vinculos as $v) {
+            $anterior = in_array($v['anterior_publicacao'], [true, 't', 1, '1'], true);
+            $st->execute([$v['contrato_parcela_id'], $anterior ? 't' : 'f', $v['recebido_sem_repasse'], $v['id']]);
+        }
+    }
+
     /** A parcela foi lancada antes da publicacao (23/10/2026)? Quitar uma parcela anterior nao gera repasse. Usa a transacao aberta. */
     public static function parcelaAnterior(int $lancamentoId): bool
     {

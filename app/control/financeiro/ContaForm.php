@@ -1771,6 +1771,7 @@ class ContaForm extends TPage
 
             }, $this->criteria_fieldList_6a35414a7e349); 
 
+            $vinculosDasParcelas = ContratoFinanceiroService::vinculosDasParcelas((int) $object->id);
             $objetos = Lancamento::where('conta_id','=',$object->id)->load();
 
             if($objetos)
@@ -1820,6 +1821,7 @@ class ContaForm extends TPage
                 }
 
             }, $this->criteria_parcelas); 
+            ContratoFinanceiroService::restaurarVinculosDasParcelas($vinculosDasParcelas);
           }
             $this->total_valor_parcelas = 0;
             $this->count_parcelas = 1;
@@ -1936,6 +1938,7 @@ class ContaForm extends TPage
                     }
 
                 }, $this->criteria_parcelas); 
+            ContratoFinanceiroService::restaurarVinculosDasParcelas($vinculosDasParcelas);
 
                 if($object->em_aberto){
                     if(!$object->cancelado){

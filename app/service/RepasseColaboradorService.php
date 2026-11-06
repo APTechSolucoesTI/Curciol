@@ -124,7 +124,7 @@ class RepasseColaboradorService
             if ($pessoaId <= 0 || $pessoaId === $escritorioPessoa) { continue; }
 
             if ($quitacao) {
-                $total = (float) $lp->valor + self::ajustes($c, (int) $lp->id);
+                $total = round(((float) $lp->valor + self::ajustes($c, (int) $lp->id)) * self::parteComRepasse($c, $parcela), 2);
                 $st = $c->prepare('SELECT COALESCE(SUM(valor), 0) FROM repasse_colaborador WHERE lancamento_receber_id = ? AND pessoa_id = ?');
                 $st->execute([$parcela->id, $pessoaId]);
                 $valor = round($total - (float) $st->fetchColumn(), 2);
@@ -385,6 +385,16 @@ class RepasseColaboradorService
         $c->prepare('DELETE FROM repasse_colaborador WHERE id = ?')->execute([$repasseId]);
         $c->prepare('DELETE FROM lancamento WHERE conta_id = ?')->execute([(int) $r->conta_pagar_id]);
         $c->prepare('DELETE FROM conta WHERE id = ?')->execute([(int) $r->conta_pagar_id]);
+    }
+
+    /** Parte da parcela que da repasse: tira o que foi recebido antes da liberacao, sem repasse (06/11/2026). */
+    private static function parteComRepasse(PDO $c, Lancamento $parcela): float
+    {
+        $st = $c->prepare('SELECT recebido_sem_repasse FROM lancamento WHERE id = ?');
+        $st->execute([$parcela->id]);
+        $recebido = (float) $st->fetchColumn();
+        $valor = (float) $parcela->valor;
+        return ($recebido > 0 && $valor > 0) ? max(0.0, 1 - $recebido / $valor) : 1.0;
     }
 
     private static function ajustes(PDO $c, int $lancamentoProfissionalId): float
