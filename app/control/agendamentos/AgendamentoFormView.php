@@ -355,7 +355,6 @@ class AgendamentoFormView extends TPage
              $btncancelarconfirmacao->style = '';
              $btncancelar->style = 'display: none;';
              $btnconfirmar->style = 'display: none;';
-             $btnnaocompareceu->style = 'display: none;';
              $btnentrar->style = 'display: none;';
              $btnvalidar->style = 'display: none;';
         }
@@ -626,21 +625,7 @@ class AgendamentoFormView extends TPage
             TTransaction::open(self::$database);
 
             $agendamento = Agendamento::find($param['key']);
-
-            if ($agendamento->estado_agenda->estado_final == 'S')
-            {
-                throw new Exception('Esse agendamento já está finalizado!');
-            }
-
-            $agendamento->estado_agenda_id = EstadoAgenda::NAO_COMPARECEU;
-            $agendamento->store();
-
-            $historico = new EstadoAgendamento();
-            $historico->agendamento_id = $agendamento->id;
-            $historico->estado_agenda_id = $agendamento->estado_agenda_id;
-            $historico->system_users_id = TSession::getValue('userid');
-            $historico->atribuido_em = date('Y-m-d H:i:s');
-            $historico->store();
+            AgendamentoService::marcarNaoCompareceu($agendamento);
 
             TToast::show('success', 'Estado alterado com sucesso');
 

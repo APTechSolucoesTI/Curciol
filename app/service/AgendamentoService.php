@@ -215,6 +215,43 @@ class AgendamentoService
     }
 
     /** Alguma tabela (fora os procedimentos copiados do agendamento) aponta para este atendimento? */
+    /**
+     * Falta (06/11/2026): so um agendamento Confirmado pode ser marcado como Nao compareceu, na tela e no servidor. Os lembretes
+     * pendentes sao cancelados e o atendimento criado na confirmacao sai, a nao ser que ja tenha algo ligado. Usa a transacao aberta.
+     */
+    public static function marcarNaoCompareceu(?Agendamento $agendamento): void
+    {
+        if (!$agendamento || (int) $agendamento->estado_agenda_id !== (int) EstadoAgenda::CONFIRMADO)
+        {
+            throw new Exception('Só um agendamento confirmado pode ser marcado como Não compareceu.');
+        }
+
+        $atendimento = Atendimento::where('agendamento_id', '=', $agendamento->id)->first();
+
+        if ($atendimento && !empty($atendimento->dt_inicio))
+        {
+            throw new Exception('O atendimento deste agendamento já foi iniciado.');
+        }
+
+        $agendamento->estado_agenda_id = EstadoAgenda::NAO_COMPARECEU;
+        $agendamento->store();
+
+        $historico = new EstadoAgendamento();
+        $historico->agendamento_id = $agendamento->id;
+        $historico->estado_agenda_id = $agendamento->estado_agenda_id;
+        $historico->system_users_id = TSession::getValue('userid');
+        $historico->atribuido_em = date('Y-m-d H:i:s');
+        $historico->store();
+
+        MensagemAgendadaService::cancelarPendentes((int) $agendamento->id, 'O cliente não compareceu');
+
+        if ($atendimento && !self::atendimentoTemVinculo((int) $atendimento->id))
+        {
+            AtendimentoProcedimento::where('atendimento_id', '=', $atendimento->id)->delete();
+            $atendimento->delete();
+        }
+    }
+
     private static function atendimentoTemVinculo(int $atendimentoId): bool
     {
         $c = TTransaction::get();
