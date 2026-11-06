@@ -761,78 +761,19 @@ class Agendamento extends TRecord
 
     public function validate()
     {
-        $agenda = $this->get_agenda();
-    
-        $dt_inicial = new DateTime($this->dt_inicial);
-        $dt_final = new DateTime($this->dt_final);
-    
-        $hora_inicial = $dt_inicial->format('H:i');
-        $hora_final = $dt_final->format('H:i');
-        
-        // valida horario intervalo
-        if ($agenda->horario_inicio_intervalo && $agenda->horario_fim_intervalo)
-        {
-            if ($hora_final > $agenda->horario_inicio_intervalo && $hora_inicial < $agenda->horario_fim_intervalo)
-            {
-                return false;
-            }
-        }
-    
-        // valida bloqueios
-        $criteria = new TCriteria;
-        $criteria->add(new TFilter('agenda_id', '=', (int) $agenda->id));
-    
-    
-        $criteriaTempoIni = new TCriteria;
-        $criteriaTempoIni->add(new TFilter('dt_inicio', '<=', $dt_final->format('Y-m-d H:i')));
-        $criteriaTempoIni->add(new TFilter('dt_final', '>=', $dt_inicial->format('Y-m-d H:i')));
-        $criteria->add($criteriaTempoIni);
-    
-        $bloqueios = Bloqueio::countObjects($criteria);
-    
-        if ($bloqueios)
+        if (!$this->agenda_id || empty($this->dt_inicial) || empty($this->dt_final))
         {
             return false;
         }
-    
-        $semanaTrabalho = [0=>0,1=>1, 2=>2, 3=>3, 4=>4, 5=>5, 6=>6];
-        $diasTrabalho = [];
-        $dias = explode(',',$agenda->dias);
-
-        foreach($dias as $dia)
+        try
         {
-            $diasTrabalho[$semanaTrabalho[$dia]] = $semanaTrabalho[$dia];
+            AgendaConflitoService::exigirLivre((int) $this->agenda_id, (string) $this->dt_inicial, (string) $this->dt_final, (int) $this->id);
+            return true;
         }
-    
-        $dataAgendamento = new DateTime($this->dt_inicial);
-    
-        if(! isset($diasTrabalho[$dataAgendamento->format('w')]))
+        catch (Exception $e)
         {
             return false;
         }
-    
-        if ($agenda->fl_permite_choque_horario != 'T')
-        {
-            $criteria = new TCriteria;
-            $criteria->add(new TFilter('id', '<>', (int) $this->id));
-            $criteria->add(new TFilter('agenda_id', '=', (int) $agenda->id));
-            $criteria->add(new TFilter('estado_agenda_id', 'NOT IN', "(SELECT id FROM estado_agenda WHERE estado_final = 'S')"));
-        
-            $criteriaTempoIni = new TCriteria;
-            $criteriaTempoIni->add(new TFilter('dt_inicial', '<', $dt_final->format('Y-m-d H:i')));
-            $criteriaTempoIni->add(new TFilter('dt_final', '>', $dt_inicial->format('Y-m-d H:i')));
-        
-            $criteria->add($criteriaTempoIni);
-        
-            $agendamentos = Agendamento::countObjects($criteria);
-        
-            if ($agendamentos > 0)
-            {
-                return false;
-            }
-        }
-    
-        return true;
     }
 
     public function get_atendimento()

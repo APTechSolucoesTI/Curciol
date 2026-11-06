@@ -557,7 +557,7 @@ class AgendamentoCalendarForm extends TPage
 
             TToast::show('success', "Registro salvo", 'topRight', 'far:check-circle'); 
 
-            TScript::create("$('#agendamentos').data('fullcalendar').refetchEvents()");
+            TScript::create("if ($('#agendamentos').data('fullcalendar')) { $('#agendamentos').data('fullcalendar').refetchEvents(); }");
             // Curciol (30/10/2026): trocou agenda ou parceria e pode gerar o financeiro: abre o agendamento na aba Financeiro
             if ($mudouAgendaParceria && AgendamentoFinanceiroForm::podeGerar())
             {
@@ -604,7 +604,7 @@ class AgendamentoCalendarForm extends TPage
                 $messageAction->setParameter('date', explode(' ',$param[self::$startDateField])[0]);
 
                 TToast::show("success", AdiantiCoreTranslator::translate('Record deleted'), "topRight", "fas:check");
-                TScript::create("$('#agendamentos').data('fullcalendar').refetchEvents()");
+                TScript::create("if ($('#agendamentos').data('fullcalendar')) { $('#agendamentos').data('fullcalendar').refetchEvents(); }");
                 TScript::create("Template.closeRightPanel();");
 
             }
@@ -729,20 +729,12 @@ class AgendamentoCalendarForm extends TPage
                 {
                     TTransaction::open(self::$database);
                     $agenda = Agenda::find($param['agenda_id']);
+                    if (!$agenda) { throw new Exception('Agenda não encontrada.'); }
                     self::onChange(['agenda_id' =>  $param['agenda_id']]);
 
                     $data->dt_final = date('Y-m-d H:i:s', strtotime($data->dt_inicial .  "+ {$agenda->duracao} minutes"));
 
-                    $agendamento = new Agendamento;
-                    $agendamento->agenda = $agenda;
-                    $agendamento->dt_final = $data->dt_final;
-                    $agendamento->dt_inicial = $data->dt_inicial;
-
-                    if (! $agendamento->validate() && AgendaConflitoService::foraDeExcecoes((int) $agenda->id, (string) $data->dt_inicial, (string) $data->dt_final)) 
-                    {
-                        throw new Exception('Não são permitidos agendamentos nesse horário');
-                        TScript::create("preventRightPanel()");
-                    }
+                    AgendaConflitoService::exigirLivre((int) $agenda->id, (string) $data->dt_inicial, (string) $data->dt_final);
 
                     TTransaction::close();
                 }

@@ -568,7 +568,7 @@ class AgendamentoFormView extends TPage
             $pageParam = ['key' => $agendamento->id];
 
             TApplication::loadPage('AgendamentoFormView', 'onShow', $pageParam);
-            TScript::create("$('#agendamentos').data('fullcalendar').refetchEvents()");
+            TScript::create("if ($('#agendamentos').data('fullcalendar')) { $('#agendamentos').data('fullcalendar').refetchEvents(); }");
         }
         catch (Exception $e)
         {
@@ -611,7 +611,7 @@ class AgendamentoFormView extends TPage
 
             TApplication::loadPage('AtendimentoFormView', 'onShow', ['key' => $atendimento->id, 'id' => $atendimento->id]);
 
-            TScript::create("$('#agendamentos').data('fullcalendar').refetchEvents()");
+            TScript::create("if ($('#agendamentos').data('fullcalendar')) { $('#agendamentos').data('fullcalendar').refetchEvents(); }");
         }
         catch (Exception $e)
         {
@@ -649,7 +649,7 @@ class AgendamentoFormView extends TPage
             $pageParam = ['key' => $agendamento->id];
 
             TApplication::loadPage('AgendamentoFormView', 'onShow', $pageParam);
-            TScript::create("$('#agendamentos').data('fullcalendar').refetchEvents()");
+            TScript::create("if ($('#agendamentos').data('fullcalendar')) { $('#agendamentos').data('fullcalendar').refetchEvents(); }");
         }
         catch (Exception $e)
         {
@@ -694,7 +694,7 @@ class AgendamentoFormView extends TPage
 
             TApplication::loadPage('AgendamentoFormView', 'onShow', $pageParam);
 
-            TScript::create("$('#agendamentos').data('fullcalendar').refetchEvents()");
+            TScript::create("if ($('#agendamentos').data('fullcalendar')) { $('#agendamentos').data('fullcalendar').refetchEvents(); }");
         }
         catch (Exception $e)
         {
@@ -892,7 +892,14 @@ class AgendamentoFormView extends TPage
 
             TTransaction::open(self::$database);
 
-            $agendamento = Agendamento::find($param['key']);
+            $id = (int) ($param['key'] ?? 0);
+            $st = TTransaction::get()->prepare('SELECT estado_agenda_id FROM agendamento WHERE id = ? FOR UPDATE');
+            $st->execute([$id]);
+            if ((int) $st->fetchColumn() !== (int) EstadoAgenda::AGUARDANDO_VALIDACAO_ESCRITORIO)
+            {
+                throw new Exception('Somente um agendamento aguardando validação pode ser validado.');
+            }
+            $agendamento = Agendamento::find($id);
             $agendamento->estado_agenda_id = EstadoAgenda::AGENDADO;
             $agendamento->store();
 
@@ -910,7 +917,7 @@ class AgendamentoFormView extends TPage
             $pageParam = ['key' => $agendamento->id];
 
             TApplication::loadPage('AgendamentoFormView', 'onShow', $pageParam);
-            TScript::create("$('#agendamentos').data('fullcalendar').refetchEvents()");
+            TScript::create("if ($('#agendamentos').data('fullcalendar')) { $('#agendamentos').data('fullcalendar').refetchEvents(); }");
         }
         catch (Exception $e)
         {
@@ -933,7 +940,7 @@ class AgendamentoFormView extends TPage
             $pageParam = ['key' => $atendimento->id]; // ex.: = ['key' => 10]
 
             TApplication::loadPage('AtendimentoFormView', 'onShow', $pageParam);
-            TScript::create("$('#agendamentos').data('fullcalendar').refetchEvents()");
+            TScript::create("if ($('#agendamentos').data('fullcalendar')) { $('#agendamentos').data('fullcalendar').refetchEvents(); }");
 
         }
         catch (Exception $e)

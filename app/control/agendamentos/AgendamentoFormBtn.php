@@ -558,7 +558,7 @@ class AgendamentoFormBtn extends TPage
 
             TToast::show('success', "Registro salvo", 'topRight', 'far:check-circle'); 
 
-            TScript::create("$('#agendamentos').data('fullcalendar').refetchEvents()");
+            TScript::create("if ($('#agendamentos').data('fullcalendar')) { $('#agendamentos').data('fullcalendar').refetchEvents(); }");
                         TScript::create("Template.closeRightPanel();");
             TForm::sendData(self::$formName, (object)['id' => $object->id]);
 

@@ -44,7 +44,13 @@ class AgendamentoView extends TPage
         $this->form = new BootstrapFormBuilder(self::$formName);
         $this->form->setTagName('div');
 
-        $agendamento = new Agendamento($param['key']);
+        $agendamento = Agendamento::find($param['key']);
+        if (!$agendamento)
+        {
+            TTransaction::close();
+            new TMessage('error', 'Agendamento não encontrado.');
+            return;
+        }
         // define the form title
         $this->form->setFormTitle("Detalhe do agendamento");
 
@@ -147,6 +153,7 @@ class AgendamentoView extends TPage
             TTransaction::open(self::$database);
 
             $agendamento = Agendamento::find($param['key']);
+            if (!$agendamento) { throw new Exception('Agendamento não encontrado.'); }
             $aviso = empty($param['respondeu'])
                 ? AgendamentoService::avisoDoLink($agendamento, $estado)
                 : AgendamentoService::respostaPeloLink($agendamento, $estado);
