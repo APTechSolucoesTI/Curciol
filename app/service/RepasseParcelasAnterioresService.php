@@ -12,6 +12,8 @@
 class RepasseParcelasAnterioresService
 {
     const CORTE = '2026-10-23';
+    // ligacao perdida ao salvar a conta em 15/07/2026, conforme system_change_log; refeita por decisao do usuario de 06/11/2026
+    const RELIGAR = [1144 => 1233, 1148 => 1682];
 
     /**
      * @param bool  $aplicar false desfaz tudo no fim e so devolve o relatorio
@@ -51,6 +53,12 @@ class RepasseParcelasAnterioresService
                 }
             }
 
+            if (!$contas) {
+                $religacao = self::religar(self::RELIGAR);
+                $r['parcelas_religadas'] = $religacao['religadas'];
+                $r['avisos'] = array_merge($r['avisos'], $religacao['avisos']);
+            }
+
             $r['valor_em_aberto'] = round($r['valor_em_aberto'], 2);
             $r['aplicado'] = $aplicar;
             if ($aplicar) { TTransaction::close(); } else { TTransaction::rollback(); }
@@ -59,6 +67,30 @@ class RepasseParcelasAnterioresService
             TTransaction::rollback();
             throw $e;
         }
+    }
+
+    /**
+     * Devolve as parcelas ao pagamento do contrato de onde vieram. So liga se conta e pagamento forem do mesmo contrato e a parcela
+     * estiver sem ligacao; rodar de novo nao muda nada. Usa a transacao aberta.
+     *
+     * @param array $mapa conta => pagamento do contrato
+     */
+    public static function religar(array $mapa): array
+    {
+        $c = TTransaction::get();
+        $r = ['religadas' => 0, 'avisos' => []];
+        $confere = $c->prepare('SELECT 1 FROM conta co JOIN contrato_pagamento_parcela p ON p.contrato_id = co.contrato_id WHERE co.id = ? AND p.id = ?');
+        $liga = $c->prepare('UPDATE lancamento SET contrato_parcela_id = ? WHERE conta_id = ? AND contrato_parcela_id IS NULL');
+        foreach ($mapa as $conta => $pagamento) {
+            $confere->execute([(int) $conta, (int) $pagamento]);
+            if (!$confere->fetchColumn()) {
+                $r['avisos'][] = "Conta {$conta} e pagamento {$pagamento} nao sao do mesmo contrato; ligacao nao refeita.";
+                continue;
+            }
+            $liga->execute([(int) $pagamento, (int) $conta]);
+            $r['religadas'] += $liga->rowCount();
+        }
+        return $r;
     }
 
     /** Devolve de onde vieram os colaboradores da parcela: ja_tinha, conta, contrato, profissional ou nenhum. */

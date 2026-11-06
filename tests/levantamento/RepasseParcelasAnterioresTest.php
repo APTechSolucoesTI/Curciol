@@ -124,6 +124,15 @@ try {
     TTransaction::close();
     $d = q("SELECT contrato_parcela_id, anterior_publicacao::text a, recebido_sem_repasse r FROM lancamento WHERE id = {$lEdit}")[0];
     igual('recriada: ligacao, marca e recebido voltam', [$pagamento, 'true', 10.0], [(int) $d['contrato_parcela_id'], $d['a'], (float) $d['r']]);
+
+    // ---------- religar a conta ao pagamento do contrato ----------
+    [$cRel, $lRel] = $novaConta(true);
+    $religar = function (array $mapa) { TTransaction::open('escritorio'); $r = RepasseParcelasAnterioresService::religar($mapa); TTransaction::close(); return $r; };
+    igual('religar: liga a parcela sem ligacao', 1, $religar([$cRel => $pagamento])['religadas']);
+    igual('religar: parcela aponta para o pagamento', $pagamento, (int) q("SELECT contrato_parcela_id c FROM lancamento WHERE id = {$lRel}")[0]['c']);
+    igual('religar de novo: nada muda', 0, $religar([$cRel => $pagamento])['religadas']);
+    $r = $religar([$cAt => $pagamento]);
+    ok('religar: conta de outro contrato e recusada', $r['religadas'] === 0 && strpos($r['avisos'][0] ?? '', 'mesmo contrato') !== false);
 } finally {
     while (TTransaction::get()) { TTransaction::rollback(); }
     if ($contas) {
