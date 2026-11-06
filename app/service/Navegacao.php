@@ -63,6 +63,7 @@ class Navegacao
         if (!empty($param['fechar_ao_salvar']))
         {
             TScript::create('Template.closeRightPanel();');
+            self::selecionarPessoaNaTelaDeBaixo($id, (string) ($param['retorno_pessoa'] ?? ''));
             return;
         }
 
@@ -72,6 +73,25 @@ class Navegacao
             $abrir['current_tab'] = (int) $param['current_tab'];
         }
         AdiantiCoreApplication::loadPage(preg_replace('/[^A-Za-z0-9_]/', '', $formulario), 'onEdit', $abrir);
+    }
+
+    /** Cadastro criado pelo + da conta: volta selecionado no campo pessoa_id dela, sem mexer no resto. Chamar depois do commit. */
+    private static function selecionarPessoaNaTelaDeBaixo(int $id, string $formulario): void
+    {
+        if (!preg_match('/^form_\w+$/', $formulario))
+        {
+            return;
+        }
+        TTransaction::open('escritorio');
+        $pessoa = Pessoa::find($id);
+        TTransaction::close();
+        if (!$pessoa)
+        {
+            return;
+        }
+        $nome = json_encode((string) $pessoa->nome, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP);
+        TScript::create("(function () { var campo = $('form[name=\"{$formulario}\"]').last().find('[name=pessoa_id]');
+            if (campo.length) { campo.find('option[value=\"{$id}\"]').remove(); campo.append(new Option({$nome}, '{$id}', true, true)).trigger('change'); } })();");
     }
 
     /** Cadastro aberto de dentro do agendamento: a cortina fecha e o agendamento que estava aberto se atualiza. */

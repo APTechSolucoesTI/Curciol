@@ -162,6 +162,11 @@ trait PessoaContatoAbaTrait
         $fecharAoSalvar->setValue(!empty($_REQUEST['fechar_ao_salvar']) ? '1' : '');
         $this->form->addFields([$fecharAoSalvar]);
 
+        // aberto pela conta: o cadastro novo volta selecionado nela (ver Navegacao::continuarNoRegistro)
+        $retornoPessoa = new THidden('retorno_pessoa');
+        $retornoPessoa->setValue(preg_match('/^form_\w+$/', (string) ($_REQUEST['retorno_pessoa'] ?? '')) ? (string) $_REQUEST['retorno_pessoa'] : '');
+        $this->form->addFields([$retornoPessoa]);
+
         // novo cadastro aberto pela tela "Contatos sem vinculo" do APChat: ja vem com o numero (e o nome, se for nome)
         $numero = PessoaContatoService::telefoneValido($_REQUEST['apchat_numero'] ?? '');
         if ($numero && empty($_REQUEST['key']) && empty($_REQUEST['id']))
