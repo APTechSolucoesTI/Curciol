@@ -99,6 +99,17 @@ try {
     $antes = $chamadas;
     ok('CEP incompleto: avisa sem consultar', strpos($cep('1346'), 'CEP inválido') !== false && $chamadas === $antes);
     igual('nada guardado nos erros', 0, count(q("SELECT 1 FROM cep_cache WHERE cep = '" . CEP_NOVO . "'")));
+    // + da conta: o hidden nasce do pedido e, ao salvar, a pessoa volta selecionada na conta (06/11/2026)
+    $_REQUEST = ['retorno_pessoa' => 'form_Conta', 'fechar_ao_salvar' => '1'];
+    $html = saida(function () { $f = new ClienteForm(['retorno_pessoa' => 'form_Conta', 'fechar_ao_salvar' => '1']); $f->show(); });
+    ok('conta: formulario leva o retorno', (bool) preg_match('~name="retorno_pessoa"[^>]*value="form_Conta"|value="form_Conta"[^>]*name="retorno_pessoa"~', $html));
+    $_REQUEST = ['retorno_pessoa' => "x');alert('1"];
+    $html = saida(function () { $f = new ClienteForm([]); $f->show(); });
+    ok('conta: retorno invalido nao entra no formulario', strpos($html, 'alert(') === false || strpos($html, "x');alert") === false);
+    $s = $salvar(['fechar_ao_salvar' => '1', 'retorno_pessoa' => 'form_Conta']);
+    ok('conta: salvar fecha a cortina e seleciona a pessoa', strpos($s, 'Template.closeRightPanel()') !== false && strpos($s, 'form_Conta') !== false && strpos($s, "'{$cliente}'") !== false, substr($s, 0, 300));
+    $s = $salvar(['fechar_ao_salvar' => '1']);
+    ok('sem retorno: salvar so fecha', strpos($s, 'Template.closeRightPanel()') !== false && strpos($s, 'form_Conta') === false);
 } finally {
     while (TTransaction::get()) { TTransaction::rollback(); }
     $_POST = []; $_REQUEST = [];
