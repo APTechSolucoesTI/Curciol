@@ -15,7 +15,10 @@ class Agendamento extends TRecord
 
                                                     
 
-    use SystemChangeLogTrait;
+    use SystemChangeLogTrait {
+        onBeforeStore as private registrarEstadoAnterior;
+        onAfterStore as private registrarAlteracoes;
+    }
     /**
      * Constructor method
      */
@@ -692,6 +695,7 @@ class Agendamento extends TRecord
 
     public function onBeforeStore($object)
     {
+        $this->registrarEstadoAnterior($object);
         $this->horarioAnterior = null;
         if (!empty($object->id))
         {
@@ -707,13 +711,13 @@ class Agendamento extends TRecord
             }
         }
 
-        if ($object->dt_inicial) {
+        if (!empty($object->dt_inicial)) {
             $object->ano_inicial = date('Y', strtotime($object->dt_inicial));
             $object->mes_inicial = date('m', strtotime($object->dt_inicial));
             $object->ano_mes_inicial = date('Ym', strtotime($object->dt_inicial));
         }
     
-        if ($object->dt_final) {
+        if (!empty($object->dt_final)) {
             $object->ano_final = date('Y', strtotime($object->dt_final));
             $object->mes_final = date('m', strtotime($object->dt_final));
             $object->ano_mes_final = date('Ym', strtotime($object->dt_final));
@@ -723,6 +727,7 @@ class Agendamento extends TRecord
     /** Depois de criado, mudou o horario (qualquer tela): uma linha no historico, de quanto para quanto. */
     public function onAfterStore($object)
     {
+        $this->registrarAlteracoes((object) array_replace($this->lastState, (array) $object));
         $antes = $this->horarioAnterior;
         $this->horarioAnterior = null;
 
