@@ -56,78 +56,17 @@ class ModalBuscarHorariosDisponiveis extends TWindow
         TTransaction::open('escritorio');
 
         $agenda_id = TSession::getValue('agenda_id');
-        $agendaPrincipal = Agenda::find($agenda_id);
-        // Curciol (30/10/2026): agenda sem dias marcados atende todos (como no calendario); antes o laco abaixo nao terminava
-        $todosOsDias = ['0', '1', '2', '3', '4', '5', '6'];
-        $dias[$agenda_id] = trim((string) $agendaPrincipal->dias) === '' ? $todosOsDias : explode(",", $agendaPrincipal -> dias);
-
-        $agendaConvidados = TSession::getValue('convidado_agendamento_id');
-
-        if(isset($agendaConvidados[0]) && $agendaConvidados[0]!=null){
-            foreach ($agendaConvidados as $key=>$agendaConvidado) {
-                $agendaConvidadoSearch = Agenda::find($agendaConvidado);
-                $dias[$key] = trim((string) $agendaConvidadoSearch->dias) === '' ? $todosOsDias : explode(",", $agendaConvidadoSearch->dias);
-             }
-
-            $chavesDias = array_keys($dias);
-            $quantAgendas = count($chavesDias);
-            for($i=0;$i<$quantAgendas;$i++){
-                $combina = array_intersect($dias[$chavesDias[$i++]], $dias[$chavesDias[$i]]);
-            }
-        }else{
-            $combina = $dias[$agenda_id];
-        }
-
-        TSession::setValue('convidado_agendamento_id', null);
-
-        //SEG,TER,QUA,QUI,SEX,SAB,DOM
-        //1,  2,  3,  4,  5  ,6  ,0
-
+        $convidadas = (array) TSession::getValue('convidado_agendamento_id');
+        TSession::setValue('modal_horarios_convidadas', $convidadas);
         $radios = [];
-        $i=0;
-        $data = date('Y-m-d');
-        $data = date('Y-m-d', strtotime("-1 day",strtotime($data)));
-        $tentativas = 0;
-        while($i<30 && $combina && $tentativas++ < 400){
-            //adiciona um dia
-            $date = date('Y-m-d', strtotime("+1 day",strtotime($data))); 
-
-            $diasemana_numero = date('w', strtotime($date));
-            $diasemana_nome = date('D', strtotime($date));
-
-            switch ($diasemana_nome) {
-                case 'Sun':
-                    $diasemana_nome = 'Domingo';
-                    break;
-                case 'Mon':
-                    $diasemana_nome = 'Segunda-Feira';
-                    break;
-                case 'Tue':
-                    $diasemana_nome = 'Terca-Feira';
-                    break;
-                case 'Wed':
-                    $diasemana_nome = 'Quarta-Feira';
-                    break;
-                case 'Thu':
-                    $diasemana_nome = 'Quinta-Feira';
-                    break;
-                case 'Fri':
-                    $diasemana_nome = 'Sexta-Feira';
-                    break;
-                case 'Sat':
-                    $diasemana_nome = 'Sábado';
-                    break;
+        for ($tentativa = 0; count($radios) < 30 && $tentativa < 400; $tentativa++)
+        {
+            $date = date('Y-m-d', strtotime('today +' . $tentativa . ' days'));
+            if (AgendaHorarioDisponivelService::listar((int) $agenda_id, $date, $convidadas))
+            {
+                $radios[$date] = DateService::getDayWeek($date) . ' - ' . date('d/m/Y', strtotime($date));
             }
-
-            $data = date( 'd-m-Y' , strtotime( $date ) );
-                if(in_array($diasemana_numero,$combina)){
-
-                    $format = str_replace('-','/',$data);
-                    $radios[$date]=$diasemana_nome . " - " . $format;
-                    $i++;
-                }
         }
-        //var_dump($radios);
         $btnRadioDia->addItems($radios);
         TTransaction::close();
         $row1 = $this->form->addFields([$btnRadioDia]);
@@ -174,31 +113,7 @@ class ModalBuscarHorariosDisponiveis extends TWindow
                 //SEG,TER,QUA,QUI,SEX,SAB,DOM
                 //1,  2,  3,  4,  5  ,6  ,0
 
-                $radios = [];
-                $hora = date('H:i', strtotime($horario_inicial)); 
-                while(date('H:i', strtotime("+$duracao minutes",strtotime($hora)))<=$horario_final){
-
-                    $inputini = $param['btnRadioDia'].' '.$hora;
-                    $dateini = strtotime($inputini);
-                    $dateini = date('Y-m-d H:i', $dateini);
-
-                    $inputfin = $param['btnRadioDia'].' '.date('H:i', strtotime("+$duracao minutes",strtotime($hora)));
-                    $datefin = strtotime($inputfin);
-                    $datefin = date('Y-m-d H:i', $datefin);
-
-                    // Curciol (30/10/2026): a mesma regra do salvar (AgendaConflitoService): so oferece o horario que pode ser
-                    // gravado (sem agendamento, bloqueio ou compromisso; dentro do atendimento e fora do intervalo)
-                    try
-                    {
-                        AgendaConflitoService::exigirLivre((int) $agenda_id, $dateini, $datefin);
-                        $radios[$hora] = $hora;
-                    }
-                    catch (Exception $e)
-                    {
-                    }
-
-                    $hora = date('H:i', strtotime("+$duracao minutes",strtotime($hora)));
-                }
+                $radios = AgendaHorarioDisponivelService::listar((int) $agenda_id, $param['btnRadioDia'], (array) TSession::getValue('modal_horarios_convidadas'));
 
                 TCheckGroup::reload(self::$formName, 'btnRadioHorario', $radios, $radios);
                 TTransaction::close();
@@ -294,7 +209,7 @@ class ModalBuscarHorariosDisponiveis extends TWindow
                 $object = new stdClass();
                 $object->mostra_horario = "$dia - $hr_ini até $hr_fin";
                 $object->dt_inicial = date('Y-m-d H:i',strtotime(TSession::getValue('btnRadioDia')." ".$hr_ini));
-                $object->dt_final = date('Y-m-d H:i',strtotime(TSession::getValue('btnRadioDia')." ".$hr_fin));
+                $object->dt_final = date('Y-m-d H:i', strtotime(TSession::getValue('btnRadioDia') . ' ' . $ultimo . ' +' . $duracao . ' minutes'));
 
                 $options = [];
 
