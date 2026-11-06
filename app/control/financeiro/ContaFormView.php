@@ -606,6 +606,8 @@ class ContaFormView extends TPage
             if ($minimo) {
                 // conta gerada automaticamente pelo recebimento: nao vence antes da baixa da conta a receber
                 $data->setOption('startDate', date('d/m/Y', strtotime($minimo)));
+                // Preserva o texto digitado para o servidor explicar o limite ao salvar.
+                $data->setOption('forceParse', false);
                 $form->addContent(["<div style='font-size:12px;color:#64748b'>Não pode ser anterior a " . date('d/m/Y', strtotime($minimo))
                     . ', data da baixa da conta a receber que gerou esta conta.</div>']);
             }
