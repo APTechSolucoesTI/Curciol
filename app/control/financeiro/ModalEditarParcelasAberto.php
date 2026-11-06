@@ -220,6 +220,9 @@ class ModalEditarParcelasAberto extends TWindow
             if(!empty($search)){
                 foreach($search as $objeto){
                     if($objeto->dt_pagamento==''){
+                        if($objeto->temRecebimentoParcial()){
+                            throw new Exception("A parcela {$objeto->parcela} tem recebimento parcial e não pode ser removida. Desquite o recebimento antes.");
+                        }
                         $objeto->delete();
                     }
                 }

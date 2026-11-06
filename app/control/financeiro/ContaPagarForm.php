@@ -924,7 +924,7 @@ class ContaPagarForm extends TPage
                     continue;
                 }
 
-                if(!empty($lancamento->dt_pagamento)){
+                if(!empty($lancamento->dt_pagamento) || $lancamento->temRecebimentoParcial()){
                     $quantidadeQuitada++;
                     $totalQuitado += self::valorBrParaFloat($lancamento->valor_total);
 
@@ -1072,6 +1072,15 @@ class ContaPagarForm extends TPage
         }
     }
 
+    /** Parcela aberta com recebimento parcial no extrato nao pode ser apagada nem refeita ao salvar a conta. */
+    private static function contaTemRecebimentoParcial(int $contaId): bool
+    {
+        foreach (Lancamento::where('conta_id', '=', $contaId)->load() as $lancamento) {
+            if ($lancamento->temRecebimentoParcial()) { return true; }
+        }
+        return false;
+    }
+
     public function onSave($param = null) 
     {
         try
@@ -1209,7 +1218,7 @@ class ContaPagarForm extends TPage
             if($objetos)
             {
                 foreach($objetos as $objeto){
-                    if(!$objeto->dt_pagamento && $objeto->cancelado!='S'){
+                    if(!$objeto->dt_pagamento && $objeto->cancelado!='S' && !$objeto->temRecebimentoParcial()){
                         $objeto->delete();  
                     }
                 }
@@ -1224,7 +1233,7 @@ class ContaPagarForm extends TPage
                 if (!empty($detailObject->id)) {
                     $lancamentoBanco = Lancamento::find($detailObject->id);
 
-                    if($lancamentoBanco && ($lancamentoBanco->cancelado == 'S' || !empty($lancamentoBanco->dt_pagamento))){
+                    if($lancamentoBanco && ($lancamentoBanco->cancelado == 'S' || $lancamentoBanco->temRecebimentoParcial() || !empty($lancamentoBanco->dt_pagamento))){
                         $detailObject->parcela = $lancamentoBanco->parcela;
                         $detailObject->valor = $lancamentoBanco->valor;
                         $detailObject->valor_total = $lancamentoBanco->valor_total;
@@ -1258,6 +1267,11 @@ class ContaPagarForm extends TPage
 
             if ($data->tipo == 'S' && !$cancelado)
             {
+                if ($data->id && Lancamento::where('conta_id', '=', $data->id)->count() && self::contaTemRecebimentoParcial((int) $data->id))
+                {
+                    throw new Exception('Esta conta tem pagamento parcial. Desquite o pagamento antes de alterar a conta para Simples.');
+                }
+
                 if ($data->id)
                 {
                     Lancamento::where('conta_id', '=', $data->id)->delete();
@@ -1387,7 +1401,7 @@ class ContaPagarForm extends TPage
                 $idsLancamentosQuitados = [];
 
                 foreach ($lancamentosEdicao as $lancamentoEdicao) {
-                    if ($lancamentoEdicao->cancelado != 'S' && !empty($lancamentoEdicao->dt_pagamento)) {
+                    if ($lancamentoEdicao->cancelado != 'S' && (!empty($lancamentoEdicao->dt_pagamento) || $lancamentoEdicao->temRecebimentoParcial())) {
                         $idsLancamentosQuitados[] = (int) $lancamentoEdicao->id;
                     }
                 }
@@ -1825,7 +1839,7 @@ class ContaPagarForm extends TPage
                         continue;
                     }
 
-                    if (!empty($lancamento->dt_pagamento)) {
+                    if (!empty($lancamento->dt_pagamento) || $lancamento->temRecebimentoParcial()) {
                         $quantidadeQuitada++;
 
                         $ids[] = $lancamento->id;

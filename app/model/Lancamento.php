@@ -454,6 +454,15 @@ class Lancamento extends TRecord
         return implode(', ', $values);
     }
 
+    /** Parcela em aberto que ja recebeu parte do valor: tem registro no extrato e fica como esta ao salvar a conta. Usa a transacao aberta. */
+    public function temRecebimentoParcial(): bool
+    {
+        if (empty($this->id) || !empty($this->dt_pagamento) || $this->cancelado == 'S') { return false; }
+        $st = TTransaction::get()->prepare('SELECT 1 FROM extrato WHERE lancamento_id = ? LIMIT 1');
+        $st->execute([(int) $this->id]);
+        return (bool) $st->fetchColumn();
+    }
+
     public function onBeforeStore($object)
     {
         if (! empty($object->dt_pagamento))

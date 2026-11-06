@@ -133,6 +133,16 @@ try {
     igual('religar de novo: nada muda', 0, $religar([$cRel => $pagamento])['religadas']);
     $r = $religar([$cAt => $pagamento]);
     ok('religar: conta de outro contrato e recusada', $r['religadas'] === 0 && strpos($r['avisos'][0] ?? '', 'mesmo contrato') !== false);
+
+    // ---------- parcela com recebimento parcial no extrato fica como esta ao salvar a conta ----------
+    [$cPar, $lPar] = $novaConta(true);
+    TTransaction::open('escritorio');
+    ok('sem extrato: nao e parcial', !Lancamento::find($lPar)->temRecebimentoParcial());
+    $ex = new Extrato(); $ex->escritorio_id = $f['escritorio_id']; $ex->conta_caixa_id = $cc; $ex->lancamento_id = $lPar; $ex->categoria_conta_id = 24; $ex->tipo_extrato_id = 1; $ex->entrada_valor = 100; $ex->data_lancamento = date('Y-m-d'); $ex->store();
+    ok('com extrato e aberta: e parcial', Lancamento::find($lPar)->temRecebimentoParcial());
+    TTransaction::get()->exec("UPDATE lancamento SET dt_pagamento = CURRENT_DATE WHERE id = {$lPar}");
+    ok('quitada: nao e parcial', !Lancamento::find($lPar)->temRecebimentoParcial());
+    TTransaction::rollback();
 } finally {
     while (TTransaction::get()) { TTransaction::rollback(); }
     if ($contas) {
