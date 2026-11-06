@@ -21,6 +21,7 @@ trait PessoaContatoAbaTrait
         $telefoneDados = $this->form->getField('telefone');
         if ($telefoneDados instanceof TEntry)
         {
+            $telefoneDados->setProperty('data-curciol-telefone', '1');
             $telefoneDados->setExitAction(new TAction([$this, 'onTelefoneDadosSaida'], ['static' => 1]));
         }
 
@@ -37,6 +38,9 @@ trait PessoaContatoAbaTrait
         $pessoa_contato_pessoa_descricao->setTip("Casa, Escritório, Celular, Filha... (opcional)");
         $pessoa_contato_pessoa_descricao->forceUpperCase();
         $pessoa_contato_pessoa_email->forceLowerCase();
+        $emailDados = $this->form->getField('email');
+        if ($emailDados instanceof TEntry) { $emailDados->setProperty('oninput', "if (this.type === 'email') { this.value = this.value.toLowerCase(); } else { tentry_lower(this); }"); }
+        $pessoa_contato_pessoa_telefone->setProperty('data-curciol-telefone', '1');
 
         $pessoa_contato_pessoa_principal->setUseSwitch(true, 'blue');
         $pessoa_contato_pessoa_principal->setIndexValue("S");
@@ -61,14 +65,7 @@ trait PessoaContatoAbaTrait
         $pessoa_contato_pessoa_descricao->setSize('100%');
         $pessoa_contato_pessoa_nome->setSize('100%');
 
-        TScript::create(
-            "$(document).on('keydown', 'input[name=\"pessoa_contato_pessoa_telefone\"]', function (e) {
-            var digit = e.key.replace(/\D/g, '');
-            var value = $(this).val().replace(/\D/g, '');
-            var size = value.concat(digit).length;
-            $(this).mask((size <= 10) ? '(##) ####-####' : '(##) #####-####');
-            });"
-        );
+        TScript::create(file_get_contents('app/lib/include/curciol-pessoa-campos.js'));
 
         // a chave de principal nao mexe no nome digitado: quem valida e o Adicionar, e so se o numero puder ser principal o nome
         // passa a ser o do cadastro (contatoDaTela). Desligar a chave libera o campo, travado ao abrir um contato ja principal.
@@ -849,7 +846,7 @@ trait PessoaContatoAbaTrait
         $dados = PessoaContatoService::dadosAtuais($object->id);
         $object->telefone = $dados['telefone'];
         $object->email = $dados['email'];
-        TForm::sendData(self::$formName, (object) ['telefone' => PessoaContatoService::formatarTelefone($dados['telefone']), 'email' => $dados['email'], 'apchat_troca_confirmada' => '']);
+        TForm::sendData(self::$formName, (object) ['telefone' => PessoaContatoService::formatarTelefone($dados['telefone']), 'email' => $dados['email'], 'apchat_troca_confirmada' => ''], false, false);
 
         if ($aviso)
         {

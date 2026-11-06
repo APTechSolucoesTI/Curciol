@@ -275,14 +275,6 @@ class ClienteForm extends TPage
 
         $email->addValidation("E-mail", new TEmailValidator()); 
 
-        TScript::create(
-            "$(document).on('keydown', 'input[name=\"telefone\"]', function (e) {
-            var digit = e.key.replace(/\D/g, '');
-            var value = $(this).val().replace(/\D/g, '');
-            var size = value.concat(digit).length;
-            $(this).mask((size <= 10) ? '(##) ####-####' : '(##) #####-####');
-            });"
-        );
 
         $this->form->appendPage("Dados cadastrais");
 
@@ -527,7 +519,7 @@ class ClienteForm extends TPage
         $btn_onshow = $this->form->addAction("Sair", new TAction([__CLASS__, 'onFecharCortina'], ['static' => 1]), 'fas:arrow-left #000000');
         $this->btn_onshow = $btn_onshow;
 
-        $btn_delete = $this->form->addHeaderAction("Excluír", new TAction([$this, 'onDelete'],['static' => 1]), 'fas:trash-alt #F44336');
+        $btn_delete = $this->form->addHeaderAction("Excluir", new TAction([$this, 'onDelete'],['static' => 1]), 'fas:trash-alt #F44336');
         $this->btn_delete = $btn_delete;
 
         parent::setTargetContainer('adianti_right_panel');

@@ -208,14 +208,6 @@ class ProfissionalForm extends TPage
 
         $btnVerificarNome->{'title'} = "Verificar homônimo";
         $email->addValidation("E-mail", new TEmailValidator()); 
-        TScript::create(
-            "$(document).on('keydown', 'input[name=\"telefone\"]', function (e) {
-            var digit = e.key.replace(/\D/g, '');
-            var value = $(this).val().replace(/\D/g, '');
-            var size = value.concat(digit).length;
-            $(this).mask((size <= 10) ? '(##) ####-####' : '(##) #####-####');
-            });"
-        );
 
         $this->form->appendPage("Dados cadastrais");
 
