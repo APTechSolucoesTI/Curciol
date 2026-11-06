@@ -2,7 +2,7 @@
 // tests/agendamentos/RespostaWhatsappTest.php
 // Resposta SIM/NAO ao WhatsApp de confirmacao (03/11/2026; ApchatRespostaService): SIM confirma (com atendimento) e
 // manda a "confirmacao recebida", NAO cancela e agradece, frase ou saudacao antes deixa em aberto, atendente interrompe, so a ultima confirmacao do numero
-// vale, agendamento que ja mudou encerra, erro no envio da resposta desfaz e tenta de novo.
+// vale, agendamento que ja mudou encerra, falha no envio automatico preserva a decisao do cliente.
 // NUNCA fala com o APChat de verdade: banco do APChat falso e API falsa.
 require __DIR__ . '/../bootstrap.php';
 if (!class_exists('TApplication')) { class TApplication extends AdiantiCoreApplication {} }
@@ -227,18 +227,20 @@ try {
     igual('ja confirmado: continua confirmado', EstadoAgenda::CONFIRMADO, $estado($agEquipe));
     igual('ja confirmado: nada enviado', 0, count($enviadas));
 
-    // ---------- erro no envio da resposta automatica: desfaz e tenta de novo ----------
+    // ---------- falha da resposta automatica nao desfaz o SIM nem tenta novamente ----------
     [$agErro, $mErro] = $novo('ERRO', '5519912340006');
     $responde('5519912340006', 'SIM');
     $falharEnvio = true;
-    $saida = $rodar();
-    ok('erro: avisa no log da tarefa', strpos($saida, 'ERRO') !== false, $saida);
-    igual('erro: agendamento continua Agendado', EstadoAgenda::AGENDADO, $estado($agErro));
-    ok('erro: continua esperando', $resposta($mErro)['resposta'] === null);
-    igual('erro: nada de atendimento', 0, count(q("SELECT 1 FROM atendimento WHERE agendamento_id = {$agErro}")));
-    $falharEnvio = false;
     $rodar();
-    igual('erro: na rodada seguinte confirma', EstadoAgenda::CONFIRMADO, $estado($agErro));
+    igual('erro: agendamento confirmado mesmo com timeout', EstadoAgenda::CONFIRMADO, $estado($agErro));
+    igual('erro: resposta registrada', 'SIM', $resposta($mErro)['resposta']);
+    igual('erro: atendimento criado', 1, count(q("SELECT 1 FROM atendimento WHERE agendamento_id = {$agErro}")));
+    $obs = q("SELECT resposta_obs FROM mensagem WHERE id = {$mErro}")[0]['resposta_obs'];
+    ok('erro: falha do envio fica no historico', str_contains((string) $obs, 'Não foi possível enviar'));
+    $falharEnvio = false;
+    $enviadas = [];
+    $rodar();
+    igual('erro: nao reenvia na rodada seguinte', 0, count($enviadas));
 
     // ---------- tela do agendamento mostra a resposta ----------
     TSession::setValue('userunitid', (int) q("SELECT e.system_unit_id u FROM escritorio e JOIN agenda a ON a.escritorio_id = e.id WHERE a.id = {$agendaId}")[0]['u']);
@@ -446,6 +448,15 @@ try {
         $responde('5519912340041', 'confirmo');
         $rodar();
         igual('fluxo: sem ignorar maiusculas, minuscula nao confirma', EstadoAgenda::AGENDADO, $estado($agFluxo2));
+        x("UPDATE template_escritorio SET template = '   ' WHERE id = {$tOk}");
+        [$agVazio, $mVazio] = $novo('FLUXO VAZIO', '5519912340042');
+        x("UPDATE mensagem SET template_escritorio_id = {$tFluxo} WHERE id = {$mVazio}");
+        $responde('5519912340042', 'Confirmo');
+        $enviadas = [];
+        $rodar();
+        igual('template legado vazio nao impede confirmar', EstadoAgenda::CONFIRMADO, $estado($agVazio));
+        igual('template legado vazio nao chama a API', [], $enviadas);
+        igual('template legado vazio encerra a espera', 'SIM', $resposta($mVazio)['resposta']);
     } finally {
         x("DELETE FROM mensagem WHERE template_escritorio_id IN ({$tOk}, {$tFluxo})");
         x("DELETE FROM template_escritorio WHERE id IN ({$tFluxo}, {$tOk})");

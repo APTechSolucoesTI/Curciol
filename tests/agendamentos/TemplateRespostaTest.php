@@ -76,6 +76,16 @@ try {
 
     // ---------- salvar a confirmacao ----------
     $base = ['categoria' => 'CONFIRMACAO', 'tipo_template' => 'WHATSAPP', 'descricao' => MARCA_RESP . ' CONF', 'respostas_confirmar' => ' 1 ', 'respostas_cancelar' => ' 2 ', 'template_confirmado_id' => $sim, 'template_cancelado_id' => $nao];
+    foreach (['CONFIRMACAO', 'CONFIRMADO', 'CANCELAMENTO', 'LEMBRETE', 'OUTROS'] as $categoria) {
+        $nome = 'VAZIO ' . $categoria;
+        $s = $salvar(['categoria' => $categoria, 'descricao' => MARCA_RESP . ' ' . $nome, 'template_whatsapp' => " \t\r\n "] + $base);
+        ok("{$nome}: nao salva WhatsApp sem texto", $gravado($nome) === null && strpos($s, 'Escreva a mensagem') !== false);
+    }
+    $legadoVazio = $template('LEGADO VAZIO', 'CONFIRMADO');
+    x("UPDATE template_escritorio SET template = '   ' WHERE id = {$legadoVazio}");
+    $s = $salvar(['descricao' => MARCA_RESP . ' VINCULO VAZIO', 'template_confirmado_id' => $legadoVazio] + $base);
+    ok('confirmacao: nao vincula resposta automatica sem texto', $gravado('VINCULO VAZIO') === null && strpos($s, 'mensagem') !== false);
+
     $s = $salvar(['respostas_confirmar' => ''] + $base);
     ok('sem resposta: nao salva', $gravado('CONF') === null && strpos($s, 'Defina as duas respostas') !== false, substr($s, 0, 200));
     $s = $salvar(['respostas_cancelar' => '!!!'] + $base);

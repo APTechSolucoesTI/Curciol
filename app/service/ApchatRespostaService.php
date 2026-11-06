@@ -170,7 +170,7 @@ class ApchatRespostaService
         return array_values($porNumero);
     }
 
-    /** Uma confirmacao: o que aconteceu (null = ainda sem resposta). Erro desfaz tudo e tenta de novo na proxima rodada. */
+    /** Uma confirmacao: o que aconteceu (null = ainda sem resposta). Erro ao registrar a decisao tenta de novo na proxima rodada. */
     private static function processarUma(array $p): ?string
     {
         try
@@ -179,6 +179,11 @@ class ApchatRespostaService
 
             $agendamento = Agendamento::find((int) $p['agendamento_id']);
             $mensagem = Mensagem::find((int) $p['id']);
+            if (!$mensagem || $mensagem->resposta !== null)
+            {
+                TTransaction::close();
+                return null;
+            }
 
             if (!$agendamento || $agendamento->estado_agenda_id != EstadoAgenda::AGENDADO || strtotime((string) $agendamento->dt_inicial) < time())
             {
@@ -240,11 +245,12 @@ class ApchatRespostaService
 
             $quem = PessoaContatoService::formatarTelefone($p['destino']) . ' respondeu "' . self::semAssinatura($todas) . '"';
 
+            $templateResposta = 0;
             if ($tipo === self::SIM)
             {
                 AgendamentoService::respostaDoCliente($agendamento, (int) EstadoAgenda::CONFIRMADO, EstadoAgendamento::EVENTO_CONFIRMADO_WHATSAPP, $quem);
                 $mensagem->resposta_obs = 'Agendamento confirmado pelo cliente (WhatsApp).';
-                self::responder($agendamento, $mensagem, (int) $p['template_confirmado_id']);
+                $templateResposta = (int) $p['template_confirmado_id'];
             }
             elseif ($tipo === self::NAO)
             {
@@ -256,7 +262,7 @@ class ApchatRespostaService
                 {
                     AgendamentoService::respostaDoCliente($agendamento, (int) EstadoAgenda::CANCELADO, EstadoAgendamento::EVENTO_CANCELADO_WHATSAPP, $quem);
                     $mensagem->resposta_obs = 'Agendamento cancelado pelo cliente (WhatsApp).';
-                    self::responder($agendamento, $mensagem, (int) $p['template_cancelado_id']);
+                    $templateResposta = (int) $p['template_cancelado_id'];
                 }
             }
             else
@@ -267,7 +273,7 @@ class ApchatRespostaService
             $mensagem->store();
             TTransaction::close();
 
-            return $tipo;
+            return $templateResposta ? self::responder((int) $agendamento->id, (int) $mensagem->id, $templateResposta, $tipo) : $tipo;
         }
         catch (Throwable $e)
         {
@@ -296,17 +302,45 @@ class ApchatRespostaService
         return trim((string) ($resposta['body'] ?? '')) ?: ('(' . ($resposta['mediaType'] ?? 'sem texto') . ')');
     }
 
-    /** Mensagem automatica do fluxo (sem template, ou desabilitado, so muda o agendamento). */
-    private static function responder(Agendamento $agendamento, Mensagem $confirmacao, int $templateId): void
+    /** O envio pode falhar depois de o cliente ter confirmado ou cancelado. A decisao ja esta gravada. */
+    private static function responder(int $agendamentoId, int $confirmacaoId, int $templateId, string $tipo): string
     {
-        $template = $templateId ? TemplateEscritorio::find($templateId) : null;
-
-        // o cliente que tirou a autorizacao depois da confirmacao: a resposta dele vale, mas nada mais e enviado
-        if (!$template || $template->habilitado != 'T' || !MensagemService::autorizado($agendamento))
+        try
         {
-            return;
+            TTransaction::open(self::$database);
+            $agendamento = Agendamento::find($agendamentoId);
+            $confirmacao = Mensagem::find($confirmacaoId);
+            if ($agendamento && $confirmacao && MensagemService::autorizado($agendamento))
+            {
+                $template = TemplateEscritorio::find($templateId);
+                $categoria = $tipo === self::SIM ? TemplateEscritorio::CONFIRMADO : TemplateEscritorio::CANCELAMENTO;
+                if (!$template || $template->habilitado !== 'T' || $template->tipo_template !== TemplateEscritorio::WHATSAPP
+                    || $template->categoria !== $categoria || (int) $template->escritorio_id !== (int) $agendamento->agenda->escritorio_id)
+                {
+                    throw new Exception('Template de resposta indisponível.');
+                }
+                MensagemService::enviarWhatsapp($agendamento, $template->titulo, (string) $template->template, $template->id, (string) $confirmacao->destino);
+            }
+            TTransaction::close();
+            return $tipo;
+        }
+        catch (Throwable $e)
+        {
+            TTransaction::rollback();
         }
 
-        MensagemService::enviarWhatsapp($agendamento, $template->titulo, (string) $template->template, $template->id, (string) $confirmacao->destino);
+        $aviso = 'Não foi possível enviar a resposta automática do WhatsApp.';
+        try
+        {
+            TTransaction::open(self::$database);
+            $st = TTransaction::get()->prepare("UPDATE mensagem SET resposta_obs = concat_ws(' ', resposta_obs, CAST(? AS text)) WHERE id = ?");
+            $st->execute([$aviso, $confirmacaoId]);
+            TTransaction::close();
+        }
+        catch (Throwable $e)
+        {
+            TTransaction::rollback();
+        }
+        return $tipo . ': ' . $aviso;
     }
 }

@@ -47,6 +47,11 @@ class TemplateRespostaService
     /** Confirmacao por WhatsApp: exige as duas respostas e os dois templates. Qualquer outro template: nada disso fica gravado. */
     public static function validar(TemplateEscritorio $template): void
     {
+        if ($template->tipo_template === TemplateEscritorio::WHATSAPP && trim((string) $template->template) === '')
+        {
+            throw new Exception('Escreva a mensagem do template de WhatsApp.');
+        }
+
         if (!self::ehConfirmacaoWhatsapp($template))
         {
             $template->respostas_confirmar = null;
@@ -92,6 +97,10 @@ class TemplateRespostaService
                 || $enviado->tipo_template !== TemplateEscritorio::WHATSAPP || $enviado->categoria !== $ramo['categoria'] || $enviado->habilitado !== 'T')
             {
                 throw new Exception("O template enviado depois da resposta \"{$resposta}\" tem de ser de WhatsApp, habilitado e da categoria " . TemplateEscritorio::CATEGORIAS[$ramo['categoria']] . '.');
+            }
+            if (trim((string) $enviado->template) === '')
+            {
+                throw new Exception("O template enviado depois da resposta \"{$resposta}\" precisa ter uma mensagem.");
             }
         }
     }

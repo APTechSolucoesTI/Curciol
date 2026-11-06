@@ -295,16 +295,16 @@ class TemplateEscritorioForm extends TPage
             $object->template_confirmado_id = $data->template_confirmado_id ?: null;
             $object->template_cancelado_id = $data->template_cancelado_id ?: null;
 
+            if ($object->tipo_template == TemplateEscritorio::WHATSAPP)
+            {
+                $object->template = $data->template_whatsapp;
+            }
+
             TemplateRespostaService::validar($object);
 
             if ($gravado)
             {
                 TemplateRespostaService::exigirLivreParaMudar($gravado, $object);
-            }
-
-            if ($object->tipo_template == TemplateEscritorio::WHATSAPP)
-            {
-                $object->template = $data->template_whatsapp;
             }
 
             if ($object->tipo_template == TemplateEscritorio::EMAIL && empty($object->titulo))
