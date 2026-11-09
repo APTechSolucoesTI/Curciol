@@ -9,6 +9,7 @@ class TemplateEscritorioForm extends TPage
     private static $primaryKey = 'id';
     private static $formName = 'form_TemplateClinicaForm';
     private $usadoEm;
+    private $assinaturaAtual;
 
     use BuilderMasterDetailFieldListTrait;
 
@@ -139,7 +140,7 @@ class TemplateEscritorioForm extends TPage
         $row2 = $bcontainer_62e034c1eb8f6->addFields([new TLabel("<b>{\$id}</b> Código do agendamento", null, '14px', null, '100%'),new TLabel("<b>{\$endereco_escritorio}</b> Endereço do escritório", null, '14px', null, '100%'),new TLabel("<b>{\$escritorio}</b> Nome do escritório", null, '14px', null, '100%'),new TLabel("<b>{\$estado}</b> Estado atual do agendamento", null, '14px', null, '100%')],[new TLabel("<b>{\$profissional}</b> Nome do profissional", null, '14px', null, '100%'),new TLabel("<b>{\$data_inicial}</b> Data do agendamento", null, '14px', null, '100%'),new TLabel("<b>{\$cliente}</b> Nome do cliente", null, '14px', null, '100%'),new TLabel("<b>{\$profissional_foto}</b> Foto do profissional", null, '14px', null, '100%')],[new TLabel("<b>{\$link_detalhe}</b> Link de detalhe do agendamento ", null, '14px', null),new TLabel("<b>{\$link_cancelamento}</b> Link para cancelar agendamento ", null, '14px', null, '100%'),new TLabel("<b>{\$link_confirmacao}</b> Link para confirmar agendamento ", null, '14px', null, '100%')]);
         $row2->layout = [' col-sm-4',' col-sm-4',' col-sm-4'];
 
-        $row3 = $bcontainer_62e034c1eb8f6->addFields([new TLabel("<b>{\$telefone_escritorio}</b> Telefone do escritório", null, '14px', null, '100%'),new TLabel("<b>{\$email_escritorio}</b> E-mail do escritório", null, '14px', null, '100%')],[new TLabel("<b>{\$observacao}</b> Observação", null, '14px', null, '100%')],[]);
+        $row3 = $bcontainer_62e034c1eb8f6->addFields([new TLabel("<b>{\$telefone_escritorio}</b> Telefone do escritório", null, '14px', null, '100%'),new TLabel("<b>{\$email_escritorio}</b> E-mail do escritório", null, '14px', null, '100%')],[new TLabel("<b>{\$observacao}</b> Observação", null, '14px', null, '100%')],[new TLabel("<b>{\$botoes}</b> Botões de confirmar e cancelar (confirmação por e-mail)", null, '14px', null, '100%')]);
         $row3->layout = [' col-sm-4',' col-sm-4',' col-sm-4'];
 
         $row4 = $this->form->addFields([$bcontainer_62e034c1eb8f6]);
@@ -153,6 +154,8 @@ class TemplateEscritorioForm extends TPage
 
         $row7 = $this->form->addFields([new TLabel("Template:", null, '14px', null, '100%'),$template_whatsapp]);
         $row7->layout = ['col-sm-12'];
+
+        $this->montarExtrasDoEmail();
 
         // confirmacao por WhatsApp: as duas respostas e o template de cada uma (o e-mail continua so com os links da mensagem)
         $respostas_confirmar = new TEntry('respostas_confirmar');
@@ -295,6 +298,10 @@ class TemplateEscritorioForm extends TPage
             $object->template_confirmado_id = $data->template_confirmado_id ?: null;
             $object->template_cancelado_id = $data->template_cancelado_id ?: null;
 
+            // assinatura (09/11/2026): sem escolha vale a padrao do escritorio; a assinatura "Outra" gravada continua
+            $object->assinatura_modo = $object->assinatura_modo ?: TemplateEscritorio::ASSINATURA_PADRAO;
+            $object->assinatura_id = $gravado ? $gravado->assinatura_id : null;
+
             if ($object->tipo_template == TemplateEscritorio::WHATSAPP)
             {
                 $object->template = $data->template_whatsapp;
@@ -312,7 +319,17 @@ class TemplateEscritorioForm extends TPage
                 throw new Exception("Título é obrigátorio para envio de e-mail");
             }
 
-            $object->store(); // save the object 
+            $object->store(); // save the object
+
+            // e-mail (09/11/2026): assinatura, anexos e botoes; TCheckGroup todo desmarcado nao posta nada
+            $extras = (array) $param;
+            if (!empty($extras['anexos_manter_enviado']) && !isset($extras['anexos_manter']))
+            {
+                $extras['anexos_manter'] = [];
+            }
+            TemplateEmailService::salvarExtras($object, $extras);
+            $data->assinatura_arquivo = '';
+            $data->anexos_novos = [];
 
             $loadPageParam = [];
 
@@ -385,6 +402,7 @@ class TemplateEscritorioForm extends TPage
                 }
 
                 $this->mostrarUsadoEm(TemplateRespostaService::usadoEm($object));
+                $this->carregarExtrasDoEmail($object);
 
                                 $object->criacao_user_name = $object->criacao_user->name;
                 $object->modificacao_user_name = $object->modificacao_user->name;
@@ -438,6 +456,147 @@ class TemplateEscritorioForm extends TPage
 
         TScript::create("$('[name=template_whatsapp]').closest('.tformrow').hide();");
         TScript::create("$('[name=fieldList_acoes]').closest('.tformrow').hide().prev().hide();");
+    }
+
+    /**
+     * E-mail (09/11/2026): botoes do cliente (so Confirmacao), assinatura (padrao do escritorio, outra ou nenhuma), anexos e
+     * a previa que se atualiza enquanto o usuario edita.
+     */
+    private function montarExtrasDoEmail(): void
+    {
+        // ---------- botoes do cliente (confirmacao por e-mail) ----------
+        $tituloBotoes = new TElement('div');
+        $tituloBotoes->id = 'botoes_titulo';
+        $tituloBotoes->style = 'border-top:1px solid #ddd;padding-top:10px;';
+        $tituloBotoes->add('<b style="font-size:15px">Botões do cliente</b><br>Entram sozinhos logo abaixo do texto (ou onde estiver {$botoes}) e abrem os links de sempre para confirmar ou cancelar.');
+        $this->form->addFields([$tituloBotoes])->layout = ['col-sm-12'];
+
+        $confirmarTexto = new TEntry('botao_confirmar_texto');
+        $confirmarCor = new TColor('botao_confirmar_cor');
+        $cancelarTexto = new TEntry('botao_cancelar_texto');
+        $cancelarCor = new TColor('botao_cancelar_cor');
+        foreach ([$confirmarTexto, $confirmarCor, $cancelarTexto, $cancelarCor] as $campo) { $campo->setSize('100%'); }
+        $confirmarTexto->setMaxLength(60);
+        $cancelarTexto->setMaxLength(60);
+        $confirmarTexto->setValue(EmailMontagemService::CONFIRMAR_TEXTO);
+        $confirmarCor->setValue(EmailMontagemService::CONFIRMAR_COR);
+        $cancelarTexto->setValue(EmailMontagemService::CANCELAR_TEXTO);
+        $cancelarCor->setValue(EmailMontagemService::CANCELAR_COR);
+
+        $row = $this->form->addFields([new TLabel('Texto do botão que confirma:', null, '14px', null, '100%'), $confirmarTexto], [new TLabel('Cor:', null, '14px', null, '100%'), $confirmarCor],
+                                      [new TLabel('Texto do botão que cancela:', null, '14px', null, '100%'), $cancelarTexto], [new TLabel('Cor:', null, '14px', null, '100%'), $cancelarCor]);
+        $row->layout = ['col-sm-4', 'col-sm-2', 'col-sm-4', 'col-sm-2'];
+
+        // ---------- assinatura ----------
+        $modo = new TRadioGroup('assinatura_modo');
+        $modo->addItems([TemplateEscritorio::ASSINATURA_PADRAO => 'Padrão do escritório', TemplateEscritorio::ASSINATURA_OUTRA => 'Outra', TemplateEscritorio::ASSINATURA_NENHUMA => 'Sem assinatura']);
+        $modo->setLayout('horizontal');
+        $modo->setUseButton();
+        $modo->setValue(TemplateEscritorio::ASSINATURA_PADRAO);
+
+        $arquivo = new TFile('assinatura_arquivo');
+        $arquivo->setAllowedExtensions(['png', 'jpg', 'jpeg', 'gif', 'html', 'htm', 'zip']);
+        $arquivo->setSize('100%');
+        $this->assinaturaAtual = new TElement('div');
+        $this->assinaturaAtual->id = 'assinatura_atual';
+        $this->assinaturaAtual->style = 'font-size:12px;color:#555;margin-top:4px;';
+
+        $row = $this->form->addFields([new TLabel('Assinatura:', null, '14px', null, '100%'), $modo],
+                                      [new TLabel('Arquivo da assinatura (PNG, JPG, GIF, HTML ou o ZIP da assinatura do Outlook):', null, '14px', null, '100%'), $arquivo, $this->assinaturaAtual]);
+        $row->layout = ['col-sm-5', 'col-sm-7'];
+
+        // ---------- anexos ----------
+        $manter = new TCheckGroup('anexos_manter');
+        $manter->setLayout('vertical');
+        $enviado = new THidden('anexos_manter_enviado');
+        $enviado->setValue('1');
+        $novos = new TMultiFile('anexos_novos');
+        $novos->setAllowedExtensions(EmailAnexoService::EXTENSOES);
+        $novos->setSize('100%');
+
+        $row = $this->form->addFields([new TLabel('Anexos do template (desmarque para tirar):', null, '14px', null, '100%'), $manter, $enviado],
+                                      [new TLabel('Acrescentar anexos (PDF, Word, Excel, imagem, TXT ou ZIP; até 10 MB cada, 20 MB no total):', null, '14px', null, '100%'), $novos]);
+        $row->layout = ['col-sm-6', 'col-sm-6'];
+
+        // ---------- previa ----------
+        $botaoPrevia = new TButton('btn_previa');
+        $botaoPrevia->class = 'btn btn-sm btn-default';
+        $botaoPrevia->setLabel('Atualizar prévia');
+        $botaoPrevia->setImage('fas:eye #2196F3');
+        $botaoPrevia->onClick = 'window.curciolPreviaTemplate(); return false;';
+
+        $previa = new TElement('div');
+        $previa->id = 'template_previa';
+        $previa->style = 'margin-top:8px;background:#f4f4f4;border-radius:6px;padding:10px;';
+
+        $this->form->addFields([new TLabel('Prévia do e-mail (como o cliente vê):', null, '14px', null, '100%'), $botaoPrevia, $previa])->layout = ['col-sm-12'];
+
+        // sempre pelo form: os filtros da listagem, atras da cortina, tem os mesmos nomes de campo
+        $form = 'form[name=' . self::$formName . ']';
+        TScript::create("
+            window.curciolExtrasEmail = function () {
+                var f = $('{$form}');
+                var email = f.find('[name=tipo_template]').val() === '" . TemplateEscritorio::EMAIL . "';
+                var confirmacao = email && f.find('[name=categoria]').val() === '" . TemplateEscritorio::CONFIRMACAO . "';
+                f.find('#botoes_titulo, [name=botao_confirmar_texto]').closest('.tformrow').toggle(confirmacao);
+                f.find('[name=assinatura_modo], [name^=anexos_novos], #template_previa').closest('.tformrow').toggle(email);
+                var outra = f.find('[name=assinatura_modo]:checked').val() === '" . TemplateEscritorio::ASSINATURA_OUTRA . "';
+                f.find('[name=assinatura_arquivo]').closest('div[class*=col-sm]').toggle(email && outra);
+            };
+            window.curciolPreviaTemplate = function () {
+                var f = $('{$form}');
+                var t = f.find('textarea[name=template]');
+                if (t.length && t.next('.note-editor').length) { t.val(t.summernote('code')); }
+                if (f.find('[name=tipo_template]').val() !== '" . TemplateEscritorio::EMAIL . "') { f.find('#template_previa').empty(); return; }
+                $.post('engine.php?class=TemplateEscritorioForm&method=onPrevia&static=1', f.serialize(), function (r) { f.find('#template_previa').html(r); });
+            };
+            window.curciolPreviaDepois = function () {
+                clearTimeout(window.curciolPreviaTempo);
+                window.curciolPreviaTempo = setTimeout(window.curciolPreviaTemplate, 800);
+            };
+            $(document).off('.curciolExtras')
+                .on('change.curciolExtras', '{$form} [name=categoria], {$form} [name=tipo_template], {$form} [name=assinatura_modo]', window.curciolExtrasEmail)
+                .on('change.curciolExtras input.curciolExtras', '{$form} input, {$form} select, {$form} textarea', window.curciolPreviaDepois)
+                .on('summernote.change.curciolExtras', '{$form} textarea[name=template]', window.curciolPreviaDepois);
+            $(function () { window.curciolExtrasEmail(); window.curciolPreviaDepois(); });
+        ");
+    }
+
+    /** onEdit: anexos do template (marcados) e a assinatura "Outra" atual. */
+    private function carregarExtrasDoEmail(TemplateEscritorio $template): void
+    {
+        $itens = [];
+        foreach (TemplateEmailService::anexosDoTemplate((int) $template->id) as $id)
+        {
+            $anexo = EmailAnexo::find($id);
+            if ($anexo)
+            {
+                $itens[$id] = htmlspecialchars((string) $anexo->nome_original, ENT_QUOTES, 'UTF-8') . ' (' . EmailAnexoService::tamanhoLegivel((int) $anexo->tamanho) . ')';
+            }
+        }
+        $this->form->getField('anexos_manter')->addItems($itens);
+        $template->anexos_manter = array_keys($itens);
+
+        if ($template->assinatura_modo === TemplateEscritorio::ASSINATURA_OUTRA && $template->assinatura_id && ($assinatura = EmailAssinatura::find((int) $template->assinatura_id)))
+        {
+            $this->assinaturaAtual->add('Atual: <b>' . htmlspecialchars((string) $assinatura->nome_original, ENT_QUOTES, 'UTF-8') . '</b>. Escolha outro arquivo só se quiser trocar.');
+        }
+    }
+
+    /** Previa do e-mail com os dados do formulario (chamada pelo script da tela; devolve so o HTML). */
+    public static function onPrevia($param = null)
+    {
+        try
+        {
+            TTransaction::open(self::$database);
+            echo TemplateEmailService::previa((array) $param);
+            TTransaction::close();
+        }
+        catch (Exception $e)
+        {
+            TTransaction::rollback();
+            echo '<div class="alert alert-danger" style="margin:0">' . htmlspecialchars($e->getMessage(), ENT_QUOTES, 'UTF-8') . '</div>';
+        }
     }
 
     /** Linhas dizendo de que confirmacao este template e a resposta (HTML ja escapado). */
