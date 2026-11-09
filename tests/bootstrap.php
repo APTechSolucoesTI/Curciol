@@ -12,6 +12,8 @@ ApchatBancoService::desligar();
 // Evita que salvar um cadastro de teste sincronize contatos na integracao real.
 APChatContactService::usarTransporte(function () { throw new LogicException('Teste sem transporte falso de contatos.'); });
 ApchatApiService::usarTransporte(function () { throw new LogicException('Teste sem transporte falso de mensagens.'); });
+// e-mail tambem (09/11/2026): a homologacao envia e-mail do escritorio; teste nunca abre SMTP sem o falso dele
+EmailClient::usarTransporte(function () { throw new LogicException('Teste sem transporte falso de e-mail.'); });
 
 $GLOBALS['__falhas'] = 0;
 

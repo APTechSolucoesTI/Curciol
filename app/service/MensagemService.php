@@ -423,7 +423,8 @@ class MensagemService
     /**
      * E-mail pelo SMTP do escritorio (um so para o escritorio todo). $titulo e $texto ainda com as variaveis.
      */
-    public static function enviarEmail(Agendamento $agendamento, ?string $titulo, string $texto, $template_escritorio_id, ?string $digitado): Mensagem
+    public static function enviarEmail(Agendamento $agendamento, ?string $titulo, string $texto, $template_escritorio_id, ?string $digitado,
+                                       ?int $assinatura_id = null, array $anexo_ids = []): Mensagem
     {
         self::exigirAutorizacao($agendamento);
 
@@ -441,10 +442,25 @@ class MensagemService
         }
                 
         $config = self::emailConfig($agendamento);
-        $mensagem = self::registrar($agendamento, TemplateEscritorio::EMAIL, $titulo, $texto, $template_escritorio_id, $email);
-                
-        (new EmailClient($config))->send($email, $titulo, $texto);
-        
+
+        // assinatura hospedada e anexos (09/11/2026): o texto ja vem com os botoes; a assinatura entra no fim com o
+        // endereco do sistema (a imagem precisa ser publica para aparecer no e-mail)
+        $anexo_ids = array_values(array_unique(array_filter(array_map('intval', $anexo_ids))));
+        EmailAnexoService::validarTotal($anexo_ids);
+        $assinatura = $assinatura_id ? EmailAssinatura::find((int) $assinatura_id) : null;
+        $base = rtrim(trim((string) $agendamento->agenda->escritorio->url_sistema), '/');
+
+        if ($assinatura && $base === '')
+        {
+            throw new Exception('Informe a URL do sistema no cadastro do escritório (Configurações) para enviar a assinatura.');
+        }
+
+        $anexosDoEnvio = EmailAnexoService::paraEnvio($anexo_ids);
+        $mensagem = self::registrar($agendamento, TemplateEscritorio::EMAIL, $titulo, $texto, $template_escritorio_id, $email,
+                                    $assinatura ? (int) $assinatura->id : null, $anexo_ids);
+
+        (new EmailClient($config))->send($email, $titulo, EmailMontagemService::corpo($texto, $assinatura, $base), 'html', $anexosDoEnvio);
+
         return $mensagem;
     }
     
@@ -462,7 +478,8 @@ class MensagemService
         return $config;
     }
         
-    private static function registrar(Agendamento $agendamento, string $tipo, ?string $titulo, string $texto, $template_escritorio_id, string $destino): Mensagem
+    private static function registrar(Agendamento $agendamento, string $tipo, ?string $titulo, string $texto, $template_escritorio_id, string $destino,
+                                      ?int $assinatura_id = null, array $anexo_ids = []): Mensagem
     {
         $mensagem = new Mensagem();
         $mensagem->agendamento_id = $agendamento->id;
@@ -472,8 +489,17 @@ class MensagemService
         $mensagem->tipo_mensagem = $tipo;
         $mensagem->template = $texto;
         $mensagem->destino = $destino;
+        $mensagem->assinatura_id = $assinatura_id;
         $mensagem->store();
-        
+
+        foreach ($anexo_ids as $anexo_id)
+        {
+            $ligacao = new MensagemAnexo();
+            $ligacao->mensagem_id = $mensagem->id;
+            $ligacao->email_anexo_id = (int) $anexo_id;
+            $ligacao->store();
+        }
+
         return $mensagem;
     }
 }

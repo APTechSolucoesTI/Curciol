@@ -12,7 +12,8 @@ class MensagemAgendadaService
     const TENTATIVAS = 5;
 
     /** Grava o lembrete. $quando no formato da tela (dd/mm/aaaa hh:mm). Usa a transacao aberta. */
-    public static function agendar(Agendamento $agendamento, string $tipo, ?string $titulo, string $texto, ?int $templateId, string $destino, string $quando): MensagemAgendada
+    public static function agendar(Agendamento $agendamento, string $tipo, ?string $titulo, string $texto, ?int $templateId, string $destino, string $quando,
+                                   ?int $assinaturaId = null, array $anexoIds = []): MensagemAgendada
     {
         if ((int) $agendamento->estado_agenda_id !== (int) EstadoAgenda::CONFIRMADO)
         {
@@ -65,7 +66,23 @@ class MensagemAgendadaService
         $lembrete->enviar_em = $enviarEm;
         $lembrete->situacao = MensagemAgendada::PENDENTE;
         $lembrete->tentativas = 0;
+
+        // e-mail (09/11/2026): a assinatura e os anexos escolhidos agora valem no envio, mesmo se mudarem depois
+        $anexoIds = $ehEmail ? array_values(array_unique(array_filter(array_map('intval', $anexoIds)))) : [];
+        if ($ehEmail)
+        {
+            EmailAnexoService::validarTotal($anexoIds);
+        }
+        $lembrete->assinatura_id = $ehEmail && $assinaturaId ? $assinaturaId : null;
         $lembrete->store();
+
+        foreach ($anexoIds as $anexoId)
+        {
+            $ligacao = new MensagemAgendadaAnexo();
+            $ligacao->mensagem_agendada_id = $lembrete->id;
+            $ligacao->email_anexo_id = $anexoId;
+            $ligacao->store();
+        }
 
         self::historico((int) $agendamento->id, EstadoAgendamento::EVENTO_LEMBRETE_AGENDADO,
                         'Envio em ' . date('d/m/Y H:i', strtotime($enviarEm)) . ' - ' . self::descricaoDoDestino($lembrete->tipo_mensagem, $destino), (int) TSession::getValue('userid'));
@@ -259,7 +276,9 @@ class MensagemAgendadaService
             TSession::setValue('userid', (int) $lembrete->system_user_id);
 
             $mensagem = $lembrete->tipo_mensagem === TemplateEscritorio::EMAIL
-                ? MensagemService::enviarEmail($agendamento, $lembrete->titulo, (string) $lembrete->texto, $lembrete->template_escritorio_id, $lembrete->destino)
+                ? MensagemService::enviarEmail($agendamento, $lembrete->titulo, (string) $lembrete->texto, $lembrete->template_escritorio_id, $lembrete->destino,
+                                               $lembrete->assinatura_id ? (int) $lembrete->assinatura_id : null,
+                                               array_map(function ($a) { return (int) $a->email_anexo_id; }, MensagemAgendadaAnexo::where('mensagem_agendada_id', '=', (int) $lembrete->id)->orderBy('id')->load() ?: []))
                 : MensagemService::enviarWhatsapp($agendamento, $lembrete->titulo, (string) $lembrete->texto, $lembrete->template_escritorio_id, $lembrete->destino);
 
             $mensagem->system_user_id = $lembrete->system_user_id;
