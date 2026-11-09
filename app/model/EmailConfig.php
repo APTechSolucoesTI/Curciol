@@ -22,6 +22,7 @@ class EmailConfig extends TRecord
         parent::addAttribute('from_email');
         parent::addAttribute('from_name');
         parent::addAttribute('smtp_auth');
+        parent::addAttribute('assinatura_id');
             
     }
 

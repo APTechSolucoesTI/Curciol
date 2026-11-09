@@ -28,5 +28,6 @@ class MensagemAgendada extends TRecord
         parent::addAttribute('motivo');
         parent::addAttribute('processado_em');
         parent::addAttribute('criado_em');
+        parent::addAttribute('assinatura_id');
     }
 }

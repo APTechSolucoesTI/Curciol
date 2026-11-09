@@ -1,0 +1,17 @@
+# Curciol (09/11/2026): imagens das assinaturas de e-mail, publicas (os e-mails apontam para ca).
+# So JPG, PNG e GIF; sem listagem e sem execucao de script. Arquivos nunca sao sobrescritos nem apagados.
+Options -Indexes
+RemoveHandler .php .phtml .php3 .php4 .php5 .php7 .php8 .phar
+RemoveType .php .phtml .php3 .php4 .php5 .php7 .php8 .phar
+<IfModule mod_php.c>
+    php_flag engine off
+</IfModule>
+<FilesMatch ".">
+    Require all denied
+</FilesMatch>
+<FilesMatch "^[0-9a-f]{40}\.(png|jpe?g|gif)$">
+    Require all granted
+    <IfModule mod_headers.c>
+        Header set X-Content-Type-Options "nosniff"
+    </IfModule>
+</FilesMatch>

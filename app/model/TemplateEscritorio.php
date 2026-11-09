@@ -22,6 +22,11 @@ class TemplateEscritorio extends TRecord
     const LEMBRETE = 'LEMBRETE';
     const OUTROS = 'OUTROS';
 
+    // assinatura do e-mail (09/11/2026): a padrao do escritorio, outra so do template ou nenhuma
+    const ASSINATURA_PADRAO  = 'PADRAO';
+    const ASSINATURA_OUTRA   = 'OUTRA';
+    const ASSINATURA_NENHUMA = 'NENHUMA';
+
     const CATEGORIAS = [
         self::CONFIRMACAO  => 'Confirmação',
         self::CONFIRMADO   => 'Agendamento confirmado',
@@ -55,6 +60,12 @@ class TemplateEscritorio extends TRecord
         parent::addAttribute('criacao_user_id');
         parent::addAttribute('data_modificacao');
         parent::addAttribute('modificacao_user_id');
+        parent::addAttribute('assinatura_modo');
+        parent::addAttribute('assinatura_id');
+        parent::addAttribute('botao_confirmar_texto');
+        parent::addAttribute('botao_confirmar_cor');
+        parent::addAttribute('botao_cancelar_texto');
+        parent::addAttribute('botao_cancelar_cor');
     
     }
 

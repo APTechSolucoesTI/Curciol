@@ -32,6 +32,7 @@ class Mensagem extends TRecord
         parent::addAttribute('resposta_texto');
         parent::addAttribute('respondido_em');
         parent::addAttribute('resposta_obs');
+        parent::addAttribute('assinatura_id');
     
     }
 
