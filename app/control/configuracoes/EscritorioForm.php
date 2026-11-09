@@ -8,6 +8,7 @@ class EscritorioForm extends TPage
     private static $activeRecord = 'Escritorio';
     private static $primaryKey = 'id';
     private static $formName = 'form_Escritorio';
+    private $assinaturaPrevia;
 
     use Adianti\Base\AdiantiFileSaveTrait;
     use BuilderMasterDetailFieldListTrait;
@@ -226,6 +227,25 @@ class EscritorioForm extends TPage
 
         $row14 = $mail_container->addFields([new TLabel("E-mail origem", null, '14px', null),$from_email],[new TLabel("Nome origem", null, '14px', null),$from_name],[new TLabel("Porta:", null, '14px', null),$port],[new TLabel(" ", null, '14px', null, '100%'),$button_testar1]);
         $row14->layout = [' col-sm-3',' col-sm-3','col-sm-3',' col-sm-3'];
+
+        // assinatura padrao dos e-mails (09/11/2026): a Curciol hospeda as imagens; os templates escolhem usar ou nao
+        $assinatura_arquivo = new TFile('assinatura_arquivo');
+        $assinatura_arquivo->setAllowedExtensions(['png', 'jpg', 'jpeg', 'gif', 'html', 'htm', 'zip']);
+        $assinatura_arquivo->setSize('100%');
+        $assinatura_remover = new TCheckButton('assinatura_remover');
+        $assinatura_remover->setIndexValue('S');
+        $assinatura_remover->setUseSwitch(true, 'red');
+        $this->assinaturaPrevia = new TElement('div');
+        $this->assinaturaPrevia->id = 'assinatura_previa';
+        $this->assinaturaPrevia->style = 'border:1px solid #ddd;border-radius:6px;padding:10px;background:#fff;min-height:40px;max-height:260px;overflow:auto;';
+        $this->assinaturaPrevia->add(self::previaAssinatura(null));
+
+        $row14b = $mail_container->addFields(
+            [new TLabel("Assinatura padrão dos e-mails:", null, '14px', null, '100%'), $assinatura_arquivo,
+             new TLabel("<small>Imagem (PNG, JPG, GIF), HTML ou o ZIP da assinatura do Outlook. A Curciol hospeda as imagens.</small>", '#777', '12px', null, '100%')],
+            [new TLabel("Remover assinatura:", null, '14px', null, '100%'), $assinatura_remover],
+            [new TLabel("Assinatura atual:", null, '14px', null, '100%'), $this->assinaturaPrevia]);
+        $row14b->layout = [' col-sm-4', ' col-sm-2', ' col-sm-6'];
 
         $row15 = $this->form->addFields([$mail_container]);
         $row15->layout = [' col-sm-12'];
@@ -473,6 +493,11 @@ class EscritorioForm extends TPage
 
             $data->email_config_id = $emailConfig->id;
 
+            // assinatura padrao dos e-mails (09/11/2026): erro desfaz o cadastro inteiro (mesma transacao)
+            self::salvarAssinatura($emailConfig, (array) $param);
+            $data->assinatura_arquivo = '';
+            $data->assinatura_remover = null;
+
             $this->saveFile($object, $data, 'logo_documento', $logo_documento_dir);
             $loadPageParam = [];
 
@@ -513,6 +538,38 @@ class EscritorioForm extends TPage
         }
     }
 
+    /**
+     * Assinatura padrao dos e-mails (09/11/2026): "Remover" zera; arquivo novo vira assinatura nova (a antiga continua para
+     * os e-mails ja enviados); sem nada, mantem. Usa a transacao aberta; erro de arquivo lanca excecao.
+     */
+    public static function salvarAssinatura(EmailConfig $config, array $param): void
+    {
+        if (!empty($param['assinatura_remover']))
+        {
+            $config->assinatura_id = null;
+            $config->store();
+            return;
+        }
+
+        $arquivo = EmailUploadCampo::arquivo($param['assinatura_arquivo'] ?? null);
+
+        if ($arquivo)
+        {
+            $config->assinatura_id = (int) EmailAssinaturaService::criarDeArquivo($arquivo[0], $arquivo[1])->id;
+            $config->store();
+        }
+    }
+
+    /** Como a assinatura aparece no fim do e-mail (endereco relativo, funciona em qualquer ambiente). */
+    public static function previaAssinatura(?int $assinaturaId): string
+    {
+        $assinatura = $assinaturaId ? EmailAssinatura::find($assinaturaId) : null;
+
+        return $assinatura
+            ? EmailAssinaturaService::html($assinatura, '')
+            : '<span style="color:#999">O escritório ainda está sem assinatura: os e-mails saem sem.</span>';
+    }
+
     public function onEdit( $param )
     {
         try
@@ -542,6 +599,8 @@ class EscritorioForm extends TPage
                 {
                     $data = array_merge($data, $emailConfig->toArray());
                     $data['email_config_id'] = $emailConfig->id;
+                    $this->assinaturaPrevia->clearChildren();
+                    $this->assinaturaPrevia->add(self::previaAssinatura($emailConfig->assinatura_id ? (int) $emailConfig->assinatura_id : null));
                 }
 
                 $data['id'] = $id;
