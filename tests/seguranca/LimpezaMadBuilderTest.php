@@ -96,6 +96,42 @@ ok('application.ini sem auto-cadastro', preg_match('/^user_register\s*=\s*"0"/m'
 ok('application.ini sem paginas publicas de teste', strpos($ini, 'Teste471') === false && strpos($ini, '[user_public_pages]') === false);
 ok('application.ini sem a pagina de entrada de exemplo do app movel', strpos($ini, 'theme_mobile') === false);
 
+// ---------- permissoes (migracao 2026-11-09-limpeza-madbuilder-permissoes.sql) ----------
+// logs e monitor de usuarios: so o grupo Admin (APTECH INFO) e, por permissao direta, os socios (3 Kleber, 4 Danielle, 5 Jose Almir)
+TTransaction::open('permission');
+$c = TTransaction::get();
+$controllers = array_column($c->query('SELECT controller FROM system_program')->fetchAll(PDO::FETCH_ASSOC), 'controller');
+igual('sem cadastro de programa das telas removidas', [], array_values(array_intersect($controllers, $removidas)));
+foreach (['SystemAccessLogList', 'SystemChangeLogView', 'SystemUserMonitorHeaderList'] as $tela)
+{
+    $grupos = array_map('intval', array_column($c->query("SELECT gp.system_group_id FROM system_group_program gp JOIN system_program p ON p.id = gp.system_program_id WHERE p.controller = '{$tela}' ORDER BY 1")->fetchAll(PDO::FETCH_ASSOC), 'system_group_id'));
+    $usuarios = array_map('intval', array_column($c->query("SELECT up.system_user_id FROM system_user_program up JOIN system_program p ON p.id = up.system_program_id WHERE p.controller = '{$tela}' ORDER BY 1")->fetchAll(PDO::FETCH_ASSOC), 'system_user_id'));
+    igual("{$tela}: so o grupo Admin", [1], $grupos);
+    igual("{$tela}: permissao direta so dos socios", [3, 4, 5], $usuarios);
+}
+TTransaction::close();
+ok('menu com o monitor de usuarios', strpos((string) file_get_contents('menu.xml'), 'SystemUserMonitorHeaderList') !== false);
+// conectado = entrou nas ultimas 12 h e nao saiu (log de acesso; o Firebase do Mad Builder nunca foi configurado)
+$agora = strtotime('2026-11-09 15:00:00');
+$sit = UsuarioOnlineService::calcular([
+    ['login' => 'ana',   'login_time' => '2026-11-09 08:00:00', 'logout_time' => null],
+    ['login' => 'bia',   'login_time' => '2026-11-09 08:00:00', 'logout_time' => '2026-11-09 09:00:00'],
+    ['login' => 'caio',  'login_time' => '2026-11-08 20:00:00', 'logout_time' => ''],
+    ['login' => 'ana',   'login_time' => '2026-11-08 08:00:00', 'logout_time' => '2026-11-08 18:00:00'],
+], $agora);
+ok('online: entrou ha 7 h e nao saiu', $sit['ana']['online'] === true && $sit['ana']['ultimo'] === '2026-11-09 08:00:00', json_encode($sit));
+ok('online: saiu', $sit['bia']['online'] === false);
+ok('online: entrou ha mais de 12 h sem sair', $sit['caio']['online'] === false && $sit['caio']['ultimo'] === '2026-11-08 20:00:00');
+ok('monitor sem Firebase e sem desconectar a forca', strpos((string) file_get_contents('app/control/admin/SystemUserMonitorHeaderList.php'), 'BuilderFirebaseService') === false
+    && strpos((string) file_get_contents('app/control/admin/SystemUserMonitorHeaderList.php'), 'onDisconnect') === false);
+
+TSession::setValue('userid', 3);
+TSession::setValue('login', 'TESTE');
+ob_start();
+try { $f = new SystemUserMonitorHeaderList([]); $f->onReload([]); $f->show(); $erro = ''; } catch (Throwable $e) { $erro = $e->getMessage(); }
+$tela = ob_get_clean();
+ok('monitor de usuarios monta sem erro', $erro === '' && stripos($tela, 'fatal error') === false && stripos($tela, '__adianti_error') === false, $erro . substr($tela, 0, 300));
+
 // ---------- login sem 2 etapas, esqueci a senha, auto-cadastro e aviso de acesso ----------
 $login = (string) file_get_contents('app/control/admin/LoginForm.php');
 foreach (['two_factor', 'TwoFactor', 'SystemAccessNotificationLogService', 'SystemRequestPasswordResetForm', 'SystemRegistrationForm'] as $t)

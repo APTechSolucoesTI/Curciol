@@ -453,6 +453,10 @@
         <icon>fas:film fa-fw</icon>
         <action>SystemChangeLogView</action>
         </menuitem>
+        <menuitem label="Usuários on-line">
+        <icon>fas:users fa-fw</icon>
+        <action>SystemUserMonitorHeaderList</action>
+        </menuitem>
     </menu>
     </menuitem>
     <menuitem label="Preferências">

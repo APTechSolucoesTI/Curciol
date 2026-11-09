@@ -69,7 +69,7 @@ class SystemUserMonitorHeaderList extends TPage
         $column_email = new TDataGridColumn('email', "Email", 'left');
         $column_active = new TDataGridColumn('active', _t("Active"), 'center');
         $column_status = new TDataGridColumn('status', "Status", 'center');
-        $column_last_action = new TDataGridColumn('last_action', _t('Last action executed'), 'center');
+        $column_last_action = new TDataGridColumn('last_action', 'Último acesso', 'center');
 
         $order_id = new TAction(array($this, 'onReload'));
         $order_id->setParameter('order', 'id');
@@ -93,48 +93,19 @@ class SystemUserMonitorHeaderList extends TPage
             return $div;
         });
 
-        $firebaseUsers = BuilderFirebaseService::getUsers();
+        // Curciol (09/11/2026): conectado pelo log de acesso (UsuarioOnlineService); o Firebase do Mad Builder nunca foi configurado
+        $situacao = UsuarioOnlineService::situacao();
 
-        $column_status->setTransformer( function($value, $object, $row) use ($firebaseUsers) {
-            
-            if($object->id == TSession::getValue('userid'))
-            {
-                return '<label style="font-size:12px; font-weight:lighter" class="label label-success">Online </label>';
-            }
-            else if(!empty($firebaseUsers[$object->id]))
-            {
-                $user = $firebaseUsers[$object->id];
-                if($user['status'] == 'online')
-                {
-                    return '<label style="font-size:12px; font-weight:lighter" class="label label-success">Online </label>';
-                }
-            }  
-
-            return '<label style="font-size:12px; font-weight:lighter" class="label label-danger">Offline </label>';
+        $column_status->setTransformer( function($value, $object, $row) use ($situacao) {
+            $online = $object->id == TSession::getValue('userid') || !empty($situacao[$object->login]['online']);
+            return $online ? '<label style="font-size:12px; font-weight:lighter" class="label label-success">Conectado </label>'
+                           : '<label style="font-size:12px; font-weight:lighter" class="label label-danger">Desconectado </label>';
         });
 
-        $column_last_action->setTransformer( function($value, $object, $row) use ($firebaseUsers) {
-            
-            if(!empty($firebaseUsers[$object->id]))
-            {
-                $user = $firebaseUsers[$object->id];
-                if(!empty($user['last_action']))
-                {
-                    return str_replace(['engine.php?class='], [''], $user['last_action']);
-                }
-            }  
-
-            return '';
+        $column_last_action->setTransformer( function($value, $object, $row) use ($situacao) {
+            $ultimo = $situacao[$object->login]['ultimo'] ?? '';
+            return $ultimo !== '' ? date('d/m/Y H:i', strtotime($ultimo)) : '';
         });
-
-        $action_onDisconnect = new TDataGridAction(array('SystemUserMonitorHeaderList', 'onDisconnect'));
-        $action_onDisconnect->setUseButton(false);
-        $action_onDisconnect->setButtonClass('btn btn-default btn-sm');
-        $action_onDisconnect->setLabel(_t('Disconnect user'));
-        $action_onDisconnect->setImage('fas:plug #FF5722');
-        $action_onDisconnect->setField(self::$primaryKey);
-
-        $this->datagrid->addAction($action_onDisconnect);
 
         // create the datagrid model
         $this->datagrid->createModel();
@@ -219,18 +190,6 @@ class SystemUserMonitorHeaderList extends TPage
         $container->add($panel);
 
         parent::add($container);
-    }
-
-    public static function onDisconnect($param = null) 
-    {
-        try 
-        {
-            new TQuestion(_t('Disconnect user?'), new TAction([__CLASS__, 'onYesDisconnect'], $param), new TAction([__CLASS__, 'onNoDisconnect'], $param));            
-        }
-        catch (Exception $e) 
-        {
-            new TMessage('error', $e->getMessage());    
-        }
     }
 
     public function onRefresh($param = null) 
@@ -398,31 +357,6 @@ class SystemUserMonitorHeaderList extends TPage
             }
         }
         parent::show();
-    }
-
-    public static function onYesDisconnect($param = null) 
-    {
-        try 
-        {
-            BuilderFirebaseService::setUserAttribute($param['key'], 'command', 'force_logout');
-            self::manageRow($param['key']);
-        }
-        catch (Exception $e) 
-        {
-            new TMessage('error', $e->getMessage());    
-        }
-    }
-
-    public static function onNoDisconnect($param = null) 
-    {
-        try 
-        {
-            //code here
-        }
-        catch (Exception $e) 
-        {
-            new TMessage('error', $e->getMessage());    
-        }
     }
 
     public static function manageRow($id)
