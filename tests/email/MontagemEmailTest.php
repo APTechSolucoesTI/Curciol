@@ -81,4 +81,10 @@ finally
 
 ok('variavel {$botoes} na lista', array_key_exists('{$botoes}', MensagemService::variaveis()));
 
+// a lista de variaveis e a mesma do WhatsApp: la {$botoes} nao pode chegar ao cliente como texto
+TTransaction::open('escritorio');
+$agQualquer = Agendamento::find((int) TTransaction::get()->query('SELECT id FROM agendamento ORDER BY id LIMIT 1')->fetchColumn());
+igual('{$botoes} some no replace (WhatsApp)', 'Oi  tchau', TemplateEscritorio::replace($agQualquer, 'Oi {$botoes} tchau'));
+TTransaction::rollback();
+
 fim();

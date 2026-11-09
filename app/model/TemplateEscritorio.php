@@ -329,6 +329,8 @@ class TemplateEscritorio extends TRecord
     
         // sem link de reuniao (04/11/2026): template antigo com a variavel nao manda o texto cru
         $content = str_replace('{$link_atendimento_online}', '', $content);
+        // {$botoes} so vale no template de confirmacao por e-mail (EmailMontagemService::comBotoes, antes do replace): no resto, some
+        $content = str_replace('{$botoes}', '', $content);
     
         $content = str_replace('{$link_detalhe}', "{$agendamento->agenda->escritorio->url_sistema}/agendamento-{$agendamento->id}-{$token}", $content);
         $content = str_replace('{$link_cancelamento}', "{$agendamento->agenda->escritorio->url_sistema}/cancelar-agendamento-{$agendamento->id}-{$token}", $content);

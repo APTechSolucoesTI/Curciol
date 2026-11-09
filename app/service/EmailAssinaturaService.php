@@ -198,9 +198,10 @@ class EmailAssinaturaService
             $nome = strtolower($atributo->nodeName);
             $valor = strtolower(preg_replace('/\s+/', '', (string) $atributo->nodeValue));
 
+            // qualquer atributo (xlink:href do SVG, data-*, ...) com javascript:/vbscript: sai
             if (strpos($nome, 'on') === 0
-                || (in_array($nome, ['href', 'src', 'background', 'action', 'formaction'], true) && preg_match('/^(javascript|vbscript):/', $valor))
-                || ($nome === 'href' && strpos($valor, 'data:') === 0))
+                || preg_match('/^(javascript|vbscript):/', $valor)
+                || (substr($nome, -4) === 'href' && strpos($valor, 'data:') === 0))
             {
                 $atributo->ownerElement->removeAttributeNode($atributo);
             }

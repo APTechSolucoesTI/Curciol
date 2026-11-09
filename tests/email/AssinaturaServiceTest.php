@@ -57,6 +57,7 @@ try
           . '<img src="data:image/png;base64,' . PNG_1X1 . '" alt="logo">'
           . '<img src="https://exemplo.com/logo.png">'
           . '<a href="javascript:alert(1)">x</a><iframe src="https://mal.com"></iframe><form><input name="a"></form>'
+          . '<svg><a xlink:href="javascript:alert(2)"><text>y</text></a></svg><div data-url=" JaVaScRiPt:alert(3)">z</div>'
           . '</body></html>';
     $h = EmailAssinaturaService::criarDeArquivo($arquivo('assinatura.html', $html), 'assinatura.html');
     igual('HTML: tipo HTML', EmailAssinatura::HTML, $h->tipo);
