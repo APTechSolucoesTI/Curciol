@@ -153,6 +153,16 @@ class Mensagem extends TRecord
 
     public function get_template_formatado()
     {
+        // e-mail (09/11/2026): como o cliente recebeu, com a assinatura no fim e os anexos (que abrem pelo download.php)
+        if ($this->tipo_mensagem === TemplateEscritorio::EMAIL)
+        {
+            $assinatura = $this->assinatura_id ? EmailAssinatura::find((int) $this->assinatura_id) : null;
+            $anexos = array_map(function ($l) { return (int) $l->email_anexo_id; }, MensagemAnexo::where('mensagem_id', '=', (int) $this->id)->orderBy('id')->load() ?: []);
+
+            return EmailMontagemService::previa((string) $this->titulo, EmailMontagemService::corpo((string) $this->template, $assinatura, ''), $anexos,
+                                                function ($id) { return EmailAnexoService::linkDownload($id); });
+        }
+
         $result = '';
     
         if ($this->titulo)

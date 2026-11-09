@@ -141,6 +141,34 @@ class EnviarMensagemForm extends TPage
         $row = $this->form->addFields([$caixaVariaveis]);
         $row->layout = ['col-sm-12'];
 
+        // e-mail com Manual (09/11/2026): assinatura e anexos so deste envio (o template nao muda)
+        if ($ehEmail)
+        {
+            $assinaturaModo = new TCombo('assinatura_modo');
+            $assinaturaModo->setSize('100%');
+            $assinaturaModo->setDefaultOption(false);
+            $assinaturaModo->addItems(EnvioEmailService::opcoesAssinatura(null));
+            $assinaturaArquivo = new TFile('assinatura_arquivo');
+            $assinaturaArquivo->setAllowedExtensions(['png', 'jpg', 'jpeg', 'gif', 'html', 'htm', 'zip']);
+            $assinaturaArquivo->setSize('100%');
+
+            $row = $this->form->addFields([new TLabel('Assinatura:', null, '14px', null, '100%'), $assinaturaModo],
+                                          [new TLabel('Arquivo da assinatura (PNG, JPG, GIF, HTML ou o ZIP do Outlook):', null, '14px', null, '100%'), $assinaturaArquivo]);
+            $row->layout = ['col-sm-5', 'col-sm-7'];
+
+            $anexosTemplate = new TCheckGroup('anexos_template');
+            $anexosTemplate->setLayout('vertical');
+            $anexosEnviado = new THidden('anexos_template_enviado');
+            $anexosEnviado->setValue('1');
+            $anexosNovos = new TMultiFile('anexos_novos');
+            $anexosNovos->setAllowedExtensions(EmailAnexoService::EXTENSOES);
+            $anexosNovos->setSize('100%');
+
+            $row = $this->form->addFields([new TLabel('Anexos do template (desmarque para tirar):', null, '14px', null, '100%'), $anexosTemplate, $anexosEnviado],
+                                          [new TLabel('Acrescentar anexos (até 10 MB cada, 20 MB no total):', null, '14px', null, '100%'), $anexosNovos]);
+            $row->layout = ['col-sm-5', 'col-sm-7'];
+        }
+
         // ---------- lembrete: na hora ou agendado (so com o agendamento confirmado) ----------
         if (self::agendamentoConfirmado($param))
         {
@@ -167,7 +195,10 @@ class EnviarMensagemForm extends TPage
                 $('#mensagem_preview').closest('.tformrow').toggle(!m);
                 $('[name=content_whatsapp], [name=content_email], [name=titulo], [name=btn_visualizar]').closest('.tformrow').toggle(m);
                 $('#caixa_variaveis').toggle(m);
+                $('form[name=" . self::$formName . "] [name=assinatura_modo], form[name=" . self::$formName . "] [name=anexos_template_enviado]').closest('.tformrow').toggle(m);
+                $('form[name=" . self::$formName . "] [name=assinatura_arquivo]').closest('div[class*=col-sm]').toggle(m && $('form[name=" . self::$formName . "] [name=assinatura_modo]').val() === '" . EnvioEmailService::MODO_ARQUIVO . "');
             };
+            $(document).off('change.curciolAssinatura').on('change.curciolAssinatura', 'form[name=" . self::$formName . "] [name=assinatura_modo]', window.curciolManual);
             $(document).off('change.curciolManual').on('change.curciolManual', '[name=manual]', window.curciolManual);
             window.curciolAgendar = function () {
                 var a = $('[name=agendar]').is(':checked');
@@ -263,6 +294,17 @@ class EnviarMensagemForm extends TPage
                 $this->preview->add(self::previewHtml($agendamento, $padrao));
             }
 
+            if ($tipo === TemplateEscritorio::EMAIL)
+            {
+                $combo = $this->form->getField('assinatura_modo');
+                $combo->clear();
+                $combo->addItems(EnvioEmailService::opcoesAssinatura($padrao));
+                $data->assinatura_modo = EnvioEmailService::modoInicial($padrao);
+                $anexos = EnvioEmailService::anexosDoTemplate($padrao);
+                $this->form->getField('anexos_template')->addItems($anexos);
+                $data->anexos_template = array_keys($anexos);
+            }
+
             // sugestao: um dia antes do agendamento, se ainda der tempo
             $umDiaAntes = strtotime($agendamento->dt_inicial . ' -1 day');
             $data->enviar_em = $umDiaAntes > time() ? date('d/m/Y H:i', $umDiaAntes) : null;
@@ -289,6 +331,18 @@ class EnviarMensagemForm extends TPage
             $template = self::templateDoEnvio($param, $agendamento);
             $html = $agendamento && $template ? self::previewHtml($agendamento, $template) : '';
             $partes = $template ? MensagemService::textoDoTemplate($template) : ['titulo' => '', 'texto' => ''];
+
+            // e-mail: assinatura e anexos do template escolhido
+            if (($param['tipo'] ?? '') === TemplateEscritorio::EMAIL)
+            {
+                $anexos = EnvioEmailService::anexosDoTemplate($template);
+                TCombo::reload(self::$formName, 'assinatura_modo', EnvioEmailService::opcoesAssinatura($template), false, false);
+                TCheckGroup::reload(self::$formName, 'anexos_template', $anexos, ['layout' => 'vertical']);
+                TScript::create("
+                    $('form[name=" . self::$formName . "] [name=assinatura_modo]').val(" . json_encode(EnvioEmailService::modoInicial($template)) . ");
+                    $('form[name=" . self::$formName . "] [name^=anexos_template]').prop('checked', true);
+                    window.curciolManual();");
+            }
 
             TTransaction::close();
 
@@ -324,7 +378,10 @@ class EnviarMensagemForm extends TPage
 
             $ehEmail = ($param['tipo'] ?? '') === TemplateEscritorio::EMAIL;
             $texto = (string) ($ehEmail ? ($param['content_email'] ?? '') : ($param['content_whatsapp'] ?? ''));
-            $html = self::mensagemHtml($agendamento, $ehEmail, (string) ($param['titulo'] ?? ''), $texto);
+            // e-mail (09/11/2026): o mesmo corpo do envio, com botoes, assinatura e anexos escolhidos
+            $html = $ehEmail
+                ? EnvioEmailService::previa($agendamento, self::templateDoEnvio($param, $agendamento), true, (string) ($param['titulo'] ?? ''), $texto, (array) $param)
+                : self::mensagemHtml($agendamento, false, (string) ($param['titulo'] ?? ''), $texto);
 
             TTransaction::close();
 
@@ -379,16 +436,25 @@ class EnviarMensagemForm extends TPage
 
             $templateId = MensagemService::templateRegistrado($template, $manual, $texto);
 
+            // e-mail (09/11/2026): botoes do template no texto; assinatura e anexos do template ou os escolhidos no Manual
+            $extras = ['assinatura_id' => null, 'anexo_ids' => []];
+            if ($ehEmail)
+            {
+                $texto = EmailMontagemService::comBotoes($texto, $template);
+                $extras = EnvioEmailService::escolha($agendamento, $template, $manual, (array) $param);
+            }
+
             if (!empty($param['agendar']))
             {
-                $lembrete = MensagemAgendadaService::agendar($agendamento, $tipo, $titulo, $texto, $templateId, $destino, (string) ($param['enviar_em'] ?? ''));
+                $lembrete = MensagemAgendadaService::agendar($agendamento, $tipo, $titulo, $texto, $templateId, $destino, (string) ($param['enviar_em'] ?? ''),
+                                                             $extras['assinatura_id'], $extras['anexo_ids']);
                 $paraDestino = $lembrete->destino;
                 $aviso = 'Lembrete agendado para ' . date('d/m/Y H:i', strtotime($lembrete->enviar_em)) . ': %s';
             }
             else
             {
                 $mensagem = $ehEmail
-                    ? MensagemService::enviarEmail($agendamento, $titulo, $texto, $templateId, $destino)
+                    ? MensagemService::enviarEmail($agendamento, $titulo, $texto, $templateId, $destino, $extras['assinatura_id'], $extras['anexo_ids'])
                     : MensagemService::enviarWhatsapp($agendamento, $titulo, $texto, $templateId, $destino);
                 $paraDestino = $mensagem->destino;
                 $aviso = 'Mensagem enviada para %s';
@@ -442,6 +508,11 @@ class EnviarMensagemForm extends TPage
     private static function previewHtml(Agendamento $agendamento, TemplateEscritorio $template): string
     {
         $partes = MensagemService::textoDoTemplate($template);
+
+        if ($template->tipo_template == TemplateEscritorio::EMAIL)
+        {
+            return EnvioEmailService::previa($agendamento, $template, false, $partes['titulo'], $partes['texto'], []);
+        }
 
         return self::mensagemHtml($agendamento, $template->tipo_template == TemplateEscritorio::EMAIL, $partes['titulo'], $partes['texto']);
     }

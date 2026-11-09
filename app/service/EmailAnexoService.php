@@ -111,6 +111,14 @@ class EmailAnexoService
         return $itens === '' ? '' : '<div class="curciol-anexos" style="margin-top:10px;border-top:1px solid #eee;padding-top:8px;">' . $itens . '</div>';
     }
 
+    /** Link para abrir o anexo (download.php: so usuario logado, pastas do sistema bloqueadas). Usa a transacao aberta. */
+    public static function linkDownload(int $id): string
+    {
+        $anexo = EmailAnexo::find($id);
+
+        return $anexo ? 'download.php?file=' . rawurlencode((string) $anexo->caminho) . '&basename=' . rawurlencode((string) $anexo->nome_original) : '#';
+    }
+
     public static function tamanhoLegivel(int $bytes): string
     {
         if ($bytes >= 1024 * 1024)
