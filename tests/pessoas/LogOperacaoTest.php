@@ -79,7 +79,9 @@ try {
         $processos[] = proc_open([PHP_BINARY, __FILE__, $schema], [0 => ['file', '/dev/null', 'r'], 1 => ['file', '/dev/null', 'w'], 2 => ['file', '/dev/null', 'w']], $pipes);
     }
     foreach ($processos as $p) { igual('gravador concorrente terminou', 0, proc_close($p)); }
-    foreach (['system_sql_log', 'system_access_log', 'system_change_log'] as $table) {
+    // log de SQL desligado em 09/11/2026 (SystemSqlLogService nao grava mais nada)
+    igual('system_sql_log: desligado, nada gravado', 0, (int) $admin->query("SELECT count(*) FROM {$schema}.system_sql_log")->fetchColumn());
+    foreach (['system_access_log', 'system_change_log'] as $table) {
         igual($table . ': todos os logs concorrentes persistem', 24, (int) $admin->query("SELECT count(*) FROM {$schema}.{$table}")->fetchColumn());
         igual($table . ': IDs distintos', 24, (int) $admin->query("SELECT count(DISTINCT id) FROM {$schema}.{$table}")->fetchColumn());
     }

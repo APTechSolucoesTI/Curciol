@@ -63,22 +63,13 @@ class SystemAccessLogList extends TStandardList
         $logout_time = $this->datagrid->addQuickColumn('logout_time', 'logout_time', 'center');
         $access_ip = $this->datagrid->addQuickColumn('IP', 'access_ip', 'center');
         
-        $action = new TDataGridAction(['SystemSqlLogList', 'filterSession'], ['session_id' => '{sessionid}']);
+        // Curciol (09/11/2026): sem log de SQL e de requisicoes; fica so o log de alteracoes da sessao
         $action2 = new TDataGridAction(['SystemChangeLogView', 'filterSession'], ['session_id' => '{sessionid}']);
-        $action3 = new TDataGridAction(['SystemRequestLogList', 'filterSession'], ['session_id' => '{sessionid}']);
         
-        $action->setImage('fa:database blue');
         $action2->setImage('fa:film green');
-        $action3->setImage('fa:globe orange');
-        $action->setLabel(_t('SQL Log'));
         $action2->setLabel(_t('Change Log'));
-        $action3->setLabel(_t('Request Log'));
-        $action->setUseButton(true);
         $action2->setUseButton(true);
-        $action3->setUseButton(true);
-        $this->datagrid->addAction($action); 
         $this->datagrid->addAction($action2);
-        $this->datagrid->addAction($action3);
         
         $login->setTransformer( function($value, $object, $row) {
             if ($object->impersonated == 'Y')

@@ -13,13 +13,12 @@ class SystemPermission
 {
     public static function checkPermission($action)
     {
-        $ini    = AdiantiApplicationConfig::get();
-        
+        // Curciol (09/11/2026): o que vale sem permissao de grupo fica no AcessoPublicoService (nao no public_classes do ini)
         $programs = TSession::getValue('programs');
-        $public_classes = $ini['permission']['public_classes'];
-        $public_classes[] = 'LoginForm';
-        
+        $action = (string) $action;
+
         return ( (isset($programs[$action]) AND $programs[$action]) OR
-                 in_array($action, $public_classes) );
+                 (TSession::getValue('logged') ? AcessoPublicoService::logadoPode($action)
+                                               : AcessoPublicoService::anonimoPode($action, AcessoPublicoService::portalLogado())) );
     } 
 }

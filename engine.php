@@ -25,8 +25,7 @@ class TApplication extends AdiantiCoreApplication
                 http_response_code(404);
                 exit;
             }
-            $public = in_array($class, $ini['permission']['public_classes']);
-            $public_mobile = in_array($class, array_keys($ini['user_public_pages']??[]));
+            // Curciol (09/11/2026): o que abre sem login fica no AcessoPublicoService, nao no public_classes do ini
             $debug  = is_null($debug)? $ini['general']['debug'] : $debug;
             if (TSession::getValue('logged')) // logged
             {
@@ -48,7 +47,7 @@ class TApplication extends AdiantiCoreApplication
                 $programs = (array) TSession::getValue('programs'); // programs with permission
                 $programs = array_merge($programs, self::getDefaultPermissions());
                 
-                if( isset($programs[$class]) OR $public OR $public_mobile)
+                if( isset($programs[$class]) OR AcessoPublicoService::logadoPode((string) $class))
                 {
                     // aba aberta de novo pelo menu (depois de fechada): a tela comeca sem filtros (curciol-navegacao.js);
                     // restaurar as abas guardadas (adianti_reload_tab) mantem os filtros
@@ -64,23 +63,10 @@ class TApplication extends AdiantiCoreApplication
                     new TMessage('error', _t('Permission denied') );
                 }
             }
-            else if ($class == 'LoginForm' OR $public )
+            else if (AcessoPublicoService::anonimoPode((string) $class, AcessoPublicoService::portalLogado()))
             {
-                // Curciol (seguranca 22/10/2026): parte das classes publicas e da equipe (abertas dentro de outras telas)
-                // ou do portal do cliente. Sem login, as da equipe sao recusadas e as do portal exigem cliente logado.
-                // Para quem esta logado nada muda.
-                $somente_equipe = ['ProcessoPublicacoesForm', 'PublicacaoAlterEtapaForm', 'AndamentoAlterEtapaForm',
-                                   'ContratoDateForm', 'ParceirosHeaderList', 'RequisicaoPagamentoVisualizacaoAba',
-                                   'RequisicaoPagamentoRelatorioDinamico', 'Teste471',
-                                   'SystemModulesCheckView', 'SystemRegistrationForm'];
-                $somente_portal = ['ProcessosFormView', 'ProcessoViewHeaderList', 'ProcessosFormViewInterno',
-                                   'ProcessoPublicacoesTimeLine', 'MeusDocumentoList'];
-                if (in_array($class, $somente_equipe) OR (in_array($class, $somente_portal) AND empty(TSession::getValue('portal_cliente_id'))))
-                {
-                    http_response_code(401);
-                    new TMessage('error', _t('Permission denied'), new TAction(array('LoginForm','onLogout')) );
-                    return;
-                }
+                // Curciol (09/11/2026): sem login so o login, a landing, os links do agendamento e, com o cliente logado no
+                // portal, as telas do portal (AcessoPublicoService)
                 parent::run($debug);
             }
             else
@@ -105,12 +91,10 @@ class TApplication extends AdiantiCoreApplication
                      'AdiantiAutocompleteService' => TRUE,
                      'EmptyPage' => TRUE,
                      'MessageList' => TRUE,
-                     'SystemDocumentUploaderService' => TRUE,
                      'NotificationList' => TRUE,
                      'SearchBox' => TRUE,
                      'SearchInputBox' => TRUE,
-                     'BuilderConfigForm' => TRUE,
-                     'BuilderCustomCssService' => TRUE);
+                     'BuilderConfigForm' => TRUE);
     } 
 }
 

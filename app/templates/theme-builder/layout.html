@@ -67,7 +67,6 @@
                     </div>
                 </div>
                 -->
-                <!--{BUILDER-MENU}-->
             </div>
 
             <div class='header-action no-border builder-profile-menu'>
@@ -107,13 +106,6 @@
                     Versão 1.0
                     <strong>{userunitid} - {userunitname}</strong>
                 <!--[/IF-LEFT-MENU]-->
-                    <!--[IFADMIN-LEFT-MENU]-->
-                    <div>
-                        <a style="cursor:pointer; display: block; color: var(--submenu-text-color); width: 100%;" href="#" onclick="BuilderEditorCss.initEditorCss(true)"> <i class="fas fa-hashtag" aria-hidden="true"></i> Editor de CSS </a>
-                        <a style="cursor:pointer; display: block; color: var(--submenu-text-color); width: 100%;" generator="adianti" href="index.php?class=SystemModulesCheckView"> <i class="fa fa-code" aria-hidden="true"></i> PHP Modules </a>
-                        <span style="cursor:pointer; display: block; color: var(--submenu-text-color); width: 100%;" onclick="Adianti.showDebugPanel()"> <i class="fa fa-window-maximize" aria-hidden="true"></i> Debug Console </span>
-                    </div>
-                    <!--[/IFADMIN-LEFT-MENU]-->
                 <!--[IF-LEFT-MENU]-->
                 </div>
             </div>
@@ -144,17 +136,6 @@
         </div>
     </div>
 
-    <!--[IFADMIN]-->
-    <footer>
-        <div id="adianti_debug_panel" class="debug-panel">
-            <i onclick="Adianti.hideDebugPanel()" class="fa fa-times" aria-hidden="true" title="_t{Close}"></i>
-            <span > Request URL </span>
-            <span > Request Data </span>
-            <div id="request_url_panel"> </div>
-            <div id="request_data_panel"> </div>
-        </div>
-    </footer>
-    <!--[/IFADMIN]-->
 
     <script>
         BuilderTemplate.init({

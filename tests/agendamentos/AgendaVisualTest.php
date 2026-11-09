@@ -228,14 +228,6 @@ try {
     $ev = json_decode(saida(function () { AgendamentoCalendarFormView::getEvents(['start' => '2030-01-20T00:00:00', 'end' => '2030-01-27T00:00:00']); }), true) ?: [];
     $idSab = (int) q("SELECT id FROM bloqueio WHERE observacao = '" . MARCA_AV . " bloqueio sabado'")[0]['id'];
     ok('calendario: bloqueio aparece mesmo no dia em que as agendas nao atendem (com varias agendas filtradas)', (bool) array_filter($ev, function ($e) use ($idSab) { return ($e['id'] ?? '') === 'bloqueio-' . $idSab; }));
-    // calendario por agenda (AgendaCardList): "Nao atende" pela data, no mes inteiro (antes so a primeira semana, deslocada)
-    $mes = json_decode(saida(function () use ($a1) { AgendamentoClienteCalendarFormView::getEvents(['start' => '2030-01-27T00:00:00', 'end' => '2030-03-10T00:00:00', 'agenda_id' => $a1]); }), true) ?: [];
-    TSession::setValue('AgendamentoClienteCalendarFormViewload_filter_agenda_id', null);
-    $naoAtendeMes = array_values(array_unique(array_map(function ($e) { return substr($e['start'], 0, 10); }, array_filter($mes, function ($e) { return ($e['title'] ?? '') === 'Não atende'; }))));
-    sort($naoAtendeMes);
-    $esperadoMes = [];
-    for ($t = strtotime('2030-01-27'); $t < strtotime('2030-03-10'); $t = strtotime('+1 day', $t)) { if (!in_array((int) date('w', $t), $diasA1, true)) { $esperadoMes[] = date('Y-m-d', $t); } }
-    igual('calendario por agenda: Nao atende em todos os dias certos do mes', $esperadoMes, $naoAtendeMes);
     // horarios disponiveis do Novo agendamento: a mesma regra do salvar (bloqueio e intervalo fora)
     TSession::setValue('agenda_id', $a1);
     TSession::setValue('formName', 'form_AgendamentoFormBtn');

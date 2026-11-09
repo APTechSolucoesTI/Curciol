@@ -2,7 +2,6 @@
 require_once 'init.php';
 $theme  = $ini['general']['theme'];
 $class  = isset($_REQUEST['class']) ? $_REQUEST['class'] : '';
-$public = in_array($class, $ini['permission']['public_classes']);
 
 AdiantiCoreApplication::setRouter(array('AdiantiRouteTranslator', 'translate'));
 
@@ -15,7 +14,8 @@ $content = ApplicationTranslator::translateTemplate($content);
 
 echo $content;
 
-if (TSession::getValue('logged') OR $public)
+// Curciol (09/11/2026): o que abre sem login fica no AcessoPublicoService, nao no public_classes do ini
+if (TSession::getValue('logged') OR AcessoPublicoService::anonimoPode((string) $class, AcessoPublicoService::portalLogado()))
 {
     if ($class)
     {

@@ -120,42 +120,15 @@ RewriteRule ^xhr-welcome-view$ engine.php?class=WelcomeView&%{QUERY_STRING} [NC]
 RewriteRule ^login-form$ index.php?class=LoginForm&%{QUERY_STRING} [NC]
 RewriteRule ^xhr-login-form$ engine.php?class=LoginForm&%{QUERY_STRING} [NC]
 
-#AUTH routes
-RewriteRule ^auth/([A-Za-z0-9]*)/([A-Za-z0-9]*)$ rest.php?class=ApplicationAuthenticationRestService&method=getToken&login=$1&password=$2&%{QUERY_STRING} [NC]
-
-#Application specific routes
-RewriteRule ^contact-edit$ index.php?class=ContactForm&method=onEdit&%{QUERY_STRING} [NC]
-RewriteRule ^contact-list$ index.php?class=ContactList&method=onReload&%{QUERY_STRING} [NC]
-RewriteRule ^contact-ondelete$ index.php?class=ContactList&method=onDelete&%{QUERY_STRING} [NC]
-RewriteRule ^contact-delete$ index.php?class=ContactList&method=Delete&%{QUERY_STRING} [NC]
-
-RewriteRule ^xhr-contact-edit$ engine.php?class=ContactForm&method=onEdit&%{QUERY_STRING} [NC]
-RewriteRule ^xhr-contact-list$ engine.php?class=ContactList&method=onReload&%{QUERY_STRING} [NC]
-RewriteRule ^xhr-contact-ondelete$ engine.php?class=ContactList&method=onDelete&%{QUERY_STRING} [NC]
-RewriteRule ^xhr-contact-delete$ engine.php?class=ContactList&method=Delete&%{QUERY_STRING} [NC]
-
-
-
-#RESTFUL routes
-RewriteRule ^contacts/([A-Za-z0-9]*)$ rest.php?class=ContactRestService&method=handle&id=$1&%{QUERY_STRING} [NC]
-RewriteRule ^contacts/([A-Za-z-_0-9]*)/([A-Za-z-_0-9]*)$ rest.php?class=ContactRestService&method=$2&id=$1&%{QUERY_STRING} [NC]
-RewriteRule ^contacts$ rest.php?class=ContactRestService&method=handle&%{QUERY_STRING} [NC]
-
 #PUBLIC routes
 RewriteRule ^home$ index.php?class=Home&%{QUERY_STRING} [NC]
 RewriteRule ^xhr-home$ engine.php?class=Home&%{QUERY_STRING} [NC]
 
-RewriteRule ^validar-documento$ index.php?class=ValidarDocumentoForm&%{QUERY_STRING} [NC]
-RewriteRule ^xhr-validar-documento$ engine.php?class=ValidarDocumentoForm&%{QUERY_STRING} [NC]
 
 RewriteRule ^login-adm$ index.php?class=LoginForm&%{QUERY_STRING} [NC]
 RewriteRule ^xhr-login-adm$ engine.php?class=LoginForm&%{QUERY_STRING} [NC]
 
-RewriteRule ^agendas$ index.php?class=AgendaCardList&method=onShow&%{QUERY_STRING} [NC]
-RewriteRule ^xhr-agendas$ engine.php?class=AgendaCardList&method=onShow&%{QUERY_STRING} [NC]
 
-RewriteRule ^agenda-([0-9]*)$ index.php?class=AgendamentoClienteCalendarFormView&method=onReload&key=$1&agenda_id=$1&%{QUERY_STRING} [NC]
-RewriteRule ^xhr-agenda-([0-9]*)$ engine.php?class=AgendamentoClienteCalendarFormView&method=onReload&key=$1&agenda_id=$1&%{QUERY_STRING} [NC]
 
 RewriteRule ^meus-documentos$ index.php?class=MeusDocumentoList&method=onShow&%{QUERY_STRING} [NC]
 RewriteRule ^xhr-meus-documentos$ engine.php?class=MeusDocumentoList&method=onShow&%{QUERY_STRING} [NC]

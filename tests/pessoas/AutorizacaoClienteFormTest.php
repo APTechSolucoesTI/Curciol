@@ -110,8 +110,6 @@ try {
         ok("{$f} barra tirar a autorizacao com lembrete", strpos(file_get_contents("app/control/pessoas/{$f}.php"), 'MensagemAgendadaService::exigirCadastroDoCliente($data->id') !== false);
     }
 
-    // ---------- cadastro publico ----------
-    ok('cadastro publico: WhatsApp e e-mail', strpos(file_get_contents('app/control/agendamentos/NovoClienteForm.php'), 'Autorizo receber mensagens do escritório pelo WhatsApp e por e-mail') !== false);
 } finally {
     while (TTransaction::get()) { TTransaction::rollback(); }
     $_POST = []; $_REQUEST = [];

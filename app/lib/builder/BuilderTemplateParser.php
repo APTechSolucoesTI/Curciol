@@ -13,16 +13,9 @@ class BuilderTemplateParser
         $ini = AdiantiApplicationConfig::get();
         $preferences = SystemPreferenceService::getPreferences();
 
-        if ((TSession::getValue('login') == 'admin') && !empty($ini['general']['token']) && file_exists("app/templates/{$theme}/builder-menu.html"))
-        {
-            $builder_menu = file_get_contents("app/templates/{$theme}/builder-menu.html");
-            $content = str_replace('<!--{BUILDER-MENU}-->', $builder_menu, $content);
-        }
-        else
-        {
-            $content  = self::removeContentBeetwenTag($content, '<!--[IFADMIN]-->', '<!--[/IFADMIN]-->');
-            $content  = self::removeContentBeetwenTag($content, '<!--[IFADMIN-LEFT-MENU]-->', '<!--[/IFADMIN-LEFT-MENU]-->');
-        }
+        // Curciol (09/11/2026): sem menu do Mad Builder, editor de CSS e console de depuracao do admin
+        $content = self::removeContentBeetwenTag($content, '<!--[IFADMIN]-->', '<!--[/IFADMIN]-->');
+        $content = self::removeContentBeetwenTag($content, '<!--[IFADMIN-LEFT-MENU]-->', '<!--[/IFADMIN-LEFT-MENU]-->');
         
         if (!isset($ini['permission']['user_register']) OR $ini['permission']['user_register'] !== '1')
         {
@@ -239,31 +232,7 @@ class BuilderTemplateParser
         $publicName = 'public';
         $loginName  = 'login';
 
-        if (isset($_REQUEST['token_mobile']) || (!isset($_REQUEST['token_mobile']) && TSession::getValue('logged_mobile')))
-        {
-            $layoutName = 'layout-mobile';
-            $publicName = 'public-mobile';
-            $loginName = 'login-mobile';
-            $theme  = $ini['general']['theme_mobile'];
-
-            try
-            {
-                if (isset($_REQUEST['token_mobile']) && empty($_REQUEST['token_mobile']))
-                {
-                    TSession::freeSession();
-                }
-                else if (! empty($_REQUEST['token_mobile']))
-                {
-                    BuilderMobileService::initSessionFromToken($_REQUEST['token_mobile']);
-                }
-            }
-            catch (Exception $e)
-            {
-                new TMessage('erro', $e->getMessage());
-                return;
-            }
-        }
-
+        // Curciol (09/11/2026): sem o aplicativo movel do Mad Builder (layout-mobile / token_mobile)
 
         if ( TSession::getValue('logged') )
         {

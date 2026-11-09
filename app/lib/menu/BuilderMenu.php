@@ -24,7 +24,8 @@ abstract class BuilderMenu
             $this->xml = new SimpleXMLElement(file_get_contents($menu));
         }
         
-        $topMenuXml = file_get_contents('top_menu.xml');
+        // Curciol (09/11/2026): sem menu de cima (top_menu = 0); o arquivo saiu do projeto
+        $topMenuXml = is_file('top_menu.xml') ? file_get_contents('top_menu.xml') : '';
         if($topMenuXml)
         {
             $this->top_xml = new SimpleXMLElement($topMenuXml);
