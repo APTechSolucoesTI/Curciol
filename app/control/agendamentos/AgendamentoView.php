@@ -130,12 +130,7 @@ class AgendamentoView extends TPage
 
     }
 
-    public function onShow($param = null)
-    {     
-        $this->montar($param);
-    }
-
-    /** Links do e-mail: abrir mostra so o botao daquele link; o clique (respondeu) confirma ou cancela e a pagina avisa o resultado. */
+    /** Links do e-mail (a pagina so de detalhe, {$link_detalhe}, foi excluida em 09/11/2026): abrir mostra so o botao daquele link; o clique (respondeu) confirma ou cancela e a pagina avisa o resultado. */
     public function onConfirmar($param)
     {
         $this->responder($param, (int) EstadoAgenda::CONFIRMADO);

@@ -72,10 +72,9 @@ class MensagemService
             '{$endereco_escritorio}'     => 'Endereço do escritório',
             '{$telefone_escritorio}'     => 'Telefone do escritório',
             '{$email_escritorio}'        => 'E-mail do escritório',
-            '{$link_detalhe}'            => 'Link de detalhe do agendamento',
-            '{$link_confirmacao}'        => 'Link para confirmar agendamento',
-            '{$link_cancelamento}'       => 'Link para cancelar agendamento',
-            '{$botoes}'                  => 'Botões de confirmar e cancelar (template de confirmação por e-mail)',
+            '{$link_confirmacao}'        => 'Botão de confirmar (na confirmação por e-mail; nos outros, o link)',
+            '{$link_cancelamento}'       => 'Botão de cancelar (na confirmação por e-mail; nos outros, o link)',
+            '{$botoes}'                  => 'Os dois botões, confirmar e cancelar (confirmação por e-mail)',
         ];
     }
 

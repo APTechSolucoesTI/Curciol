@@ -332,7 +332,9 @@ class TemplateEscritorio extends TRecord
         // {$botoes} so vale no template de confirmacao por e-mail (EmailMontagemService::comBotoes, antes do replace): no resto, some
         $content = str_replace('{$botoes}', '', $content);
     
-        $content = str_replace('{$link_detalhe}', "{$agendamento->agenda->escritorio->url_sistema}/agendamento-{$agendamento->id}-{$token}", $content);
+        // pagina de detalhe excluida (09/11/2026): template antigo perde o link inteiro (sem botao sem destino) e a variavel
+        $content = preg_replace('#<a\b[^>]*?\bhref\s*=\s*(["\'])\s*\{\$link_detalhe\}\s*\1[^>]*>.*?</a>#is', '', $content);
+        $content = str_replace('{$link_detalhe}', '', $content);
         $content = str_replace('{$link_cancelamento}', "{$agendamento->agenda->escritorio->url_sistema}/cancelar-agendamento-{$agendamento->id}-{$token}", $content);
         $content = str_replace('{$link_confirmacao}', "{$agendamento->agenda->escritorio->url_sistema}/confirmar-agendamento-{$agendamento->id}-{$token}", $content);
     

@@ -129,10 +129,10 @@ class TemplateEmailService
         }
 
         $avisos = [];
-        if (EmailMontagemService::usaLinksAntigos($template))
+        if ($template->categoria === TemplateEscritorio::CONFIRMACAO && !EmailMontagemService::temBotoes($template))
         {
-            $avisos[] = 'Este template usa os links no texto ({$link_confirmacao} / {$link_cancelamento}), então os botões não entram. '
-                      . 'Para usar os botões, apague esses links do texto.';
+            $avisos[] = 'Este template de confirmação não tem os botões: o cliente não consegue confirmar nem cancelar pelo e-mail. '
+                      . 'Escreva {$botoes} onde os dois devem aparecer, ou {$link_confirmacao} e {$link_cancelamento} um por um.';
         }
 
         $texto = self::destacarVariaveis((string) $template->template);
@@ -201,7 +201,7 @@ class TemplateEmailService
             {
                 continue;
             }
-            $partes[$i] = preg_replace('/\{\$(?!botoes\})[a-z_]+\}/i', '<span style="background:#fff3cd;border-radius:3px;padding:0 2px;">$0</span>', $parte);
+            $partes[$i] = preg_replace('/\{\$(?!(?:botoes|link_confirmacao|link_cancelamento)\})[a-z_]+\}/i', '<span style="background:#fff3cd;border-radius:3px;padding:0 2px;">$0</span>', $parte);
         }
 
         return implode('', $partes);

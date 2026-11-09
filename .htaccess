@@ -160,9 +160,6 @@ RewriteRule ^xhr-agenda-([0-9]*)$ engine.php?class=AgendamentoClienteCalendarFor
 RewriteRule ^meus-documentos$ index.php?class=MeusDocumentoList&method=onShow&%{QUERY_STRING} [NC]
 RewriteRule ^xhr-meus-documentos$ engine.php?class=MeusDocumentoList&method=onShow&%{QUERY_STRING} [NC]
 
-RewriteRule ^agendamento-([0-9]*)-(.*) index.php?class=AgendamentoView&method=onShow&key=$1&token=$2 [NC]
-RewriteRule ^xhr-agendamento-([0-9]*)-(.*) engine.php?class=AgendamentoView&method=onShow&key=$1&token=$2 [NC]
-
 RewriteRule ^cancelar-agendamento-([0-9]*)-(.*) index.php?class=AgendamentoView&method=onCancelar&key=$1&token=$2 [NC]
 RewriteRule ^xhr-cancelar-agendamento-([0-9]*)-(.*) engine.php?class=AgendamentoView&method=onCancelar&key=$1&token=$2 [NC]
 

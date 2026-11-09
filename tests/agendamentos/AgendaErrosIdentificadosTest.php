@@ -37,7 +37,11 @@ try {
     $f->sql('DELETE FROM estado_agendamento WHERE agendamento_id = ?', [$id]);
     $f->sql('DELETE FROM agendamento WHERE id = ?', [$id]);
     $p = ['key' => $id, 'token' => AgendamentoService::getToken($id)];
-    foreach (['onShow', 'onConfirmar', 'onCancelar'] as $metodo) {
+    // pagina de detalhe excluida (09/11/2026): so os links de confirmar e cancelar abrem a pagina do agendamento
+    ok('sem a pagina de detalhe (onShow)', !method_exists('AgendamentoView', 'onShow'));
+    ok('sem a rota agendamento-ID-token', !preg_match('/^RewriteRule \^(xhr-)?agendamento-/m', (string) file_get_contents('.htaccess')));
+    ok('rotas de confirmar e cancelar continuam', substr_count((string) file_get_contents('.htaccess'), 'class=AgendamentoView&method=onConfirmar') === 2 && substr_count((string) file_get_contents('.htaccess'), 'class=AgendamentoView&method=onCancelar') === 2);
+    foreach (['onConfirmar', 'onCancelar'] as $metodo) {
         $html = $saida(fn() => (new AgendamentoView($p))->$metodo($p));
         ok("link excluido: {$metodo} avisa sem erro interno", str_contains($html, 'Agendamento não encontrado'), $html);
         while (TTransaction::get()) { TTransaction::rollback(); }

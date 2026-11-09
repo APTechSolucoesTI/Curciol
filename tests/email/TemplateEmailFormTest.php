@@ -97,7 +97,7 @@ try
     ok('template WhatsApp nao guarda assinatura, anexos nem botoes', $gw->assinatura_id === null && $gw->assinatura_modo === 'PADRAO' && $anexosDe((int) $w->id) === [] && $gw->botao_confirmar_texto === null);
 
     // ---------- previa ----------
-    $base = ['tipo_template' => 'EMAIL', 'categoria' => 'CONFIRMACAO', 'titulo' => 'Confirme {$cliente}', 'template' => '<p>Olá {$cliente}</p>',
+    $base = ['tipo_template' => 'EMAIL', 'categoria' => 'CONFIRMACAO', 'titulo' => 'Confirme {$cliente}', 'template' => '<p>Olá {$cliente}</p><p>{$botoes}</p>',
              'botao_confirmar_texto' => 'Vou sim', 'botao_confirmar_cor' => '#2e7d32', 'botao_cancelar_texto' => 'Não vou', 'botao_cancelar_cor' => '#c62828',
              'assinatura_modo' => 'NENHUMA', 'id' => $t->id];
     $p = TemplateEmailService::previa($base);
@@ -129,11 +129,23 @@ try
     ok('previa lista anexo mantido', strpos($pa, 'Procuração.pdf') !== false);
     ok('previa lista anexo novo', strpos($pa, 'novo.pdf') !== false, $pa);
 
-    // template antigo com links no texto
+    // link feito no editor (ou template antigo): vira o botao estilizado, sem aviso
     $antigo = ['template' => '<p><a href="{$link_confirmacao}">Confirmar</a></p>'] + $base;
     $pl = TemplateEmailService::previa($antigo);
-    ok('previa de template com links antigos mostra o aviso', strpos($pl, 'links no texto') !== false, $pl);
-    ok('previa de template com links antigos nao mostra botoes', strpos($pl, 'Vou sim') === false);
+    ok('previa: link do editor vira o botao de confirmar', strpos($pl, 'Vou sim') !== false && strpos($pl, 'Não vou') === false, $pl);
+    ok('previa: sem o aviso antigo dos links no texto', strpos($pl, 'links no texto') === false, $pl);
+
+    // um por um, sem destaque amarelo em volta das variaveis dos botoes
+    $um = TemplateEmailService::previa(['template' => '<p>Cancelar: {$link_cancelamento}</p>'] + $base);
+    ok('previa: {$link_cancelamento} sozinho vira o botao de cancelar', strpos($um, 'Não vou') !== false && strpos($um, 'Vou sim') === false, $um);
+    ok('previa: variavel do botao nao fica destacada', strpos($um, '>{$link_cancelamento}</span>') === false, $um);
+
+    // confirmacao por e-mail sem nenhum botao: avisa (o cliente nao teria como responder)
+    $sem = TemplateEmailService::previa(['template' => '<p>Olá {$cliente}</p>'] + $base);
+    ok('previa: confirmacao sem botoes avisa', strpos($sem, 'não tem os botões') !== false, $sem);
+    ok('previa: confirmacao sem botoes nao inventa botao', strpos($sem, 'Vou sim') === false, $sem);
+    $lemb = TemplateEmailService::previa(['categoria' => 'LEMBRETE', 'template' => '<p>Olá</p>'] + $base);
+    ok('previa: lembrete sem botoes nao avisa', strpos($lemb, 'não tem os botões') === false, $lemb);
 
     $pw = TemplateEmailService::previa(['tipo_template' => 'WHATSAPP'] + $base);
     igual('previa de WhatsApp vazia', '', $pw);

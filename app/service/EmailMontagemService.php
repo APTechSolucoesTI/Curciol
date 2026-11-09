@@ -3,67 +3,88 @@
  * Montagem do e-mail (09/11/2026): botoes de confirmar e cancelar do template de confirmacao, corpo com a assinatura no fim
  * e a previa fiel usada no template, no envio, no Visualizar e no historico.
  *
- * Botoes: o usuario so escolhe texto e cor no template (Confirmacao + E-mail); eles entram sozinhos no fim do texto ou no
- * lugar de {$botoes}, apontando para os links de sempre ({$link_confirmacao} / {$link_cancelamento}, trocados depois pelo
- * TemplateEscritorio::replace). Template antigo que ja tem esses links no texto nao ganha botoes (nao duplica).
+ * Botoes (2a rodada, 09/11/2026): so entram onde o usuario pos {$botoes} (os dois) ou {$link_confirmacao} /
+ * {$link_cancelamento} (um por um), no texto ou como destino de um link do editor. Nada entra sozinho no fim. O texto e a
+ * cor de cada botao vem do template; o destino continua a variavel, trocada depois pelo TemplateEscritorio::replace.
+ * Fora da confirmacao por e-mail os links continuam sendo o endereco e {$botoes} some.
+ *
+ * Botao "a prova de Outlook": a cor vai no bgcolor da celula e o espaco interno no mso-padding-alt (o Outlook ignora padding
+ * em link); nos demais leitores o link tem o mesmo espaco e o botao inteiro e clicavel.
  */
 class EmailMontagemService
 {
-    const VARIAVEL = '{$botoes}';
+    const VARIAVEL  = '{$botoes}';
+    const CONFIRMAR = '{$link_confirmacao}';
+    const CANCELAR  = '{$link_cancelamento}';
 
     const CONFIRMAR_TEXTO = 'Confirmar presença';
     const CONFIRMAR_COR   = '#2e7d32';
     const CANCELAR_TEXTO  = 'Cancelar agendamento';
     const CANCELAR_COR    = '#c62828';
 
-    /** Template de confirmacao por e-mail sem os links antigos no texto. */
+    private const TOKENS = '\{\$(?:botoes|link_confirmacao|link_cancelamento)\}';
+
+    /** Template de confirmacao por e-mail que usa {$botoes}, {$link_confirmacao} ou {$link_cancelamento}. */
     public static function temBotoes(?TemplateEscritorio $template): bool
     {
-        return $template
-            && $template->tipo_template === TemplateEscritorio::EMAIL
-            && $template->categoria === TemplateEscritorio::CONFIRMACAO
-            && !self::textoTemLinks((string) $template->template);
+        return self::ehConfirmacaoPorEmail($template) && self::textoTemBotoes((string) $template->template);
     }
 
-    /** Confirmacao por e-mail que ainda usa {$link_confirmacao}/{$link_cancelamento} no texto (aviso do formulario). */
-    public static function usaLinksAntigos(?TemplateEscritorio $template): bool
+    /** O texto tem alguma das tres variaveis dos botoes (o formulario so mostra "Botoes do cliente" assim). */
+    public static function textoTemBotoes(string $texto): bool
     {
-        return $template
-            && $template->tipo_template === TemplateEscritorio::EMAIL
-            && $template->categoria === TemplateEscritorio::CONFIRMACAO
-            && self::textoTemLinks((string) $template->template);
+        return strpos($texto, self::VARIAVEL) !== false || strpos($texto, self::CONFIRMAR) !== false || strpos($texto, self::CANCELAR) !== false;
     }
 
     /** Os dois botoes lado a lado, em tabela com estilos inline (Outlook). Links ainda como variaveis. */
     public static function botoesHtml(string $textoConfirmar, string $corConfirmar, string $textoCancelar, string $corCancelar): string
     {
-        return '<table role="presentation" border="0" cellpadding="0" cellspacing="0" style="margin:16px 0;"><tr>'
-             . self::botao('{$link_confirmacao}', self::texto($textoConfirmar, self::CONFIRMAR_TEXTO), self::cor($corConfirmar, self::CONFIRMAR_COR))
-             . '<td style="width:12px;"></td>'
-             . self::botao('{$link_cancelamento}', self::texto($textoCancelar, self::CANCELAR_TEXTO), self::cor($corCancelar, self::CANCELAR_COR))
-             . '</tr></table>';
+        $template = new TemplateEscritorio();
+        $template->botao_confirmar_texto = $textoConfirmar;
+        $template->botao_confirmar_cor = $corConfirmar;
+        $template->botao_cancelar_texto = $textoCancelar;
+        $template->botao_cancelar_cor = $corCancelar;
+
+        return self::tabela([self::CONFIRMAR, self::CANCELAR], $template);
     }
 
-    /** Texto com os botoes do template: no lugar de {$botoes} ou no fim. Sem botoes, {$botoes} some. */
+    /** Texto com os botoes do template onde o usuario os pos. Fora da confirmacao por e-mail, so {$botoes} some. */
     public static function comBotoes(string $texto, ?TemplateEscritorio $template): string
     {
-        if (!self::temBotoes($template))
+        if (!self::ehConfirmacaoPorEmail($template))
         {
             return str_replace(self::VARIAVEL, '', $texto);
         }
 
-        $botoes = self::botoesHtml((string) $template->botao_confirmar_texto, (string) $template->botao_confirmar_cor,
-                                   (string) $template->botao_cancelar_texto, (string) $template->botao_cancelar_cor);
+        // as tabelas prontas ficam guardadas ate o fim, para os href="{$link_...}" delas nao serem trocados de novo
+        $prontos = [];
+        $guardar = function (array $links) use (&$prontos, $template): string {
+            $prontos[] = self::tabela($links, $template);
+            return "\x01" . (count($prontos) - 1) . "\x01";
+        };
 
-        if (strpos($texto, self::VARIAVEL) === false)
+        // link do editor (ou de template antigo) com destino numa das variaveis: vira so a variavel
+        $texto = preg_replace('#<a\b[^>]*?\bhref\s*=\s*(["\'])\s*(\{\$link_(?:confirmacao|cancelamento)\})\s*\1[^>]*>.*?</a>#is', '$2', $texto);
+
+        // paragrafo so com as variaveis (espacos, &nbsp; e <br> em volta): uma tabela no lugar do paragrafo inteiro
+        $texto = preg_replace_callback('#<p\b[^>]*>((?:\s|&nbsp;|\xc2\xa0|<br\s*/?>|' . self::TOKENS . ')*)</p>#i', function ($m) use ($guardar) {
+            preg_match_all('/' . self::TOKENS . '/', $m[1], $achados);
+            return $achados[0] ? $guardar(self::quais($achados[0])) : $m[0];
+        }, $texto);
+
+        // no meio do texto (nunca dentro de uma tag): cada variavel vira a sua tabela
+        $partes = preg_split('/(<[^>]*>)/', $texto, -1, PREG_SPLIT_DELIM_CAPTURE);
+        foreach ($partes as $i => $parte)
         {
-            return $texto . $botoes;
+            if ($parte !== '' && $parte[0] !== '<')
+            {
+                $partes[$i] = preg_replace_callback('/' . self::TOKENS . '/', function ($m) use ($guardar) {
+                    return $guardar(self::quais([$m[0]]));
+                }, $parte);
+            }
         }
 
-        // {$botoes} sozinho num paragrafo do editor: a tabela entra no lugar do paragrafo inteiro
-        $texto = preg_replace('#<p[^>]*>\s*' . preg_quote(self::VARIAVEL, '#') . '\s*(<br\s*/?>)?\s*</p>#i', $botoes, $texto, 1, $trocou);
-
-        return $trocou ? str_replace(self::VARIAVEL, '', $texto) : preg_replace('/' . preg_quote(self::VARIAVEL, '/') . '/', $botoes, $texto, 1);
+        return preg_replace_callback("/\x01(\\d+)\x01/", function ($m) use ($prontos) { return $prontos[(int) $m[1]]; }, implode('', $partes));
     }
 
     /** Corpo final: texto (variaveis ja trocadas) e a assinatura no fim. $base '' = previa (relativo). */
@@ -89,9 +110,38 @@ class EmailMontagemService
     // Apoio
     // =================================================================
 
-    private static function textoTemLinks(string $texto): bool
+    private static function ehConfirmacaoPorEmail(?TemplateEscritorio $template): bool
     {
-        return strpos($texto, '{$link_confirmacao}') !== false || strpos($texto, '{$link_cancelamento}') !== false;
+        return $template
+            && $template->tipo_template === TemplateEscritorio::EMAIL
+            && $template->categoria === TemplateEscritorio::CONFIRMACAO;
+    }
+
+    /** Variaveis achadas, na ordem do texto, com {$botoes} aberto nos dois links. */
+    private static function quais(array $variaveis): array
+    {
+        $links = [];
+        foreach ($variaveis as $v)
+        {
+            array_push($links, ...($v === self::VARIAVEL ? [self::CONFIRMAR, self::CANCELAR] : [$v]));
+        }
+        return $links;
+    }
+
+    /** Botoes lado a lado numa tabela (o Outlook so respeita cor e espaco em celula). */
+    private static function tabela(array $links, TemplateEscritorio $template): string
+    {
+        $celulas = [];
+        foreach ($links as $link)
+        {
+            $celulas[] = $link === self::CONFIRMAR
+                ? self::botao($link, self::texto((string) $template->botao_confirmar_texto, self::CONFIRMAR_TEXTO), self::cor((string) $template->botao_confirmar_cor, self::CONFIRMAR_COR))
+                : self::botao($link, self::texto((string) $template->botao_cancelar_texto, self::CANCELAR_TEXTO), self::cor((string) $template->botao_cancelar_cor, self::CANCELAR_COR));
+        }
+
+        return '<table role="presentation" border="0" cellpadding="0" cellspacing="0" style="margin:16px 0;border-collapse:separate;"><tr>'
+             . implode('<td style="width:12px;font-size:0;line-height:0;">&nbsp;</td>', $celulas)
+             . '</tr></table>';
     }
 
     private static function botao(string $link, string $texto, string $cor): string
@@ -99,9 +149,10 @@ class EmailMontagemService
         $letra = self::corDaLetra($cor);
         $texto = htmlspecialchars($texto, ENT_QUOTES, 'UTF-8');
 
-        return "<td style=\"border-radius:6px;background-color:{$cor};\">"
-             . "<a href=\"{$link}\" target=\"_blank\" style=\"display:inline-block;padding:12px 22px;font-family:Arial,Helvetica,sans-serif;"
-             . "font-size:15px;font-weight:bold;text-decoration:none;border-radius:6px;background-color:{$cor};color:{$letra};\">{$texto}</a></td>";
+        return "<td align=\"center\" valign=\"middle\" bgcolor=\"{$cor}\" style=\"border-radius:6px;background-color:{$cor};mso-padding-alt:12px 24px;\">"
+             . "<a href=\"{$link}\" target=\"_blank\" style=\"display:inline-block;padding:12px 24px;font-family:Arial,Helvetica,sans-serif;font-size:15px;"
+             . "line-height:18px;font-weight:bold;color:{$letra};text-decoration:none;border-radius:6px;\">"
+             . "<span style=\"color:{$letra};text-decoration:none;\">{$texto}</span></a></td>";
     }
 
     private static function texto(string $texto, string $padrao): string

@@ -58,7 +58,7 @@ try
     $conf = new TemplateEscritorio();
     $conf->tipo_template = TemplateEscritorio::EMAIL;
     $conf->categoria = TemplateEscritorio::CONFIRMACAO;
-    $conf->template = '<p>Olá {$cliente}</p>';
+    $conf->template = '<p>Olá {$cliente}</p><p>{$botoes}</p>';
     $conf->botao_confirmar_texto = 'Vou comparecer';
     $conf->botao_confirmar_cor = '#2e7d32';
     $conf->botao_cancelar_texto = 'Não vou';

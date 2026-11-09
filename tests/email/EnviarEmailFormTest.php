@@ -75,7 +75,7 @@ try
         $l->store();
         return $t;
     };
-    $tConf = $novo(TemplateEscritorio::CONFIRMACAO, '<p>Olá {$cliente}</p>');
+    $tConf = $novo(TemplateEscritorio::CONFIRMACAO, '<p>Olá {$cliente}</p><p>{$botoes}</p>');
     $tLemb = $novo(TemplateEscritorio::LEMBRETE, '<p>Lembrete</p>');
 
     $configOriginal = q('SELECT id, assinatura_id FROM email_config WHERE escritorio_id = ' . (int) $agenda['escritorio_id'])[0] ?? null;
