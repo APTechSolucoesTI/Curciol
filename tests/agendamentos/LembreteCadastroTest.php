@@ -272,7 +272,8 @@ try {
     ok('agenda: resumo nao lista os campos', strpos($resumo, 'CPF') === false && strpos($resumo, 'falta') === false);
 
     // agendado (ainda nao confirmado): a marca aparece na agenda, mas os campos so na tela do confirmado
-    $agSemConfirmar = $agendamento($pfVazia, (int) EstadoAgenda::AGENDADO, '+3 days 2 hours');
+    // horario fixo no dia consultado: '+3 days 2 hours' caia no dia seguinte quando o teste rodava depois das 22h
+    $agSemConfirmar = $agendamento($pfVazia, (int) EstadoAgenda::AGENDADO, $dia . ' 14:00');
     $e2 = $doAg($eventos(), $agSemConfirmar);
     ok('agenda: agendado tambem recebe a marca', $e2 !== null && in_array('agd-incompleto', $e2['classNames'] ?? [], true));
     $html = saida(function () use ($agSemConfirmar) { (new AgendamentoFormView(['key' => $agSemConfirmar]))->show(); });
