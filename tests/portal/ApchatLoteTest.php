@@ -162,9 +162,12 @@ try {
 
     $vinte = [];
     for ($i = 10; $i < 30; $i++) { $vinte[] = $novo("HTTP {$i}", '119876500' . $i); }
+    // fora da producao o curl de verdade so consulta (09/11/2026); aqui a URL ja e o APChat falso em 127.0.0.1
+    AmbienteService::forcarProducao(true);
     $t = microtime(true);
     $r = APChatContactService::sincronizarLote($vinte, ApchatContatoLog::ORIGEM_LOTE);
     $segundos = microtime(true) - $t;
+    AmbienteService::forcarProducao(null);
     $estado = json_decode((string) file_get_contents(sys_get_temp_dir() . "/apchat-falso-{$porta}.json"), true);
     igual('HTTP: 20 contatos criados', [20, 20], [count(array_filter($r, function ($x) { return $x->situacao === 'SUCESSO' && $x->operacao === 'CREATE'; })), count($estado['contatos'] ?? [])]);
     // uma chamada por vez levaria (chamadas x 0,3 s); ao mesmo tempo tem de ficar bem abaixo disso
@@ -173,6 +176,7 @@ try {
     ok('HTTP: idapchat gravado nos 20', count(array_filter($vinte, function ($id) use ($idapchat) { return $idapchat($id) >= 50001; })) === 20);
     echo '    tempo dos 20 contatos em paralelo: ', round($segundos, 2), " s\n";
 } finally {
+    AmbienteService::forcarProducao(null);
     APChatContactService::usarTransporte(null);
     if ($urlOriginal !== false) {
         TTransaction::open('escritorio');
