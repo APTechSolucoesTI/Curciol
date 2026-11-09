@@ -131,6 +131,8 @@ class ApchatBancoService
     public static function gravarEspelho(int $id, string $nome, string $numero, ?string $email, array $corpo = []): void
     {
         if (self::$falso) { self::$falso->gravarEspelho($id, $nome, $numero, $email); return; }
+        // o espelho e a transferencia ficam no banco do APChat, o mesmo da producao: homologacao so le (09/11/2026)
+        AmbienteService::exigirProducaoParaEnviar();
         $campos = self::camposDoEspelho($corpo);
         self::conn()->prepare('INSERT INTO curciol.contato (contato_id, nome, numero, email, cpf, primeiro_nome, ultimo_nome, razao_social, nascimento, ligado, atualizado_em)
                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, true, now())
@@ -156,6 +158,7 @@ class ApchatBancoService
     public static function desligarEspelho(int $id): void
     {
         if (self::$falso) { self::$falso->desligarEspelho($id); return; }
+        AmbienteService::exigirProducaoParaEnviar();
         self::conn()->prepare('UPDATE curciol.contato SET ligado = false, atualizado_em = now() WHERE contato_id = ?')->execute([$id]);
     }
 
@@ -163,6 +166,7 @@ class ApchatBancoService
     public static function transferir(int $antigo, int $novo): string
     {
         if (self::$falso) { return self::$falso->transferir($antigo, $novo); }
+        AmbienteService::exigirProducaoParaEnviar();
         $st = self::conn()->prepare('SELECT curciol.transferir_contato(?, ?)');
         $st->execute([$antigo, $novo]);
         return (string) $st->fetchColumn();

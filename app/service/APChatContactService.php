@@ -127,12 +127,14 @@ class APChatContactService
                 return $r;
             }
 
-            $token = self::token();
+            $token = self::podeGravar() ? self::token() : '';
 
             if ($token === '')
             {
-                // sem token = integracao desligada (ex.: homologacao): o salvar da pessoa nao envia e nao avisa erro
-                $r = self::resultado(ApchatContatoLog::SITUACAO_IGNORADO, ApchatContatoLog::OPERACAO_NENHUMA, 'Integração com o APChat desligada (escritório sem URL ou token): nada foi enviado.');
+                // sem token ou fora da producao = integracao desligada: o salvar da pessoa nao envia e nao avisa erro
+                $r = self::resultado(ApchatContatoLog::SITUACAO_IGNORADO, ApchatContatoLog::OPERACAO_NENHUMA, self::podeGravar()
+                    ? 'Integração com o APChat desligada (escritório sem URL ou token): nada foi enviado.'
+                    : 'Integração com o APChat desligada na homologação: nada foi enviado.');
                 self::registrar($pessoa_id, $origem, $r, $numeros[0], null);
                 TTransaction::close();
 
@@ -214,7 +216,7 @@ class APChatContactService
         try
         {
             TTransaction::open(self::$database);
-            $token = self::token();
+            $token = self::podeGravar() ? self::token() : '';
 
             foreach (($ids ? Pessoa::where('id', 'in', $ids)->load() : []) as $p) { $porId[(int) $p->id] = $p; }
 
@@ -237,7 +239,9 @@ class APChatContactService
                 }
                 elseif ($token === '')
                 {
-                    $r = self::resultado(ApchatContatoLog::SITUACAO_ERRO, ApchatContatoLog::OPERACAO_NENHUMA, 'Token do APChat não configurado no cadastro do escritório.');
+                    $r = self::resultado(ApchatContatoLog::SITUACAO_ERRO, ApchatContatoLog::OPERACAO_NENHUMA, self::podeGravar()
+                        ? 'Token do APChat não configurado no cadastro do escritório.'
+                        : AmbienteService::MSG_SEM_SAIDA);
                 }
 
                 if ($r)
@@ -713,6 +717,12 @@ class APChatContactService
 
     private static function novoHandle(string $rota, array $corpo, string $token)
     {
+        // homologacao: so consulta (09/11/2026); criar ou alterar contato nunca sai daqui
+        if (!ApchatApiService::chamadaPermitida($rota))
+        {
+            throw new Exception(AmbienteService::MSG_SEM_SAIDA);
+        }
+
         $ch = curl_init(self::$urlAtual . $rota);
 
         curl_setopt_array($ch, [
@@ -1067,6 +1077,15 @@ class APChatContactService
      * Token do escritorio da unidade logada; sem ele, o do primeiro
      * escritorio que tiver token.
      */
+    /**
+     * Criar, alterar ou transferir contato no APChat: so na producao (09/11/2026, homologacao com a URL e o token da
+     * producao). Os testes, com transporte falso, continuam exercitando o fluxo inteiro.
+     */
+    private static function podeGravar(): bool
+    {
+        return self::$transporte !== null || AmbienteService::producao();
+    }
+
     private static function token(): string
     {
         $escritorio = ApchatApiService::escritorio();
@@ -1397,7 +1416,7 @@ class APChatContactService
         TTransaction::open(self::$database);
         try
         {
-            $token = self::token();
+            $token = self::podeGravar() ? self::token() : '';
             $dono = self::donoDoNumero($numero);
             if ($token === '' || !$dono)
             {

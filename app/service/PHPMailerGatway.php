@@ -22,6 +22,9 @@ class PHPMailerGatway implements EmailInterface
     
     public function send($tos, $subject, $body, $bodytype = 'text', $attachs = [])
     {
+        // homologacao com dados da producao: nenhum e-mail sai (09/11/2026)
+        AmbienteService::exigirProducaoParaEnviar();
+
         $mail = new TMail;
         $mail->setFrom( trim($this->config->from_email), $this->config->from_name);
         

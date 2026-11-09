@@ -21,6 +21,22 @@ class ApchatApiService
     // numero que nao existe: o teste de conexao so consulta
     const NUMERO_TESTE_CONEXAO = '5500000000000';
 
+    // rotas que so consultam (nada muda no APChat): as unicas liberadas fora da producao (09/11/2026)
+    const ROTAS_CONSULTA = ['showcontact'];
+
+    /** A chamada a esta URL ou rota pode sair deste ambiente? Fora da producao, so consulta. */
+    public static function chamadaPermitida(string $urlOuRota): bool
+    {
+        if (AmbienteService::producao())
+        {
+            return true;
+        }
+
+        $rota = strtolower((string) substr(strrchr('/' . rtrim($urlOuRota, '/'), '/'), 1));
+
+        return in_array($rota, self::ROTAS_CONSULTA, true);
+    }
+
     /**
      * Substitui a chamada HTTP (testes). Recebe (url, corpo, token) e devolve ['status' => int, 'corpo' => string,
      * 'erro' => string].
@@ -155,6 +171,12 @@ class ApchatApiService
         if (self::$transporte)
         {
             return call_user_func(self::$transporte, $url, $corpo, $token);
+        }
+
+        // homologacao: envio de mensagem (POST na propria URL) e qualquer rota que altere o APChat nao saem
+        if (!self::chamadaPermitida($url))
+        {
+            throw new Exception(AmbienteService::MSG_SEM_SAIDA);
         }
 
         $ch = curl_init($url);

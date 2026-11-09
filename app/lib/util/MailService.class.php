@@ -20,6 +20,9 @@ class MailService
      */
     public static function send($tos, $subject, $body, $bodytype = 'text', $attachs = [], $ccs = null)
     {
+        // Curciol: homologacao com dados da producao nao envia e-mail (09/11/2026, AmbienteService)
+        AmbienteService::exigirProducaoParaEnviar();
+
         TTransaction::open('permission');
         $preferences = SystemPreference::getAllPreferences();
         TTransaction::close();
