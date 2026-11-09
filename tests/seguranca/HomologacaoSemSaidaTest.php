@@ -1,7 +1,8 @@
 <?php
 // tests/seguranca/HomologacaoSemSaidaTest.php
 // Fora da producao nada sai da Curciol (09/11/2026, homologacao com copia da producao, inclusive URL e token do
-// APChat): nenhum WhatsApp, e-mail ou contato no APChat; so consultas (showcontact). Usa enderecos .invalid: mesmo com a
+// APChat): nenhum WhatsApp, e-mail do sistema ou contato no APChat; so consultas (showcontact). E-mail do escritorio sai
+// para teste, nunca para e-mail cadastrado. Usa enderecos .invalid: mesmo com a
 // trava quebrada, nada chega ao APChat real nem a um SMTP de verdade. Nao grava no banco.
 require __DIR__ . '/../bootstrap.php';
 
@@ -53,9 +54,25 @@ $config->username = 'teste';
 $config->password = 'teste';
 $config->host = 'smtp.curciol.invalid';
 $config->port = 587;
-lanca('e-mail do escritorio nao sai', fn() => (new EmailClient($config))->send('cliente@curciol.invalid', 'T', 'oi'), $msg);
-lanca('e-mail de teste do escritorio nao sai', fn() => (new EmailClient($config))->testarEnvio('cliente@curciol.invalid'), $msg);
+// e-mail do escritorio (09/11/2026): sai para e-mail de teste, nunca para um cadastrado na Curciol
+TTransaction::open('escritorio');
+$cadastrado = TTransaction::get()->query("SELECT email FROM pessoa WHERE email LIKE '%@%' LIMIT 1")->fetchColumn();
+TTransaction::close();
+ok('ha pessoa com e-mail para o teste', (bool) $cadastrado);
+lanca('e-mail do escritorio: cadastrado nao recebe', fn() => (new EmailClient($config))->send(strtoupper(" {$cadastrado} "), 'T', 'oi'), 'está cadastrado na Curciol');
+lanca('e-mail do escritorio: cadastrado no meio da lista nao recebe', fn() => (new EmailClient($config))->send("teste@curciol.invalid;{$cadastrado}", 'T', 'oi'), 'está cadastrado na Curciol');
+lanca('e-mail de teste do escritorio: cadastrado nao recebe', fn() => (new EmailClient($config))->testarEnvio($cadastrado), 'está cadastrado na Curciol');
+
+// e-mail de teste passa pela trava e so falha no SMTP falso (.invalid)
+try { (new EmailClient($config))->send('teste@curciol.invalid', 'T', 'oi'); $erro = ''; }
+catch (Throwable $e) { $erro = $e->getMessage(); }
+ok('e-mail do escritorio: e-mail de teste passa pela trava', strpos($erro, 'cadastrado na Curciol') === false && strpos($erro, $msg) === false, $erro);
+
 lanca('e-mail do sistema nao sai', fn() => MailService::send('usuario@curciol.invalid', 'T', 'oi'), $msg);
+
+AmbienteService::forcarProducao(true);
+ok('producao: cadastrado recebe', (function () use ($cadastrado) { AmbienteService::exigirEmailsDeTeste([$cadastrado]); return true; })());
+AmbienteService::forcarProducao(false);
 
 // com transporte falso (testes) o fluxo de contatos continua exercitado
 APChatContactService::usarTransporte(function () { return ['status' => 200, 'corpo' => '{}', 'erro' => '']; });

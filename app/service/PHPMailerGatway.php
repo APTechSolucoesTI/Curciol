@@ -22,8 +22,8 @@ class PHPMailerGatway implements EmailInterface
     
     public function send($tos, $subject, $body, $bodytype = 'text', $attachs = [])
     {
-        // homologacao com dados da producao: nenhum e-mail sai (09/11/2026)
-        AmbienteService::exigirProducaoParaEnviar();
+        // homologacao com dados da producao (09/11/2026): o e-mail do escritorio sai para testes, nunca para e-mail cadastrado
+        AmbienteService::exigirEmailsDeTeste(is_array($tos) ? $tos : explode(';', str_replace(',', ';', (string) $tos)));
 
         $mail = new TMail;
         $mail->setFrom( trim($this->config->from_email), $this->config->from_name);
