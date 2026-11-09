@@ -491,7 +491,7 @@ try {
     preg_match_all('~<script[^>]*>(.*?)</script>~s', $html, $scripts);
     ok('tela: sem comentario de linha nos scripts (o TScript junta tudo em uma linha)', !preg_grep('~s//s~', $scripts[1]));
     ok('tela: selo verde do principal', strpos($html, '#4CAF50') !== false && strpos($html, 'select2') !== false);
-    ok('tela: botao Visualizar', strpos($html, 'name="btn_visualizar"') !== false && strpos($html, 'id="mensagem_visualizacao"') !== false);
+    ok('tela: botao Visualizar (abre e fecha)', strpos($html, 'id="btn_visualizar"') !== false && strpos($html, 'id="mensagem_visualizacao"') !== false);
     ob_start();
     EnviarMensagemForm::onVisualizar($param + ['content_whatsapp' => 'Oi {$cliente}, dia {$data_inicial}']);
     $s = ob_get_clean();

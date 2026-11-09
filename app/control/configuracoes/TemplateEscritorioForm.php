@@ -100,7 +100,7 @@ class TemplateEscritorioForm extends TPage
         $categoria->setDefaultOption(false);
         $categoria->setValue(TemplateEscritorio::CONFIRMACAO);
         $categoria->setSize('100%');
-        $titulo->forceUpperCase();
+        // o titulo e o assunto do e-mail (09/11/2026): sem maiusculas forcadas, que estragavam as variaveis ({$cliente})
         $descricao->forceUpperCase();
 
         $data_criacao->setEditable(false);
@@ -116,6 +116,8 @@ class TemplateEscritorioForm extends TPage
         $data_criacao->setSize('100%');
         $tipo_template->setSize('100%');
         $template->setSize('100%', 210);
+        $template->setProperty('data-autoaltura', '1');
+        $template_whatsapp->setProperty('data-autoaltura', '1');
         $data_modificacao->setSize('100%');
         $criacao_user_name->setSize('100%');
         $modificacao_user_name->setSize('100%');
@@ -124,7 +126,7 @@ class TemplateEscritorioForm extends TPage
         $template_acao_template_escritorio_label->setSize('100%');
 
 
-        $row1 = $this->form->addFields([new TLabel("Categoria:", '#ff0000', '14px', null, '100%'),$escritorio_id,$id,$chave,$categoria],[new TLabel("Descrição:", '#ff0000', '14px', null, '100%'),$descricao],[new TLabel("Tipo:", '#FF0000', '14px', null),$tipo_template]);
+        $row1 = $this->form->addFields([new TLabel("Categoria:", '#ff0000', '14px', null, '100%'),$escritorio_id,$id,$chave,$categoria],[new TLabel("Descrição (nome do template na lista):", '#ff0000', '14px', null, '100%'),$descricao],[new TLabel("Tipo:", '#FF0000', '14px', null),$tipo_template]);
         $row1->layout = [' col-sm-3','col-sm-6',' col-sm-3'];
 
         // de que confirmacao este template e a resposta automatica (preenchido no onEdit)
@@ -137,7 +139,7 @@ class TemplateEscritorioForm extends TPage
         $bcontainer_62e034c1eb8f6->setTitle("Variávies", '#333', '13px', '', '#fff');
         $bcontainer_62e034c1eb8f6->setBorderColor('#c0c0c0');
 
-        $row2 = $bcontainer_62e034c1eb8f6->addFields([new TLabel("<b>{\$id}</b> Código do agendamento", null, '14px', null, '100%'),new TLabel("<b>{\$endereco_escritorio}</b> Endereço do escritório", null, '14px', null, '100%'),new TLabel("<b>{\$escritorio}</b> Nome do escritório", null, '14px', null, '100%'),new TLabel("<b>{\$estado}</b> Estado atual do agendamento", null, '14px', null, '100%')],[new TLabel("<b>{\$profissional}</b> Nome do profissional", null, '14px', null, '100%'),new TLabel("<b>{\$data_inicial}</b> Data do agendamento", null, '14px', null, '100%'),new TLabel("<b>{\$cliente}</b> Nome do cliente", null, '14px', null, '100%'),new TLabel("<b>{\$profissional_foto}</b> Foto do profissional", null, '14px', null, '100%')],[new TLabel("<b>{\$link_detalhe}</b> Link de detalhe do agendamento ", null, '14px', null),new TLabel("<b>{\$link_cancelamento}</b> Link para cancelar agendamento ", null, '14px', null, '100%'),new TLabel("<b>{\$link_confirmacao}</b> Link para confirmar agendamento ", null, '14px', null, '100%')]);
+        $row2 = $bcontainer_62e034c1eb8f6->addFields([new TLabel("<b>{\$id}</b> Código do agendamento", null, '14px', null, '100%'),new TLabel("<b>{\$endereco_escritorio}</b> Endereço do escritório", null, '14px', null, '100%'),new TLabel("<b>{\$escritorio}</b> Nome do escritório", null, '14px', null, '100%'),new TLabel("<b>{\$estado}</b> Estado atual do agendamento", null, '14px', null, '100%')],[new TLabel("<b>{\$profissional}</b> Nome do profissional", null, '14px', null, '100%'),new TLabel("<b>{\$data_inicial}</b> Data do agendamento", null, '14px', null, '100%'),new TLabel("<b>{\$cliente}</b> Nome do cliente", null, '14px', null, '100%'),new TLabel("<b>{\$profissional_foto}</b> Foto do profissional", null, '14px', null, '100%')],[new TLabel("<b>{\$link_confirmacao}</b> Botão de confirmar (na confirmação por e-mail; nos outros, o link)", null, '14px', null, '100%'),new TLabel("<b>{\$link_cancelamento}</b> Botão de cancelar (na confirmação por e-mail; nos outros, o link)", null, '14px', null, '100%')]);
         $row2->layout = [' col-sm-4',' col-sm-4',' col-sm-4'];
 
         $row3 = $bcontainer_62e034c1eb8f6->addFields([new TLabel("<b>{\$telefone_escritorio}</b> Telefone do escritório", null, '14px', null, '100%'),new TLabel("<b>{\$email_escritorio}</b> E-mail do escritório", null, '14px', null, '100%')],[new TLabel("<b>{\$observacao}</b> Observação", null, '14px', null, '100%')],[new TLabel("<b>{\$botoes}</b> Botões de confirmar e cancelar (confirmação por e-mail)", null, '14px', null, '100%')]);
@@ -146,7 +148,8 @@ class TemplateEscritorioForm extends TPage
         $row4 = $this->form->addFields([$bcontainer_62e034c1eb8f6]);
         $row4->layout = [' col-sm-12'];
 
-        $row5 = $this->form->addFields([new TLabel("Título:", null, '14px', null, '100%'),$titulo],[new TLabel("Habilitar:", '#ff0000', '14px', null, '100%'),$habilitado]);
+        // e-mail: e o assunto que o cliente ve (na lista e no envio aparece a Descricao); WhatsApp: so o titulo do historico
+        $row5 = $this->form->addFields([new TLabel("<span class='curciol-rotulo-titulo'>Assunto do e-mail:</span>", null, '14px', null, '100%'),$titulo],[new TLabel("Habilitar:", '#ff0000', '14px', null, '100%'),$habilitado]);
         $row5->layout = ['col-sm-9','col-sm-3'];
 
         $row6 = $this->form->addFields([new TLabel("Template:", null, '14px', null, '100%'),$template]);
@@ -260,6 +263,8 @@ class TemplateEscritorioForm extends TPage
                 TScript::create("$('[name=template]').closest('.tformrow').hide();");
             }
 
+            // o campo que apareceu ganha a altura do texto (escondido nao tem altura para medir)
+            TScript::create("if (window.curciolAutoAltura) { window.curciolAutoAltura(); }");
         }
         catch (Exception $e) 
         {
@@ -316,7 +321,7 @@ class TemplateEscritorioForm extends TPage
 
             if ($object->tipo_template == TemplateEscritorio::EMAIL && empty($object->titulo))
             {
-                throw new Exception("Título é obrigátorio para envio de e-mail");
+                throw new Exception("O assunto do e-mail é obrigatório.");
             }
 
             $object->store(); // save the object
@@ -468,7 +473,8 @@ class TemplateEscritorioForm extends TPage
         $tituloBotoes = new TElement('div');
         $tituloBotoes->id = 'botoes_titulo';
         $tituloBotoes->style = 'border-top:1px solid #ddd;padding-top:10px;';
-        $tituloBotoes->add('<b style="font-size:15px">Botões do cliente</b><br>Entram sozinhos logo abaixo do texto (ou onde estiver {$botoes}) e abrem os links de sempre para confirmar ou cancelar.');
+        $tituloBotoes->add('<b style="font-size:15px">Botões do cliente</b><br>Aparecem onde estiver {$botoes} (os dois juntos) ou {$link_confirmacao} e {$link_cancelamento} (um por um) '
+                         . 'e abrem as páginas de sempre para confirmar ou cancelar. O texto e a cor abaixo valem para os dois jeitos.');
         $this->form->addFields([$tituloBotoes])->layout = ['col-sm-12'];
 
         $confirmarTexto = new TEntry('botao_confirmar_texto');
@@ -503,7 +509,8 @@ class TemplateEscritorioForm extends TPage
 
         $row = $this->form->addFields([new TLabel('Assinatura:', null, '14px', null, '100%'), $modo],
                                       [new TLabel('Arquivo da assinatura (PNG, JPG, GIF, HTML ou o ZIP da assinatura do Outlook):', null, '14px', null, '100%'), $arquivo, $this->assinaturaAtual]);
-        $row->layout = ['col-sm-5', 'col-sm-7'];
+        // mesmas colunas dos anexos: o arquivo da assinatura fica alinhado com "Acrescentar anexos"
+        $row->layout = ['col-sm-6', 'col-sm-6'];
 
         // ---------- anexos ----------
         $manter = new TCheckGroup('anexos_manter');
@@ -518,30 +525,39 @@ class TemplateEscritorioForm extends TPage
                                       [new TLabel('Acrescentar anexos (PDF, Word, Excel, imagem, TXT ou ZIP; até 10 MB cada, 20 MB no total):', null, '14px', null, '100%'), $novos]);
         $row->layout = ['col-sm-6', 'col-sm-6'];
 
-        // ---------- previa ----------
-        $botaoPrevia = new TButton('btn_previa');
-        $botaoPrevia->class = 'btn btn-sm btn-default';
-        $botaoPrevia->setLabel('Atualizar prévia');
-        $botaoPrevia->setImage('fas:eye #2196F3');
-        $botaoPrevia->onClick = 'window.curciolPreviaTemplate(); return false;';
+        // ---------- previa: abre e fecha (abrir atualiza); Atualizar so com ela aberta ----------
+        $botoesPrevia = new TElement('div');
+        $botoesPrevia->add('<button type="button" class="btn btn-sm btn-default" id="btn_previa_alternar" onclick="window.curciolPreviaAlternar(); return false;">'
+                         . '<i class="fas fa-eye" style="color:#2196F3"></i> <span class="curciol-previa-rotulo">Mostrar prévia</span></button> '
+                         . '<button type="button" class="btn btn-sm btn-default" id="btn_previa_atualizar" style="display:none" onclick="window.curciolPreviaTemplate(); return false;">'
+                         . '<i class="fas fa-sync-alt" style="color:#2196F3"></i> Atualizar prévia</button>');
 
         $previa = new TElement('div');
         $previa->id = 'template_previa';
-        $previa->style = 'margin-top:8px;background:#f4f4f4;border-radius:6px;padding:10px;';
+        $previa->style = 'display:none;margin-top:8px;background:#f4f4f4;border-radius:6px;padding:10px;';
 
-        $this->form->addFields([new TLabel('Prévia do e-mail (como o cliente vê):', null, '14px', null, '100%'), $botaoPrevia, $previa])->layout = ['col-sm-12'];
+        $this->form->addFields([new TLabel('Prévia do e-mail (como o cliente vê):', null, '14px', null, '100%'), $botoesPrevia, $previa])->layout = ['col-sm-12'];
 
         // sempre pelo form: os filtros da listagem, atras da cortina, tem os mesmos nomes de campo
+        // "Botoes do cliente" so com {$botoes}, {$link_confirmacao} ou {$link_cancelamento} no texto (mesma regra do
+        // EmailMontagemService::textoTemBotoes). Previa: abrir atualiza; aberta, acompanha o que e digitado
         $form = 'form[name=' . self::$formName . ']';
+        $regexBotoes = '/\{\$(?:botoes|link_confirmacao|link_cancelamento)\}/';
         TScript::create("
+            window.curciolTextoTemplate = function (f) {
+                var t = f.find('textarea[name=template]');
+                return t.next('.note-editor').length ? t.summernote('code') : (t.val() || '');
+            };
+            window.curciolTemBotoes = function (f) { return {$regexBotoes}.test(window.curciolTextoTemplate(f)); };
             window.curciolExtrasEmail = function () {
                 var f = $('{$form}');
                 var email = f.find('[name=tipo_template]').val() === '" . TemplateEscritorio::EMAIL . "';
                 var confirmacao = email && f.find('[name=categoria]').val() === '" . TemplateEscritorio::CONFIRMACAO . "';
-                f.find('#botoes_titulo, [name=botao_confirmar_texto]').closest('.tformrow').toggle(confirmacao);
+                f.find('#botoes_titulo, [name=botao_confirmar_texto]').closest('.tformrow').toggle(confirmacao && window.curciolTemBotoes(f));
                 f.find('[name=assinatura_modo], [name^=anexos_novos], #template_previa').closest('.tformrow').toggle(email);
                 var outra = f.find('[name=assinatura_modo]:checked').val() === '" . TemplateEscritorio::ASSINATURA_OUTRA . "';
                 f.find('[name=assinatura_arquivo]').closest('div[class*=col-sm]').toggle(email && outra);
+                f.find('.curciol-rotulo-titulo').text(email ? 'Assunto do e-mail:' : 'Título:');
             };
             window.curciolPreviaTemplate = function () {
                 var f = $('{$form}');
@@ -550,15 +566,26 @@ class TemplateEscritorioForm extends TPage
                 if (f.find('[name=tipo_template]').val() !== '" . TemplateEscritorio::EMAIL . "') { f.find('#template_previa').empty(); return; }
                 $.post('engine.php?class=TemplateEscritorioForm&method=onPrevia&static=1', f.serialize(), function (r) { f.find('#template_previa').html(r); });
             };
+            window.curciolPreviaAlternar = function () {
+                var f = $('{$form}');
+                var p = f.find('#template_previa');
+                var abrir = !p.is(':visible');
+                p.toggle(abrir);
+                f.find('#btn_previa_atualizar').toggle(abrir);
+                f.find('#btn_previa_alternar .curciol-previa-rotulo').text(abrir ? 'Ocultar prévia' : 'Mostrar prévia');
+                if (abrir) { window.curciolPreviaTemplate(); } else { p.empty(); }
+            };
             window.curciolPreviaDepois = function () {
                 clearTimeout(window.curciolPreviaTempo);
+                if (!$('{$form} #template_previa').is(':visible')) { return; }
                 window.curciolPreviaTempo = setTimeout(window.curciolPreviaTemplate, 800);
             };
+            window.curciolTextoMudou = function () { window.curciolExtrasEmail(); window.curciolPreviaDepois(); };
             $(document).off('.curciolExtras')
                 .on('change.curciolExtras', '{$form} [name=categoria], {$form} [name=tipo_template], {$form} [name=assinatura_modo]', window.curciolExtrasEmail)
                 .on('change.curciolExtras input.curciolExtras', '{$form} input, {$form} select, {$form} textarea', window.curciolPreviaDepois)
-                .on('summernote.change.curciolExtras', '{$form} textarea[name=template]', window.curciolPreviaDepois);
-            $(function () { window.curciolExtrasEmail(); window.curciolPreviaDepois(); });
+                .on('summernote.change.curciolExtras summernote.init.curciolExtras', '{$form} textarea[name=template]', window.curciolTextoMudou);
+            $(function () { window.curciolExtrasEmail(); });
         ");
     }
 

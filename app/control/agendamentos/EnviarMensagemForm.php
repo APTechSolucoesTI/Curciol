@@ -94,7 +94,7 @@ class EnviarMensagemForm extends TPage
         {
             $titulo = new TEntry('titulo');
             $titulo->setSize('100%');
-            $row = $this->form->addFields([new TLabel('Título:', '#ff0000', '14px', null, '100%'), $titulo]);
+            $row = $this->form->addFields([new TLabel('Assunto:', '#ff0000', '14px', null, '100%'), $titulo]);
             $row->layout = ['col-sm-12'];
 
             $texto = new THtmlEditor('content_email');
@@ -105,6 +105,8 @@ class EnviarMensagemForm extends TPage
             $texto = new TText('content_whatsapp');
             $texto->setSize('100%', 160);
         }
+        // cresce com o texto e ja abre mostrando a mensagem inteira (curciol-autoaltura.js)
+        $texto->setProperty('data-autoaltura', '1');
 
         $row = $this->form->addFields([new TLabel('Mensagem:', '#ff0000', '14px', null, '100%'), $texto]);
         $row->layout = ['col-sm-12'];
@@ -113,14 +115,17 @@ class EnviarMensagemForm extends TPage
         $variaveis->setTitle('Variáveis (clique para inserir na mensagem)', '#333', '13px', '', '#fff');
         $variaveis->setBorderColor('#c0c0c0');
 
-        $btnVisualizar = new TButton('btn_visualizar');
-        $btnVisualizar->setAction(new TAction([$this, 'onVisualizar'], ['static' => 1]), 'Visualizar');
-        $btnVisualizar->setImage('fas:eye #2196F3');
-        $btnVisualizar->addStyleClass('btn-default');
+        // Visualizar abre e fecha (abrir atualiza); Atualizar so com ela aberta
+        $btnVisualizar = new TElement('div');
+        $btnVisualizar->id = 'mensagem_visualizar_botoes';
+        $btnVisualizar->add('<button type="button" class="btn btn-default" id="btn_visualizar" onclick="window.curciolVisualizarAlternar(); return false;">'
+                          . '<i class="fas fa-eye" style="color:#2196F3"></i> <span class="curciol-visualizar-rotulo">Visualizar</span></button> '
+                          . '<button type="button" class="btn btn-default" id="btn_visualizar_atualizar" style="display:none" onclick="window.curciolVisualizarAtualizar(); return false;">'
+                          . '<i class="fas fa-sync-alt" style="color:#2196F3"></i> Atualizar</button>');
 
         $visualizacao = new TElement('div');
         $visualizacao->id = 'mensagem_visualizacao';
-        $visualizacao->style = 'margin-top:8px;' . ($ehEmail ? '' : 'white-space:pre-wrap;');
+        $visualizacao->style = 'display:none;margin-top:8px;' . ($ehEmail ? '' : 'white-space:pre-wrap;');
 
         $row = $this->form->addFields([$btnVisualizar, $visualizacao]);
         $row->layout = ['col-sm-12'];
@@ -193,8 +198,9 @@ class EnviarMensagemForm extends TPage
             window.curciolManual = function () {
                 var m = $('[name=manual]').is(':checked');
                 $('#mensagem_preview').closest('.tformrow').toggle(!m);
-                $('[name=content_whatsapp], [name=content_email], [name=titulo], [name=btn_visualizar]').closest('.tformrow').toggle(m);
+                $('[name=content_whatsapp], [name=content_email], [name=titulo], #mensagem_visualizar_botoes').closest('.tformrow').toggle(m);
                 $('#caixa_variaveis').toggle(m);
+                if (m && window.curciolAutoAltura) { window.curciolAutoAltura(); }
                 $('form[name=" . self::$formName . "] [name=assinatura_modo], form[name=" . self::$formName . "] [name=anexos_template_enviado]').closest('.tformrow').toggle(m);
                 $('form[name=" . self::$formName . "] [name=assinatura_arquivo]').closest('div[class*=col-sm]').toggle(m && $('form[name=" . self::$formName . "] [name=assinatura_modo]').val() === '" . EnvioEmailService::MODO_ARQUIVO . "');
             };
@@ -206,6 +212,19 @@ class EnviarMensagemForm extends TPage
                 $('[name=btn_enviar] span').contents().last().replaceWith(a ? ' Agendar' : ' Enviar');
             };
             $(document).off('change.curciolAgendar').on('change.curciolAgendar', '[name=agendar]', window.curciolAgendar);
+            window.curciolVisualizarAtualizar = function () {
+                var e = $('form[name=" . self::$formName . "] [name=content_email]');
+                if (e.length && e.next('.note-editor').length) { e.val(e.summernote('code')); }
+                __adianti_post_data('" . self::$formName . "', 'class=EnviarMensagemForm&method=onVisualizar&static=1');
+            };
+            window.curciolVisualizarAlternar = function () {
+                var v = $('#mensagem_visualizacao');
+                var abrir = !v.is(':visible');
+                v.toggle(abrir);
+                $('#btn_visualizar_atualizar').toggle(abrir);
+                $('#btn_visualizar .curciol-visualizar-rotulo').text(abrir ? 'Fechar visualização' : 'Visualizar');
+                if (abrir) { window.curciolVisualizarAtualizar(); } else { v.empty(); }
+            };
             $(function () {
                 window.curciolManual();
                 window.curciolAgendar();
@@ -349,10 +368,11 @@ class EnviarMensagemForm extends TPage
             $texto = json_encode($partes['texto']);
             TScript::create("
                 $('#mensagem_preview').html(" . json_encode($html) . ");
-                $('#mensagem_visualizacao').empty();
                 $('[name=titulo]').val(" . json_encode($partes['titulo']) . ");
                 $('[name=content_whatsapp]').val({$texto});
                 if ($('[name=content_email]').length) { $('[name=content_email]').summernote('code', {$texto}); }
+                if (window.curciolAutoAltura) { window.curciolAutoAltura(); }
+                if ($('#mensagem_visualizacao').is(':visible')) { window.curciolVisualizarAtualizar(); }
                 " . ($template ? '' : "$('[name=manual]').prop('checked', true); window.curciolManual();"));
         }
         catch (Exception $e)
