@@ -25,6 +25,14 @@ try
     igual('chave certa: aceito', 200, ApchatWebhookService::receber('POST', $chave, $json, '1.2.3.4'));
     $ev = $pdo->query('SELECT corpo, ip, processado_em FROM apchat_webhook_evento ORDER BY id DESC LIMIT 1')->fetch(PDO::FETCH_ASSOC);
     igual('guardado como chegou, com o IP, ainda nao processado', ['corpo' => $json, 'ip' => '1.2.3.4', 'processado_em' => null], $ev);
+
+    // o APChat manda os tokens dos canais e chaves de IA junto: nunca ficam guardados na Curciol
+    $comSegredo = '{"method":"message","msg":{"body":"Olá/tchau"},"ticket":{"id":7,"chatgptApiKey":"k1","difyKey":"k2","apiConfig":{"x":1},'
+        . '"whatsapp":{"id":2,"name":"Canal","tokenAPI":"t1","bmToken":"t2","wavoipToken":"t3"}}}';
+    igual('com segredos: aceito', 200, ApchatWebhookService::receber('POST', $chave, $comSegredo, '1.2.3.4'));
+    $guardado = json_decode((string) $pdo->query('SELECT corpo FROM apchat_webhook_evento ORDER BY id DESC LIMIT 1')->fetchColumn(), true);
+    igual('segredos fora, o resto intacto', ['method' => 'message', 'msg' => ['body' => 'Olá/tchau'], 'ticket' => ['id' => 7, 'whatsapp' => ['id' => 2, 'name' => 'Canal']]], $guardado);
+    igual('corpo que nao e JSON fica como chegou', 200, ApchatWebhookService::receber('POST', $chave, 'texto solto', '1.2.3.4'));
 }
 finally
 {
