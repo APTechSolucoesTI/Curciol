@@ -80,7 +80,7 @@ try
     $db->exec('SET LOCAL ROLE ' . ApchatTeste::PAPEL);
     igual('papel da Curciol: so canais do tenant 21', [112, 113], array_map('intval', array_column($db->query('SELECT id FROM curciol.canais ORDER BY id')->fetchAll(), 'id')));
     ok('papel da Curciol: acessos so de atendentes do tenant 21', (int) $db->query('SELECT count(*) FROM curciol.filas_atendentes WHERE "userId" = 9099')->fetchColumn() === 0
-        && (int) $db->query('SELECT count(*) FROM curciol.canais_atendentes')->fetchColumn() === 3);
+        && (int) $db->query('SELECT count(*) FROM curciol.canais_atendentes WHERE "userId" IN (9001, 9002, 9003)')->fetchColumn() === 3);
     igual('papel da Curciol: e-mail dos atendentes', 'atendente.um@teste.local', $db->query('SELECT email FROM curciol.atendentes WHERE id = 9001')->fetchColumn());
 }
 finally

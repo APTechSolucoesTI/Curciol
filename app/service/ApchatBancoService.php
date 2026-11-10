@@ -305,9 +305,10 @@ class ApchatBancoService
     public static function ticketsAbertosComUltima(int $limite = 500): array
     {
         if (self::$falso) { return self::$falso->ticketsAbertosComUltima(); }
-        $sql = 'SELECT t.id, t.status, t."contactId", t."userId", t."queueId", t."whatsappId", t."lastMessageAt",
+        $sql = 'SELECT t.id, t.status, t."contactId", t."userId", t."queueId", t."whatsappId",
+                       to_char(to_timestamp(t."lastMessageAt" / 1000.0), \'YYYY-MM-DD HH24:MI:SS\') AS "lastMessageAt",
                        c.name AS contato, c.number AS numero, w.name AS canal, f.queue AS fila,
-                       m."fromMe" AS ultima_nossa, m.body AS ultima_texto, m."createdAt" AS ultima_em
+                       m."fromMe" AS ultima_nossa, m.body AS ultima_texto, to_char(m."createdAt", \'YYYY-MM-DD HH24:MI:SS\') AS ultima_em
                   FROM curciol.tickets t
                   JOIN curciol.contatos c ON c.id = t."contactId"
                   LEFT JOIN curciol.canais w ON w.id = t."whatsappId"
@@ -351,8 +352,8 @@ class ApchatBancoService
     public static function ticketsFechadosDosNumeros(array $numeros): array
     {
         if (self::$falso) { return self::$falso->ticketsFechadosDosNumeros($numeros); }
-        $st = self::conn()->prepare('SELECT t.id, t.arquivado, t.status, c.number AS numero, c.name AS contato, t."createdAt" AS aberto_em,
-                                            t."closedAt" AS fechado_em, w.name AS canal, f.queue AS fila, t."userId", a.name AS atendente,
+        $st = self::conn()->prepare('SELECT t.id, t.arquivado, t.status, c.number AS numero, c.name AS contato, to_char(t."createdAt", \'YYYY-MM-DD HH24:MI:SS\') AS aberto_em,
+                                            to_char(to_timestamp(t."closedAt" / 1000.0), \'YYYY-MM-DD HH24:MI:SS\') AS fechado_em, w.name AS canal, f.queue AS fila, t."userId", a.name AS atendente,
                                             t."closedByUserId", af.name AS fechou,
                                             (SELECT string_agg(x.name, \'|\' ORDER BY x.ultima)
                                                FROM (SELECT at.name, max(m."createdAt") AS ultima FROM curciol.mensagens m
