@@ -10,7 +10,8 @@ function saida(callable $f): string { ob_start(); try { $f(); } finally { $s = o
 $t = function (int $id, string $status, ?int $user, ?int $fila, bool $nossa, string $numero, string $nome = '') {
     return ['id' => $id, 'status' => $status, 'contactId' => $id + 1000, 'userId' => $user, 'queueId' => $fila, 'whatsappId' => 112,
             'contato' => $nome ?: "Cliente {$id}", 'numero' => $numero, 'canal' => 'Oficial', 'fila' => $fila ? "Fila {$fila}" : null,
-            'ultima_nossa' => $nossa, 'ultima_texto' => $nossa ? 'Resposta do atendente' : "Mensagem do cliente {$id}",
+            'ultima_nossa' => $nossa, 'ultima_texto' => $nossa ? "*Atendente Um*:
+ Resposta do atendente" : "Mensagem do cliente {$id}",
             'ultima_em' => date('Y-m-d H:i:s', strtotime("-{$id} minutes")), 'lastMessageAt' => date('Y-m-d H:i:s')];
 };
 $falso = new class([
@@ -56,6 +57,7 @@ try
     igual('atendente 1: pendentes do canal/fila dele e o aberto dele', [1, 2, 4], $ids($r1), json_encode($r1));
     igual('atendente 1: total', 3, $r1['total'] ?? null);
     igual('atendente 1: sem lista de abertos por padrao', [], $ids($r1, 'abertos'));
+    ok('lista de abertos desligada', ($r1['mostrar_abertos'] ?? null) === false);
     $r2 = ApchatBalaoService::conversas($u2);
     igual('atendente 2: pendente da fila dele, sem fila, e o aberto dele', [1, 2, 3], $ids($r2));
     $r3 = ApchatBalaoService::conversas($u3);
@@ -87,7 +89,12 @@ try
     igual('item: endereco do ticket no APChat', ApchatApiService::urlTicket(1), $item['url']);
 
     ApchatUsuarioService::preferencias($u1, true, true);
-    igual('com tickets abertos ligado: os abertos dele (inclusive respondidos)', [4, 7], $ids(ApchatBalaoService::conversas($u1), 'abertos'));
+    $rab = ApchatBalaoService::conversas($u1);
+    igual('com tickets abertos ligado: os abertos dele (inclusive respondidos)', [4, 7], $ids($rab, 'abertos'));
+    ok('lista de abertos ligada', ($rab['mostrar_abertos'] ?? null) === true);
+    $resp = $rab['abertos'][1] ?? [];
+    ok('respondido: marcado como nosso, sem a assinatura do APChat', ($resp['nossa'] ?? null) === true && ($resp['ultima'] ?? '') === 'Resposta do atendente', json_encode($resp));
+    ok('a responder: mensagem do cliente', ($rab['abertos'][0]['nossa'] ?? null) === false);
     ApchatUsuarioService::preferencias($u1, false, false);
     $rd = ApchatBalaoService::conversas($u1);
     ok('avisos desligados: vazio', ($rd['situacao'] ?? '') === 'desligado' && $rd['itens'] === []);
@@ -141,6 +148,15 @@ try
     ok('balao: icone de conversa e contador', strpos($html, 'fa-comments') !== false && strpos($html, 'data-count="3"') !== false, substr($html, 0, 400));
     ok('balao: abre o ticket na aba do APChat', strpos($html, "window.open('{$urlTicket1}', 'apchat')") !== false, $html);
     ok('balao: nome do cliente', strpos($html, 'Cliente A') !== false);
+    ok('balao: titulo A responder', strpos($html, '>A responder<') !== false, $html);
+    ok('balao: sem a coluna Tickets Abertos quando desligada', strpos($html, 'Tickets Abertos') === false);
+    TTransaction::open('escritorio');
+    TTransaction::get()->exec("UPDATE apchat_usuario SET mostrar_abertos = 'S' WHERE system_user_id = {$u1}");
+    TTransaction::close();
+    $html = saida(function () { (new MessageList(['theme' => 'theme-builder']))->show(); });
+    ok('balao: duas colunas lado a lado', strpos($html, 'apchat-balao-colunas') !== false && substr_count($html, 'apchat-balao-coluna"') === 2, $html);
+    ok('balao: titulo Tickets Abertos', strpos($html, '>Tickets Abertos<') !== false, $html);
+    ok('balao: respondido aparece como Voce:', strpos($html, 'Você: Resposta do atendente') !== false, $html);
     $mail = saida(function () { (new MailList(['theme' => 'theme-builder']))->show(); });
     ok('envelope do APMail: em breve', strpos($mail, 'fa-envelope') !== false && strpos($mail, 'APMail') !== false, $mail);
 }

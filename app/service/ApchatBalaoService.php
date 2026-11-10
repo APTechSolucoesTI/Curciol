@@ -22,7 +22,7 @@ class ApchatBalaoService
 
     public static function conversas(int $systemUserId): array
     {
-        $vazio = ['itens' => [], 'abertos' => [], 'total' => 0];
+        $vazio = ['itens' => [], 'abertos' => [], 'total' => 0, 'mostrar_abertos' => false];
 
         $ligacao = ApchatUsuarioService::doUsuario($systemUserId);
         if (!$ligacao || !$ligacao->apchat_usuario_id)
@@ -81,7 +81,8 @@ class ApchatBalaoService
             }
         }
 
-        return ['situacao' => 'ok', 'itens' => array_slice($itens, 0, self::MAXIMO), 'abertos' => array_slice($abertos, 0, self::MAXIMO), 'total' => count($itens)];
+        return ['situacao' => 'ok', 'itens' => array_slice($itens, 0, self::MAXIMO), 'abertos' => array_slice($abertos, 0, self::MAXIMO), 'total' => count($itens),
+                'mostrar_abertos' => $ligacao->mostrar_abertos === 'S'];
     }
 
     public static function limparCache(): void
@@ -139,7 +140,14 @@ class ApchatBalaoService
 
     private static function item(array $t): array
     {
-        $texto = trim(preg_replace('/\s+/', ' ', (string) ($t['ultima_texto'] ?? '')));
+        $nossa = !empty($t['ultima_nossa']);
+        $texto = (string) ($t['ultima_texto'] ?? '');
+        if ($nossa)
+        {
+            // o APChat poe a assinatura de quem esta logado ("*Nome*:" na primeira linha); na Curciol vira "Voce:"
+            $texto = preg_replace('/^\s*\*[^*\n]{1,80}\*:\s*/u', '', $texto);
+        }
+        $texto = trim(preg_replace('/\s+/u', ' ', $texto));
         return [
             'ticket_id' => (int) $t['id'],
             'contato'   => trim((string) ($t['contato'] ?? '')) !== '' ? (string) $t['contato'] : (string) $t['numero'],
@@ -147,6 +155,7 @@ class ApchatBalaoService
             'canal'     => (string) ($t['canal'] ?? ''),
             'fila'      => $t['fila'] ?? null,
             'status'    => (string) $t['status'],
+            'nossa'     => $nossa,
             'ultima'    => $texto !== '' ? mb_substr($texto, 0, 80) : '[arquivo]',
             'quando'    => $t['ultima_em'] ?? $t['lastMessageAt'] ?? null,
             'url'       => ApchatApiService::urlTicket((int) $t['id']),
