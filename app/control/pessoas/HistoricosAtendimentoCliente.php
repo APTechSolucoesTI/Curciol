@@ -53,7 +53,25 @@ class HistoricosAtendimentoCliente extends TPage
         $action_onShow->setField('id');
 
         $action_onShow->setParameter('key', '{id}');
+        $action_onShow->setDisplayCondition(function ($object) { return empty($object->ticket_id); });
         $this->atendimento_cliente_id_list->addAction($action_onShow);
+
+        // WhatsApp (10/11/2026): ticket fechado do APChat abre so a conversa, com "Abrir no APChat"
+        $action_ticket = new TDataGridAction(['ApchatTicketView', 'onShow']);
+        $action_ticket->setUseButton(false);
+        $action_ticket->setButtonClass('btn btn-default btn-sm');
+        $action_ticket->setLabel('Ver conversa');
+        $action_ticket->setImage('fab:whatsapp #25D366');
+        $action_ticket->setField('ticket_id');
+        $action_ticket->setParameter('key', '{ticket_id}');
+        $action_ticket->setParameter('pessoa_id', '{pessoa_id}');
+        $action_ticket->setDisplayCondition(function ($object) { return !empty($object->ticket_id); });
+        $this->atendimento_cliente_id_list->addAction($action_ticket);
+
+        $column_tipo = $this->atendimento_cliente_id_list->addQuickColumn('Tipo', 'tipo', 'left');
+        $column_tipo->setTransformer(function ($value) {
+            return $value === 'WhatsApp' ? '<i class="fab fa-whatsapp" style="color:#25D366"></i> WhatsApp' : 'Atendimento';
+        });
 
         $column_dt_inicio_transformed = $this->atendimento_cliente_id_list->addQuickColumn("Data", 'dt_inicio', 'left');
         $column_dt_inicio_transformed1 = $this->atendimento_cliente_id_list->addQuickColumn("Início", 'dt_inicio', 'left');
@@ -93,6 +111,13 @@ class HistoricosAtendimentoCliente extends TPage
         $criteria_atendimento_cliente_id->setProperty('order', 'dt_inicio desc');
 
         $atendimento_cliente_id_items = Atendimento::getObjects($criteria_atendimento_cliente_id);
+
+        // WhatsApp (10/11/2026): tickets fechados do APChat na mesma lista, pela data e hora de encerramento
+        foreach (AtendimentoTimeLine::ticketsDoWhatsapp((int) $pessoa->id) as $ticket)
+        {
+            $atendimento_cliente_id_items[] = $ticket;
+        }
+        usort($atendimento_cliente_id_items, function ($a, $b) { return strcmp((string) $b->dt_inicio, (string) $a->dt_inicio); });
 
         $this->atendimento_cliente_id_list->addItems($atendimento_cliente_id_items);
 

@@ -332,6 +332,49 @@ class ApchatBancoService
         return $st->fetchAll();
     }
 
+    /**
+     * Historico no cliente (10/11/2026): tickets FECHADOS dos numeros, com canal, fila, atendente, quem encerrou e os atendentes
+     * que escreveram (nomes separados por |, do primeiro ao ultimo a escrever), do encerramento mais recente para o mais antigo.
+     */
+    public static function ticketsFechadosDosNumeros(array $numeros): array
+    {
+        if (self::$falso) { return self::$falso->ticketsFechadosDosNumeros($numeros); }
+        $st = self::conn()->prepare('SELECT t.id, t.arquivado, t.status, c.number AS numero, c.name AS contato, t."createdAt" AS aberto_em,
+                                            t."closedAt" AS fechado_em, w.name AS canal, f.queue AS fila, t."userId", a.name AS atendente,
+                                            t."closedByUserId", af.name AS fechou,
+                                            (SELECT string_agg(x.name, \'|\' ORDER BY x.ultima)
+                                               FROM (SELECT at.name, max(m."createdAt") AS ultima FROM curciol.mensagens m
+                                                       JOIN curciol.atendentes at ON at.id = m."userId"
+                                                      WHERE m."ticketId" = t.id AND m.arquivada = t.arquivado AND m."fromMe"
+                                                      GROUP BY at.name) x) AS atendentes
+                                       FROM curciol.tickets t
+                                       JOIN curciol.contatos c ON c.id = t."contactId"
+                                       LEFT JOIN curciol.canais w ON w.id = t."whatsappId"
+                                       LEFT JOIN curciol.filas f ON f.id = t."queueId"
+                                       LEFT JOIN curciol.atendentes a ON a.id = t."userId"
+                                       LEFT JOIN curciol.atendentes af ON af.id = t."closedByUserId"
+                                      WHERE c.number = ANY (?::varchar[]) AND t.status = \'closed\'
+                                      ORDER BY t."closedAt" DESC NULLS LAST, t.id DESC LIMIT 500');
+        $st->execute([self::arrayPg($numeros)]);
+        return $st->fetchAll();
+    }
+
+    /** Mensagens de um ticket, da mais antiga para a mais recente (mesmo formato de conversa()). */
+    public static function mensagensDoTicket(int $ticketId, bool $arquivado): array
+    {
+        if (self::$falso) { return self::$falso->mensagensDoTicket($ticketId, $arquivado); }
+        $st = self::conn()->prepare('SELECT m.id, m.body, m."mediaType", m."fileName", m."fromMe", m."isDeleted", m."ticketId", m."createdAt", m.arquivada,
+                                            a.name AS atendente, f.queue AS fila
+                                       FROM curciol.mensagens m
+                                       LEFT JOIN curciol.atendentes a ON a.id = m."userId"
+                                       LEFT JOIN curciol.tickets t ON t.id = m."ticketId" AND t.arquivado = m.arquivada
+                                       LEFT JOIN curciol.filas f ON f.id = t."queueId"
+                                      WHERE m."ticketId" = ? AND m.arquivada = ?
+                                      ORDER BY m."createdAt", m.id LIMIT 3000');
+        $st->execute([$ticketId, $arquivado ? 'true' : 'false']);
+        return $st->fetchAll();
+    }
+
     /** Canais (ativos) e filas de um atendente do APChat. @return array {canais: int[], filas: int[]} */
     public static function acessos(int $atendente): array
     {

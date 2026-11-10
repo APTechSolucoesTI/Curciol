@@ -39,7 +39,14 @@ class AtendimentoTimeLine extends TPage
             $this->timelineCriteria->setProperty('limit', $limit);
             $this->timelineCriteria->setProperty('order', 'dt_inicio desc');
 
-            $objects = Atendimento::getObjects($this->timelineCriteria);
+            $objects = Atendimento::getObjects($this->timelineCriteria) ?: [];
+
+            // WhatsApp (10/11/2026): tickets fechados do APChat na mesma linha do tempo, pela data e hora de encerramento
+            foreach (self::ticketsDoWhatsapp((int) $filterVar) as $ticket)
+            {
+                $objects[] = $ticket;
+            }
+            usort($objects, function ($a, $b) { return strcmp((string) $b->dt_inicio, (string) $a->dt_inicio); });
 
             if ($objects)
             {
@@ -65,7 +72,15 @@ class AtendimentoTimeLine extends TPage
 
                     $id = $object->id;
                     $title = "Atendimento #{id}";
-                    $htmlTemplate = "Agenda: <b>{agendamento->agenda->nome}</b><br/>
+                    if (!empty($object->ticket_id))
+                    {
+                        $title = "Atendimento pelo WhatsApp #{ticket_id}";
+                    }
+                    $htmlTemplate = !empty($object->ticket_id) ? "Canal: <b>{canal}</b><br/>
+Fila: <b>{fila}</b><br/>
+Profissional: <b>{principal}</b><br/>
+Atenderam: <b>{atendentes_texto}</b><br/>
+Abertura: <b>{aberto_texto}</b>" : "Agenda: <b>{agendamento->agenda->nome}</b><br/>
 Parceiro: <b>{agendamento->agendamento_procedimento_convenio_to_string} </b><br/>
 Profissional: <b>{profissional->nome_formatado}</b><br/>
 Escritório: <b>{agendamento->agenda->escritorio->nome}</b><br/>
@@ -103,7 +118,11 @@ Tipo: <b>{tipo_atendimento->nome}</b>";
             $action_AtendimentoFormView_onShow = new TAction(['AtendimentoFormView', 'onShow'], ['key'=> '{id}']);
             $action_AtendimentoFormView_onShow->setParameter('id', '{id}');
             $action_AtendimentoFormView_onShow->setProperty('btn-class', 'btn btn-default');
-            $this->timeline->addAction($action_AtendimentoFormView_onShow, "Acessar atendimento", 'fas:dot-circle #FF9800','AtendimentoTimeLine::podeExibir'); 
+            $this->timeline->addAction($action_AtendimentoFormView_onShow, "Acessar atendimento", 'fas:dot-circle #FF9800','AtendimentoTimeLine::podeExibir');
+
+            $action_ticket = new TAction(['ApchatTicketView', 'onShow'], ['key' => '{ticket_id}', 'pessoa_id' => '{pessoa_id}']);
+            $action_ticket->setProperty('btn-class', 'btn btn-default');
+            $this->timeline->addAction($action_ticket, 'Ver conversa', 'fab:whatsapp #25D366', 'AtendimentoTimeLine::ehTicket');
 
             $container = new TVBox;
 
@@ -125,8 +144,55 @@ Tipo: <b>{tipo_atendimento->nome}</b>";
         }
     }
 
+    public static function ehTicket($object)
+    {
+        return !empty($object->ticket_id);
+    }
+
+    /**
+     * Tickets fechados do WhatsApp do cliente (ApchatHistoricoService) no formato da lista e da linha do tempo: dt_inicio = data
+     * do encerramento. Usa a transacao aberta. APChat fora: nenhum (a aba continua com os atendimentos).
+     */
+    public static function ticketsDoWhatsapp(int $pessoaId): array
+    {
+        try
+        {
+            if (!$pessoaId || !ApchatBancoService::configurado() || !ApchatBancoService::disponivel()) { return []; }
+            $tickets = ApchatHistoricoService::tickets($pessoaId);
+        }
+        catch (Throwable $e)
+        {
+            return [];
+        }
+        $h = function ($v) { return htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8'); };
+        $lista = [];
+        foreach ($tickets as $t)
+        {
+            $o = new stdClass;
+            $o->id = 'w' . $t['id'];
+            $o->ticket_id = $t['id'];
+            $o->pessoa_id = $pessoaId;
+            $o->tipo = 'WhatsApp';
+            $o->dt_inicio = $t['fechado_em'];
+            $o->canal = $h($t['canal']);
+            $o->fila = $h($t['fila']) ?: '—';
+            $o->principal = $h($t['principal']) ?: '—';
+            $o->atendentes_texto = $h(implode(', ', $t['atendentes'])) ?: '—';
+            $o->aberto_texto = $t['aberto_em'] ? date('d/m/Y H:i', strtotime($t['aberto_em'])) : '';
+            $o->profissional = (object) ['nome' => $o->principal, 'nome_formatado' => $o->principal];
+            $o->agendamento = (object) ['especialidade' => (object) ['descricao' => trim('WhatsApp · ' . $o->canal . ($t['fila'] ? ' · ' . $o->fila : ''))]];
+            $o->atendimento_historico_historico_to_string = 'Atenderam: ' . $o->atendentes_texto;
+            $lista[] = $o;
+        }
+        return $lista;
+    }
+
     public static function podeExibir($object)
     {
+        if (!empty($object->ticket_id))
+        {
+            return false;
+        }
         try 
         {
             TTransaction::open(self::$database);

@@ -163,7 +163,7 @@ class ApchatRespostaService
                 $numeros[$v] = true;
             }
         }
-        return array_keys($numeros);
+        return array_map('strval', array_keys($numeros));
     }
 
     private static function pendentes(): array

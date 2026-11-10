@@ -65,6 +65,16 @@ class ApchatContatoConversaView extends TPage
 
             $this->form->setFormTitle(htmlspecialchars((string) $c['name']) . ' · ' . ApchatContatoSemVinculoList::formatarNumero($numero));
 
+            // Abrir no APChat (10/11/2026): o ticket mais recente do contato, na aba "apchat"
+            $ultima = $mensagens ? end($mensagens) : null;
+            if ($ultima && !empty($ultima['ticketId']))
+            {
+                TTransaction::open('escritorio');
+                $url = ApchatApiService::urlTicket((int) $ultima['ticketId']);
+                TTransaction::close();
+                $this->form->addHeaderWidget(ApchatTicketView::botaoAbrir($url));
+            }
+
             $row = $this->form->addFields(
                 [new TLabel("Nome no APChat:", null, '12px', 'B', '100%'), new TTextDisplay(htmlspecialchars((string) $c['name']), '', '12px', '')],
                 [new TLabel("Número:", null, '12px', 'B', '100%'), new TTextDisplay(ApchatContatoSemVinculoList::formatarNumero($numero), '', '12px', '')],
