@@ -103,6 +103,13 @@ class ApchatFilaService
             TTransaction::rollback();
         }
 
+        // entrega do WhatsApp da Curciol (10/11/2026): 2 tiques = entregue; 24 h sem eles = nao entregue + aviso no sino
+        $entrega = MensagemEntregaService::rodada();
+        if (PHP_SAPI === 'cli')
+        {
+            echo date('d/m/Y H:i:s') . ' entrega do WhatsApp: ' . json_encode($entrega) . "\n";
+        }
+
         // conciliacao (10/11/2026): contato do APChat fora do espelho que e da Curciol passa a ser ligado e trancado
         $conciliacao = ApchatConciliacaoService::rodada();
         if (PHP_SAPI === 'cli')

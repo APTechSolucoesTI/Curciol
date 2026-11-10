@@ -414,6 +414,9 @@ class MensagemService
         $mensagem = self::registrar($agendamento, TemplateEscritorio::WHATSAPP, $titulo, $texto, $template_escritorio_id, $numero);
         
         $mensagem->retorno = ApchatApiService::enviarMensagem($numero, $texto, 'curciol-mensagem-' . $mensagem->id);
+        // entrega (10/11/2026): aguardando os 2 tiques no APChat (MensagemEntregaService, no cron)
+        $mensagem->entrega = 'A';
+        $mensagem->apchat_mensagem_id = MensagemEntregaService::idDaResposta((string) $mensagem->retorno);
         $mensagem->store();
         
         return $mensagem;

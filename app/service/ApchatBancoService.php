@@ -313,6 +313,25 @@ class ApchatBancoService
         return $linhas;
     }
 
+    /**
+     * Entrega (10/11/2026): mensagens enviadas (fromMe) para estes numeros num intervalo, com os tiques. Vai pelo contato do
+     * ticket (a copia, no canal oficial, de mensagem enviada pela API vem sem contato na mensagem).
+     * @return array linhas {id, messageId, body, ack, createdAt, numero}
+     */
+    public static function mensagensEnviadasPara(array $numeros, string $desde, string $ate): array
+    {
+        if (self::$falso) { return self::$falso->mensagensEnviadasPara($numeros, $desde, $ate); }
+        $st = self::conn()->prepare('SELECT m.id, m."messageId", m.body, m.ack, m."createdAt", c.number AS numero
+                                       FROM curciol.mensagens m
+                                       JOIN curciol.tickets t ON t.id = m."ticketId" AND t.arquivado = m.arquivada
+                                       JOIN curciol.contatos c ON c.id = t."contactId"
+                                      WHERE c.number = ANY (?::varchar[]) AND m."fromMe" AND NOT COALESCE(m."isDeleted", false)
+                                        AND m."createdAt" BETWEEN ?::timestamptz AND ?::timestamptz
+                                      ORDER BY m."createdAt", m.id LIMIT 200');
+        $st->execute([self::arrayPg($numeros), $desde, $ate]);
+        return $st->fetchAll();
+    }
+
     /** Canais (ativos) e filas de um atendente do APChat. @return array {canais: int[], filas: int[]} */
     public static function acessos(int $atendente): array
     {

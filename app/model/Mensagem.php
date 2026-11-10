@@ -33,6 +33,9 @@ class Mensagem extends TRecord
         parent::addAttribute('respondido_em');
         parent::addAttribute('resposta_obs');
         parent::addAttribute('assinatura_id');
+        parent::addAttribute('entrega');
+        parent::addAttribute('entrega_em');
+        parent::addAttribute('apchat_mensagem_id');
     
     }
 
@@ -173,6 +176,14 @@ class Mensagem extends TRecord
         if ($this->template)
         {
             $result .= nl2br($this->template);
+        }
+
+        // WhatsApp (10/11/2026): situacao de entrega (2 tiques no APChat; 24 h sem eles = nao entregue)
+        $entrega = ['A' => ['Aguardando entrega', '#9e9e9e', 'far fa-clock'], 'E' => ['Entregue', '#2e7d32', 'fas fa-check-double'], 'N' => ['Não entregue', '#c62828', 'fas fa-exclamation-triangle']];
+        if (isset($entrega[$this->entrega]))
+        {
+            [$rotulo, $cor, $icone] = $entrega[$this->entrega];
+            $result .= "<br/><span style=\"display:inline-block;margin-top:4px;font-size:12px;color:{$cor};\"><i class=\"{$icone}\"></i> {$rotulo}</span>";
         }
     
         return $result;
