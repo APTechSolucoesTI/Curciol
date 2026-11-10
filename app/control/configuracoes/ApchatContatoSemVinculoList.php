@@ -99,6 +99,15 @@ class ApchatContatoSemVinculoList extends TPage
         $column_fila->setTransformer(function ($value) { return htmlspecialchars((string) $value) ?: '<span style="color:#999">—</span>'; });
         $column_nome->setTransformer(function ($value) { return htmlspecialchars((string) $value); });
 
+        // ordenacao clicando no titulo (10/11/2026; colunas permitidas em ApchatBancoService::ordemSemVinculo)
+        foreach (['name' => $column_nome, 'number' => $column_numero, 'criado_em' => $column_criado, 'ultima_mensagem' => $column_mensagem,
+                  'atendente' => $column_atendente, 'fila' => $column_fila] as $ordem => $coluna)
+        {
+            $acao = new TAction([$this, 'onReload']);
+            $acao->setParameter('order', $ordem);
+            $coluna->setAction($acao);
+        }
+
         $this->datagrid->addColumn($column_nome);
         $this->datagrid->addColumn($column_numero);
         $this->datagrid->addColumn($column_criado);
@@ -285,7 +294,8 @@ class ApchatContatoSemVinculoList extends TPage
 
             $limit = $this->limit;
             $offset = isset($param['offset']) ? (int) $param['offset'] : 0;
-            [$linhas, $total] = ApchatBancoService::listar(self::situacao(), ApchatVinculoService::contextoCurciol(), self::filtros(), $offset, $limit);
+            [$linhas, $total] = ApchatBancoService::listar(self::situacao(), ApchatVinculoService::contextoCurciol(), self::filtros(), $offset, $limit,
+                                                           (string) ($param['order'] ?? ''), (string) ($param['direction'] ?? ''));
 
             $this->datagrid->clear();
             foreach ($linhas as $l)
@@ -296,6 +306,9 @@ class ApchatContatoSemVinculoList extends TPage
             $this->pageNavigation->setCount($total);
             $this->pageNavigation->setProperties($param ?: []);
             $this->pageNavigation->setLimit($limit);
+            // padrao das listagens (10/11/2026): filtros do cabecalho em popover (funil) e a faixa "Filtros aplicados"
+            $this->datagrid->initPopoverHeaderFilters();
+            FiltroLista::faixa(__CLASS__, null, $this->datagrid_form, $this->datagrid);
             $this->loaded = true;
 
             return $linhas;

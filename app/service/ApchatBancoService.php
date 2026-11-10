@@ -184,9 +184,21 @@ class ApchatBancoService
      * @param array  $filtros  nome, numero, criado_de, criado_ate (Y-m-d), mensagem, atendente, fila
      * @return array [linhas, total]
      */
-    public static function listar(string $situacao, array $curciol, array $filtros, int $offset, int $limit): array
+    /** Ordem da lista "Contatos sem vinculo" (10/11/2026): so colunas permitidas; o resto vira a ordem padrao. */
+    public static function ordemSemVinculo(string $coluna, string $direcao): string
     {
-        if (self::$falso) { return self::$falso->listar($situacao, $curciol, $filtros, $offset, $limit); }
+        $colunas = ['name' => 'lower(c.name)', 'number' => 'c.number', 'criado_em' => 'c."createdAt"', 'ultima_mensagem' => 't."updatedAt"',
+                    'atendente' => 'lower(a.name)', 'fila' => 'f.queue'];
+        if (!isset($colunas[$coluna]))
+        {
+            return 'c."createdAt" DESC NULLS LAST, c.id DESC';
+        }
+        return $colunas[$coluna] . (strtolower($direcao) === 'asc' ? ' ASC' : ' DESC') . ' NULLS LAST, c.id DESC';
+    }
+
+    public static function listar(string $situacao, array $curciol, array $filtros, int $offset, int $limit, string $ordem = '', string $direcao = ''): array
+    {
+        if (self::$falso) { return self::$falso->listar($situacao, $curciol, $filtros, $offset, $limit, $ordem, $direcao); }
 
         $onde = ['NOT c."isGroup"'];
         $args = [];
@@ -259,7 +271,7 @@ class ApchatBancoService
 
         $sql = 'SELECT c.id, c.name, c.number, c.pushname, c."createdAt" AS criado_em, t.id AS ticket_id, t.status AS ticket_status,
                        t."lastMessage" AS ultima_mensagem, t."updatedAt" AS ultima_mensagem_em, a.name AS atendente, f.queue AS fila ' . $de
-             . ' ORDER BY c."createdAt" DESC, c.id DESC' . ($limit > 0 ? ' LIMIT ' . (int) $limit . ' OFFSET ' . max(0, (int) $offset) : '');
+             . ' ORDER BY ' . self::ordemSemVinculo($ordem, $direcao) . ($limit > 0 ? ' LIMIT ' . (int) $limit . ' OFFSET ' . max(0, (int) $offset) : '');
         $st = self::conn()->prepare($sql);
         $st->execute($args);
 
