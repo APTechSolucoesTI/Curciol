@@ -19,6 +19,8 @@ try
     $st = $db->prepare('INSERT INTO public."Tickets" (id, status, "contactId", "userId", "queueId", "whatsappId", "tenantId", "createdAt", "updatedAt", "lastMessageAt", "closedAt", "closedByUserId")
                         VALUES (?, ?, 990100, 9001, 9101, 112, 21, ?, ?, ?, ?, ?)');
     $st->execute([990100, 'closed', '2026-11-07 14:00:00-03', '2026-11-07 15:00:00-03', $ms('2026-11-07 14:58:00 America/Sao_Paulo'), $ms('2026-11-07 15:00:00 America/Sao_Paulo'), 9002]);
+    // fechado pelo isClosed do envio da API: o APChat nao preenche o closedAt (tickets 2967 e 2971 do app1, 10/11/2026)
+    $st->execute([990102, 'closed', '2026-11-08 09:00:00-03', '2026-11-08 09:00:05-03', null, null, null]);
     $st->execute([990101, 'pending', date('Y-m-d H:i:sP', strtotime('-10 minutes')), date('Y-m-d H:i:sP'), $ms('-5 minutes'), null, null]);
     $db->exec("INSERT INTO public.\"Messages\" (id, body, \"mediaType\", \"fromMe\", \"ticketId\", \"contactId\", \"userId\", \"tenantId\", ack, \"isDeleted\", \"createdAt\", \"updatedAt\") VALUES
         ('vis-1', 'Oi', 'chat', false, 990100, 990100, NULL, 21, 3, false, '2026-11-07 14:00-03', now()),
@@ -27,7 +29,9 @@ try
 
     ApchatTeste::ligarServico();
     $f = ApchatBancoService::ticketsFechadosDosNumeros(['5519900099100']);
-    igual('so o fechado', [990100], array_map('intval', array_column($f, 'id')));
+    igual('so os fechados, do encerramento mais recente', [990102, 990100], array_map('intval', array_column($f, 'id')));
+    igual('fechado sem closedAt: encerramento = ultima atualizacao do ticket', '2026-11-08 09:00:05', $f[0]['fechado_em'] ?? null);
+    $f = array_values(array_filter($f, function ($t) { return (int) $t['id'] === 990100; }));
     igual('encerramento em data e hora de Sao Paulo (closedAt em milissegundos)', '2026-11-07 15:00:00', $f[0]['fechado_em'] ?? null);
     igual('quem encerrou', 'TESTE - Atendente Dois', $f[0]['fechou'] ?? null);
     ok('tem mensagem do cliente', ($f[0]['do_cliente'] ?? null) === true, json_encode($f[0]['do_cliente'] ?? null));

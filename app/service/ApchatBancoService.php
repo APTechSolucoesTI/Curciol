@@ -364,7 +364,7 @@ class ApchatBancoService
     {
         if (self::$falso) { return self::$falso->ticketsFechadosDosNumeros($numeros); }
         $st = self::conn()->prepare('SELECT t.id, t.arquivado, t.status, c.number AS numero, c.name AS contato, to_char(t."createdAt", \'YYYY-MM-DD HH24:MI:SS\') AS aberto_em,
-                                            to_char(to_timestamp(t."closedAt" / 1000.0), \'YYYY-MM-DD HH24:MI:SS\') AS fechado_em, w.name AS canal, f.queue AS fila, t."userId", a.name AS atendente,
+                                            to_char(COALESCE(to_timestamp(t."closedAt" / 1000.0), t."updatedAt"), \'YYYY-MM-DD HH24:MI:SS\') AS fechado_em, w.name AS canal, f.queue AS fila, t."userId", a.name AS atendente,
                                             t."closedByUserId", af.name AS fechou,
                                             (SELECT string_agg(x.name, \'|\' ORDER BY x.ultima)
                                                FROM (SELECT at.name, max(m."createdAt") AS ultima FROM curciol.mensagens m
@@ -379,7 +379,8 @@ class ApchatBancoService
                                        LEFT JOIN curciol.atendentes a ON a.id = t."userId"
                                        LEFT JOIN curciol.atendentes af ON af.id = t."closedByUserId"
                                       WHERE c.number = ANY (?::varchar[]) AND t.status = \'closed\'
-                                      ORDER BY t."closedAt" DESC NULLS LAST, t.id DESC LIMIT 500');
+                                      ORDER BY COALESCE(to_timestamp(t."closedAt" / 1000.0), t."updatedAt") DESC, t.id DESC LIMIT 500');
+        // fechado pelo isClosed do envio da API: o APChat nao preenche o closedAt -> encerramento = ultima atualizacao do ticket
         $st->execute([self::arrayPg($numeros)]);
         return $st->fetchAll();
     }
