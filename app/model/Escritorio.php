@@ -40,6 +40,7 @@ class Escritorio extends TRecord
         parent::addAttribute('modificacao_user_id');
         parent::addAttribute('token_apchat');
         parent::addAttribute('url_apchat');
+        parent::addAttribute('url_tela_apchat');
     
     }
 

@@ -161,6 +161,13 @@ window.BuilderTemplate = ( function() {
         });
     }
     
+    // Curciol (10/11/2026): envelope do APMail (reservado, carrega uma vez)
+    const updateMailMenu = function() {
+        $.get('engine.php?class=MailList&theme=theme-builder', function(data) {
+            $('#envelope_mail').html(data);
+        });
+    }
+
     const updateNotificationsMenu = function() {
         $.get('engine.php?class=NotificationList&theme=theme-builder', function(data) {
             $('#envelope_notifications').html(data);
@@ -350,6 +357,7 @@ window.BuilderTemplate = ( function() {
         {
             BuilderTemplate.updateMessagesMenu();
             BuilderTemplate.updateNotificationsMenu();
+            BuilderTemplate.updateMailMenu();
         
             if(options.verify_messages_menu)
             {
@@ -529,6 +537,7 @@ window.BuilderTemplate = ( function() {
     return {
         updateMessagesMenu: updateMessagesMenu,
         updateNotificationsMenu: updateNotificationsMenu,
+        updateMailMenu: updateMailMenu,
         loadSearchBar: loadSearchBar,
         init: init,
         resizeBuilderMenu: resizeBuilderMenu,

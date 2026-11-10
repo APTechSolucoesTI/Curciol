@@ -141,6 +141,31 @@ class ApchatRespostaService
     /**
      * Confirmacoes esperando resposta, a mais recente de cada numero; as anteriores do mesmo numero ficam substituidas.
      */
+    /**
+     * Numeros (com e sem o 9, com 55) que estao aguardando o SIM/NAO de uma confirmacao da Curciol, so leitura (balao do topo,
+     * 10/11/2026: a resposta do cliente nao avisa ninguem enquanto a Curciol cuida dela). Usa a transacao aberta.
+     */
+    public static function numerosAguardando(): array
+    {
+        $linhas = TTransaction::get()->query("SELECT DISTINCT m.destino
+                               FROM mensagem m
+                               JOIN template_escritorio t ON t.id = m.template_escritorio_id
+                              WHERE t.categoria = '" . TemplateEscritorio::CONFIRMACAO . "'
+                                AND (COALESCE(btrim(t.respostas_confirmar), '') <> '' OR COALESCE(btrim(t.respostas_cancelar), '') <> '')
+                                AND m.tipo_mensagem = 'WHATSAPP' AND m.resposta IS NULL AND COALESCE(m.destino, '') <> ''")->fetchAll(PDO::FETCH_COLUMN);
+        $numeros = [];
+        foreach ($linhas as $destino)
+        {
+            $d = preg_replace('/\D/', '', (string) $destino);
+            $d = strlen($d) <= 11 ? '55' . $d : $d;
+            foreach (APChatContactService::variantes($d) as $v)
+            {
+                $numeros[$v] = true;
+            }
+        }
+        return array_keys($numeros);
+    }
+
     private static function pendentes(): array
     {
         $c = TTransaction::get();

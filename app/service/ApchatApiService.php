@@ -81,6 +81,16 @@ class ApchatApiService
      *
      * @return string resposta do APChat (fica registrada na mensagem)
      */
+    const URL_TELA_PADRAO = 'https://app.apchat.com.br';
+
+    /** Endereco do ticket na tela do APChat (aberto ou fechado), do escritorio (10/11/2026). */
+    public static function urlTicket(int $ticketId): string
+    {
+        $escritorio = self::escritorio();
+        $base = rtrim(trim((string) ($escritorio->url_tela_apchat ?? '')), '/');
+        return ($base !== '' ? $base : self::URL_TELA_PADRAO) . '/atendimento?ticketId=' . $ticketId;
+    }
+
     public static function enviarMensagem(string $numero, string $texto, string $chave): string
     {
         $escritorio = self::escritorio();

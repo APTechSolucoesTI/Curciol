@@ -39,6 +39,11 @@ try
     $c9 = $novo('Maria', '5519933334444');
     igual('variante com 9: nasce com o nome da Curciol', 'MARIA SEM NOVE', $c9['name']);
 
+    // telefone fixo (comeca com 2 a 5) nao ganha o 9: nao e variante de um celular com o mesmo final
+    $db->exec("INSERT INTO curciol.contato (contato_id, nome, numero, ligado) VALUES (880004, 'CELULAR 9 + FIXO', '5519933221100', true)");
+    $fixo = $novo('Fixo', '551933221100');
+    igual('fixo com o mesmo final de um celular: nao liga', 'Fixo', $fixo['name']);
+
     // desconhecido: livre, fora do espelho
     $d = $novo('Fulano WhatsApp', '5511900001111');
     igual('desconhecido: fica com o nome do WhatsApp', 'Fulano WhatsApp', $d['name']);

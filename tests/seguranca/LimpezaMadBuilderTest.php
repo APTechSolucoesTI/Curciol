@@ -83,8 +83,8 @@ foreach (['app/templates/theme3', 'app/templates/theme3-adminlte3', 'app/templat
 {
     ok("saiu: {$p}", !file_exists($p));
 }
-$sobrouBanco = array_values(array_filter(glob('app/database/*') ?: [], function ($p) { return basename($p) !== 'migrations'; }));
-igual('app/database so com migrations/', [], $sobrouBanco);
+$sobrouBanco = array_values(array_filter(glob('app/database/*') ?: [], function ($p) { return !in_array(basename($p), ['migrations', 'apchat'], true); }));
+igual('app/database so com migrations/ e apchat/ (SQL do APChat, 10/11/2026)', [], $sobrouBanco);
 
 $ini = (string) file_get_contents('app/config/application.ini');
 ok('application.ini: do [builder] so o servidor da consulta de CNPJ', strpos($ini, 'app_url') === false && strpos($ini, 'manager_url') === false && strpos($ini, 'services_url') !== false);

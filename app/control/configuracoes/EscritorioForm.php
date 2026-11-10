@@ -57,6 +57,8 @@ class EscritorioForm extends TPage
         $this->fieldList_60f6decfd616d = new TFieldList();
         $url_apchat = new TEntry('url_apchat');
         $token_apchat = new TPassword('token_apchat');
+        // endereco da tela do APChat (botoes "Abrir no APChat" e balao do topo; 10/11/2026)
+        $url_tela_apchat = new TEntry('url_tela_apchat');
         $button_testar_apchat = new TButton('button_testar_apchat');
         $button_enviar_teste_apchat = new TButton('button_enviar_teste_apchat');
         $host = new TEntry('host');
@@ -256,6 +258,8 @@ class EscritorioForm extends TPage
             muda o canal do APChat por onde as mensagens saem.
         */
         $url_apchat->setSize('100%');
+        $url_tela_apchat->setSize('100%');
+        $url_tela_apchat->placeholder = 'https://app.apchat.com.br';
         $token_apchat->setSize('100%');
         $url_apchat->placeholder = 'https://api.apchat.com.br/v2/api/external/código-da-integração';
 
@@ -265,6 +269,9 @@ class EscritorioForm extends TPage
 
         $row15b = $apchat_container->addFields([new TLabel("URL da API:", null, '14px', null, '100%'), $url_apchat],[new TLabel("Token da API:", null, '14px', null, '100%'), $token_apchat]);
         $row15b->layout = [' col-sm-7',' col-sm-5'];
+
+        $row15c = $apchat_container->addFields([new TLabel("Endereço da tela do APChat (para abrir os atendimentos; vazio = https://app.apchat.com.br):", null, '14px', null, '100%'), $url_tela_apchat]);
+        $row15c->layout = [' col-sm-7'];
 
         $row15d = $apchat_container->addFields([$button_testar_apchat, $button_enviar_teste_apchat]);
         $row15d->layout = [' col-sm-12'];

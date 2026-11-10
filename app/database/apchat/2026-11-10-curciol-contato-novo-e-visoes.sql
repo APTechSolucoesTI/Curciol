@@ -47,13 +47,14 @@ CREATE OR REPLACE VIEW curciol.canais_atendentes AS
       FROM public."UserWhatsapps" uw JOIN public."Users" u ON u.id = uw."userId" AND u."tenantId" = 21;
 
 -- 2) contato novo -----------------------------------------------------------------------------------------------------
--- o mesmo numero com e sem o nono digito (Brasil: 55 + DDD + 8 ou 9 digitos)
+-- o mesmo numero com e sem o nono digito (Brasil: 55 + DDD + 8 ou 9 digitos); so celular (comeca com 6 a 9) ganha o 9, fixo nao
+-- (a mesma regra de APChatContactService::variantes na Curciol)
 CREATE OR REPLACE FUNCTION curciol.variantes_numero(p_numero text) RETURNS text[]
     LANGUAGE sql IMMUTABLE
 AS $$
     SELECT CASE
-             WHEN n ~ '^55[0-9]{2}9[0-9]{8}$' THEN ARRAY[n, substr(n, 1, 4) || substr(n, 6)]
-             WHEN n ~ '^55[0-9]{2}[0-9]{8}$'  THEN ARRAY[n, substr(n, 1, 4) || '9' || substr(n, 5)]
+             WHEN n ~ '^55[0-9]{2}9[0-9]{8}$'     THEN ARRAY[n, substr(n, 1, 4) || substr(n, 6)]
+             WHEN n ~ '^55[0-9]{2}[6-9][0-9]{7}$' THEN ARRAY[n, substr(n, 1, 4) || '9' || substr(n, 5)]
              ELSE ARRAY[n]
            END
       FROM (SELECT regexp_replace(coalesce(p_numero, ''), '\D', '', 'g') AS n) x

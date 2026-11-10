@@ -286,6 +286,48 @@ class ApchatBancoService
     }
 
     /**
+     * Balao do topo (10/11/2026): tickets pendentes e abertos do tenant 21 com a ultima mensagem (texto, de quem e quando).
+     * @return array linhas {id, status, contactId, userId, queueId, whatsappId, contato, numero, canal, fila, ultima_nossa,
+     *                       ultima_texto, ultima_em, lastMessageAt}
+     */
+    public static function ticketsAbertosComUltima(int $limite = 500): array
+    {
+        if (self::$falso) { return self::$falso->ticketsAbertosComUltima(); }
+        $sql = 'SELECT t.id, t.status, t."contactId", t."userId", t."queueId", t."whatsappId", t."lastMessageAt",
+                       c.name AS contato, c.number AS numero, w.name AS canal, f.queue AS fila,
+                       m."fromMe" AS ultima_nossa, m.body AS ultima_texto, m."createdAt" AS ultima_em
+                  FROM curciol.tickets t
+                  JOIN curciol.contatos c ON c.id = t."contactId"
+                  LEFT JOIN curciol.canais w ON w.id = t."whatsappId"
+                  LEFT JOIN curciol.filas f ON f.id = t."queueId"
+                  LEFT JOIN LATERAL (SELECT mm."fromMe", mm.body, mm."createdAt" FROM curciol.mensagens mm
+                                      WHERE mm."ticketId" = t.id AND NOT mm.arquivada AND NOT COALESCE(mm."isDeleted", false)
+                                      ORDER BY mm."createdAt" DESC LIMIT 1) m ON true
+                 WHERE NOT t.arquivado AND t.status IN (\'pending\', \'open\') AND NOT COALESCE(c."isGroup", false)
+                 ORDER BY COALESCE(m."createdAt", t."updatedAt") DESC LIMIT ' . max(1, (int) $limite);
+        $linhas = self::conn()->query($sql)->fetchAll();
+        foreach ($linhas as &$l)
+        {
+            $l['ultima_nossa'] = $l['ultima_nossa'] === true || $l['ultima_nossa'] === 't' || $l['ultima_nossa'] === 1;
+        }
+        return $linhas;
+    }
+
+    /** Canais (ativos) e filas de um atendente do APChat. @return array {canais: int[], filas: int[]} */
+    public static function acessos(int $atendente): array
+    {
+        if (self::$falso) { return self::$falso->acessos($atendente); }
+        $c = self::conn();
+        $st = $c->prepare('SELECT "whatsappId" FROM curciol.canais_atendentes WHERE "userId" = ? AND COALESCE("isActive", true)');
+        $st->execute([$atendente]);
+        $canais = array_map('intval', array_column($st->fetchAll(), 'whatsappId'));
+        $st = $c->prepare('SELECT "queueId" FROM curciol.filas_atendentes WHERE "userId" = ?');
+        $st->execute([$atendente]);
+        $filas = array_map('intval', array_column($st->fetchAll(), 'queueId'));
+        return ['canais' => $canais, 'filas' => $filas];
+    }
+
+    /**
      * Atendentes do APChat (tenant 21), para ligar aos usuarios da Curciol (10/11/2026).
      * @return array linhas {id, name, email, inactive}
      */
