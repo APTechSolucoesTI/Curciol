@@ -13,6 +13,7 @@ class ApchatBalaoService
 {
     const CACHE_SEGUNDOS = 10;
     const MAXIMO = 20;
+    const FALHA_SEGUNDOS = 60;
 
     public static function conversas(int $systemUserId): array
     {
@@ -28,10 +29,17 @@ class ApchatBalaoService
             return ['situacao' => 'desligado'] + $vazio;
         }
 
+        // APChat fora: nao tenta conectar de novo por 60 s (cada tentativa espera ate 5 s, a cada 15 s, em cada usuario logado)
+        $falha = self::arquivoCache() . '.falha';
+        if (is_file($falha) && (int) @file_get_contents($falha) > time() - self::FALHA_SEGUNDOS)
+        {
+            return ['situacao' => 'erro'] + $vazio;
+        }
         try
         {
             if (!ApchatBancoService::configurado() || !ApchatBancoService::disponivel())
             {
+                @file_put_contents($falha, (string) time(), LOCK_EX);
                 return ['situacao' => 'erro'] + $vazio;
             }
             $tickets = self::tickets();
@@ -39,6 +47,7 @@ class ApchatBalaoService
         }
         catch (Throwable $e)
         {
+            @file_put_contents($falha, (string) time(), LOCK_EX);
             return ['situacao' => 'erro'] + $vazio;
         }
 
@@ -73,6 +82,7 @@ class ApchatBalaoService
     public static function limparCache(): void
     {
         @unlink(self::arquivoCache());
+        @unlink(self::arquivoCache() . '.falha');
     }
 
     private static function tickets(): array

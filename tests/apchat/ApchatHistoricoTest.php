@@ -94,6 +94,16 @@ try
     $tl = saida(function () use ($a) { (new AtendimentoTimeLine(['cliente_id' => $a, 'target_container' => 'x']))->show(); });
     ok('timeline do cliente: tickets do WhatsApp', strpos($tl, 'WhatsApp #10') !== false && strpos($tl, 'WhatsApp #11') !== false && strpos($tl, 'WhatsApp #12') === false, substr($tl, 0, 300));
 
+    // permissao: quem abre o cadastro do cliente abre a conversa do ticket (grupos e permissao direta)
+    $perm = q("SELECT (SELECT count(*) FROM system_program WHERE controller = 'ApchatTicketView') programa,
+                      (SELECT count(*) FROM system_group_program g JOIN system_program p ON p.id = g.system_program_id AND p.controller = 'ClienteForm'
+                        WHERE NOT EXISTS (SELECT 1 FROM system_group_program g2 JOIN system_program p2 ON p2.id = g2.system_program_id AND p2.controller = 'ApchatTicketView'
+                                           WHERE g2.system_group_id = g.system_group_id)) grupos_sem,
+                      (SELECT count(*) FROM system_user_program u JOIN system_program p ON p.id = u.system_program_id AND p.controller = 'ClienteForm'
+                        WHERE NOT EXISTS (SELECT 1 FROM system_user_program u2 JOIN system_program p2 ON p2.id = u2.system_program_id AND p2.controller = 'ApchatTicketView'
+                                           WHERE u2.system_user_id = u.system_user_id)) usuarios_sem")[0];
+    ok('conversa do ticket cadastrada nas permissoes, com os mesmos grupos e usuarios do cadastro do cliente', (int) $perm['programa'] === 1 && (int) $perm['grupos_sem'] === 0 && (int) $perm['usuarios_sem'] === 0, json_encode($perm));
+
     $sv = saida(function () { $t = new ApchatContatoConversaView(['key' => 77]); $t->onShow(['key' => 77]); $t->show(); });
     ok('contatos sem vinculo: Abrir no APChat (ticket mais recente)', strpos($sv, 'Abrir no APChat') !== false && strpos($sv, "atendimento?ticketId=55', 'apchat'") !== false, substr($sv, 0, 300));
 }

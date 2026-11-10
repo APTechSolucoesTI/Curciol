@@ -22,9 +22,9 @@ $falso = new class([
     $t(6, 'pending', null, 9101, false, '5519900000006'),
     $t(7, 'open', 9001, 9101, true, '5519900000007'),
 ]) {
-    public $tickets; public $leituras = 0; public $fora = false;
+    public $tickets; public $leituras = 0; public $fora = false; public $tentativas = 0;
     public function __construct($t) { $this->tickets = $t; }
-    public function disponivel() { return !$this->fora; }
+    public function disponivel() { $this->tentativas++; return !$this->fora; }
     public function ticketsAbertosComUltima(): array { if ($this->fora) { throw new Exception('fora'); } $this->leituras++; return $this->tickets; }
     public function acessos(int $atendente): array {
         $a = [9001 => ['canais' => [112], 'filas' => [9101, 9102]], 9002 => ['canais' => [112], 'filas' => [9101]], 9003 => ['canais' => [], 'filas' => [9101]]];
@@ -83,6 +83,11 @@ try
     ApchatBalaoService::limparCache();
     $rf = ApchatBalaoService::conversas($u1);
     ok('APChat fora: balao vazio, sem excecao', ($rf['situacao'] ?? '') === 'erro' && $rf['itens'] === []);
+    // APChat fora: nao tenta conectar de novo a cada atualizacao (cada tentativa espera ate 5 s); tenta de novo depois de 60 s
+    $falso->tentativas = 0;
+    ApchatBalaoService::conversas($u1);
+    ApchatBalaoService::conversas($u2);
+    igual('APChat fora: nao tenta de novo logo em seguida', 0, $falso->tentativas);
 }
 finally
 {
