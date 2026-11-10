@@ -157,6 +157,7 @@ class ApchatBalaoService
             'numero'    => (string) $t['numero'],
             'canal'     => (string) ($t['canal'] ?? ''),
             'fila'      => $t['fila'] ?? null,
+            'atendente' => $t['atendente'] ?? null,
             'status'    => (string) $t['status'],
             'nossa'     => $nossa,
             // ultima mensagem do cliente: esperando resposta, com quantas mensagens dele desde a nossa ultima

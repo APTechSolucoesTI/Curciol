@@ -39,6 +39,7 @@ try
     $abertos = array_values(array_filter(ApchatBancoService::ticketsAbertosComUltima(), function ($t) { return (int) $t['id'] === 990101; }));
     ok('aberto: ultima do cliente, com texto e hora', ($abertos[0]['ultima_nossa'] ?? true) === false && ($abertos[0]['ultima_texto'] ?? '') === 'Preciso de ajuda'
         && preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}/', (string) ($abertos[0]['ultima_em'] ?? '')) === 1, json_encode($abertos));
+    igual('aberto: nome do atendente do ticket', 'TESTE - Atendente Um', $abertos[0]['atendente'] ?? null);
     igual('aberto: mensagens do cliente sem resposta', 1, (int) ($abertos[0]['nao_respondidas'] ?? 0));
     ok('aberto: lastMessageAt tambem em data', preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}/', (string) ($abertos[0]['lastMessageAt'] ?? '')) === 1, json_encode($abertos));
     $ac = ApchatBancoService::acessos(9001);

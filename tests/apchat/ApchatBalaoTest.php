@@ -9,7 +9,7 @@ function saida(callable $f): string { ob_start(); try { $f(); } finally { $s = o
 
 $t = function (int $id, string $status, ?int $user, ?int $fila, bool $nossa, string $numero, string $nome = '') {
     return ['id' => $id, 'status' => $status, 'contactId' => $id + 1000, 'userId' => $user, 'queueId' => $fila, 'whatsappId' => 112,
-            'contato' => $nome ?: "Cliente {$id}", 'numero' => $numero, 'canal' => 'Oficial', 'fila' => $fila ? "Fila {$fila}" : null,
+            'contato' => $nome ?: "Cliente {$id}", 'atendente' => $user ? "Atendente {$user}" : null, 'numero' => $numero, 'canal' => 'Oficial', 'fila' => $fila ? "Fila {$fila}" : null,
             'ultima_nossa' => $nossa, 'nao_respondidas' => $nossa ? 0 : ($id === 1 ? 2 : 1), 'ultima_texto' => $nossa ? "*Atendente Um*:
  Resposta do atendente" : "Mensagem do cliente {$id}",
             'ultima_em' => date('Y-m-d H:i:s', strtotime("-{$id} minutes")), 'lastMessageAt' => date('Y-m-d H:i:s')];
@@ -145,17 +145,22 @@ try
     TSession::setValue('userunitid', $unidade);
     ApchatBalaoService::limparCache();
     $html = saida(function () { (new MessageList(['theme' => 'theme-builder']))->show(); });
-    ok('balao: icone de conversa e contador', strpos($html, 'fa-comments') !== false && strpos($html, 'data-count="3"') !== false, substr($html, 0, 400));
+    ok('balao: logo do APChat no topo e contador', strpos($html, 'apchat-logo') !== false && strpos($html, '<svg') !== false && strpos($html, 'data-count="3"') !== false, substr($html, 0, 400));
+    ok('balao: logo do WhatsApp no ticket (sem fone de ouvido)', strpos($html, 'fab fa-whatsapp') !== false && strpos($html, 'fa-headset') === false);
+    ok('card: numero do ticket e tempo desde a ultima mensagem', strpos($html, '>#4<') !== false && preg_match('/apchat-balao-tempo[^>]*>1m</', $html) === 1, $html);
+    ok('card: fila, atendente e canal como no APChat', strpos($html, 'apchat-balao-fila') !== false && strpos($html, '>Fila 9101<') !== false
+        && strpos($html, 'apchat-balao-atendente') !== false && strpos($html, '>Atendente 9001<') !== false && strpos($html, 'apchat-balao-canal') !== false && strpos($html, '>Oficial<') !== false, $html);
     ok('balao: abre o ticket na aba do APChat', strpos($html, "window.open('{$urlTicket1}', 'apchat')") !== false, $html);
     ok('balao: nome do cliente', strpos($html, 'Cliente A') !== false);
     ok('balao: duas colunas lado a lado, Abertos e Pendentes', strpos($html, 'apchat-balao-colunas') !== false && substr_count($html, 'apchat-balao-coluna"') === 2
         && strpos($html, '>Abertos<') !== false && strpos($html, '>Pendentes<') !== false, $html);
     ok('balao: Abertos antes de Pendentes', strpos($html, '>Abertos<') < strpos($html, '>Pendentes<'));
+    ok('balao: icones das abas como no APChat (conversa e relogio)', strpos($html, 'far fa-comment-alt') !== false && strpos($html, 'far fa-clock') !== false && strpos($html, 'far fa-clock') > strpos($html, 'far fa-comment-alt'), $html);
     ok('balao: numero em cima do ticket esperando resposta', preg_match('/apchat-balao-nao-lidas[^>]*>2</', $html) === 1, $html);
     igual('balao: um numero por ticket esperando resposta (1, 2, 4)', 3, substr_count($html, 'apchat-balao-nao-lidas'));
     ok('balao: respondido aparece como Voce:', strpos($html, 'Você: Resposta do atendente') !== false, $html);
     $mail = saida(function () { (new MailList(['theme' => 'theme-builder']))->show(); });
-    ok('envelope do APMail: em breve', strpos($mail, 'fa-envelope') !== false && strpos($mail, 'APMail') !== false, $mail);
+    ok('envelope do APMail: logo e em breve', strpos($mail, 'apmail-logo') !== false && strpos($mail, '<svg') !== false && strpos($mail, 'APMail') !== false, $mail);
 }
 finally
 {

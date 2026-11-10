@@ -34,7 +34,9 @@ class MessageList extends TElement
         $a->{'class'} = 'button-circle';
         $a->{'href'} = '#';
         $a->{'title'} = 'Tickets do APChat esperando resposta';
-        $a->add(TElement::tag('i', TElement::tag('div', $total, ['class' => 'ball-notice', 'data-count' => $total]), ['class' => 'far fa-comments fa-fw']));
+        // logo do APChat (10/11/2026) no lugar do icone de conversa
+        $a->add(LogoSistemaService::apchat(22));
+        $a->add(TElement::tag('div', $total, ['class' => 'ball-notice', 'data-count' => $total]));
         $this->add(TElement::tag('div', $a, ['class' => 'fast-drop-label']));
 
         $lista = new TElement('div');
@@ -51,8 +53,9 @@ class MessageList extends TElement
             $colunas = new TElement('div');
             $colunas->{'class'} = 'apchat-balao-colunas';
             $colunas->{'style'} = 'display:flex;flex-wrap:wrap;gap:18px;align-items:flex-start;width:min(760px, 90vw);';
-            $colunas->add(self::coluna('Abertos', $r['abertos'], 'Nenhum ticket aberto com você.', 'fas fa-headset'));
-            $colunas->add(self::coluna('Pendentes', $r['pendentes'], 'Nenhum ticket pendente.', 'far fa-comment-dots'));
+            // icones e cores das abas do APChat: Abertos (azul, conversa) e Pendentes (laranja, relogio)
+            $colunas->add(self::coluna('Abertos', $r['abertos'], 'Nenhum ticket aberto com você.', 'far fa-comment-alt', '#2563EB'));
+            $colunas->add(self::coluna('Pendentes', $r['pendentes'], 'Nenhum ticket pendente.', 'far fa-clock', '#F59E0B'));
             $lista->add($colunas);
         }
 
@@ -60,15 +63,17 @@ class MessageList extends TElement
         TScript::create('BuilderTemplate.processFastDrop();');
     }
 
-    private static function coluna(string $titulo, array $itens, string $vazio, string $icone): TElement
+    private static function coluna(string $titulo, array $itens, string $vazio, string $icone, string $cor): TElement
     {
         $col = new TElement('div');
         $col->{'class'} = 'apchat-balao-coluna';
         $col->{'style'} = 'flex:1 1 300px;min-width:0;';
         $cab = new TElement('div');
-        $cab->{'style'} = 'display:flex;align-items:center;gap:8px;font-weight:700;font-size:15px;padding:0 0 6px;margin-bottom:8px;border-bottom:2px solid #25D366;';
+        $cab->{'class'} = 'apchat-balao-aba';
+        $cab->{'style'} = 'display:flex;align-items:center;gap:8px;font-weight:700;font-size:15px;color:' . $cor . ';padding:0 0 6px;margin-bottom:8px;border-bottom:2px solid ' . $cor . ';';
+        $cab->add(TElement::tag('i', '', ['class' => $icone, 'style' => 'width:auto;color:' . $cor . ';']));
         $cab->add(TElement::tag('span', $titulo));
-        $cab->add(TElement::tag('span', (string) count($itens), ['style' => 'background:#25D366;color:#fff;border-radius:10px;padding:0 8px;font-size:12px;line-height:18px;']));
+        $cab->add(TElement::tag('span', (string) count($itens), ['style' => 'background:' . $cor . ';color:#fff;border-radius:10px;padding:0 8px;font-size:12px;line-height:18px;']));
         $col->add($cab);
         if (!$itens)
         {
@@ -76,44 +81,72 @@ class MessageList extends TElement
         }
         foreach ($itens as $item)
         {
-            $col->add(self::linha($item, $icone));
+            $col->add(self::linha($item));
         }
         return $col;
     }
 
-    private static function linha(array $item, string $icone): TElement
+    /**
+     * Card do ticket no padrao da lista de atendimentos do APChat (10/11/2026), sem foto: logo do WhatsApp; nome, numero do ticket e
+     * tempo; ultima mensagem (nossa = "Voce:") e numero verde de mensagens sem resposta; fila (azul), atendente e canal.
+     */
+    private static function linha(array $item): TElement
     {
         $h = function ($v) { return htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8'); };
         $a = new TElement('a');
-        $a->class = 'item-notification';
+        $a->class = 'apchat-balao-ticket';
         $a->href = '#';
-        $a->style = 'white-space:normal;position:relative;' . ($item['aguardando'] ? 'background:rgba(37,211,102,.08);border-radius:6px;' : '');
+        $a->title = 'Abrir no APChat';
+        $a->style = 'display:flex;gap:10px;align-items:flex-start;padding:8px;margin-bottom:6px;border-radius:8px;white-space:normal;color:inherit;border:1px solid '
+                  . ($item['aguardando'] ? 'rgba(37,211,102,.45);background:rgba(37,211,102,.07);' : '#e6e8eb;');
         $a->onclick = "window.open('" . $h($item['url']) . "', 'apchat'); return false;";
 
-        $div = new TElement('div');
-        $div->{'class'} = 'pull-left';
-        $div->add(TElement::tag('i', '', ['class' => $icone . ' fa-2x', 'style' => 'color:#25D366']));
-        $a->add($div);
-
-        $onde = implode(' · ', array_filter([$item['canal'], $item['fila']]));
-        $quando = $item['quando'] ? date('d/m H:i', strtotime($item['quando'])) : '';
-        $h6 = new TElement('h6');
-        // ultima mensagem nossa (ja respondida): "Voce:" em cinza; do cliente: em destaque
-        $ultima = !empty($item['nossa'])
-            ? '<span style="color:#999">Você: ' . $h($item['ultima']) . '</span>'
-            : '<span style="color:#333">' . $h($item['ultima']) . '</span>';
-        $h6->add('<b style="padding-right:26px">' . $h($item['contato']) . '</b><br>' . $ultima);
-        $h6->add(TElement::tag('small', [TElement::tag('i', '', ['class' => 'far fa-clock']), ' ' . $h($quando) . ($onde !== '' ? ' · ' . $h($onde) : '')]));
-        $corpo = new TElement('div');
-        $corpo->add($h6);
-        $a->add($corpo);
-        if ($item['aguardando'])
+        $corta = 'flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+        $miudo = 'color:#888;font-size:12px;white-space:nowrap;';
+        $ultima = !empty($item['nossa']) ? 'Você: ' . $item['ultima'] : $item['ultima'];
+        $numero = $item['aguardando']
+            ? '<span class="apchat-balao-nao-lidas" title="Esperando resposta" style="flex:0 0 auto;min-width:20px;height:20px;padding:0 6px;border-radius:10px;background:#25D366;color:#fff;font-size:12px;font-weight:700;line-height:20px;text-align:center;">' . (int) $item['nao_lidas'] . '</span>'
+            : '';
+        $chips = '';
+        if (trim((string) $item['fila']) !== '')
         {
-            // mensagens do cliente sem resposta (como no APChat)
-            $a->add(TElement::tag('span', (string) $item['nao_lidas'], ['class' => 'apchat-balao-nao-lidas', 'title' => 'Esperando resposta',
-                'style' => 'position:absolute;top:4px;right:6px;min-width:20px;height:20px;padding:0 6px;border-radius:10px;background:#25D366;color:#fff;font-size:12px;font-weight:700;line-height:20px;text-align:center;']));
+            $chips .= '<span class="apchat-balao-fila" style="background:#3B82F6;color:#fff;border-radius:6px;padding:1px 8px;font-size:12px;font-weight:600;">' . $h($item['fila']) . '</span>';
+        }
+        if (trim((string) ($item['atendente'] ?? '')) !== '')
+        {
+            $chips .= '<span class="apchat-balao-atendente" style="font-size:12px;font-weight:600;color:#333;">' . $h($item['atendente']) . '</span>';
+        }
+        if (trim((string) $item['canal']) !== '')
+        {
+            $chips .= '<span class="apchat-balao-canal" style="border:1px solid #d0d5dd;color:#555;border-radius:12px;padding:0 8px;font-size:12px;">' . $h($item['canal']) . '</span>';
         }
 
+        $a->add('<span style="flex:0 0 36px;width:36px;height:36px;border-radius:50%;background:#25D366;display:flex;align-items:center;justify-content:center;">'
+              . '<i class="fab fa-whatsapp" style="color:#fff;font-size:21px;width:auto;"></i></span>'
+              . '<span style="flex:1;min-width:0;display:block;">'
+              . '<span style="display:flex;align-items:baseline;gap:8px;">'
+              .   '<b style="' . $corta . 'font-size:14px;color:#222;">' . $h($item['contato']) . '</b>'
+              .   '<span style="' . $miudo . '">#' . (int) $item['ticket_id'] . '</span>'
+              .   '<span class="apchat-balao-tempo" style="' . $miudo . '">' . $h(self::tempo($item['quando'] ?? null)) . '</span>'
+              . '</span>'
+              . '<span style="display:flex;align-items:center;gap:8px;margin-top:2px;">'
+              .   '<span style="' . $corta . 'color:' . (!empty($item['nossa']) ? '#999' : '#555') . ';font-size:13px;">' . $h($ultima) . '</span>' . $numero
+              . '</span>'
+              . ($chips !== '' ? '<span style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;align-items:center;">' . $chips . '</span>' : '')
+              . '</span>');
+
         return $a;
+    }
+
+    /** Tempo desde a ultima mensagem, como no APChat: 5m, 3h; mais de um dia, a data. */
+    private static function tempo(?string $quando): string
+    {
+        $t = $quando ? strtotime($quando) : false;
+        if (!$t) { return ''; }
+        $seg = max(0, time() - $t);
+        if ($seg < 60) { return 'agora'; }
+        if ($seg < 3600) { return intdiv($seg, 60) . 'm'; }
+        if ($seg < 86400) { return intdiv($seg, 3600) . 'h'; }
+        return date('d/m', $t);
     }
 }
