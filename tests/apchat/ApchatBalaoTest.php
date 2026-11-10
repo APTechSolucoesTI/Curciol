@@ -145,7 +145,9 @@ try
     TSession::setValue('userunitid', $unidade);
     ApchatBalaoService::limparCache();
     $html = saida(function () { (new MessageList(['theme' => 'theme-builder']))->show(); });
-    ok('balao: logo do APChat no topo e contador', strpos($html, 'apchat-logo') !== false && strpos($html, '<svg') !== false && strpos($html, 'data-count="3"') !== false, substr($html, 0, 400));
+    ok('balao: logo do APChat (icone do anexo) no topo e contador', strpos($html, 'apchat-logo') !== false && strpos($html, 'app/images/apchat-icone.png') !== false && strpos($html, 'data-count="3"') !== false, substr($html, 0, 400));
+    ok('balao: sem texto ao parar o mouse no icone', strpos($html, 'Tickets do APChat esperando') === false && preg_match('/class="button-circle"[^>]*title=/', $html) === 0, substr($html, 0, 400));
+    ok('balao: fica aberto ao atravessar ate a lista (classe do JS)', strpos($html, '.fast-drop.apchat-aberto > .fast-drop-open') !== false);
     ok('balao: logo do WhatsApp no ticket (sem fone de ouvido)', strpos($html, 'fab fa-whatsapp') !== false && strpos($html, 'fa-headset') === false);
     ok('card: numero do ticket e tempo desde a ultima mensagem', strpos($html, '>#4<') !== false && preg_match('/apchat-balao-tempo[^>]*>1m</', $html) === 1, $html);
     ok('card: fila, atendente e canal como no APChat', strpos($html, 'apchat-balao-fila') !== false && strpos($html, '>Fila 9101<') !== false
@@ -161,6 +163,7 @@ try
     ok('balao: respondido aparece como Voce:', strpos($html, 'Você: Resposta do atendente') !== false, $html);
     $mail = saida(function () { (new MailList(['theme' => 'theme-builder']))->show(); });
     ok('envelope do APMail: logo e em breve', strpos($mail, 'apmail-logo') !== false && strpos($mail, '<svg') !== false && strpos($mail, 'APMail') !== false, $mail);
+    ok('envelope do APMail: sem texto ao parar o mouse', preg_match('/class="button-circle"[^>]*title=/', $mail) === 0, $mail);
 }
 finally
 {
@@ -180,5 +183,10 @@ finally
     ApchatBancoService::usarFalso(null);
     ApchatBalaoService::limparCache();
 }
+
+// JS do topo: nao redesenha o balao com o mouse em cima (a lista sumia antes do clique) e espera 400 ms ao sair
+$js = (string) file_get_contents('app/lib/include/builder/theme-builder/BuilderTemplate.js');
+ok('JS: balao nao e redesenhado com o mouse em cima', strpos($js, 'apchat-aberto') !== false && strpos($js, 'balaoPendente') !== false);
+ok('JS: versao nova do arquivo no layout (sem cache)', strpos((string) file_get_contents('app/templates/theme-builder/libraries_builder.html'), 'BuilderTemplate.js?appver=523982') !== false);
 
 fim();

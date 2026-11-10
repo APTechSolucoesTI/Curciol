@@ -12,7 +12,6 @@ class MailList extends TElement
         $a = new TElement('a');
         $a->{'class'} = 'button-circle';
         $a->{'href'} = '#';
-        $a->{'title'} = 'E-mails (APMail)';
         // logo do APMail (10/11/2026)
         $a->add(LogoSistemaService::apmail(22));
         $this->add(TElement::tag('div', $a, ['class' => 'fast-drop-label']));

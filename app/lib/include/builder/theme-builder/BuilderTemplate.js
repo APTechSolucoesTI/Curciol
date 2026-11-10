@@ -155,8 +155,30 @@ window.BuilderTemplate = ( function() {
         });
     }
     
+    // Curciol (10/11/2026): balao do APChat. Nao redesenha com o mouse em cima (a lista sumia antes do clique): guarda e
+    // atualiza quando o mouse sai; e a lista fica aberta 400 ms depois que o mouse sai (atravessar ate um ticket nao fecha).
+    let balaoPendente = false;
+    let balaoTimer = null;
+    const balaoAberto = function() {
+        return $('#envelope_messages .fast-drop.apchat-aberto, #envelope_messages .fast-drop:hover').length > 0;
+    }
+    $(document).on('mouseenter', '#envelope_messages .fast-drop', function() {
+        clearTimeout(balaoTimer);
+        $(this).addClass('apchat-aberto');
+    });
+    $(document).on('mouseleave', '#envelope_messages .fast-drop', function() {
+        const balao = this;
+        clearTimeout(balaoTimer);
+        balaoTimer = setTimeout(function() {
+            $(balao).removeClass('apchat-aberto');
+            if (balaoPendente) { balaoPendente = false; updateMessagesMenu(); }
+        }, 400);
+    });
+
     const updateMessagesMenu = function() {
+        if (balaoAberto()) { balaoPendente = true; return; }
         $.get('engine.php?class=MessageList&theme=theme-builder', function(data) {
+            if (balaoAberto()) { balaoPendente = true; return; }
             $('#envelope_messages').html(data);
         });
     }

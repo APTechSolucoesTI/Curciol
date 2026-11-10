@@ -33,7 +33,6 @@ class MessageList extends TElement
         $a = new TElement('a');
         $a->{'class'} = 'button-circle';
         $a->{'href'} = '#';
-        $a->{'title'} = 'Tickets do APChat esperando resposta';
         // logo do APChat (10/11/2026) no lugar do icone de conversa
         $a->add(LogoSistemaService::apchat(22));
         $a->add(TElement::tag('div', $total, ['class' => 'ball-notice', 'data-count' => $total]));
@@ -60,6 +59,9 @@ class MessageList extends TElement
         }
 
         $this->add($lista);
+        // fica aberto enquanto a classe apchat-aberto estiver no balao (BuilderTemplate.js tira 400 ms depois que o mouse sai)
+        $this->add('<style>#envelope_messages .fast-drop.apchat-aberto > .fast-drop-open{display:block;position:absolute;border:1px solid var(--template-border-color);'
+                 . 'padding:14px;border-radius:0 0 6px 6px;background:var(--modal-background);overflow:auto;max-height:70vh;right:0;}</style>');
         TScript::create('BuilderTemplate.processFastDrop();');
     }
 
