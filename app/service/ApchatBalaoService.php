@@ -8,18 +8,33 @@
  *   esta aguardando o SIM/NAO de uma confirmacao da Curciol (ela mesma responde).
  * Ticket cuja ultima mensagem e do cliente esta "aguardando" e ganha o numero de mensagens do cliente desde a nossa ultima; o icone
  * do topo conta os TICKETS aguardando (nao as mensagens). Por usuario (apchat_usuario): avisos ligados/desligados.
- * O balao atualiza a cada 5 s em cada usuario logado. A lista de tickets do APChat fica em cache (uma leitura para todos): com o
- * webhook (campainha, ApchatWebhookService) rele quando chega mensagem nova e, sem campainha, a cada 60 s - encerrar, pegar e
- * transferir nao tocam a campainha; sem webhook nas ultimas 24 h, a cada 10 s. Acessos de cada atendente: 60 s. APChat fora = vazio.
+ * Carga (10/11/2026): o navegador pede o balao a cada 5 s, so com a aba a vista. O estado do APChat e UM so para todos os usuarios
+ * (arquivo de cache): ate 5 s depois da ultima conferencia, nenhum pedido vai ao APChat (nem conecta). Depois, UM processo (trava;
+ * os outros usam o que ja tem) confere a impressao digital dos abertos/pendentes (~1,5 ms) e a campainha do webhook; so se algo
+ * mudou (pegar, transferir, encerrar, mensagem) rele a lista. Releitura completa a cada 60 s, de seguranca. Cache gravado de forma
+ * atomica (arquivo novo + troca). Acessos de cada atendente: 60 s. APChat fora = vazio, nova tentativa depois de 60 s.
  */
 class ApchatBalaoService
 {
-    const CACHE_SEGUNDOS = 10;
-    const CACHE_COM_WEBHOOK = 60;
+    const CONFERIR_SEGUNDOS = 5;
+    const RELER_SEGUNDOS = 60;
     const ACESSOS_SEGUNDOS = 60;
     const ATUALIZAR_MS = 5000;
     const MAXIMO = 20;
     const FALHA_SEGUNDOS = 60;
+
+    /** @var int|null testes: relogio fixo */
+    private static $relogio = null;
+
+    public static function usarRelogio(?int $agora): void
+    {
+        self::$relogio = $agora;
+    }
+
+    private static function agora(): int
+    {
+        return self::$relogio ?? time();
+    }
 
     public static function conversas(int $systemUserId): array
     {
@@ -35,32 +50,32 @@ class ApchatBalaoService
             return ['situacao' => 'desligado'] + $vazio;
         }
 
-        // APChat fora: nao tenta conectar de novo por 60 s (cada tentativa espera ate 5 s, a cada 15 s, em cada usuario logado)
+        // APChat fora: nao tenta conectar de novo por 60 s (cada tentativa espera ate 5 s)
         $falha = self::arquivoCache() . '.falha';
-        if (is_file($falha) && (int) @file_get_contents($falha) > time() - self::FALHA_SEGUNDOS)
+        if (is_file($falha) && (int) @file_get_contents($falha) > self::agora() - self::FALHA_SEGUNDOS)
         {
             return ['situacao' => 'erro'] + $vazio;
         }
         try
         {
-            if (!ApchatBancoService::configurado() || !ApchatBancoService::disponivel())
+            if (!ApchatBancoService::configurado())
             {
-                @file_put_contents($falha, (string) time(), LOCK_EX);
-                return ['situacao' => 'erro'] + $vazio;
+                throw new Exception('APChat nao configurado');
             }
-            $tickets = self::tickets();
+            $estado = self::estado();
+            $tickets = $estado['tickets'];
             $acessos = self::acessos((int) $ligacao->apchat_usuario_id);
         }
         catch (Throwable $e)
         {
-            @file_put_contents($falha, (string) time(), LOCK_EX);
+            self::gravar($falha, (string) self::agora());
             return ['situacao' => 'erro'] + $vazio;
         }
 
         $eu = (int) $ligacao->apchat_usuario_id;
         $canais = array_flip($acessos['canais'] ?? []);
         $filas = array_flip($acessos['filas'] ?? []);
-        $aguardando = array_flip(ApchatRespostaService::numerosAguardando());
+        $aguardando = array_flip($estado['aguardando'] ?? []);
 
         $abertos = [];
         $pendentes = [];
@@ -95,12 +110,6 @@ class ApchatBalaoService
         foreach (glob(self::arquivoCache() . '.acessos-*') ?: [] as $f) { @unlink($f); }
     }
 
-    /** Segundos da lista de tickets em cache: 60 com o webhook ativo (a campainha avisa mensagem nova), senao 10. */
-    public static function cacheSegundos(): int
-    {
-        return ApchatWebhookService::ativo() ? self::CACHE_COM_WEBHOOK : self::CACHE_SEGUNDOS;
-    }
-
     /** Intervalo de atualizacao do balao no navegador (ms); desligado no application.ini continua desligado. */
     public static function intervaloMs(array $ini): string
     {
@@ -111,29 +120,95 @@ class ApchatBalaoService
     private static function acessos(int $atendente): array
     {
         $arquivo = self::arquivoCache() . '.acessos-' . $atendente;
-        $cache = is_file($arquivo) ? json_decode((string) @file_get_contents($arquivo), true) : null;
-        if (is_array($cache) && ($cache['em'] ?? 0) > time() - self::ACESSOS_SEGUNDOS)
+        $cache = self::ler($arquivo);
+        if ($cache && ($cache['em'] ?? 0) > self::agora() - self::ACESSOS_SEGUNDOS)
         {
             return $cache['acessos'];
         }
         $acessos = ApchatBancoService::acessos($atendente);
-        @file_put_contents($arquivo, json_encode(['em' => time(), 'acessos' => $acessos]), LOCK_EX);
+        self::gravar($arquivo, json_encode(['em' => self::agora(), 'acessos' => $acessos]));
         return $acessos;
     }
 
-    private static function tickets(): array
+    /**
+     * Estado do APChat, o mesmo para todos: {em, checado_em, evento, impressao, aguardando, tickets}. Ver o cabecalho.
+     */
+    private static function estado(): array
     {
         $arquivo = self::arquivoCache();
-        $cache = is_file($arquivo) ? json_decode((string) @file_get_contents($arquivo), true) : null;
-        // campainha lida ANTES do APChat: mensagem que chegar durante a leitura faz reler na proxima atualizacao
-        $evento = ApchatWebhookService::ultimoEvento();
-        if (is_array($cache) && ($cache['em'] ?? 0) > time() - self::cacheSegundos() && $evento <= (int) ($cache['evento'] ?? 0))
+        $cache = self::ler($arquivo);
+        if ($cache && ($cache['checado_em'] ?? 0) > self::agora() - self::CONFERIR_SEGUNDOS)
         {
-            return $cache['tickets'];
+            return $cache;
         }
-        $tickets = ApchatBancoService::ticketsAbertosComUltima();
-        @file_put_contents($arquivo, json_encode(['em' => time(), 'evento' => $evento, 'tickets' => $tickets]), LOCK_EX);
-        return $tickets;
+
+        $trava = @fopen(self::arquivoTrava(), 'c');
+        if ($trava && !flock($trava, LOCK_EX | LOCK_NB))
+        {
+            if ($cache)
+            {
+                fclose($trava);
+                return $cache; // outro processo esta conferindo: usa o que ja tem
+            }
+            flock($trava, LOCK_EX); // primeira carga: espera o outro terminar
+        }
+        try
+        {
+            $cache = self::ler($arquivo) ?: $cache;
+            $agora = self::agora();
+            if ($cache && ($cache['checado_em'] ?? 0) > $agora - self::CONFERIR_SEGUNDOS)
+            {
+                return $cache;
+            }
+            if (!ApchatBancoService::disponivel())
+            {
+                throw new Exception('APChat fora: ' . ApchatBancoService::erro());
+            }
+            // campainha lida ANTES do APChat: mensagem que chegar durante a leitura faz reler na proxima conferencia
+            $evento = ApchatWebhookService::ultimoEvento();
+            $impressao = ApchatBancoService::impressaoTickets();
+            $mudou = !$cache || $impressao !== ($cache['impressao'] ?? null) || $evento > (int) ($cache['evento'] ?? 0)
+                  || ($cache['em'] ?? 0) <= $agora - self::RELER_SEGUNDOS;
+            $estado = [
+                'em'         => $mudou ? $agora : $cache['em'],
+                'checado_em' => $agora,
+                'evento'     => $evento,
+                'impressao'  => $impressao,
+                'aguardando' => ApchatRespostaService::numerosAguardando(),
+                'tickets'    => $mudou ? ApchatBancoService::ticketsAbertosComUltima() : $cache['tickets'],
+            ];
+            self::gravar($arquivo, json_encode($estado));
+            return $estado;
+        }
+        finally
+        {
+            if ($trava)
+            {
+                flock($trava, LOCK_UN);
+                fclose($trava);
+            }
+        }
+    }
+
+    public static function arquivoTrava(): string
+    {
+        return self::arquivoCache() . '.trava';
+    }
+
+    private static function ler(string $arquivo): ?array
+    {
+        $dados = is_file($arquivo) ? json_decode((string) @file_get_contents($arquivo), true) : null;
+        return is_array($dados) ? $dados : null;
+    }
+
+    /** Grava num arquivo novo e troca: quem le ao mesmo tempo nunca pega o arquivo pela metade. */
+    private static function gravar(string $arquivo, string $conteudo): void
+    {
+        $tmp = $arquivo . '.tmp' . getmypid() . '-' . mt_rand();
+        if (@file_put_contents($tmp, $conteudo) !== false && !@rename($tmp, $arquivo))
+        {
+            @unlink($tmp);
+        }
     }
 
     private static function arquivoCache(): string

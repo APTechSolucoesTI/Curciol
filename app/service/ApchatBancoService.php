@@ -313,6 +313,18 @@ class ApchatBancoService
      * @return array linhas {id, status, contactId, userId, queueId, whatsappId, contato, numero, canal, fila, atendente, ultima_nossa,
      *                       ultima_texto, ultima_em, lastMessageAt, nao_respondidas (mensagens do cliente desde a nossa ultima)}
      */
+    /**
+     * Balao (10/11/2026): impressao digital dos tickets pendentes e abertos (id, situacao, atendente, fila, canal, ultima mensagem e
+     * hora da ultima alteracao). Muda quando pegam, transferem, encerram ou chega mensagem. Usa o indice (tenantId, status) do APChat.
+     */
+    public static function impressaoTickets(): string
+    {
+        if (self::$falso) { return self::$falso->impressaoTickets(); }
+        return (string) self::conn()->query('SELECT md5(COALESCE(string_agg(id || \':\' || status || \':\' || COALESCE("userId", 0) || \':\' || COALESCE("queueId", 0)
+                                                 || \':\' || COALESCE("whatsappId", 0) || \':\' || COALESCE("lastMessageAt", 0) || \':\' || "updatedAt", \',\' ORDER BY id), \'\'))
+                                               FROM curciol.tickets WHERE NOT arquivado AND status IN (\'pending\', \'open\')')->fetchColumn();
+    }
+
     public static function ticketsAbertosComUltima(int $limite = 500): array
     {
         if (self::$falso) { return self::$falso->ticketsAbertosComUltima(); }

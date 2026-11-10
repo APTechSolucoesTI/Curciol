@@ -23,9 +23,12 @@ $falso = new class([
     $t(6, 'pending', null, 9101, false, '5519900000006'),
     $t(7, 'open', 9001, 9101, true, '5519900000007'),
 ]) {
-    public $tickets; public $leituras = 0; public $fora = false; public $tentativas = 0; public $acessosLidos = 0;
+    public $tickets; public $leituras = 0; public $fora = false; public $tentativas = 0; public $acessosLidos = 0; public $impressoes = 0;
     public function __construct($t) { $this->tickets = $t; }
     public function disponivel() { $this->tentativas++; return !$this->fora; }
+    // impressao digital dos abertos/pendentes (situacao, atendente, fila, hora): muda quando pegam, transferem ou encerram
+    public function impressaoTickets(): string { if ($this->fora) { throw new Exception('fora'); } $this->impressoes++; return md5(json_encode(array_map(function ($t) {
+        return [$t['id'], $t['status'], $t['userId'], $t['queueId']]; }, $this->tickets))); }
     public function ticketsAbertosComUltima(): array { if ($this->fora) { throw new Exception('fora'); } $this->leituras++; return $this->tickets; }
     public function acessos(int $atendente): array {
         $this->acessosLidos++;
@@ -51,6 +54,8 @@ try
     $c->exec("INSERT INTO mensagem (agendamento_id, template_escritorio_id, system_user_id, tipo_mensagem, destino, template, enviado_em) VALUES ({$ag}, {$tpl}, {$u1}, 'WHATSAPP', '19900000006', 'Confirma?', now())");
 
     ApchatBalaoService::limparCache();
+    $agora = time();
+    ApchatBalaoService::usarRelogio($agora);
     $ids = function (array $r, string $lista = 'pendentes') { return array_map(function ($i) { return (int) $i['ticket_id']; }, $r[$lista] ?? []); };
 
     $r1 = ApchatBalaoService::conversas($u1);
@@ -70,24 +75,69 @@ try
     $r3 = ApchatBalaoService::conversas($u3);
     igual('atendente sem o canal: nada', [[], [], 0], [$ids($r3), $ids($r3, 'abertos'), $r3['total']]);
     igual('usuario sem atendente ligado', 'sem_ligacao', ApchatBalaoService::conversas($u4)['situacao'] ?? null);
-    igual('APChat lido uma vez so (cache)', 1, $falso->leituras);
+    igual('APChat lido uma vez so para todos (cache compartilhado)', 1, $falso->leituras);
     igual('acessos de cada atendente lidos uma vez', 3, $falso->acessosLidos);
+    $tentativas = $falso->tentativas;
+    $impressoes = $falso->impressoes;
     ApchatBalaoService::conversas($u1);
+    ApchatBalaoService::conversas($u2);
     igual('acessos ficam em cache (60 s)', 3, $falso->acessosLidos);
+    ok('dentro de 5 s: nenhum pedido vai ao APChat (nem conecta)', $falso->tentativas === $tentativas && $falso->impressoes === $impressoes && $falso->leituras === 1,
+        json_encode([$falso->tentativas, $tentativas, $falso->impressoes, $impressoes, $falso->leituras]));
 
-    // campainha (webhook): mensagem nova no APChat -> o balao rele na proxima atualizacao, mesmo com o cache novo
-    $c->exec('DELETE FROM apchat_webhook_evento');
-    igual('sem webhook nas ultimas 24 h: rele o APChat a cada 10 s', 10, ApchatBalaoService::cacheSegundos());
-    $c->exec("INSERT INTO apchat_webhook_evento (metodo, ticket_id, de_mim) VALUES ('message', 1, false)");
-    igual('com webhook: rele a cada 60 s (encerrar, pegar e transferir nao tocam a campainha)', 60, ApchatBalaoService::cacheSegundos());
+    // a cada 5 s, UMA conferencia para todos: a impressao digital; igual = usa o que ja tem
+    ApchatBalaoService::usarRelogio($agora += 6);
+    ApchatBalaoService::conversas($u1);
+    ApchatBalaoService::conversas($u2);
+    igual('5 s depois: uma conferencia so, para todos', $impressoes + 1, $falso->impressoes);
+    igual('nada mudou: nao rele os tickets', 1, $falso->leituras);
+
+    // transferir (o ticket 4 vai para o atendente 2): a impressao muda e rele na hora
+    $falso->tickets[3]['userId'] = 9002;
+    ApchatBalaoService::usarRelogio($agora += 6);
+    $rt = ApchatBalaoService::conversas($u1);
+    igual('transferido: rele os tickets', 2, $falso->leituras);
+    igual('transferido: sai dos abertos do atendente 1', [7], $ids($rt, 'abertos'));
+    igual('transferido: entra nos abertos do atendente 2', [3, 4], $ids(ApchatBalaoService::conversas($u2), 'abertos'));
+
+    // encerrar (o ticket 2 sai dos pendentes)
+    $fechado = $falso->tickets[1];
+    unset($falso->tickets[1]);
+    $falso->tickets = array_values($falso->tickets);
+    ApchatBalaoService::usarRelogio($agora += 6);
+    igual('encerrado: sai dos pendentes', [1, 5], $ids(ApchatBalaoService::conversas($u1)));
+    array_splice($falso->tickets, 1, 0, [$fechado]);
+    $falso->tickets[3]['userId'] = 9001;
+
+    // campainha do webhook: mensagem nova rele mesmo com a impressao igual (a hora do ticket pode levar um instante)
+    ApchatBalaoService::usarRelogio($agora += 6);
+    ApchatBalaoService::conversas($u1);
     $lidas = $falso->leituras;
+    $c->exec("INSERT INTO apchat_webhook_evento (metodo, ticket_id, de_mim) VALUES ('message', 1, false)");
+    ApchatBalaoService::usarRelogio($agora += 6);
     ApchatBalaoService::conversas($u1);
     igual('campainha tocou: rele o APChat', $lidas + 1, $falso->leituras);
-    ApchatBalaoService::conversas($u2);
-    igual('sem campainha nova: usa o cache', $lidas + 1, $falso->leituras);
     $c->exec("INSERT INTO apchat_webhook_evento (metodo) VALUES ('contact-create-update')");
+    ApchatBalaoService::usarRelogio($agora += 6);
     ApchatBalaoService::conversas($u1);
     igual('evento sem ticket (contato) nao faz reler', $lidas + 1, $falso->leituras);
+
+    // rede de seguranca: releitura completa a cada 60 s, mesmo sem mudanca
+    ApchatBalaoService::usarRelogio($agora += 61);
+    ApchatBalaoService::conversas($u1);
+    igual('60 s: releitura completa de seguranca', $lidas + 2, $falso->leituras);
+
+    // outro processo conferindo ao mesmo tempo: este usa o que ja tem, sem consultar o APChat de novo
+    ApchatBalaoService::usarRelogio($agora += 6);
+    $trava = fopen(ApchatBalaoService::arquivoTrava(), 'c');
+    flock($trava, LOCK_EX);
+    $impressoes = $falso->impressoes;
+    $rl = ApchatBalaoService::conversas($u1);
+    flock($trava, LOCK_UN);
+    fclose($trava);
+    ok('outro processo conferindo: usa o cache, sem consultar e sem erro', $falso->impressoes === $impressoes && ($rl['situacao'] ?? '') === 'ok' && $ids($rl, 'abertos') === [4, 7], json_encode($rl['situacao'] ?? null));
+    ok('sem arquivo temporario sobrando', glob(sys_get_temp_dir() . '/curciol-apchat-balao-*.tmp*') === []);
+
     igual('intervalo do balao: 5 s', '5000', ApchatBalaoService::intervaloMs(['general' => ['verify_messages_menu' => '15000']]));
     igual('intervalo do balao desligado no ini continua desligado', 'false', ApchatBalaoService::intervaloMs(['general' => []]));
 
@@ -120,6 +170,7 @@ finally
 {
     TTransaction::rollback();
     ApchatBancoService::usarFalso(null);
+    ApchatBalaoService::usarRelogio(null);
     ApchatBalaoService::limparCache();
 }
 
@@ -187,6 +238,7 @@ finally
 // JS do topo: nao redesenha o balao com o mouse em cima (a lista sumia antes do clique) e espera 400 ms ao sair
 $js = (string) file_get_contents('app/lib/include/builder/theme-builder/BuilderTemplate.js');
 ok('JS: balao nao e redesenhado com o mouse em cima', strpos($js, 'apchat-aberto') !== false && strpos($js, 'balaoPendente') !== false);
-ok('JS: versao nova do arquivo no layout (sem cache)', strpos((string) file_get_contents('app/templates/theme-builder/libraries_builder.html'), 'BuilderTemplate.js?appver=523982') !== false);
+ok('JS: balao pausa com a aba escondida e atualiza ao voltar', strpos($js, 'document.hidden') !== false && strpos($js, 'visibilitychange') !== false);
+ok('JS: versao nova do arquivo no layout (sem cache)', strpos((string) file_get_contents('app/templates/theme-builder/libraries_builder.html'), 'BuilderTemplate.js?appver=523983') !== false);
 
 fim();

@@ -41,6 +41,15 @@ try
         && preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}/', (string) ($abertos[0]['ultima_em'] ?? '')) === 1, json_encode($abertos));
     igual('aberto: nome do atendente do ticket', 'TESTE - Atendente Um', $abertos[0]['atendente'] ?? null);
     igual('aberto: mensagens do cliente sem resposta', 1, (int) ($abertos[0]['nao_respondidas'] ?? 0));
+    // impressao digital dos abertos/pendentes: 32 hex; muda quando o ticket e pego/transferido (atendente) e volta igual
+    $i1 = ApchatBancoService::impressaoTickets();
+    $db->exec('UPDATE public."Tickets" SET "userId" = 9002 WHERE id = 990101');
+    $i2 = ApchatBancoService::impressaoTickets();
+    $db->exec('UPDATE public."Tickets" SET "userId" = 9001 WHERE id = 990101');
+    ok('impressao digital: muda ao transferir e volta ao desfazer', preg_match('/^[0-9a-f]{32}$/', $i1) === 1 && $i1 !== $i2 && $i1 === ApchatBancoService::impressaoTickets(), json_encode([$i1, $i2]));
+    $db->exec("UPDATE public.\"Tickets\" SET status = 'closed' WHERE id = 990101");
+    ok('impressao digital: muda ao encerrar', ApchatBancoService::impressaoTickets() !== $i1);
+    $db->exec("UPDATE public.\"Tickets\" SET status = 'pending' WHERE id = 990101");
     ok('aberto: lastMessageAt tambem em data', preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}/', (string) ($abertos[0]['lastMessageAt'] ?? '')) === 1, json_encode($abertos));
     $ac = ApchatBancoService::acessos(9001);
     ok('acessos do atendente', in_array(112, $ac['canais'], true) && in_array(9101, $ac['filas'], true), json_encode($ac));

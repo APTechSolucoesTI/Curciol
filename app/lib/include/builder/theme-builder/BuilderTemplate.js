@@ -175,8 +175,13 @@ window.BuilderTemplate = ( function() {
         }, 400);
     });
 
+    // aba escondida (outra aba, janela minimizada): nao pergunta ao servidor; ao voltar, atualiza na hora
+    document.addEventListener('visibilitychange', function() {
+        if (!document.hidden && balaoPendente && !balaoAberto()) { balaoPendente = false; updateMessagesMenu(); }
+    });
+
     const updateMessagesMenu = function() {
-        if (balaoAberto()) { balaoPendente = true; return; }
+        if (document.hidden || balaoAberto()) { balaoPendente = true; return; }
         $.get('engine.php?class=MessageList&theme=theme-builder', function(data) {
             if (balaoAberto()) { balaoPendente = true; return; }
             $('#envelope_messages').html(data);
