@@ -14,6 +14,8 @@ APChatContactService::usarTransporte(function () { throw new LogicException('Tes
 ApchatApiService::usarTransporte(function () { throw new LogicException('Teste sem transporte falso de mensagens.'); });
 // e-mail tambem (09/11/2026): a homologacao envia e-mail do escritorio; teste nunca abre SMTP sem o falso dele
 EmailClient::usarTransporte(function () { throw new LogicException('Teste sem transporte falso de e-mail.'); });
+// APMail (10/11/2026): so le, mas teste nunca consulta o APMail real
+ApmailApiService::usarTransporte(function () { throw new LogicException('Teste sem transporte falso do APMail.'); });
 
 $GLOBALS['__falhas'] = 0;
 

@@ -229,16 +229,16 @@
             </menuitem>
         </menu>
         </menuitem>
+        <menuitem label="Usuários das integrações">
+        <icon>fas:user-friends fa-fw </icon>
+        <action>ApchatUsuarioList#method=onShow</action>
+        </menuitem>
         <menuitem label="APChat">
         <icon>fab:whatsapp fa-fw </icon>
         <menu>
             <menuitem label="Contatos sem vínculo">
             <icon>fas:user-tag fa-fw </icon>
             <action>ApchatContatoSemVinculoList#method=onShow</action>
-            </menuitem>
-            <menuitem label="Usuários do APChat">
-            <icon>fas:user-friends fa-fw </icon>
-            <action>ApchatUsuarioList#method=onShow</action>
             </menuitem>
             <menuitem label="Integração contatos">
             <icon>fas:sync-alt fa-fw </icon>

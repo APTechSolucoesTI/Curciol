@@ -188,9 +188,33 @@ window.BuilderTemplate = ( function() {
         });
     }
     
-    // Curciol (10/11/2026): envelope do APMail (reservado, carrega uma vez)
+    // Curciol (10/11/2026): envelope do APMail, a cada 30 s, com as mesmas protecoes do balao do APChat (aba escondida nao
+    // pergunta; com o mouse em cima nao redesenha; a lista fica aberta 400 ms depois que o mouse sai)
+    let mailPendente = false;
+    let mailTimer = null;
+    const mailAberto = function() {
+        return $('#envelope_mail .fast-drop.apmail-aberto, #envelope_mail .fast-drop:hover').length > 0;
+    }
+    $(document).on('mouseenter', '#envelope_mail .fast-drop', function() {
+        clearTimeout(mailTimer);
+        $(this).addClass('apmail-aberto');
+    });
+    $(document).on('mouseleave', '#envelope_mail .fast-drop', function() {
+        const envelope = this;
+        clearTimeout(mailTimer);
+        mailTimer = setTimeout(function() {
+            $(envelope).removeClass('apmail-aberto');
+            if (mailPendente) { mailPendente = false; updateMailMenu(); }
+        }, 400);
+    });
+    document.addEventListener('visibilitychange', function() {
+        if (!document.hidden && mailPendente && !mailAberto()) { mailPendente = false; updateMailMenu(); }
+    });
+
     const updateMailMenu = function() {
+        if (document.hidden || mailAberto()) { mailPendente = true; return; }
         $.get('engine.php?class=MailList&theme=theme-builder', function(data) {
+            if (mailAberto()) { mailPendente = true; return; }
             $('#envelope_mail').html(data);
         });
     }
@@ -385,6 +409,7 @@ window.BuilderTemplate = ( function() {
             BuilderTemplate.updateMessagesMenu();
             BuilderTemplate.updateNotificationsMenu();
             BuilderTemplate.updateMailMenu();
+            BuilderTemplate.intervalUpdateMailMenu = setInterval(BuilderTemplate.updateMailMenu, 30000);
         
             if(options.verify_messages_menu)
             {

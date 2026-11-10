@@ -1,20 +1,24 @@
 <?php
 /**
- * Configuracoes > APChat > Usuarios (10/11/2026): cada usuario ativo da Curciol com o atendente do APChat ligado (balao de
- * mensagens no topo) e os avisos (liga/desliga); o balao mostra sempre Abertos e Pendentes, como o APChat. "Ligar automaticamente":
- * pelo e-mail, senao pelo nome (ApchatUsuarioService). Um atendente so pode estar ligado a um usuario.
+ * Configuracoes > Usuarios das integracoes (10/11/2026): numa tela so, para cada usuario ativo da Curciol,
+ * - APChat: o atendente ligado (balao do topo) e os avisos; um atendente so pode estar ligado a um usuario; "Ligar automaticamente"
+ *   pelo e-mail, senao pelo nome (ApchatUsuarioService);
+ * - APMail: o e-mail dele no APMail (comeca com o do cadastro) e os avisos do envelope; "Conferir no APMail" consulta cada e-mail
+ *   (so leitura) e mostra se o APMail o reconhece.
+ * So o grupo Admin e os socios (migracao 2026-11-10-apmail.sql). Endereco e token das integracoes: Escritorio > Configuracoes.
  */
 class ApchatUsuarioList extends TPage
 {
     private $form;
     private static $formName = 'form_ApchatUsuarioList';
+    const LAYOUT = ['col-sm-3', 'col-sm-3', 'col-sm-1', 'col-sm-3', 'col-sm-1', 'col-sm-1'];
 
     public function __construct($param = null)
     {
         parent::__construct();
 
         $this->form = new BootstrapFormBuilder(self::$formName);
-        $this->form->setFormTitle('Usuários do APChat');
+        $this->form->setFormTitle('Usuários das integrações');
 
         try
         {
@@ -27,61 +31,87 @@ class ApchatUsuarioList extends TPage
 
         $explica = new TElement('div');
         $explica->style = 'margin-bottom:8px;color:#555;';
-        $explica->add('Cada usuário vê no balão do topo as conversas do APChat do atendente ligado a ele. Um atendente só pode estar ligado a um usuário.');
+        $explica->add('<b>APChat:</b> cada usuário vê no balão do topo os tickets do atendente ligado a ele (um atendente só pode estar ligado a um usuário). '
+                    . '<b>APMail:</b> o envelope do topo mostra as caixas do e-mail informado (começa com o e-mail do cadastro do usuário). '
+                    . 'Endereço e token das integrações ficam em Escritório › Configurações.');
         $this->form->addContent([$explica]);
 
         if ($atendentes === null)
         {
             $aviso = new TElement('div');
             $aviso->class = 'alert alert-warning';
-            $aviso->add('O banco do APChat não respondeu: não dá para escolher os atendentes agora. ' . htmlspecialchars(ApchatBancoService::erro(), ENT_QUOTES, 'UTF-8'));
+            $aviso->add('O banco do APChat não respondeu: os atendentes não podem ser trocados agora (o APMail pode). ' . htmlspecialchars(ApchatBancoService::erro(), ENT_QUOTES, 'UTF-8'));
             $this->form->addContent([$aviso]);
         }
-        else
+        $opcoes = [];
+        foreach ($atendentes ?? [] as $a)
         {
-            $opcoes = [];
-            foreach ($atendentes as $a)
-            {
-                $opcoes[(int) $a['id']] = $a['name'] . (!empty($a['inactive']) ? ' (inativo no APChat)' : '');
-            }
-
-            TTransaction::open('escritorio');
-            $usuarios = TTransaction::get()->query("SELECT id, name FROM system_users WHERE active = 'Y' ORDER BY name")->fetchAll(PDO::FETCH_ASSOC);
-            $ligacoes = [];
-            foreach (ApchatUsuario::where('id', '>', 0)->load() ?: [] as $l)
-            {
-                $ligacoes[(int) $l->system_user_id] = $l;
-            }
-            TTransaction::close();
-
-            $titulo = $this->form->addFields([new TLabel('<b>Usuário da Curciol</b>')], [new TLabel('<b>Atendente do APChat</b>')], [new TLabel('<b>Avisos no balão</b>')]);
-            $titulo->layout = ['col-sm-4', 'col-sm-5', 'col-sm-3'];
-
-            foreach ($usuarios as $u)
-            {
-                $id = (int) $u['id'];
-                $l = $ligacoes[$id] ?? null;
-                $combo = new TCombo("atendente_{$id}");
-                $combo->addItems($opcoes);
-                $combo->setSize('100%');
-                $combo->setValue($l ? $l->apchat_usuario_id : null);
-                $avisos = new TCheckButton("avisos_{$id}");
-                $avisos->setIndexValue('S');
-                $avisos->setUseSwitch(true, 'green');
-                $avisos->setValue(!$l || $l->avisos === 'S' ? 'S' : null);
-
-                $row = $this->form->addFields([new TLabel(htmlspecialchars((string) $u['name'], ENT_QUOTES, 'UTF-8'))], [$combo], [$avisos]);
-                $row->layout = ['col-sm-4', 'col-sm-5', 'col-sm-3'];
-            }
-
-            $btn = $this->form->addAction('Salvar', new TAction([__CLASS__, 'onSalvar'], ['static' => 1]), 'fas:save #ffffff');
-            $btn->addStyleClass('btn-primary');
-            $this->form->addAction('Ligar automaticamente', new TAction([__CLASS__, 'onLigarAutomatico'], ['static' => 1]), 'fas:magic #2196F3');
+            $opcoes[(int) $a['id']] = $a['name'] . (!empty($a['inactive']) ? ' (inativo no APChat)' : '');
         }
+
+        TTransaction::open('escritorio');
+        $usuarios = TTransaction::get()->query("SELECT id, name, email FROM system_users WHERE active = 'Y' ORDER BY name")->fetchAll(PDO::FETCH_ASSOC);
+        $ligacoes = [];
+        foreach (ApchatUsuario::where('id', '>', 0)->load() ?: [] as $l) { $ligacoes[(int) $l->system_user_id] = $l; }
+        $apmail = [];
+        foreach (ApmailUsuario::where('id', '>', 0)->load() ?: [] as $l) { $apmail[(int) $l->system_user_id] = $l; }
+        $conferir = !empty($param['conferir']) ? self::conferirApmail($usuarios) : [];
+        TTransaction::close();
+
+        $disponivel = new THidden('apchat_disponivel');
+        $disponivel->setValue($atendentes === null ? '0' : '1');
+        $this->form->addFields([$disponivel]);
+
+        $titulo = $this->form->addFields([new TLabel('<b>Usuário da Curciol</b>')], [new TLabel('<b>Atendente do APChat</b>')], [new TLabel('<b>Avisos APChat</b>')],
+                                         [new TLabel('<b>E-mail no APMail</b>')], [new TLabel('<b>Avisos APMail</b>')], [new TLabel('<b>APMail</b>')]);
+        $titulo->layout = self::LAYOUT;
+
+        foreach ($usuarios as $u)
+        {
+            $id = (int) $u['id'];
+            $l = $ligacoes[$id] ?? null;
+            $combo = new TCombo("atendente_{$id}");
+            $itens = $opcoes;
+            if ($atendentes === null && $l && $l->apchat_usuario_id)
+            {
+                $itens = [(int) $l->apchat_usuario_id => 'Atendente ' . (int) $l->apchat_usuario_id];
+            }
+            $combo->addItems($itens);
+            $combo->setSize('100%');
+            $combo->setValue($l ? $l->apchat_usuario_id : null);
+            if ($atendentes === null) { $combo->setEditable(false); }
+            $avisos = new TCheckButton("avisos_{$id}");
+            $avisos->setIndexValue('S');
+            $avisos->setUseSwitch(true, 'green');
+            $avisos->setValue(!$l || $l->avisos === 'S' ? 'S' : null);
+
+            $m = $apmail[$id] ?? null;
+            $email = new TEntry("email_apmail_{$id}");
+            $email->setSize('100%');
+            $email->setValue($m && trim((string) $m->email) !== '' ? $m->email : mb_strtolower(trim((string) $u['email'])));
+            $email->placeholder = 'e-mail no APMail';
+            $avisosMail = new TCheckButton("avisos_apmail_{$id}");
+            $avisosMail->setIndexValue('S');
+            $avisosMail->setUseSwitch(true, 'blue');
+            $avisosMail->setValue(!$m || $m->avisos !== 'N' ? 'S' : null);
+            $situacao = new TElement('span');
+            $situacao->add($conferir[$id] ?? '');
+
+            $row = $this->form->addFields([new TLabel(htmlspecialchars((string) $u['name'], ENT_QUOTES, 'UTF-8'))], [$combo], [$avisos], [$email], [$avisosMail], [$situacao]);
+            $row->layout = self::LAYOUT;
+        }
+
+        $btn = $this->form->addAction('Salvar', new TAction([__CLASS__, 'onSalvar'], ['static' => 1]), 'fas:save #ffffff');
+        $btn->addStyleClass('btn-primary');
+        if ($atendentes !== null)
+        {
+            $this->form->addAction('Ligar automaticamente (APChat)', new TAction([__CLASS__, 'onLigarAutomatico'], ['static' => 1]), 'fas:magic #2196F3');
+        }
+        $this->form->addAction('Conferir no APMail', new TAction([__CLASS__, 'onConferirApmail'], ['static' => 1]), 'fas:check-double ' . LogoSistemaService::COR_APMAIL);
 
         $container = new TVBox;
         $container->style = 'width: 100%';
-        $container->add(TBreadCrumb::create(['Configurações', 'APChat', 'Usuários']));
+        $container->add(TBreadCrumb::create(['Configurações', 'Usuários das integrações']));
         $container->add($this->form);
         parent::add($container);
     }
@@ -94,38 +124,83 @@ class ApchatUsuarioList extends TPage
     {
     }
 
-    /** Grava todos: primeiro desliga quem ficou sem atendente (libera o atendente para outro usuario), depois liga. */
+    /** Consulta (so leitura) o e-mail de cada usuario no APMail: [usuario => icone + resumo]. */
+    private static function conferirApmail(array $usuarios): array
+    {
+        $escritorio = ApmailApiService::escritorio();
+        $token = $escritorio ? trim((string) $escritorio->token_apmail) : '';
+        $r = [];
+        foreach ($usuarios as $u)
+        {
+            $id = (int) $u['id'];
+            if ($token === '') { $r[$id] = '<span title="Sem token do APMail no escritório" style="color:#999">—</span>'; continue; }
+            $email = ApmailUsuarioService::email($id);
+            if ($email === '') { $r[$id] = '<span title="Sem e-mail" style="color:#999">—</span>'; continue; }
+            try
+            {
+                $n = ApmailApiService::notificacoes(ApmailApiService::url($escritorio), $token, $email);
+                $r[$id] = '<i class="fas fa-check-circle" style="color:#4CAF50" title="Reconhecido: ' . count($n['caixas']) . ' caixa(s), ' . $n['pendentes'] . ' pendente(s)"></i> '
+                        . '<small>' . count($n['caixas']) . ' cx</small>';
+            }
+            catch (Throwable $e)
+            {
+                $r[$id] = '<i class="fas fa-times-circle" style="color:#e53935" title="' . htmlspecialchars($e->getMessage(), ENT_QUOTES, 'UTF-8') . '"></i>';
+            }
+        }
+        return $r;
+    }
+
+    public static function onConferirApmail($param = null)
+    {
+        AdiantiCoreApplication::loadPage(__CLASS__, 'onReload', ['conferir' => 1]);
+    }
+
+    /**
+     * Grava todos. APChat (so se o banco do APChat respondeu ao abrir a tela): primeiro desliga quem ficou sem atendente (libera o
+     * atendente para outro usuario), depois liga. APMail: e-mail (igual ao do cadastro = segue o cadastro) e avisos.
+     */
     public static function onSalvar($param)
     {
         try
         {
             TTransaction::open('escritorio');
             $usuarios = array_map('intval', array_column(TTransaction::get()->query("SELECT id FROM system_users WHERE active = 'Y'")->fetchAll(PDO::FETCH_ASSOC), 'id'));
-            $escolhidos = [];
-            foreach ($usuarios as $id)
+            if (($param['apchat_disponivel'] ?? '0') === '1')
             {
-                $escolhidos[$id] = !empty($param["atendente_{$id}"]) ? (int) $param["atendente_{$id}"] : null;
-            }
-            $repetidos = array_filter(array_count_values(array_filter($escolhidos)), function ($n) { return $n > 1; });
-            if ($repetidos)
-            {
-                throw new Exception('O mesmo atendente do APChat foi escolhido para mais de um usuário.');
-            }
-            foreach ($escolhidos as $id => $atendente)
-            {
-                $atual = ApchatUsuarioService::doUsuario($id);
-                if ($atual && $atual->apchat_usuario_id && (int) $atual->apchat_usuario_id !== (int) $atendente)
+                $escolhidos = [];
+                foreach ($usuarios as $id)
                 {
-                    ApchatUsuarioService::ligar($id, null);
+                    $escolhidos[$id] = !empty($param["atendente_{$id}"]) ? (int) $param["atendente_{$id}"] : null;
+                }
+                $repetidos = array_filter(array_count_values(array_filter($escolhidos)), function ($n) { return $n > 1; });
+                if ($repetidos)
+                {
+                    throw new Exception('O mesmo atendente do APChat foi escolhido para mais de um usuário.');
+                }
+                foreach ($escolhidos as $id => $atendente)
+                {
+                    $atual = ApchatUsuarioService::doUsuario($id);
+                    if ($atual && $atual->apchat_usuario_id && (int) $atual->apchat_usuario_id !== (int) $atendente)
+                    {
+                        ApchatUsuarioService::ligar($id, null);
+                    }
+                }
+                foreach ($escolhidos as $id => $atendente)
+                {
+                    if ($atendente) { ApchatUsuarioService::ligar($id, $atendente); }
+                    ApchatUsuarioService::preferencias($id, ($param["avisos_{$id}"] ?? '') === 'S', false);
                 }
             }
-            foreach ($escolhidos as $id => $atendente)
+            foreach ($usuarios as $id)
             {
-                if ($atendente) { ApchatUsuarioService::ligar($id, $atendente); }
-                ApchatUsuarioService::preferencias($id, ($param["avisos_{$id}"] ?? '') === 'S', false);
+                if (array_key_exists("email_apmail_{$id}", $param))
+                {
+                    ApmailUsuarioService::salvar($id, (string) $param["email_apmail_{$id}"], ($param["avisos_apmail_{$id}"] ?? '') === 'S');
+                }
             }
             TTransaction::close();
-            TToast::show('success', 'Usuários do APChat salvos', 'topRight', 'far:check-circle');
+            ApmailEnvelopeService::limparCache();
+            TToast::show('success', 'Usuários das integrações salvos', 'topRight', 'far:check-circle');
         }
         catch (Exception $e)
         {

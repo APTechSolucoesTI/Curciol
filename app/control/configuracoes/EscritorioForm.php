@@ -61,6 +61,10 @@ class EscritorioForm extends TPage
         $url_tela_apchat = new TEntry('url_tela_apchat');
         $button_testar_apchat = new TButton('button_testar_apchat');
         $button_enviar_teste_apchat = new TButton('button_enviar_teste_apchat');
+        // APMail (10/11/2026): endereco e token da API de notificacoes (envelope do topo)
+        $url_apmail = new TEntry('url_apmail');
+        $token_apmail = new TPassword('token_apmail');
+        $button_testar_apmail = new TButton('button_testar_apmail');
         $host = new TEntry('host');
         $email_config_id = new THidden('email_config_id');
         $smtp_auth = new TCombo('smtp_auth');
@@ -113,6 +117,7 @@ class EscritorioForm extends TPage
         $smtp_auth->addItems(["T"=>"Sim","N"=>"Não"]);
         $smtp_auth->enableSearch();
         $token_apchat->enableToggleVisibility(true);
+        $token_apmail->enableToggleVisibility(true);
 
         $data_criacao->setDatabaseMask('yyyy-mm-dd hh:ii');
         $data_modificacao->setDatabaseMask('yyyy-mm-dd hh:ii');
@@ -136,6 +141,9 @@ class EscritorioForm extends TPage
         $button_buscar->setImage('fas:search #2196F3');
         $button_testar1->setImage('fas:paper-plane #4CAF50');
         $button_testar_apchat->setImage('fas:plug #4CAF50');
+        $button_testar_apmail->setAction(new TAction([$this, 'onTestarApmail'], ['static' => 1]), "Testar");
+        $button_testar_apmail->addStyleClass('btn-default');
+        $button_testar_apmail->setImage('fas:plug #13799C');
         $button_enviar_teste_apchat->setImage('fab:whatsapp #4CAF50');
 
         $id->setEditable(false);
@@ -279,6 +287,21 @@ class EscritorioForm extends TPage
         $row15c = $this->form->addFields([$apchat_container]);
         $row15c->layout = [' col-sm-12'];
 
+        // APMail (10/11/2026): so consulta notificacoes (nada e marcado como lido); o e-mail de cada usuario fica em Usuarios das integracoes
+        $url_apmail->setSize('100%');
+        $url_apmail->placeholder = ApmailApiService::URL_PADRAO;
+        $token_apmail->setSize('100%');
+        $apmail_container = new BContainer('apmail_container');
+        $apmail_container->setTitle("APMail (e-mails)", LogoSistemaService::COR_APMAIL, '13px', 'B', '#fff');
+        $apmail_container->setBorderColor(LogoSistemaService::COR_APMAIL);
+        $row15e = $apmail_container->addFields([new TLabel("Endereço do APMail (vazio = " . ApmailApiService::URL_PADRAO . "):", null, '14px', null, '100%'), $url_apmail],
+                                               [new TLabel("Token da API (Painel Administrativo › Integrações › Tokens de API):", null, '14px', null, '100%'), $token_apmail]);
+        $row15e->layout = [' col-sm-5', ' col-sm-7'];
+        $row15f = $apmail_container->addFields([$button_testar_apmail]);
+        $row15f->layout = [' col-sm-12'];
+        $row15g = $this->form->addFields([$apmail_container]);
+        $row15g->layout = [' col-sm-12'];
+
         $this->form->appendPage("Informações de cadastro");
         $row16 = $this->form->addFields([new TLabel("Criado em:", null, '14px', null, '100%'),$data_criacao],[new TLabel("Criado por:", null, '14px', null, '100%'),$criacao_user_name],[new TLabel("Atualizado em:", null, '14px', null, '100%'),$data_modificacao],[new TLabel("Atualizado por:", null, '14px', null, '100%'),$modificacao_user_name]);
         $row16->layout = ['col-sm-3','col-sm-3',' col-sm-3',' col-sm-3'];
@@ -350,6 +373,27 @@ class EscritorioForm extends TPage
         catch (Exception $e) 
         {
             new TMessage('error', $e->getMessage());    
+        }
+    }
+
+    /**
+     * APMail (10/11/2026): consulta as notificacoes do usuario logado (o e-mail dele no APMail) com o endereco e o token da tela.
+     * So le: nada e marcado como lido.
+     */
+    public static function onTestarApmail($param = null)
+    {
+        try
+        {
+            TTransaction::open(self::$database);
+            $email = ApmailUsuarioService::email((int) TSession::getValue('userid'));
+            TTransaction::close();
+            $r = ApmailApiService::testar((string) ($param['url_apmail'] ?? ''), (string) ($param['token_apmail'] ?? ''), $email);
+            new TMessage('info', "APMail funcionando para {$email}: {$r['pendentes']} pendente(s), {$r['nao_lidas']} não lida(s) em " . count($r['caixas']) . ' caixa(s).');
+        }
+        catch (Exception $e)
+        {
+            TTransaction::rollback();
+            new TMessage('error', $e->getMessage());
         }
     }
 
@@ -479,6 +523,8 @@ class EscritorioForm extends TPage
             $data->cnpj = preg_replace('/[^0-9]/', '', $data->cnpj);
             $data->url_apchat = rtrim(trim((string) $data->url_apchat), '/');
             $data->token_apchat = trim((string) $data->token_apchat);
+            $data->url_apmail = rtrim(trim((string) ($data->url_apmail ?? '')), '/') ?: null;
+            $data->token_apmail = trim((string) ($data->token_apmail ?? '')) ?: null;
 
             $object->fromArray( (array) $data); // load the object with data
 
