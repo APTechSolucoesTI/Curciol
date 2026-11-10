@@ -96,6 +96,8 @@ class ApchatFilaService
         {
             TTransaction::open(self::$database);
             ApchatUsuarioService::ligarAutomatico();
+            // webhook (10/11/2026): eventos da campainha do balao ficam 3 dias
+            ApchatWebhookService::limparAntigos();
             TTransaction::close();
         }
         catch (Throwable $e)

@@ -7,11 +7,16 @@
  * - aberto: so o atendente do ticket.
  * Fica de fora o numero que esta aguardando o SIM/NAO de uma confirmacao da Curciol (ela mesma responde).
  * Por usuario (apchat_usuario): avisos ligados/desligados e, opcional, a lista dos tickets abertos com ele.
- * A lista de tickets do APChat fica 10 s em cache (o balao atualiza a cada 15 s em cada usuario logado). APChat fora = vazio.
+ * O balao atualiza a cada 5 s em cada usuario logado. A lista de tickets do APChat fica em cache (uma leitura para todos): com o
+ * webhook (campainha, ApchatWebhookService) rele quando chega mensagem nova e, sem campainha, a cada 60 s - encerrar, pegar e
+ * transferir nao tocam a campainha; sem webhook nas ultimas 24 h, a cada 10 s. Acessos de cada atendente: 60 s. APChat fora = vazio.
  */
 class ApchatBalaoService
 {
     const CACHE_SEGUNDOS = 10;
+    const CACHE_COM_WEBHOOK = 60;
+    const ACESSOS_SEGUNDOS = 60;
+    const ATUALIZAR_MS = 5000;
     const MAXIMO = 20;
     const FALHA_SEGUNDOS = 60;
 
@@ -43,7 +48,7 @@ class ApchatBalaoService
                 return ['situacao' => 'erro'] + $vazio;
             }
             $tickets = self::tickets();
-            $acessos = ApchatBancoService::acessos((int) $ligacao->apchat_usuario_id);
+            $acessos = self::acessos((int) $ligacao->apchat_usuario_id);
         }
         catch (Throwable $e)
         {
@@ -83,18 +88,47 @@ class ApchatBalaoService
     {
         @unlink(self::arquivoCache());
         @unlink(self::arquivoCache() . '.falha');
+        foreach (glob(self::arquivoCache() . '.acessos-*') ?: [] as $f) { @unlink($f); }
+    }
+
+    /** Segundos da lista de tickets em cache: 60 com o webhook ativo (a campainha avisa mensagem nova), senao 10. */
+    public static function cacheSegundos(): int
+    {
+        return ApchatWebhookService::ativo() ? self::CACHE_COM_WEBHOOK : self::CACHE_SEGUNDOS;
+    }
+
+    /** Intervalo de atualizacao do balao no navegador (ms); desligado no application.ini continua desligado. */
+    public static function intervaloMs(array $ini): string
+    {
+        $v = $ini['general']['verify_messages_menu'] ?? false;
+        return ($v === false || $v === '' || $v === 'false' || $v === '0') ? 'false' : (string) self::ATUALIZAR_MS;
+    }
+
+    private static function acessos(int $atendente): array
+    {
+        $arquivo = self::arquivoCache() . '.acessos-' . $atendente;
+        $cache = is_file($arquivo) ? json_decode((string) @file_get_contents($arquivo), true) : null;
+        if (is_array($cache) && ($cache['em'] ?? 0) > time() - self::ACESSOS_SEGUNDOS)
+        {
+            return $cache['acessos'];
+        }
+        $acessos = ApchatBancoService::acessos($atendente);
+        @file_put_contents($arquivo, json_encode(['em' => time(), 'acessos' => $acessos]), LOCK_EX);
+        return $acessos;
     }
 
     private static function tickets(): array
     {
         $arquivo = self::arquivoCache();
         $cache = is_file($arquivo) ? json_decode((string) @file_get_contents($arquivo), true) : null;
-        if (is_array($cache) && ($cache['em'] ?? 0) > time() - self::CACHE_SEGUNDOS)
+        // campainha lida ANTES do APChat: mensagem que chegar durante a leitura faz reler na proxima atualizacao
+        $evento = ApchatWebhookService::ultimoEvento();
+        if (is_array($cache) && ($cache['em'] ?? 0) > time() - self::cacheSegundos() && $evento <= (int) ($cache['evento'] ?? 0))
         {
             return $cache['tickets'];
         }
         $tickets = ApchatBancoService::ticketsAbertosComUltima();
-        @file_put_contents($arquivo, json_encode(['em' => time(), 'tickets' => $tickets]), LOCK_EX);
+        @file_put_contents($arquivo, json_encode(['em' => time(), 'evento' => $evento, 'tickets' => $tickets]), LOCK_EX);
         return $tickets;
     }
 

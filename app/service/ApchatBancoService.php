@@ -345,7 +345,7 @@ class ApchatBancoService
     public static function mensagensEnviadasPara(array $numeros, string $desde, string $ate): array
     {
         if (self::$falso) { return self::$falso->mensagensEnviadasPara($numeros, $desde, $ate); }
-        $st = self::conn()->prepare('SELECT m.id, m."messageId", m.body, m.ack, m."createdAt", c.number AS numero
+        $st = self::conn()->prepare('SELECT m.id, m."messageId", m."ticketId", m.body, m.ack, m."createdAt", c.number AS numero
                                        FROM curciol.mensagens m
                                        JOIN curciol.tickets t ON t.id = m."ticketId" AND t.arquivado = m.arquivada
                                        JOIN curciol.contatos c ON c.id = t."contactId"
@@ -370,7 +370,8 @@ class ApchatBancoService
                                                FROM (SELECT at.name, max(m."createdAt") AS ultima FROM curciol.mensagens m
                                                        JOIN curciol.atendentes at ON at.id = m."userId"
                                                       WHERE m."ticketId" = t.id AND m.arquivada = t.arquivado AND m."fromMe"
-                                                      GROUP BY at.name) x) AS atendentes
+                                                      GROUP BY at.name) x) AS atendentes,
+                                            EXISTS (SELECT 1 FROM curciol.mensagens mc WHERE mc."ticketId" = t.id AND mc.arquivada = t.arquivado AND NOT mc."fromMe") AS do_cliente
                                        FROM curciol.tickets t
                                        JOIN curciol.contatos c ON c.id = t."contactId"
                                        LEFT JOIN curciol.canais w ON w.id = t."whatsappId"

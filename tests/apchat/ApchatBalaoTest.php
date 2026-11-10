@@ -22,11 +22,12 @@ $falso = new class([
     $t(6, 'pending', null, 9101, false, '5519900000006'),
     $t(7, 'open', 9001, 9101, true, '5519900000007'),
 ]) {
-    public $tickets; public $leituras = 0; public $fora = false; public $tentativas = 0;
+    public $tickets; public $leituras = 0; public $fora = false; public $tentativas = 0; public $acessosLidos = 0;
     public function __construct($t) { $this->tickets = $t; }
     public function disponivel() { $this->tentativas++; return !$this->fora; }
     public function ticketsAbertosComUltima(): array { if ($this->fora) { throw new Exception('fora'); } $this->leituras++; return $this->tickets; }
     public function acessos(int $atendente): array {
+        $this->acessosLidos++;
         $a = [9001 => ['canais' => [112], 'filas' => [9101, 9102]], 9002 => ['canais' => [112], 'filas' => [9101]], 9003 => ['canais' => [], 'filas' => [9101]]];
         return $a[$atendente] ?? ['canais' => [], 'filas' => []];
     }
@@ -61,10 +62,29 @@ try
     igual('atendente sem o canal: nada', [], $ids($r3));
     igual('usuario sem atendente ligado', 'sem_ligacao', ApchatBalaoService::conversas($u4)['situacao'] ?? null);
     igual('APChat lido uma vez so (cache)', 1, $falso->leituras);
+    igual('acessos de cada atendente lidos uma vez', 3, $falso->acessosLidos);
+    ApchatBalaoService::conversas($u1);
+    igual('acessos ficam em cache (60 s)', 3, $falso->acessosLidos);
+
+    // campainha (webhook): mensagem nova no APChat -> o balao rele na proxima atualizacao, mesmo com o cache novo
+    $c->exec('DELETE FROM apchat_webhook_evento');
+    igual('sem webhook nas ultimas 24 h: rele o APChat a cada 10 s', 10, ApchatBalaoService::cacheSegundos());
+    $c->exec("INSERT INTO apchat_webhook_evento (metodo, ticket_id, de_mim) VALUES ('message', 1, false)");
+    igual('com webhook: rele a cada 60 s (encerrar, pegar e transferir nao tocam a campainha)', 60, ApchatBalaoService::cacheSegundos());
+    $lidas = $falso->leituras;
+    ApchatBalaoService::conversas($u1);
+    igual('campainha tocou: rele o APChat', $lidas + 1, $falso->leituras);
+    ApchatBalaoService::conversas($u2);
+    igual('sem campainha nova: usa o cache', $lidas + 1, $falso->leituras);
+    $c->exec("INSERT INTO apchat_webhook_evento (metodo) VALUES ('contact-create-update')");
+    ApchatBalaoService::conversas($u1);
+    igual('evento sem ticket (contato) nao faz reler', $lidas + 1, $falso->leituras);
+    igual('intervalo do balao: 5 s', '5000', ApchatBalaoService::intervaloMs(['general' => ['verify_messages_menu' => '15000']]));
+    igual('intervalo do balao desligado no ini continua desligado', 'false', ApchatBalaoService::intervaloMs(['general' => []]));
 
     $item = $r1['itens'][0];
     ok('item: contato, canal, fila e ultima mensagem', $item['contato'] === 'Cliente A' && $item['canal'] === 'Oficial' && $item['fila'] === 'Fila 9101' && $item['ultima'] === 'Mensagem do cliente 1', json_encode($item));
-    igual('item: endereco do ticket no APChat', 'https://app.apchat.com.br/atendimento?ticketId=1', $item['url']);
+    igual('item: endereco do ticket no APChat', ApchatApiService::urlTicket(1), $item['url']);
 
     ApchatUsuarioService::preferencias($u1, true, true);
     igual('com tickets abertos ligado: os abertos dele (inclusive respondidos)', [4, 7], $ids(ApchatBalaoService::conversas($u1), 'abertos'));
@@ -110,6 +130,7 @@ $tpl = (int) $c->query("SELECT id FROM template_escritorio WHERE categoria = 'CO
 $ag = (int) $c->query('SELECT id FROM agendamento ORDER BY id DESC LIMIT 1')->fetchColumn();
 $msg = (int) $c->query("INSERT INTO mensagem (agendamento_id, template_escritorio_id, system_user_id, tipo_mensagem, destino, template, enviado_em) VALUES ({$ag}, {$tpl}, {$u1}, 'WHATSAPP', '19900000006', 'Confirma?', now()) RETURNING id")->fetchColumn();
 $unidade = (int) $c->query('SELECT system_unit_id FROM escritorio ORDER BY id LIMIT 1')->fetchColumn();
+$urlTicket1 = ApchatApiService::urlTicket(1);
 TTransaction::close();
 try
 {
@@ -118,7 +139,7 @@ try
     ApchatBalaoService::limparCache();
     $html = saida(function () { (new MessageList(['theme' => 'theme-builder']))->show(); });
     ok('balao: icone de conversa e contador', strpos($html, 'fa-comments') !== false && strpos($html, 'data-count="3"') !== false, substr($html, 0, 400));
-    ok('balao: abre o ticket na aba do APChat', strpos($html, "window.open('https://app.apchat.com.br/atendimento?ticketId=1', 'apchat')") !== false, $html);
+    ok('balao: abre o ticket na aba do APChat', strpos($html, "window.open('{$urlTicket1}', 'apchat')") !== false, $html);
     ok('balao: nome do cliente', strpos($html, 'Cliente A') !== false);
     $mail = saida(function () { (new MailList(['theme' => 'theme-builder']))->show(); });
     ok('envelope do APMail: em breve', strpos($mail, 'fa-envelope') !== false && strpos($mail, 'APMail') !== false, $mail);

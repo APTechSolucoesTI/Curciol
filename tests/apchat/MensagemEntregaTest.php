@@ -72,10 +72,14 @@ try
     igual('2b: agendamento no mesmo estado', (int) EstadoAgenda::AGENDADO, (int) q("SELECT estado_agenda_id e FROM agendamento WHERE id = {$ag}")[0]['e']);
 
     // enviada: aguardando entrega
-    ApchatApiService::usarTransporte(function () { return ['status' => 201, 'corpo' => '{"success":true}', 'erro' => '']; });
+    // resposta real do APChat (10/11/2026): so o ticket, sem o id da mensagem
+    ApchatApiService::usarTransporte(function () { return ['status' => 201, 'corpo' => '{"success":true,"data":{"message":"Message sent successfully","ticketId":2967}}', 'erro' => '']; });
     saida(fn() => EnviarMensagemForm::onSend($param));
-    $enviada = q("SELECT id, entrega FROM mensagem WHERE agendamento_id = {$ag} ORDER BY id DESC LIMIT 1")[0] ?? [];
+    $enviada = q("SELECT id, entrega, apchat_ticket_id, apchat_mensagem_id FROM mensagem WHERE agendamento_id = {$ag} ORDER BY id DESC LIMIT 1")[0] ?? [];
     igual('enviada: aguardando entrega', 'A', $enviada['entrega'] ?? null);
+    igual('enviada: guarda o ticket que o APChat devolveu', 2967, (int) ($enviada['apchat_ticket_id'] ?? 0));
+    igual('enviada: resposta sem id da mensagem', null, $enviada['apchat_mensagem_id'] ?? null);
+    igual('ticket da resposta: outros formatos', [77, null, null], [MensagemEntregaService::ticketDaResposta('{"ticketId":"77"}'), MensagemEntregaService::ticketDaResposta('{"success":true}'), MensagemEntregaService::ticketDaResposta('xx')]);
     AmbienteService::forcarProducao(null);
     x("DELETE FROM mensagem WHERE agendamento_id = {$ag}");
 
@@ -126,6 +130,17 @@ try
     $m6 = $nova('Mesma pessoa ' . MARCA_ENT, $ontem, $colaborador);
     MensagemEntregaService::rodada();
     igual('mesma pessoa nos tres papeis: um aviso so', [$colaborador], avisos());
+
+    // mesmo texto duas vezes em poucos minutos: cada uma pelo proprio ticket (antes as duas casavam com a primeira)
+    $m7 = $nova('Repetida ' . MARCA_ENT, $agora, $remetente);
+    $m8 = $nova('Repetida ' . MARCA_ENT, $agora, $remetente);
+    x("UPDATE mensagem SET apchat_ticket_id = 501 WHERE id = {$m7}");
+    x("UPDATE mensagem SET apchat_ticket_id = 502 WHERE id = {$m8}");
+    $apchat['mensagens'][] = ['id' => 'apc-8', 'ticketId' => 502, 'messageId' => 'wamid-8', 'numero' => '5519987651111', 'body' => 'Repetida ' . MARCA_ENT, 'ack' => 1, 'createdAt' => $agora];
+    $apchat['mensagens'][] = ['id' => 'apc-7', 'ticketId' => 501, 'messageId' => 'wamid-7', 'numero' => '5519987651111', 'body' => 'Repetida ' . MARCA_ENT, 'ack' => 3, 'createdAt' => $agora];
+    MensagemEntregaService::rodada();
+    igual('pelo ticket: a do ticket 501 entregue', ['E', 'apc-7'], array_values($sit($m7)));
+    igual('pelo ticket: a do ticket 502 aguardando (1 tique)', ['A', 'apc-8'], array_values($sit($m8)));
 
     TTransaction::open('escritorio');
     ok('historico mostra a situacao', strpos((string) Mensagem::find($m3)->template_formatado, 'Não entregue') !== false

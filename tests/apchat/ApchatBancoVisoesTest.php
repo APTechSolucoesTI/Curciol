@@ -30,6 +30,7 @@ try
     igual('so o fechado', [990100], array_map('intval', array_column($f, 'id')));
     igual('encerramento em data e hora de Sao Paulo (closedAt em milissegundos)', '2026-11-07 15:00:00', $f[0]['fechado_em'] ?? null);
     igual('quem encerrou', 'TESTE - Atendente Dois', $f[0]['fechou'] ?? null);
+    ok('tem mensagem do cliente', ($f[0]['do_cliente'] ?? null) === true, json_encode($f[0]['do_cliente'] ?? null));
     igual('quem escreveu', 'TESTE - Atendente Um', $f[0]['atendentes'] ?? null);
     $abertos = array_values(array_filter(ApchatBancoService::ticketsAbertosComUltima(), function ($t) { return (int) $t['id'] === 990101; }));
     ok('aberto: ultima do cliente, com texto e hora', ($abertos[0]['ultima_nossa'] ?? true) === false && ($abertos[0]['ultima_texto'] ?? '') === 'Preciso de ajuda'

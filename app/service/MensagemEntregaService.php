@@ -7,7 +7,8 @@
  * e quem criou o agendamento (sem repetir). O agendamento nao muda de estado. Celular desligado fica com 1 tique por horas: por
  * isso so 24 h contam como nao entregue.
  *
- * Casamento com a mensagem do APChat: pelo id que a API devolveu no envio, senao pelo numero (com e sem o 9), mensagem nossa
+ * Casamento com a mensagem do APChat: pelo id que a API devolveu no envio; senao, pelo ticket que ela devolveu (a primeira
+ * mensagem nossa daquele ticket - a resposta do APChat traz so o ticket); senao pelo numero (com e sem o 9), mensagem nossa
  * (fromMe), mesmo texto (espacos ignorados) e horario entre 2 min antes e 30 min depois do envio. APChat fora: nada muda (nem
  * vira "nao entregue" sem conferir).
  */
@@ -24,6 +25,18 @@ class MensagemEntregaService
         foreach ([$json['data']['id'] ?? null, $json['data']['messageId'] ?? null, $json['messageId'] ?? null, $json['message']['id'] ?? null] as $v)
         {
             if (is_scalar($v) && trim((string) $v) !== '') { return mb_substr(trim((string) $v), 0, 255); }
+        }
+        return null;
+    }
+
+    /** ticket na resposta da API de envio ({"data":{"ticketId":N}}). */
+    public static function ticketDaResposta(string $corpo): ?int
+    {
+        $json = json_decode($corpo, true);
+        if (!is_array($json)) { return null; }
+        foreach ([$json['data']['ticketId'] ?? null, $json['ticketId'] ?? null] as $v)
+        {
+            if (is_numeric($v) && (int) $v > 0) { return (int) $v; }
         }
         return null;
     }
@@ -112,8 +125,19 @@ class MensagemEntregaService
         $texto = self::comparavel((string) $m->template);
         foreach ($lista as $l)
         {
-            $porId = $m->apchat_mensagem_id && in_array((string) $m->apchat_mensagem_id, [(string) $l['id'], (string) ($l['messageId'] ?? '')], true);
-            if ($porId || (!$m->apchat_mensagem_id && self::comparavel((string) $l['body']) === $texto))
+            if ($m->apchat_mensagem_id)
+            {
+                $casa = in_array((string) $m->apchat_mensagem_id, [(string) $l['id'], (string) ($l['messageId'] ?? '')], true);
+            }
+            elseif ($m->apchat_ticket_id)
+            {
+                $casa = (int) ($l['ticketId'] ?? 0) === (int) $m->apchat_ticket_id;
+            }
+            else
+            {
+                $casa = self::comparavel((string) $l['body']) === $texto;
+            }
+            if ($casa)
             {
                 return [(string) $l['id'], isset($l['ack']) ? (int) $l['ack'] : null];
             }

@@ -36,6 +36,7 @@ class Mensagem extends TRecord
         parent::addAttribute('entrega');
         parent::addAttribute('entrega_em');
         parent::addAttribute('apchat_mensagem_id');
+        parent::addAttribute('apchat_ticket_id');
     
     }
 

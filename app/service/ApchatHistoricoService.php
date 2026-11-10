@@ -6,6 +6,8 @@
  * principal (decidido na hora: se depois virar principal de outro, os tickets passam a aparecer so la). Com e sem o 9.
  * So tickets fechados, do encerramento mais recente para o mais antigo. Principal = quem encerrou, senao o atendente do ticket.
  * Conversa: so as mensagens de texto (sem arquivos, audios, imagens), e so de ticket do proprio cliente.
+ * Ticket aberto so por um envio da Curciol (mensagem.apchat_ticket_id), sem mensagem do cliente, fica de fora: a mensagem da
+ * Curciol ja aparece nos atendimentos, com a situacao de entrega.
  */
 class ApchatHistoricoService
 {
@@ -37,10 +39,15 @@ class ApchatHistoricoService
         $numeros = self::numerosDoCliente($pessoaId);
         if (!$numeros) { return []; }
 
+        $tickets = ApchatBancoService::ticketsFechadosDosNumeros($numeros);
+        $daCurciol = self::abertosPelaCurciol(array_map(function ($t) { return (int) $t['id']; }, array_filter($tickets, function ($t) {
+            return !self::sim($t['do_cliente'] ?? true) && !self::sim($t['arquivado'] ?? false);
+        })));
         $lista = [];
-        foreach (ApchatBancoService::ticketsFechadosDosNumeros($numeros) as $t)
+        foreach ($tickets as $t)
         {
             if (($t['status'] ?? '') !== 'closed') { continue; }
+            if (isset($daCurciol[(int) $t['id']]) && !self::sim($t['do_cliente'] ?? true) && !self::sim($t['arquivado'] ?? false)) { continue; }
             $atendentes = array_values(array_filter(explode('|', (string) ($t['atendentes'] ?? '')), 'strlen'));
             $lista[] = [
                 'id'         => (int) $t['id'],
@@ -57,6 +64,21 @@ class ApchatHistoricoService
         }
         usort($lista, function ($a, $b) { return strcmp($b['fechado_em'], $a['fechado_em']) ?: $b['id'] <=> $a['id']; });
         return $lista;
+    }
+
+    /** Dos tickets, os que a Curciol abriu ao enviar (mensagem.apchat_ticket_id). @return array [ticket => true] */
+    private static function abertosPelaCurciol(array $ids): array
+    {
+        $ids = array_values(array_unique(array_filter($ids)));
+        if (!$ids) { return []; }
+        $st = TTransaction::get()->prepare('SELECT DISTINCT apchat_ticket_id FROM mensagem WHERE apchat_ticket_id IN (' . implode(',', array_fill(0, count($ids), '?')) . ')');
+        $st->execute($ids);
+        return array_fill_keys(array_map('intval', $st->fetchAll(PDO::FETCH_COLUMN)), true);
+    }
+
+    private static function sim($v): bool
+    {
+        return $v === true || $v === 't' || $v === 1 || $v === '1' || $v === 'true';
     }
 
     /** O ticket, se for do cliente (senao excecao). */

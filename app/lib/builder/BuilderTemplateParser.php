@@ -167,7 +167,8 @@ class BuilderTemplateParser
         $content = str_replace('{top_menu_var}', $top_menu_var, $content);
         $content = str_replace('{lang}', AdiantiCoreTranslator::getLanguage(), $content);
         $content = str_replace('{debug}', isset($ini['general']['debug']) ? $ini['general']['debug'] : '1', $content);
-        $content = str_replace('{verify_messages_menu}', isset($ini['general']['verify_messages_menu']) ? $ini['general']['verify_messages_menu'] : 'false', $content);
+        // balao do APChat (10/11/2026): a cada 5 s (ApchatBalaoService), se ligado no ini
+        $content = str_replace('{verify_messages_menu}', ApchatBalaoService::intervaloMs($ini), $content);
         $content = str_replace('{verify_notifications_menu}', isset($ini['general']['verify_notifications_menu']) ? $ini['general']['verify_notifications_menu'] : 'false', $content);
         $content = str_replace('{use_tabs}', $use_tabs, $content);
         $content = str_replace('{store_tabs}', $store_tabs, $content);

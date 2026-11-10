@@ -417,6 +417,7 @@ class MensagemService
         // entrega (10/11/2026): aguardando os 2 tiques no APChat (MensagemEntregaService, no cron)
         $mensagem->entrega = 'A';
         $mensagem->apchat_mensagem_id = MensagemEntregaService::idDaResposta((string) $mensagem->retorno);
+        $mensagem->apchat_ticket_id = MensagemEntregaService::ticketDaResposta((string) $mensagem->retorno);
         $mensagem->store();
         
         return $mensagem;

@@ -16,20 +16,27 @@ $limpar = function () {
         x("DELETE FROM pessoa_contato WHERE pessoa_id = {$s['id']}");
         x("DELETE FROM pessoa WHERE id = {$s['id']}");
     }
+    x("DELETE FROM mensagem WHERE template = '" . MARCA_HIST . "'");
 };
 $limpar();
 
-$tk = function (int $id, string $numero, string $status, string $fechado, ?int $fechou, ?string $nomeFechou, string $atendentes) {
+$tk = function (int $id, string $numero, string $status, string $fechado, ?int $fechou, ?string $nomeFechou, string $atendentes, bool $doCliente = true) {
     return ['id' => $id, 'arquivado' => false, 'status' => $status, 'numero' => $numero, 'contato' => 'Contato ' . $id,
             'aberto_em' => date('Y-m-d H:i:s', strtotime($fechado . ' -2 hours')), 'fechado_em' => $status === 'closed' ? $fechado : null,
             'canal' => 'Curciol - Oficial', 'fila' => 'Fila Um', 'userId' => 9001, 'atendente' => 'Atendente Um',
-            'closedByUserId' => $fechou, 'fechou' => $nomeFechou, 'atendentes' => $atendentes];
+            'closedByUserId' => $fechou, 'fechou' => $nomeFechou, 'atendentes' => $atendentes, 'do_cliente' => $doCliente];
 };
 $falso = new class([
     $tk(10, '5519982220001', 'closed', '2026-11-05 10:00:00', 9002, 'Atendente Dois', 'Atendente Um|Atendente Dois'),
     $tk(11, '5519982220002', 'closed', '2026-11-07 16:30:00', null, null, 'Atendente Um'),
     $tk(12, '5519982220003', 'closed', '2026-11-08 09:00:00', 9001, 'Atendente Um', 'Atendente Um'),
     $tk(13, '5519982220001', 'open', '2026-11-09 09:00:00', null, null, ''),
+    // aberto so pelo envio da Curciol (isClosed), sem mensagem do cliente: ja aparece como mensagem da Curciol -> fora
+    $tk(14, '5519982220001', 'closed', '2026-11-09 10:00:00', null, null, '', false),
+    // envio da Curciol que o cliente respondeu no mesmo ticket: aparece
+    $tk(15, '5519982220001', 'closed', '2026-11-09 11:00:00', null, null, ''),
+    // so mensagem nossa, mas nao foi a Curciol que abriu (atendente pelo APChat): aparece
+    $tk(16, '5519982220001', 'closed', '2026-11-09 12:00:00', 9001, 'Atendente Um', 'Atendente Um', false),
 ]) {
     public $t; public function __construct($t) { $this->t = $t; }
     public function disponivel() { return true; }
@@ -58,6 +65,9 @@ try
     $c->exec("INSERT INTO pessoa_contato (pessoa_id, nome, telefone, principal) VALUES ({$a}, 'A', '(19) 98222-0001', 'S'), ({$a}, 'RECADO', '(19) 98222-0002', 'N'),
               ({$a}, 'FILHO', '(19) 98222-0003', 'N'), ({$b}, 'B', '(19) 98222-0003', 'S')");
     $unidade = (int) $c->query('SELECT system_unit_id FROM escritorio ORDER BY id LIMIT 1')->fetchColumn();
+    $ag = (int) $c->query('SELECT id FROM agendamento ORDER BY id LIMIT 1')->fetchColumn();
+    $c->exec("INSERT INTO mensagem (agendamento_id, system_user_id, tipo_mensagem, destino, template, enviado_em, apchat_ticket_id) VALUES
+              ({$ag}, 1, 'WHATSAPP', '19982220001', '" . MARCA_HIST . "', now(), 14), ({$ag}, 1, 'WHATSAPP', '19982220001', '" . MARCA_HIST . "', now(), 15)");
     TTransaction::close();
     TSession::setValue('userunitid', $unidade);
 
@@ -69,13 +79,13 @@ try
     ok('cliente B: o principal dele', in_array('5519982220003', ApchatHistoricoService::numerosDoCliente($b), true));
 
     $ta = ApchatHistoricoService::tickets($a);
-    igual('cliente A: so fechados, ordem pelo encerramento', [11, 10], array_column($ta, 'id'));
+    igual('cliente A: so fechados, ordem pelo encerramento, sem o ticket aberto so pelo envio da Curciol', [16, 15, 11, 10], array_column($ta, 'id'));
     igual('cliente B: o ticket do principal dele', [12], array_column(ApchatHistoricoService::tickets($b), 'id'));
-    $t10 = $ta[1];
+    $t10 = $ta[3] ?? [];
     igual('principal = quem encerrou', 'Atendente Dois', $t10['principal']);
     igual('todos os atendentes', ['Atendente Um', 'Atendente Dois'], $t10['atendentes']);
     ok('canal, fila, abertura e encerramento', $t10['canal'] === 'Curciol - Oficial' && $t10['fila'] === 'Fila Um' && $t10['fechado_em'] === '2026-11-05 10:00:00' && $t10['aberto_em'] !== '');
-    igual('sem quem encerrou: o atendente do ticket', 'Atendente Um', $ta[0]['principal']);
+    igual('sem quem encerrou: o atendente do ticket', 'Atendente Um', $ta[2]['principal'] ?? null);
 
     $conv = ApchatHistoricoService::conversa(10, $a);
     igual('conversa: so mensagens de texto', ['Bom dia, preciso de ajuda', 'Claro, pode falar'], array_column($conv, 'body'));
