@@ -2,16 +2,18 @@
 /**
  * Webhook do APChat (10/11/2026). Usa a transacao aberta ('escritorio').
  *
- * O APChat chama apchat-webhook.php?chave=<escritorio.webhook_apchat_chave> com um POST JSON a cada evento. Aqui so confere a
- * chave e guarda o evento como chegou, menos os SEGREDOS (apchat_webhook_evento); o processamento fica para depois, para responder na hora.
- * Devolve o codigo HTTP da resposta.
+ * O APChat chama apchat-webhook.php?chave=<escritorio.webhook_apchat_chave> com um POST JSON a cada evento. E so a "campainha"
+ * do balao: o webhook avisa mensagens (do cliente e do atendente), mas nao avisa pegar, transferir nem encerrar ticket - a
+ * situacao dos tickets vem sempre do banco do APChat. Por isso guarda so o tipo do evento, o ticket, se a mensagem e nossa e a
+ * hora (nunca o texto, o contato nem os tokens dos canais que vem junto), por 3 dias. Devolve o codigo HTTP da resposta.
  */
 class ApchatWebhookService
 {
     const MAXIMO_BYTES = 1048576;
-
-    // campos que o APChat manda junto e que nunca ficam na Curciol: tokens dos canais e chaves de IA/integracoes
-    const SEGREDOS = ['tokenAPI', 'bmToken', 'wavoipToken', 'chatgptApiKey', 'chatgptOrganizationId', 'difyKey', 'apiConfig', 'n8nUrl'];
+    const DIAS = 3;
+    // eventos de mensagem: tocam a campainha do balao
+    const MENSAGEM = 'message';
+    const ENVIO_PREFIXO = 'message_send';
 
     public static function receber(string $metodo, ?string $chave, string $corpo, string $ip): int
     {
@@ -27,40 +29,52 @@ class ApchatWebhookService
         {
             return 413;
         }
-        if (trim($corpo) === '')
+        $dados = json_decode($corpo, true);
+        if (!is_array($dados))
         {
             return 400;
         }
 
-        $st = TTransaction::get()->prepare('INSERT INTO apchat_webhook_evento (ip, corpo) VALUES (?, ?)');
-        $st->execute([$ip, self::semSegredos($corpo)]);
+        $evento = mb_substr(trim((string) ($dados['method'] ?? '')), 0, 60);
+        $ticket = $dados['ticket']['id'] ?? null;
+        $ticket = is_numeric($ticket) ? (int) $ticket : null;
+        $deMim = null;
+        if ($evento === self::MENSAGEM)
+        {
+            $deMim = !empty($dados['msg']['fromMe']);
+        }
+        elseif (strpos($evento, self::ENVIO_PREFIXO) === 0)
+        {
+            // resposta do atendente pela tela do APChat (message_send_uazapi, ...): o APChat nao manda fromMe
+            $deMim = true;
+        }
+
+        $st = TTransaction::get()->prepare('INSERT INTO apchat_webhook_evento (ip, metodo, ticket_id, de_mim) VALUES (?, ?, ?, ?)');
+        $st->bindValue(1, $ip);
+        $st->bindValue(2, $evento !== '' ? $evento : null);
+        $st->bindValue(3, $ticket, $ticket === null ? PDO::PARAM_NULL : PDO::PARAM_INT);
+        $st->bindValue(4, $deMim, $deMim === null ? PDO::PARAM_NULL : PDO::PARAM_BOOL);
+        $st->execute();
 
         return 200;
     }
 
-    /** Tira os SEGREDOS de qualquer nivel do JSON; corpo que nao e JSON fica como chegou. */
-    public static function semSegredos(string $corpo): string
+    /** id do ultimo evento de mensagem (0 = nenhum): mudou = o balao rele o APChat. */
+    public static function ultimoEvento(): int
     {
-        $dados = json_decode($corpo, true);
-        if (!is_array($dados))
-        {
-            return $corpo;
-        }
-        $tirar = function (array $d) use (&$tirar): array {
-            foreach ($d as $k => $v)
-            {
-                if (in_array($k, self::SEGREDOS, true))
-                {
-                    unset($d[$k]);
-                }
-                elseif (is_array($v))
-                {
-                    $d[$k] = $tirar($v);
-                }
-            }
-            return $d;
-        };
-        return json_encode($tirar($dados), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        return (int) TTransaction::get()->query('SELECT coalesce(max(id), 0) FROM apchat_webhook_evento WHERE ticket_id IS NOT NULL')->fetchColumn();
+    }
+
+    /** Chegou evento de mensagem nas ultimas 24 h? (sem webhook, o balao rele o APChat mais vezes) */
+    public static function ativo(): bool
+    {
+        return (bool) TTransaction::get()->query("SELECT EXISTS (SELECT 1 FROM apchat_webhook_evento WHERE ticket_id IS NOT NULL AND recebido_em > now() - interval '24 hours')")->fetchColumn();
+    }
+
+    /** Apaga os eventos com mais de 3 dias; devolve quantos. */
+    public static function limparAntigos(): int
+    {
+        return TTransaction::get()->exec("DELETE FROM apchat_webhook_evento WHERE recebido_em < now() - interval '" . self::DIAS . " days'");
     }
 
     private static function chaveValida(string $chave): bool

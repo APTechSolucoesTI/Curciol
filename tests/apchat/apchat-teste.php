@@ -9,6 +9,8 @@ final class ApchatTeste
 {
     const BANCO = 'apchat_homologacao';
     const PAPEL = 'curciol_apchat_teste';
+    // so da homologacao, fora do git: conexao do APChat de teste (o app/config/apchat.php pode apontar para outro APChat)
+    const CONFIG = 'app/config/apchat-teste.php';
 
     /** Conexao de dono (credenciais do banco da Curciol, trocando so o banco). */
     public static function pdoAdmin(string $banco = self::BANCO): PDO
@@ -28,11 +30,11 @@ final class ApchatTeste
         return $pdo;
     }
 
-    /** A configuracao da homologacao (app/config/apchat.php) aponta para o APChat de teste? */
+    /** A configuracao dos testes (app/config/apchat-teste.php) aponta para o APChat de teste? */
     public static function configNoTeste(): bool
     {
-        if (!is_file(ApchatBancoService::CONFIG)) { return false; }
-        $c = include ApchatBancoService::CONFIG;
+        if (!is_file(self::CONFIG)) { return false; }
+        $c = include self::CONFIG;
         return ($c['name'] ?? '') === self::BANCO;
     }
 
@@ -41,8 +43,9 @@ final class ApchatTeste
     {
         if (!self::configNoTeste())
         {
-            throw new Exception('app/config/apchat.php nao aponta para o APChat de teste: servico continua desligado.');
+            throw new Exception(self::CONFIG . ' nao aponta para o APChat de teste: servico continua desligado.');
         }
+        ApchatBancoService::usarConfig(self::CONFIG);
         ApchatBancoService::usarFalso(null);
         ApchatBancoService::desligar(false);
     }

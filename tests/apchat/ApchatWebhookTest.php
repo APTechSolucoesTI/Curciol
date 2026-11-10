@@ -1,7 +1,8 @@
 <?php
 // tests/apchat/ApchatWebhookTest.php
 // Webhook do APChat (10/11/2026): o APChat chama a Curciol a cada evento (POST JSON em HTTPS). A Curciol so aceita com a chave
-// secreta do escritorio no endereco, guarda o evento como chegou e responde na hora. Nada e enviado. Tudo dentro de transacao desfeita.
+// secreta do escritorio no endereco e responde na hora. E so a "campainha" do balao: guarda o tipo do evento, o ticket, se a
+// mensagem e nossa e a hora - nunca o texto, o contato nem os tokens que o APChat manda junto. Tudo dentro de transacao desfeita.
 require __DIR__ . '/../bootstrap.php';
 
 TTransaction::open('escritorio');
@@ -11,28 +12,43 @@ try
     $chave = (string) $pdo->query("SELECT webhook_apchat_chave FROM escritorio WHERE coalesce(webhook_apchat_chave, '') <> '' ORDER BY id LIMIT 1")->fetchColumn();
     ok('escritorio tem chave do webhook (32+ caracteres)', strlen($chave) >= 32, $chave);
     $total = function () use ($pdo) { return (int) $pdo->query('SELECT count(*) FROM apchat_webhook_evento')->fetchColumn(); };
+    $ultimo = function () use ($pdo) { return $pdo->query('SELECT metodo, ticket_id, de_mim, ip FROM apchat_webhook_evento ORDER BY id DESC LIMIT 1')->fetch(PDO::FETCH_ASSOC); };
     $antes = $total();
-    $json = '{"event":"message","data":{"ticketId":1,"body":"Oi"}}';
+    $cliente = '{"method":"message","msg":{"fromMe":false,"body":"Oi","content":"Oi"},"ticket":{"id":2972,"status":"pending","whatsapp":{"id":2,"tokenAPI":"t1"},'
+             . '"contact":{"number":"5519971045673"}}}';
 
-    igual('GET: metodo nao permitido', 405, ApchatWebhookService::receber('GET', $chave, $json, '1.2.3.4'));
-    igual('sem chave: recusado', 403, ApchatWebhookService::receber('POST', null, $json, '1.2.3.4'));
-    igual('chave errada: recusado', 403, ApchatWebhookService::receber('POST', $chave . 'x', $json, '1.2.3.4'));
-    igual('chave vazia: recusado', 403, ApchatWebhookService::receber('POST', '', $json, '1.2.3.4'));
+    igual('GET: metodo nao permitido', 405, ApchatWebhookService::receber('GET', $chave, $cliente, '1.2.3.4'));
+    igual('sem chave: recusado', 403, ApchatWebhookService::receber('POST', null, $cliente, '1.2.3.4'));
+    igual('chave errada: recusado', 403, ApchatWebhookService::receber('POST', $chave . 'x', $cliente, '1.2.3.4'));
+    igual('chave vazia: recusado', 403, ApchatWebhookService::receber('POST', '', $cliente, '1.2.3.4'));
     igual('corpo vazio: invalido', 400, ApchatWebhookService::receber('POST', $chave, '  ', '1.2.3.4'));
+    igual('corpo que nao e JSON: invalido', 400, ApchatWebhookService::receber('POST', $chave, 'texto solto', '1.2.3.4'));
     igual('corpo grande demais', 413, ApchatWebhookService::receber('POST', $chave, str_repeat('a', ApchatWebhookService::MAXIMO_BYTES + 1), '1.2.3.4'));
     igual('nada recusado foi guardado', $antes, $total());
 
-    igual('chave certa: aceito', 200, ApchatWebhookService::receber('POST', $chave, $json, '1.2.3.4'));
-    $ev = $pdo->query('SELECT corpo, ip, processado_em FROM apchat_webhook_evento ORDER BY id DESC LIMIT 1')->fetch(PDO::FETCH_ASSOC);
-    igual('guardado como chegou, com o IP, ainda nao processado', ['corpo' => $json, 'ip' => '1.2.3.4', 'processado_em' => null], $ev);
+    $evento = ApchatWebhookService::ultimoEvento();
+    igual('mensagem do cliente: aceita', 200, ApchatWebhookService::receber('POST', $chave, $cliente, '1.2.3.4'));
+    igual('guarda so o tipo, o ticket, se e nossa e o IP (sem texto, contato nem token)',
+          ['metodo' => 'message', 'ticket_id' => 2972, 'de_mim' => false, 'ip' => '1.2.3.4'], $ultimo());
+    ok('campainha tocou: ultimo evento de mensagem mudou', ApchatWebhookService::ultimoEvento() > $evento);
 
-    // o APChat manda os tokens dos canais e chaves de IA junto: nunca ficam guardados na Curciol
-    $comSegredo = '{"method":"message","msg":{"body":"Olá/tchau"},"ticket":{"id":7,"chatgptApiKey":"k1","difyKey":"k2","apiConfig":{"x":1},'
-        . '"whatsapp":{"id":2,"name":"Canal","tokenAPI":"t1","bmToken":"t2","wavoipToken":"t3"}}}';
-    igual('com segredos: aceito', 200, ApchatWebhookService::receber('POST', $chave, $comSegredo, '1.2.3.4'));
-    $guardado = json_decode((string) $pdo->query('SELECT corpo FROM apchat_webhook_evento ORDER BY id DESC LIMIT 1')->fetchColumn(), true);
-    igual('segredos fora, o resto intacto', ['method' => 'message', 'msg' => ['body' => 'Olá/tchau'], 'ticket' => ['id' => 7, 'whatsapp' => ['id' => 2, 'name' => 'Canal']]], $guardado);
-    igual('corpo que nao e JSON fica como chegou', 200, ApchatWebhookService::receber('POST', $chave, 'texto solto', '1.2.3.4'));
+    // resposta do atendente pela tela do APChat: o APChat nao manda fromMe, mas e nossa
+    $atendente = '{"method":"message_send_uazapi","msg":{"message":"*Gabriel*: oi"},"ticket":{"id":2972,"whatsappId":2}}';
+    igual('resposta do atendente: aceita', 200, ApchatWebhookService::receber('POST', $chave, $atendente, '1.2.3.4'));
+    igual('resposta do atendente: nossa', ['metodo' => 'message_send_uazapi', 'ticket_id' => 2972, 'de_mim' => true, 'ip' => '1.2.3.4'], $ultimo());
+
+    // contato atualizado: guarda o tipo, mas nao toca a campainha do balao
+    $evento = ApchatWebhookService::ultimoEvento();
+    igual('contato: aceito', 200, ApchatWebhookService::receber('POST', $chave, '{"method":"contact-create-update","contact":{"id":171,"number":"5519971045673"}}', '1.2.3.4'));
+    igual('contato: so o tipo', ['metodo' => 'contact-create-update', 'ticket_id' => null, 'de_mim' => null, 'ip' => '1.2.3.4'], $ultimo());
+    igual('contato nao toca a campainha', $evento, ApchatWebhookService::ultimoEvento());
+
+    // limpeza: eventos com mais de 3 dias saem
+    $pdo->exec("INSERT INTO apchat_webhook_evento (recebido_em, metodo, ticket_id) VALUES (now() - interval '4 days', 'message', 1), (now() - interval '2 days', 'message', 2)");
+    $antigos = (int) $pdo->query("SELECT count(*) FROM apchat_webhook_evento WHERE recebido_em < now() - interval '3 days'")->fetchColumn();
+    igual('limpeza apaga os de mais de 3 dias', $antigos, ApchatWebhookService::limparAntigos());
+    igual('sobram os recentes', 0, (int) $pdo->query("SELECT count(*) FROM apchat_webhook_evento WHERE recebido_em < now() - interval '3 days'")->fetchColumn());
+    ok('webhook ativo (evento nas ultimas 24 h)', ApchatWebhookService::ativo());
 }
 finally
 {

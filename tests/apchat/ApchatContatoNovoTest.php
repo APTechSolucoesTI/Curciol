@@ -78,7 +78,9 @@ try
     igual('canais_atendentes', ['userId', 'whatsappId', 'isActive'], $colunas('canais_atendentes'));
 
     $db->exec('SET LOCAL ROLE ' . ApchatTeste::PAPEL);
-    igual('papel da Curciol: so canais do tenant 21', [112, 113], array_map('intval', array_column($db->query('SELECT id FROM curciol.canais ORDER BY id')->fetchAll(), 'id')));
+    // o APChat de teste tambem tem os canais reais copiados como tenant 21 (10/11/2026): confere os de teste e o de outra empresa
+    $canais = array_map('intval', array_column($db->query('SELECT id FROM curciol.canais ORDER BY id')->fetchAll(), 'id'));
+    ok('papel da Curciol: so canais do tenant 21', in_array(112, $canais, true) && in_array(113, $canais, true) && !in_array(199, $canais, true), json_encode($canais));
     ok('papel da Curciol: acessos so de atendentes do tenant 21', (int) $db->query('SELECT count(*) FROM curciol.filas_atendentes WHERE "userId" = 9099')->fetchColumn() === 0
         && (int) $db->query('SELECT count(*) FROM curciol.canais_atendentes WHERE "userId" IN (9001, 9002, 9003)')->fetchColumn() === 3);
     igual('papel da Curciol: e-mail dos atendentes', 'atendente.um@teste.local', $db->query('SELECT email FROM curciol.atendentes WHERE id = 9001')->fetchColumn());

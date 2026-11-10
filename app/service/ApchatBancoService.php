@@ -18,6 +18,9 @@ class ApchatBancoService
 {
     const CONFIG = 'app/config/apchat.php';
 
+    /** @var string arquivo de conexao em uso (os testes usam o do APChat de teste: usarConfig) */
+    private static $config = self::CONFIG;
+
     /** @var PDO|null */
     private static $conn = null;
     /** @var bool|null */
@@ -37,6 +40,14 @@ class ApchatBancoService
         self::$disponivel = null;
     }
 
+    /** Testes: outro arquivo de conexao (null = o padrao). */
+    public static function usarConfig(?string $arquivo): void
+    {
+        self::$config = $arquivo ?? self::CONFIG;
+        self::$conn = null;
+        self::$disponivel = null;
+    }
+
     public static function desligar(bool $desligado = true): void
     {
         self::$desligado = $desligado;
@@ -47,7 +58,7 @@ class ApchatBancoService
     /** Instalacao com o banco do APChat configurado (sem ele, o envio e so pela API, como antes). */
     public static function configurado(): bool
     {
-        return self::$falso !== null || (!self::$desligado && is_file(self::CONFIG));
+        return self::$falso !== null || (!self::$desligado && is_file(self::$config));
     }
 
     /** O banco do APChat responde? (lembra a resposta ate o fim do pedido) */
@@ -76,11 +87,11 @@ class ApchatBancoService
     private static function conn(): PDO
     {
         if (self::$conn) { return self::$conn; }
-        if (!is_file(self::CONFIG))
+        if (!is_file(self::$config))
         {
-            throw new Exception('Conexão com o banco do APChat não configurada (' . self::CONFIG . ').');
+            throw new Exception('Conexão com o banco do APChat não configurada (' . self::$config . ').');
         }
-        $c = include self::CONFIG;
+        $c = include self::$config;
         $dsn = sprintf('pgsql:host=%s;port=%s;dbname=%s;connect_timeout=5', $c['host'], $c['port'] ?? '5432', $c['name']);
         $pdo = new PDO($dsn, $c['user'], $c['pass'], [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC]);
         $pdo->exec("SET TIME ZONE 'America/Sao_Paulo'");

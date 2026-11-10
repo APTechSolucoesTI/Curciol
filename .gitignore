@@ -12,6 +12,7 @@
 /app/config/log.php
 /app/config/permission.php
 /app/config/apchat.php
+/app/config/apchat-teste.php
 # so a producao tem (return ['ambiente' => 'producao']); sem ele o sistema e ambiente de teste (AmbienteService)
 /app/config/ambiente.php
 
