@@ -91,6 +91,18 @@ class ApchatFilaService
             echo date('d/m/Y H:i:s') . " fila do APChat: {$ok} resolvidos, {$falhou} continuam na fila\n";
         }
 
+        // usuarios novos da Curciol ligados ao atendente do APChat pelo e-mail ou pelo nome (10/11/2026)
+        try
+        {
+            TTransaction::open(self::$database);
+            ApchatUsuarioService::ligarAutomatico();
+            TTransaction::close();
+        }
+        catch (Throwable $e)
+        {
+            TTransaction::rollback();
+        }
+
         // conciliacao (10/11/2026): contato do APChat fora do espelho que e da Curciol passa a ser ligado e trancado
         $conciliacao = ApchatConciliacaoService::rodada();
         if (PHP_SAPI === 'cli')

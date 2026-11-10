@@ -37,6 +37,28 @@ class SystemUserForm extends TPage
         $groups        = new TDBCheckGroup('groups','permission','SystemGroup','id','name');
         $frontpage_id  = new TDBUniqueSearch('frontpage_id', 'permission', 'SystemProgram', 'id', 'name', 'name');
         $units         = new TDBCheckGroup('units','permission','SystemUnit','id','name');
+        // APChat (10/11/2026): atendente ligado ao usuario (balao de mensagens no topo); sem o APChat, o campo fica travado
+        $apchat_usuario_id = new TCombo('apchat_usuario_id');
+        $apchat_disponivel = new THidden('apchat_disponivel');
+        $apchat_usuario_id->setSize('100%');
+        try
+        {
+            $atendentes = ApchatBancoService::configurado() && ApchatBancoService::disponivel() ? ApchatBancoService::atendentes() : null;
+        }
+        catch (Throwable $e)
+        {
+            $atendentes = null;
+        }
+        if ($atendentes === null)
+        {
+            $apchat_usuario_id->setEditable(false);
+            $apchat_disponivel->setValue('0');
+        }
+        else
+        {
+            $apchat_usuario_id->addItems(array_column($atendentes, 'name', 'id'));
+            $apchat_disponivel->setValue('1');
+        }
         
         $password->disableAutoComplete();
         $repassword->disableAutoComplete();
@@ -97,6 +119,8 @@ class SystemUserForm extends TPage
         $row->layout = ['col-sm-6','col-sm-6'];
         $row = $this->form->addFields( [new TLabel(_t('Password'), null, null, null, '100%'),$password],  [new TLabel(_t('Password confirmation'), null, null, null, '100%'),$repassword] );
         $row->layout = ['col-sm-6','col-sm-6'];
+        $row = $this->form->addFields( [new TLabel('Atendente do APChat (mensagens no topo):', null, null, null, '100%'), $apchat_usuario_id, $apchat_disponivel] );
+        $row->layout = ['col-sm-6'];
 
         $row = $this->form->addContent(['']);
         $row->layout = [' col-sm-12'];
@@ -252,6 +276,14 @@ class SystemUserForm extends TPage
                 }
             }
             
+            // APChat (10/11/2026): so grava o atendente com o APChat respondendo (senao o campo nem tinha as opcoes)
+            if (($param['apchat_disponivel'] ?? '') === '1')
+            {
+                TTransaction::open('escritorio');
+                ApchatUsuarioService::ligar((int) $object->id, !empty($param['apchat_usuario_id']) ? (int) $param['apchat_usuario_id'] : null);
+                TTransaction::close();
+            }
+
             $data = new stdClass;
             $data->id = $object->id;
             TForm::sendData('form_System_user', $data);
@@ -321,6 +353,10 @@ class SystemUserForm extends TPage
                 $object->program_list = $program_ids;
                 $object->groups = $groups;
                 $object->units  = $units;
+                TTransaction::open('escritorio');
+                $ligacao = ApchatUsuarioService::doUsuario((int) $object->id);
+                $object->apchat_usuario_id = $ligacao ? $ligacao->apchat_usuario_id : null;
+                TTransaction::close();
                 
                 // fill the form with the active record data
                 $this->form->setData($object);

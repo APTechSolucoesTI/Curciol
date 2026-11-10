@@ -286,6 +286,16 @@ class ApchatBancoService
     }
 
     /**
+     * Atendentes do APChat (tenant 21), para ligar aos usuarios da Curciol (10/11/2026).
+     * @return array linhas {id, name, email, inactive}
+     */
+    public static function atendentes(): array
+    {
+        if (self::$falso) { return self::$falso->atendentes(); }
+        return self::conn()->query('SELECT id, name, email, COALESCE(inactive, false) AS inactive FROM curciol.atendentes ORDER BY name')->fetchAll();
+    }
+
+    /**
      * Conciliacao (10/11/2026): contatos do APChat (tenant 21) com numero e fora do espelho, os mais novos primeiro.
      * @return array linhas {id, number, name}
      */
