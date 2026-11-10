@@ -2,11 +2,12 @@
 /**
  * Balao do APChat no topo da Curciol (10/11/2026). Usa a transacao aberta ('escritorio').
  *
- * Conversa a responder = ticket pendente ou aberto cuja ultima mensagem e do cliente.
- * - pendente (ninguem atendendo): quem tem acesso ao canal do ticket e, se o ticket tem fila, a fila;
- * - aberto: so o atendente do ticket.
- * Fica de fora o numero que esta aguardando o SIM/NAO de uma confirmacao da Curciol (ela mesma responde).
- * Por usuario (apchat_usuario): avisos ligados/desligados e, opcional, a lista dos tickets abertos com ele.
+ * Como as abas do APChat (10/11/2026, pedido do usuario):
+ * - Abertos: todos os tickets abertos com o atendente, respondidos ou nao;
+ * - Pendentes (ninguem atendendo): quem tem acesso ao canal do ticket e, se o ticket tem fila, a fila. Fica de fora o numero que
+ *   esta aguardando o SIM/NAO de uma confirmacao da Curciol (ela mesma responde).
+ * Ticket cuja ultima mensagem e do cliente esta "aguardando" e ganha o numero de mensagens do cliente desde a nossa ultima; o icone
+ * do topo conta os TICKETS aguardando (nao as mensagens). Por usuario (apchat_usuario): avisos ligados/desligados.
  * O balao atualiza a cada 5 s em cada usuario logado. A lista de tickets do APChat fica em cache (uma leitura para todos): com o
  * webhook (campainha, ApchatWebhookService) rele quando chega mensagem nova e, sem campainha, a cada 60 s - encerrar, pegar e
  * transferir nao tocam a campainha; sem webhook nas ultimas 24 h, a cada 10 s. Acessos de cada atendente: 60 s. APChat fora = vazio.
@@ -22,7 +23,7 @@ class ApchatBalaoService
 
     public static function conversas(int $systemUserId): array
     {
-        $vazio = ['itens' => [], 'abertos' => [], 'total' => 0, 'mostrar_abertos' => false];
+        $vazio = ['abertos' => [], 'pendentes' => [], 'total' => 0];
 
         $ligacao = ApchatUsuarioService::doUsuario($systemUserId);
         if (!$ligacao || !$ligacao->apchat_usuario_id)
@@ -61,28 +62,30 @@ class ApchatBalaoService
         $filas = array_flip($acessos['filas'] ?? []);
         $aguardando = array_flip(ApchatRespostaService::numerosAguardando());
 
-        $itens = [];
         $abertos = [];
+        $pendentes = [];
+        $total = 0;
         foreach ($tickets as $t)
         {
-            $meu = $t['status'] === 'open' && (int) $t['userId'] === $eu;
-            if ($meu && $ligacao->mostrar_abertos === 'S')
+            if ($t['status'] === 'open' && (int) $t['userId'] === $eu)
             {
-                $abertos[] = self::item($t);
+                $item = self::item($t);
+                $abertos[] = $item;
             }
-            if (!empty($t['ultima_nossa']) || isset($aguardando[preg_replace('/\D/', '', (string) $t['numero'])]))
+            elseif ($t['status'] === 'pending' && isset($canais[(int) $t['whatsappId']]) && (empty($t['queueId']) || isset($filas[(int) $t['queueId']]))
+                    && !isset($aguardando[preg_replace('/\D/', '', (string) $t['numero'])]))
+            {
+                $item = self::item($t);
+                $pendentes[] = $item;
+            }
+            else
             {
                 continue;
             }
-            $pendenteMeu = $t['status'] === 'pending' && isset($canais[(int) $t['whatsappId']]) && (empty($t['queueId']) || isset($filas[(int) $t['queueId']]));
-            if ($meu || $pendenteMeu)
-            {
-                $itens[] = self::item($t);
-            }
+            $total += $item['aguardando'] ? 1 : 0;
         }
 
-        return ['situacao' => 'ok', 'itens' => array_slice($itens, 0, self::MAXIMO), 'abertos' => array_slice($abertos, 0, self::MAXIMO), 'total' => count($itens),
-                'mostrar_abertos' => $ligacao->mostrar_abertos === 'S'];
+        return ['situacao' => 'ok', 'abertos' => array_slice($abertos, 0, self::MAXIMO), 'pendentes' => array_slice($pendentes, 0, self::MAXIMO), 'total' => $total];
     }
 
     public static function limparCache(): void
@@ -156,6 +159,9 @@ class ApchatBalaoService
             'fila'      => $t['fila'] ?? null,
             'status'    => (string) $t['status'],
             'nossa'     => $nossa,
+            // ultima mensagem do cliente: esperando resposta, com quantas mensagens dele desde a nossa ultima
+            'aguardando' => $aguardando = !$nossa && ($t['ultima_em'] ?? null) !== null,
+            'nao_lidas' => $aguardando ? max(1, (int) ($t['nao_respondidas'] ?? 1)) : 0,
             'ultima'    => $texto !== '' ? mb_substr($texto, 0, 80) : '[arquivo]',
             'quando'    => $t['ultima_em'] ?? $t['lastMessageAt'] ?? null,
             'url'       => ApchatApiService::urlTicket((int) $t['id']),

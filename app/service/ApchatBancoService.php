@@ -311,7 +311,7 @@ class ApchatBancoService
     /**
      * Balao do topo (10/11/2026): tickets pendentes e abertos do tenant 21 com a ultima mensagem (texto, de quem e quando).
      * @return array linhas {id, status, contactId, userId, queueId, whatsappId, contato, numero, canal, fila, ultima_nossa,
-     *                       ultima_texto, ultima_em, lastMessageAt}
+     *                       ultima_texto, ultima_em, lastMessageAt, nao_respondidas (mensagens do cliente desde a nossa ultima)}
      */
     public static function ticketsAbertosComUltima(int $limite = 500): array
     {
@@ -319,7 +319,11 @@ class ApchatBancoService
         $sql = 'SELECT t.id, t.status, t."contactId", t."userId", t."queueId", t."whatsappId",
                        to_char(to_timestamp(t."lastMessageAt" / 1000.0), \'YYYY-MM-DD HH24:MI:SS\') AS "lastMessageAt",
                        c.name AS contato, c.number AS numero, w.name AS canal, f.queue AS fila,
-                       m."fromMe" AS ultima_nossa, m.body AS ultima_texto, to_char(m."createdAt", \'YYYY-MM-DD HH24:MI:SS\') AS ultima_em
+                       m."fromMe" AS ultima_nossa, m.body AS ultima_texto, to_char(m."createdAt", \'YYYY-MM-DD HH24:MI:SS\') AS ultima_em,
+                       (SELECT count(*) FROM curciol.mensagens mr
+                         WHERE mr."ticketId" = t.id AND NOT mr.arquivada AND NOT COALESCE(mr."isDeleted", false) AND NOT mr."fromMe"
+                           AND mr."createdAt" > COALESCE((SELECT max(mn."createdAt") FROM curciol.mensagens mn
+                                                           WHERE mn."ticketId" = t.id AND NOT mn.arquivada AND mn."fromMe"), \'-infinity\')) AS nao_respondidas
                   FROM curciol.tickets t
                   JOIN curciol.contatos c ON c.id = t."contactId"
                   LEFT JOIN curciol.canais w ON w.id = t."whatsappId"

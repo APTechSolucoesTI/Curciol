@@ -1,7 +1,7 @@
 <?php
 /**
  * Configuracoes > APChat > Usuarios (10/11/2026): cada usuario ativo da Curciol com o atendente do APChat ligado (balao de
- * mensagens no topo), os avisos (liga/desliga) e a lista dos tickets abertos com ele (liga/desliga). "Ligar automaticamente":
+ * mensagens no topo) e os avisos (liga/desliga); o balao mostra sempre Abertos e Pendentes, como o APChat. "Ligar automaticamente":
  * pelo e-mail, senao pelo nome (ApchatUsuarioService). Um atendente so pode estar ligado a um usuario.
  */
 class ApchatUsuarioList extends TPage
@@ -54,8 +54,8 @@ class ApchatUsuarioList extends TPage
             }
             TTransaction::close();
 
-            $titulo = $this->form->addFields([new TLabel('<b>Usuário da Curciol</b>')], [new TLabel('<b>Atendente do APChat</b>')], [new TLabel('<b>Avisos no balão</b>')], [new TLabel('<b>Mostrar tickets abertos</b>')]);
-            $titulo->layout = ['col-sm-4', 'col-sm-4', 'col-sm-2', 'col-sm-2'];
+            $titulo = $this->form->addFields([new TLabel('<b>Usuário da Curciol</b>')], [new TLabel('<b>Atendente do APChat</b>')], [new TLabel('<b>Avisos no balão</b>')]);
+            $titulo->layout = ['col-sm-4', 'col-sm-5', 'col-sm-3'];
 
             foreach ($usuarios as $u)
             {
@@ -69,13 +69,9 @@ class ApchatUsuarioList extends TPage
                 $avisos->setIndexValue('S');
                 $avisos->setUseSwitch(true, 'green');
                 $avisos->setValue(!$l || $l->avisos === 'S' ? 'S' : null);
-                $abertos = new TCheckButton("abertos_{$id}");
-                $abertos->setIndexValue('S');
-                $abertos->setUseSwitch(true, 'green');
-                $abertos->setValue($l && $l->mostrar_abertos === 'S' ? 'S' : null);
 
-                $row = $this->form->addFields([new TLabel(htmlspecialchars((string) $u['name'], ENT_QUOTES, 'UTF-8'))], [$combo], [$avisos], [$abertos]);
-                $row->layout = ['col-sm-4', 'col-sm-4', 'col-sm-2', 'col-sm-2'];
+                $row = $this->form->addFields([new TLabel(htmlspecialchars((string) $u['name'], ENT_QUOTES, 'UTF-8'))], [$combo], [$avisos]);
+                $row->layout = ['col-sm-4', 'col-sm-5', 'col-sm-3'];
             }
 
             $btn = $this->form->addAction('Salvar', new TAction([__CLASS__, 'onSalvar'], ['static' => 1]), 'fas:save #ffffff');
@@ -126,7 +122,7 @@ class ApchatUsuarioList extends TPage
             foreach ($escolhidos as $id => $atendente)
             {
                 if ($atendente) { ApchatUsuarioService::ligar($id, $atendente); }
-                ApchatUsuarioService::preferencias($id, ($param["avisos_{$id}"] ?? '') === 'S', ($param["abertos_{$id}"] ?? '') === 'S');
+                ApchatUsuarioService::preferencias($id, ($param["avisos_{$id}"] ?? '') === 'S', false);
             }
             TTransaction::close();
             TToast::show('success', 'Usuários do APChat salvos', 'topRight', 'far:check-circle');
