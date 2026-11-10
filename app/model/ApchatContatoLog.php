@@ -14,6 +14,7 @@ class ApchatContatoLog extends TRecord
     const ORIGEM_LOTE     = 'SINCRONIZAR_TODOS';
     const ORIGEM_FILA     = 'FILA';
     const ORIGEM_TELA     = 'CONTATOS_SEM_VINCULO';
+    const ORIGEM_CONCILIACAO = 'CONCILIACAO';
 
     const OPERACAO_CREATE  = 'CREATE';
     const OPERACAO_UPDATE  = 'UPDATE';

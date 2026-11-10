@@ -90,6 +90,13 @@ class ApchatFilaService
         {
             echo date('d/m/Y H:i:s') . " fila do APChat: {$ok} resolvidos, {$falhou} continuam na fila\n";
         }
+
+        // conciliacao (10/11/2026): contato do APChat fora do espelho que e da Curciol passa a ser ligado e trancado
+        $conciliacao = ApchatConciliacaoService::rodada();
+        if (PHP_SAPI === 'cli')
+        {
+            echo date('d/m/Y H:i:s') . ' conciliacao do APChat: ' . json_encode($conciliacao) . "\n";
+        }
     }
 
     private static function naTransacao(callable $fn)

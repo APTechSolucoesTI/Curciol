@@ -285,6 +285,20 @@ class ApchatBancoService
         return array_reverse($st->fetchAll());
     }
 
+    /**
+     * Conciliacao (10/11/2026): contatos do APChat (tenant 21) com numero e fora do espelho, os mais novos primeiro.
+     * @return array linhas {id, number, name}
+     */
+    public static function contatosForaDoEspelho(int $limite = 200): array
+    {
+        if (self::$falso) { return self::$falso->contatosForaDoEspelho($limite); }
+        $st = self::conn()->query('SELECT c.id, c.number, c.name FROM curciol.contatos c
+                                    WHERE NOT COALESCE(c."isGroup", false) AND COALESCE(c.number, \'\') <> \'\'
+                                      AND NOT EXISTS (SELECT 1 FROM curciol.contato e WHERE e.contato_id = c.id)
+                                    ORDER BY c.id DESC LIMIT ' . max(1, (int) $limite));
+        return $st->fetchAll();
+    }
+
     // =================================================================
     // Resposta SIM/NAO do WhatsApp de confirmacao (ApchatRespostaService)
     // =================================================================

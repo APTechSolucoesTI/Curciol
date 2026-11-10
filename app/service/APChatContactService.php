@@ -1538,6 +1538,43 @@ class APChatContactService
         $log->store();
     }
 
+    /**
+     * Conciliacao (10/11/2026): contato do APChat numa variante (com/sem o 9) de um numero da Curciol = segundo contato do mesmo
+     * cliente. Recebe os dados da Curciol e entra no espelho com o proprio numero (fica trancado). O idapchat do cadastro continua
+     * o do contato com o numero da Curciol.
+     */
+    public static function ligarVariante(int $contatoId, string $numeroNoApchat, string $numeroCurciol, int $pessoaId, string $origem): object
+    {
+        try
+        {
+            TTransaction::open(self::$database);
+            $token = self::podeGravar() ? self::token() : '';
+            if ($token === '')
+            {
+                TTransaction::close();
+                return self::resultado(ApchatContatoLog::SITUACAO_IGNORADO, ApchatContatoLog::OPERACAO_NENHUMA, 'Integração com o APChat desligada: nada foi enviado.');
+            }
+
+            $corpo = self::montarContatoDoNumero($numeroCurciol);
+            $r = self::rodar(self::passosAtualizar($corpo, $numeroNoApchat), $token);
+            if ($r->situacao === ApchatContatoLog::SITUACAO_SUCESSO)
+            {
+                $corpo['number'] = $numeroNoApchat;
+                $erro = self::espelhar($contatoId, $corpo);
+                $r->mensagem .= $erro === '' ? ' Segundo contato do mesmo cliente (variante do número), trancado.' : ' Espelho não gravado: ' . $erro;
+            }
+            $r->apchat_contato_id = $contatoId;
+            self::registrar($pessoaId, $origem, $r, $numeroNoApchat, $numeroCurciol);
+            TTransaction::close();
+            return $r;
+        }
+        catch (Throwable $e)
+        {
+            TTransaction::rollbackAll();
+            return self::resultado(ApchatContatoLog::SITUACAO_ERRO, ApchatContatoLog::OPERACAO_NENHUMA, $e->getMessage());
+        }
+    }
+
     private static function resultado(string $situacao, string $operacao, string $mensagem): object
     {
         return (object) ['situacao' => $situacao, 'operacao' => $operacao, 'mensagem' => $mensagem];
