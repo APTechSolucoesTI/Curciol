@@ -176,9 +176,11 @@ window.BuilderTemplate = ( function() {
     });
 
     // aba escondida (outra aba, janela minimizada): nao pergunta ao servidor; ao voltar, atualiza na hora
-    document.addEventListener('visibilitychange', function() {
-        if (!document.hidden && balaoPendente && !balaoAberto()) { balaoPendente = false; updateMessagesMenu(); }
-    });
+    // ao voltar para a aba: atualiza na hora (11/11/2026)
+    const balaoVoltou = function() {
+        if (!document.hidden && !balaoAberto()) { balaoPendente = false; updateMessagesMenu(); }
+    }
+    document.addEventListener('visibilitychange', balaoVoltou);
 
     const updateMessagesMenu = function() {
         if (document.hidden || balaoAberto()) { balaoPendente = true; return; }
@@ -188,8 +190,9 @@ window.BuilderTemplate = ( function() {
         });
     }
     
-    // Curciol (10/11/2026): envelope do APMail, a cada 30 s, com as mesmas protecoes do balao do APChat (aba escondida nao
-    // pergunta; com o mouse em cima nao redesenha; a lista fica aberta 400 ms depois que o mouse sai)
+    // Curciol (10/11/2026): envelope do APMail, a cada 10 s, com as mesmas protecoes do balao do APChat (aba escondida nao
+    // pergunta; com o mouse em cima nao redesenha; a lista fica aberta 400 ms depois que o mouse sai). Ao voltar para a aba da
+    // Curciol (11/11/2026): atualiza na hora e direto no APMail (fresco), para quem leu ou concluiu um e-mail la.
     let mailPendente = false;
     let mailTimer = null;
     const mailAberto = function() {
@@ -208,12 +211,12 @@ window.BuilderTemplate = ( function() {
         }, 400);
     });
     document.addEventListener('visibilitychange', function() {
-        if (!document.hidden && mailPendente && !mailAberto()) { mailPendente = false; updateMailMenu(); }
+        if (!document.hidden && !mailAberto()) { mailPendente = false; updateMailMenu(true); }
     });
 
-    const updateMailMenu = function() {
+    const updateMailMenu = function(fresco) {
         if (document.hidden || mailAberto()) { mailPendente = true; return; }
-        $.get('engine.php?class=MailList&theme=theme-builder', function(data) {
+        $.get('engine.php?class=MailList&theme=theme-builder' + (fresco === true ? '&fresco=1' : ''), function(data) {
             if (mailAberto()) { mailPendente = true; return; }
             $('#envelope_mail').html(data);
         });
@@ -409,7 +412,7 @@ window.BuilderTemplate = ( function() {
             BuilderTemplate.updateMessagesMenu();
             BuilderTemplate.updateNotificationsMenu();
             BuilderTemplate.updateMailMenu();
-            BuilderTemplate.intervalUpdateMailMenu = setInterval(BuilderTemplate.updateMailMenu, 30000);
+            BuilderTemplate.intervalUpdateMailMenu = setInterval(BuilderTemplate.updateMailMenu, 10000);
         
             if(options.verify_messages_menu)
             {

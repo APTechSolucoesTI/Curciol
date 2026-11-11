@@ -67,12 +67,31 @@ try
 
     // ---------- cache ----------
     ApmailEnvelopeService::caixas($u1);
-    ApmailEnvelopeService::usarRelogio($agora + 25);
+    ApmailEnvelopeService::usarRelogio($agora + 8);
     ApmailEnvelopeService::caixas($u1);
-    igual('cache de 30 s por e-mail: uma consulta so', 1, count($chamadas));
-    ApmailEnvelopeService::usarRelogio($agora += 31);
+    igual('cache de 10 s por e-mail: uma consulta so', 1, count($chamadas));
+    ApmailEnvelopeService::usarRelogio($agora += 11);
     ApmailEnvelopeService::caixas($u1);
-    igual('depois de 30 s: consulta de novo', 2, count($chamadas));
+    igual('depois de 10 s: consulta de novo', 2, count($chamadas));
+
+    // voltar para a aba da Curciol (fresco): busca direto no APMail, mas nunca mais de uma vez a cada 3 s por e-mail
+    ApmailEnvelopeService::usarRelogio($agora + 2);
+    ApmailEnvelopeService::caixas($u1, true);
+    igual('fresco com menos de 3 s da ultima consulta: usa o que tem', 2, count($chamadas));
+    $respostas['cadastro.um@teste.local'] = $ok('cadastro.um@teste.local', [['id' => 'a2', 'name' => 'Financeiro', 'email' => 'financeiro@x.com', 'unread' => 0, 'pending' => 1, 'url' => '/mail/a2?assigned=any']]);
+    ApmailEnvelopeService::usarRelogio($agora + 4);
+    $rv = ApmailEnvelopeService::caixas($u1, true);
+    ok('fresco: consulta na hora e traz o que mudou no APMail (e-mail lido/concluido)', count($chamadas) === 3 && $rv['pendentes'] === 1 && $rv['nao_lidas'] === 0, json_encode([count($chamadas), $rv['pendentes'], $rv['nao_lidas']]));
+    ApmailEnvelopeService::caixas($u1);
+    igual('depois do fresco: os outros pedidos usam a resposta nova', 3, count($chamadas));
+    $respostas['cadastro.um@teste.local'] = $ok('cadastro.um@teste.local', [
+        ['id' => 'a1', 'name' => 'Comercial', 'email' => 'comercial@x.com', 'unread' => 0, 'pending' => 0, 'url' => '/mail/a1?assigned=any'],
+        ['id' => 'a2', 'name' => 'Financeiro', 'email' => 'financeiro@x.com', 'unread' => 3, 'pending' => 2, 'url' => '/mail/a2?assigned=any'],
+        ['id' => 'a3', 'name' => 'Pessoal', 'email' => 'eu@x.com', 'unread' => 5, 'pending' => 1, 'url' => '/mail/a3?assigned=any'],
+    ]);
+    ApmailEnvelopeService::usarRelogio($agora += 15);
+    ApmailEnvelopeService::caixas($u1);
+    $chamadas = array_slice($chamadas, 0, 2);
 
     // ---------- avisos desligados / e-mail fora da integracao ----------
     igual('avisos desligados: nada (e nao chama a API)', ['desligado', 2], [ApmailEnvelopeService::caixas($u2)['situacao'], count($chamadas)]);
@@ -185,6 +204,7 @@ $adm = substr($adm, 0, strpos($adm, '<menuitem label="Logs">'));
 ok('menu: Usuarios das integracoes no submenu Administracao (e so la)', strpos($adm, 'ApchatUsuarioList') !== false && substr_count($menu, 'ApchatUsuarioList') === 1);
 
 $js = (string) file_get_contents('app/lib/include/builder/theme-builder/BuilderTemplate.js');
-ok('JS: envelope atualiza a cada 30 s, pausa com a aba escondida e nao redesenha com o mouse em cima', strpos($js, 'apmail-aberto') !== false && strpos($js, '30000') !== false && strpos($js, 'mailPendente') !== false);
+ok('JS: envelope atualiza a cada 10 s, pausa com a aba escondida e nao redesenha com o mouse em cima', strpos($js, 'apmail-aberto') !== false && strpos($js, 'updateMailMenu, 10000') !== false && strpos($js, 'mailPendente') !== false);
+ok('JS: ao voltar para a aba, envelope (direto no APMail) e balao atualizam na hora', strpos($js, '&fresco=1') !== false && strpos($js, 'updateMailMenu(true)') !== false && strpos($js, 'balaoVoltou') !== false);
 
 fim();

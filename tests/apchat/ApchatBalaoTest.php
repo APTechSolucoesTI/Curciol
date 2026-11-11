@@ -239,6 +239,6 @@ finally
 $js = (string) file_get_contents('app/lib/include/builder/theme-builder/BuilderTemplate.js');
 ok('JS: balao nao e redesenhado com o mouse em cima', strpos($js, 'apchat-aberto') !== false && strpos($js, 'balaoPendente') !== false);
 ok('JS: balao pausa com a aba escondida e atualiza ao voltar', strpos($js, 'document.hidden') !== false && strpos($js, 'visibilitychange') !== false);
-ok('JS: versao nova do arquivo no layout (sem cache)', strpos((string) file_get_contents('app/templates/theme-builder/libraries_builder.html'), 'BuilderTemplate.js?appver=523984') !== false);
+ok('JS: versao nova do arquivo no layout (sem cache)', strpos((string) file_get_contents('app/templates/theme-builder/libraries_builder.html'), 'BuilderTemplate.js?appver=523985') !== false);
 
 fim();

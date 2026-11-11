@@ -1,6 +1,7 @@
 <?php
 /**
- * Envelope do APMail no topo (10/11/2026), atualizado a cada 30 s pelo BuilderTemplate.js (so com a aba a vista). Termos (API do APMail):
+ * Envelope do APMail no topo (10/11/2026), atualizado a cada 10 s pelo BuilderTemplate.js (so com a aba a vista; ao voltar para a aba,
+ * na hora e direto no APMail: fresco=1). Termos (API do APMail):
  * - Pendentes = conversas em A Responder + Em Atendimento (o contador do icone);
  * - Nao lidos = E-MAILS nao lidos pelo usuario (cada e-mail conta, nao a conversa): maior que o "nao lidos" da tela do APMail
  *   quando uma conversa tem mais de um e-mail nao lido (conferido em 11/11/2026: 20 conversas, 23 e-mails).
@@ -16,7 +17,7 @@ class MailList extends TElement
         try
         {
             TTransaction::open('escritorio');
-            $r = ApmailEnvelopeService::caixas((int) TSession::getValue('userid'));
+            $r = ApmailEnvelopeService::caixas((int) TSession::getValue('userid'), !empty($param['fresco']));
             TTransaction::close();
         }
         catch (Throwable $e)

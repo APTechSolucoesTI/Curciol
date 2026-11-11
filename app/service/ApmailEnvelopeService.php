@@ -4,8 +4,9 @@
  *
  * Contador = conversas de e-mail pendentes (A Responder + Em Atendimento); cada caixa mostra pendentes e e-mails nao lidos (cada
  * e-mail conta, nao a conversa; contagens independentes, nao somar).
- * Carga: o navegador pergunta a cada 30 s, so com a aba a vista; o servidor guarda a resposta de cada e-mail por 30 s (o APMail
- * aceita 1.200 consultas por minuto por token). Falhas:
+ * Carga (11/11/2026): o navegador pergunta a cada 10 s, so com a aba a vista; o servidor guarda a resposta de cada e-mail por 10 s
+ * (o APMail aceita 1.200 consultas por minuto por token). Ao voltar para a aba da Curciol (fresco), busca direto no APMail - quem
+ * leu ou concluiu um e-mail no APMail ve na hora -, mas nunca mais de uma vez a cada 3 s por e-mail. Falhas:
  *  - 404 (e-mail fora da integracao): "nao liberado", guardado por 5 min;
  *  - 429: mostra o que ja tinha e so tenta de novo depois do Retry-After;
  *  - 401/403 (token ou rota): "indisponivel" e 60 s sem tentar;
@@ -13,10 +14,11 @@
  */
 class ApmailEnvelopeService
 {
-    const CACHE_SEGUNDOS = 30;
+    const CACHE_SEGUNDOS = 10;
+    const FRESCO_MINIMO = 3;
     const NAO_LIBERADO_SEGUNDOS = 300;
     const FALHA_SEGUNDOS = 60;
-    const ATUALIZAR_MS = 30000;
+    const ATUALIZAR_MS = 10000;
 
     /** @var int|null testes: relogio fixo */
     private static $relogio = null;
@@ -34,7 +36,7 @@ class ApmailEnvelopeService
     /**
      * @return array {situacao: ok|sem_integracao|desligado|sem_email|nao_liberado|indisponivel, pendentes, nao_lidas, caixas}
      */
-    public static function caixas(int $systemUserId): array
+    public static function caixas(int $systemUserId, bool $fresco = false): array
     {
         $vazio = ['pendentes' => 0, 'nao_lidas' => 0, 'caixas' => []];
         $escritorio = ApmailApiService::escritorio();
@@ -56,7 +58,8 @@ class ApmailEnvelopeService
         $agora = self::agora();
         $arquivo = self::arquivo('email-' . md5($email));
         $cache = self::ler($arquivo);
-        if ($cache && ($cache['ate'] ?? 0) > $agora)
+        $recente = $cache && ($cache['em'] ?? 0) > $agora - self::FRESCO_MINIMO;
+        if ($cache && ($cache['ate'] ?? 0) > $agora && (!$fresco || $recente))
         {
             return $cache['resultado'];
         }
@@ -71,7 +74,7 @@ class ApmailEnvelopeService
         {
             $r = ApmailApiService::notificacoes(ApmailApiService::url($escritorio), $token, $email);
             $resultado = ['situacao' => 'ok'] + $r;
-            self::gravar($arquivo, ['ate' => $agora + self::CACHE_SEGUNDOS, 'resultado' => $resultado]);
+            self::gravar($arquivo, ['em' => $agora, 'ate' => $agora + self::CACHE_SEGUNDOS, 'resultado' => $resultado]);
             return $resultado;
         }
         catch (ApmailErro $e)
@@ -79,7 +82,7 @@ class ApmailEnvelopeService
             if ($e->getCode() === 404)
             {
                 $resultado = ['situacao' => 'nao_liberado'] + $vazio;
-                self::gravar($arquivo, ['ate' => $agora + self::NAO_LIBERADO_SEGUNDOS, 'resultado' => $resultado]);
+                self::gravar($arquivo, ['em' => $agora, 'ate' => $agora + self::NAO_LIBERADO_SEGUNDOS, 'resultado' => $resultado]);
                 return $resultado;
             }
             // 401/403: configuracao (token ou rota) - nao mostra contagem velha; 429 e 5xx: passageiro - mostra o que ja tinha
