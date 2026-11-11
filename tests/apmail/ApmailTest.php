@@ -204,7 +204,7 @@ $adm = substr($adm, 0, strpos($adm, '<menuitem label="Logs">'));
 ok('menu: Usuarios das integracoes no submenu Administracao (e so la)', strpos($adm, 'ApchatUsuarioList') !== false && substr_count($menu, 'ApchatUsuarioList') === 1);
 
 $js = (string) file_get_contents('app/lib/include/builder/theme-builder/BuilderTemplate.js');
-ok('JS: envelope atualiza a cada 10 s, pausa com a aba escondida e nao redesenha com o mouse em cima', strpos($js, 'apmail-aberto') !== false && strpos($js, 'updateMailMenu, 10000') !== false && strpos($js, 'mailPendente') !== false);
-ok('JS: ao voltar para a aba, envelope (direto no APMail) e balao atualizam na hora', strpos($js, '&fresco=1') !== false && strpos($js, 'updateMailMenu(true)') !== false && strpos($js, 'balaoVoltou') !== false);
+ok('JS: envelope atualiza a cada 10 s, pausa com a aba escondida e nao redesenha com o mouse em cima', strpos($js, 'apmail-aberto') !== false && strpos($js, 'updateTopo, 10000') !== false && strpos($js, 'mailPendente') !== false);
+ok('JS: ao voltar para a aba, envelope (direto no APMail) e balao atualizam na hora', strpos($js, '&fresco=1') !== false && strpos($js, 'updateTopo(true)') !== false && strpos($js, 'balaoVoltou') !== false);
 
 fim();

@@ -93,6 +93,7 @@ class TApplication extends AdiantiCoreApplication
                      'MessageList' => TRUE,
                      'NotificationList' => TRUE,
                      'MailList' => TRUE,
+                     'TopoNotificacoes' => TRUE,
                      'SearchBox' => TRUE,
                      'SearchInputBox' => TRUE,
                      'BuilderConfigForm' => TRUE);

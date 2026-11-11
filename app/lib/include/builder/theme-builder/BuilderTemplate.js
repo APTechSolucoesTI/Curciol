@@ -175,12 +175,6 @@ window.BuilderTemplate = ( function() {
         }, 400);
     });
 
-    // aba escondida (outra aba, janela minimizada): nao pergunta ao servidor; ao voltar, atualiza na hora
-    // ao voltar para a aba: atualiza na hora (11/11/2026)
-    const balaoVoltou = function() {
-        if (!document.hidden && !balaoAberto()) { balaoPendente = false; updateMessagesMenu(); }
-    }
-    document.addEventListener('visibilitychange', balaoVoltou);
 
     const updateMessagesMenu = function() {
         if (document.hidden || balaoAberto()) { balaoPendente = true; return; }
@@ -210,9 +204,6 @@ window.BuilderTemplate = ( function() {
             if (mailPendente) { mailPendente = false; updateMailMenu(); }
         }, 400);
     });
-    document.addEventListener('visibilitychange', function() {
-        if (!document.hidden && !mailAberto()) { mailPendente = false; updateMailMenu(true); }
-    });
 
     const updateMailMenu = function(fresco) {
         if (document.hidden || mailAberto()) { mailPendente = true; return; }
@@ -227,6 +218,33 @@ window.BuilderTemplate = ( function() {
             $('#envelope_notifications').html(data);
         });
     }
+
+    // Curciol (11/11/2026): topo em UM pedido (balao do APChat, envelope do APMail e sino), a cada 10 s, so com a aba a vista.
+    // Cada parte vem com a assinatura do conteudo: so redesenha a que mudou; com o mouse em cima, guarda e redesenha ao sair.
+    // Aba escondida (outra aba, janela minimizada): nao pergunta nada; ao voltar, tudo na hora e o APMail direto (fresco).
+    let topoPendente = false;
+    const notificacoesAbertas = function() {
+        return $('#envelope_notifications .fast-drop:hover').length > 0;
+    }
+    const aplicarTopo = function(seletor, parte, aberto, marcarPendente) {
+        if (!parte || typeof parte.html !== 'string') { return; }
+        if ($(seletor).data('assinatura') === parte.assinatura) { return; }
+        if (aberto()) { marcarPendente(); return; }
+        $(seletor).html(parte.html).data('assinatura', parte.assinatura);
+    }
+    const updateTopo = function(fresco) {
+        if (document.hidden) { topoPendente = true; return; }
+        $.getJSON('engine.php?class=TopoNotificacoes&method=onCarregar&static=1' + (fresco === true ? '&fresco=1' : ''), function(r) {
+            aplicarTopo('#envelope_messages', r.mensagens, balaoAberto, function() { balaoPendente = true; });
+            aplicarTopo('#envelope_mail', r.mail, mailAberto, function() { mailPendente = true; });
+            aplicarTopo('#envelope_notifications', r.notificacoes, notificacoesAbertas, function() { topoPendente = true; });
+        });
+    }
+    // ao voltar para a aba: tudo na hora (o balaoVoltou de 11/11 virou o do topo inteiro)
+    const balaoVoltou = function() {
+        if (!document.hidden) { topoPendente = false; updateTopo(true); }
+    }
+    document.addEventListener('visibilitychange', balaoVoltou);
 
     const initLeftMenu = function() {
         $(document).ready(function(){
@@ -409,27 +427,11 @@ window.BuilderTemplate = ( function() {
 
         if(options.public_layout == false)
         {
-            BuilderTemplate.updateMessagesMenu();
-            BuilderTemplate.updateNotificationsMenu();
-            BuilderTemplate.updateMailMenu();
-            BuilderTemplate.intervalUpdateMailMenu = setInterval(BuilderTemplate.updateMailMenu, 10000);
-        
-            if(options.verify_messages_menu)
+            // Curciol (11/11/2026): um pedido so para o topo inteiro (antes: balao, envelope e sino em 3 intervalos)
+            BuilderTemplate.updateTopo();
+            if(options.verify_messages_menu || options.verify_notifications_menu)
             {
-                if(options.verify_messages_menu < 5000)
-                {
-                    options.verify_messages_menu = 5000;
-                }
-                BuilderTemplate.intervalUpdateMessagesMenu = setInterval( BuilderTemplate.updateMessagesMenu, options.verify_messages_menu);
-            }
-            
-            if(options.verify_notifications_menu)
-            {
-                if(options.verify_notifications_menu < 5000)
-                {
-                    options.verify_notifications_menu = 5000;
-                }
-                BuilderTemplate.intervalUpdateNotificationsMenu = setInterval( BuilderTemplate.updateNotificationsMenu, options.verify_notifications_menu);
+                BuilderTemplate.intervalUpdateTopo = setInterval(BuilderTemplate.updateTopo, 10000);
             }
         }
 
@@ -593,6 +595,7 @@ window.BuilderTemplate = ( function() {
         updateMessagesMenu: updateMessagesMenu,
         updateNotificationsMenu: updateNotificationsMenu,
         updateMailMenu: updateMailMenu,
+        updateTopo: updateTopo,
         loadSearchBar: loadSearchBar,
         init: init,
         resizeBuilderMenu: resizeBuilderMenu,
