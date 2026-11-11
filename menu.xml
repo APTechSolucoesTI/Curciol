@@ -229,10 +229,6 @@
             </menuitem>
         </menu>
         </menuitem>
-        <menuitem label="Usuários das integrações">
-        <icon>fas:user-friends fa-fw </icon>
-        <action>ApchatUsuarioList#method=onShow</action>
-        </menuitem>
         <menuitem label="APChat">
         <icon>fab:whatsapp fa-fw </icon>
         <menu>
@@ -443,6 +439,10 @@
         <menuitem label="_t{Users}">
         <icon>fas:user fa-fw</icon>
         <action>SystemUserList</action>
+        </menuitem>
+        <menuitem label="Usuários das integrações">
+        <icon>fas:user-friends fa-fw </icon>
+        <action>ApchatUsuarioList#method=onShow</action>
         </menuitem>
     </menu>
     </menuitem>

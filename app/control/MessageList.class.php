@@ -43,7 +43,7 @@ class MessageList extends TElement
 
         if ($r['situacao'] === 'sem_ligacao')
         {
-            $lista->add(TElement::tag('div', 'Seu usuário não está ligado a um atendente do APChat (Configurações › APChat › Usuários do APChat).',
+            $lista->add(TElement::tag('div', 'Seu usuário não está ligado a um usuário do APChat (Administração › Usuários das integrações).',
                                       ['style' => 'padding:6px 4px;color:#777;white-space:normal;width:min(340px, 90vw);']));
         }
         else

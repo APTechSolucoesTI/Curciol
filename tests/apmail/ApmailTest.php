@@ -138,7 +138,8 @@ try
     TSession::setValue('userid', $u1);
     $mail = saida(function () { (new MailList(['theme' => 'theme-builder']))->show(); });
     ok('envelope: logo do APMail e contador de pendentes', strpos($mail, 'apmail-logo') !== false && strpos($mail, 'data-count="2"') !== false, substr($mail, 0, 400));
-    ok('envelope: caixa com pendentes e nao lidas', strpos($mail, '>Financeiro<') !== false && strpos($mail, '2 pendentes') !== false && strpos($mail, '3 não lidas') !== false, $mail);
+    ok('envelope: caixa com pendentes e mensagens nao lidas (termos do APMail)', strpos($mail, '>Financeiro<') !== false && strpos($mail, '2 pendentes') !== false && strpos($mail, '3 mensagens não lidas') !== false, $mail);
+    ok('envelope: legenda do que cada numero conta', strpos($mail, 'Pendentes = conversas em A Responder + Em Atendimento') !== false && strpos($mail, 'Não lidas = mensagens') !== false, $mail);
     ok('envelope: abre a caixa no APMail, sempre na mesma aba', strpos($mail, "window.open('https://app.apmail.com.br/mail/a2?assigned=any', 'apmail')") !== false, $mail);
     ok('envelope: sem texto ao parar o mouse no icone', preg_match('/class="button-circle"[^>]*title=/', $mail) === 0);
     ok('envelope: fica aberto ao atravessar ate a lista', strpos($mail, '.fast-drop.apmail-aberto > .fast-drop-open') !== false);
@@ -148,8 +149,10 @@ try
 
     // ---------- telas de configuracao ----------
     $tela = saida(function () { $t = new ApchatUsuarioList([]); $t->show(); });
-    ok('tela unica: usuarios das integracoes (APChat e APMail)', strpos($tela, 'Usuários das integrações') !== false && strpos($tela, 'E-mail no APMail') !== false
-        && strpos($tela, 'Avisos APMail') !== false && strpos($tela, 'Conferir no APMail') !== false && stripos($tela, 'fatal error') === false, substr($tela, 0, 500));
+    ok('tela unica: titulos das colunas', strpos($tela, 'Usuários das integrações') !== false && strpos($tela, 'Usuário do APChat') !== false && strpos($tela, 'Notificações APChat') !== false
+        && strpos($tela, 'E-mail de usuário do APMail') !== false && strpos($tela, 'Notificações APMail') !== false && strpos($tela, 'Verificação APMail') !== false
+        && strpos($tela, 'Avisos') === false && strpos($tela, 'Atendente do APChat') === false && strpos($tela, 'Conferir no APMail') !== false && stripos($tela, 'fatal error') === false, substr($tela, 0, 500));
+    ok('tela unica: no submenu Administracao', strpos($tela, 'Administração') !== false);
     ok('tela unica: e-mail do cadastro como sugestao', strpos($tela, 'cadastro.um@teste.local') !== false);
     $esc = saida(function () { $t = new EscritorioForm([]); $t->show(); });
     ok('escritorio: endereco e token do APMail, com Testar', strpos($esc, 'url_apmail') !== false && strpos($esc, 'token_apmail') !== false && strpos($esc, 'onTestarApmail') !== false, '');
@@ -173,8 +176,11 @@ $perm = TTransaction::get()->query("SELECT (SELECT string_agg(gp.system_group_id
        (SELECT string_agg(up.system_user_id::text, ',' ORDER BY up.system_user_id) FROM system_user_program up WHERE up.system_program_id = p.id) usuarios, p.name
   FROM system_program p WHERE p.controller = 'ApchatUsuarioList'")->fetch(PDO::FETCH_ASSOC);
 TTransaction::close();
-igual('tela unica: so o grupo Admin e os socios', ['grupos' => '1', 'usuarios' => '3,4,5', 'name' => 'Usuários das integrações'], $perm);
-ok('menu: Usuarios das integracoes', strpos((string) file_get_contents('menu.xml'), 'label="Usuários das integrações"') !== false);
+igual('tela unica: so o grupo Admin (sem permissao direta)', ['grupos' => '1', 'usuarios' => null, 'name' => 'Usuários das integrações'], $perm);
+$menu = (string) file_get_contents('menu.xml');
+$adm = substr($menu, strpos($menu, '<menuitem label="_t{Administration}">'));
+$adm = substr($adm, 0, strpos($adm, '<menuitem label="Logs">'));
+ok('menu: Usuarios das integracoes no submenu Administracao (e so la)', strpos($adm, 'ApchatUsuarioList') !== false && substr_count($menu, 'ApchatUsuarioList') === 1);
 
 $js = (string) file_get_contents('app/lib/include/builder/theme-builder/BuilderTemplate.js');
 ok('JS: envelope atualiza a cada 30 s, pausa com a aba escondida e nao redesenha com o mouse em cima', strpos($js, 'apmail-aberto') !== false && strpos($js, '30000') !== false && strpos($js, 'mailPendente') !== false);

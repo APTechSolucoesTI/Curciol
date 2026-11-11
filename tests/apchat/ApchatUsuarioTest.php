@@ -80,7 +80,7 @@ try
 
     $tela = saida(function () { $t = new ApchatUsuarioList([]); $t->onReload([]); $t->show(); });
     ok('tela de usuarios do APChat monta', strpos($tela, 'form_ApchatUsuarioList') !== false && stripos($tela, 'fatal error') === false, substr($tela, 0, 300));
-    ok('tela sem a opcao de tickets abertos (o balao mostra sempre Abertos e Pendentes)', strpos($tela, 'Mostrar tickets abertos') === false && strpos($tela, 'Avisos APChat') !== false);
+    ok('tela sem a opcao de tickets abertos (o balao mostra sempre Abertos e Pendentes)', strpos($tela, 'Mostrar tickets abertos') === false && strpos($tela, 'Notificações APChat') !== false);
     ok('tela lista os atendentes', strpos($tela, 'Juliana') !== false);
     $form = saida(function () use ($u2) { $f = new SystemUserForm([]); $f->onEdit(['key' => $u2]); $f->show(); });
     ok('cadastro de usuario: campo do atendente do APChat com o ligado', preg_match('/name="apchat_usuario_id"/', $form) === 1 && strpos($form, 'Juliana') !== false, substr($form, 0, 200));

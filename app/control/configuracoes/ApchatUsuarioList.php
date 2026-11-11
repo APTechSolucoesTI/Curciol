@@ -1,11 +1,11 @@
 <?php
 /**
- * Configuracoes > Usuarios das integracoes (10/11/2026): numa tela so, para cada usuario ativo da Curciol,
- * - APChat: o atendente ligado (balao do topo) e os avisos; um atendente so pode estar ligado a um usuario; "Ligar automaticamente"
+ * Administracao > Usuarios das integracoes (10/11/2026): numa tela so, para cada usuario ativo da Curciol,
+ * - APChat: o usuario do APChat ligado (balao do topo) e as notificacoes; um atendente so pode estar ligado a um usuario; "Ligar automaticamente"
  *   pelo e-mail, senao pelo nome (ApchatUsuarioService);
- * - APMail: o e-mail dele no APMail (comeca com o do cadastro) e os avisos do envelope; "Conferir no APMail" consulta cada e-mail
- *   (so leitura) e mostra se o APMail o reconhece.
- * So o grupo Admin e os socios (migracao 2026-11-10-apmail.sql). Endereco e token das integracoes: Escritorio > Configuracoes.
+ * - APMail: o e-mail de usuario do APMail (comeca com o do cadastro) e as notificacoes do envelope; "Conferir no APMail" consulta
+ *   cada e-mail (so leitura) e mostra na Verificacao APMail se o APMail o reconhece.
+ * So o grupo Admin (migracao 2026-11-10-apmail.sql). Endereco e token das integracoes: Escritorio > Configuracoes.
  */
 class ApchatUsuarioList extends TPage
 {
@@ -31,8 +31,8 @@ class ApchatUsuarioList extends TPage
 
         $explica = new TElement('div');
         $explica->style = 'margin-bottom:8px;color:#555;';
-        $explica->add('<b>APChat:</b> cada usuário vê no balão do topo os tickets do atendente ligado a ele (um atendente só pode estar ligado a um usuário). '
-                    . '<b>APMail:</b> o envelope do topo mostra as caixas do e-mail informado (começa com o e-mail do cadastro do usuário). '
+        $explica->add('<b>APChat:</b> cada usuário vê no balão do topo os tickets do usuário do APChat ligado a ele (um usuário do APChat só pode estar ligado a um usuário da Curciol). '
+                    . '<b>APMail:</b> o envelope do topo mostra as caixas do e-mail de usuário do APMail (começa com o e-mail do cadastro do usuário). '
                     . 'Endereço e token das integrações ficam em Escritório › Configurações.');
         $this->form->addContent([$explica]);
 
@@ -40,7 +40,7 @@ class ApchatUsuarioList extends TPage
         {
             $aviso = new TElement('div');
             $aviso->class = 'alert alert-warning';
-            $aviso->add('O banco do APChat não respondeu: os atendentes não podem ser trocados agora (o APMail pode). ' . htmlspecialchars(ApchatBancoService::erro(), ENT_QUOTES, 'UTF-8'));
+            $aviso->add('O banco do APChat não respondeu: os usuários do APChat não podem ser trocados agora (o APMail pode). ' . htmlspecialchars(ApchatBancoService::erro(), ENT_QUOTES, 'UTF-8'));
             $this->form->addContent([$aviso]);
         }
         $opcoes = [];
@@ -62,8 +62,8 @@ class ApchatUsuarioList extends TPage
         $disponivel->setValue($atendentes === null ? '0' : '1');
         $this->form->addFields([$disponivel]);
 
-        $titulo = $this->form->addFields([new TLabel('<b>Usuário da Curciol</b>')], [new TLabel('<b>Atendente do APChat</b>')], [new TLabel('<b>Avisos APChat</b>')],
-                                         [new TLabel('<b>E-mail no APMail</b>')], [new TLabel('<b>Avisos APMail</b>')], [new TLabel('<b>APMail</b>')]);
+        $titulo = $this->form->addFields([new TLabel('<b>Usuário da Curciol</b>')], [new TLabel('<b>Usuário do APChat</b>')], [new TLabel('<b>Notificações APChat</b>')],
+                                         [new TLabel('<b>E-mail de usuário do APMail</b>')], [new TLabel('<b>Notificações APMail</b>')], [new TLabel('<b>Verificação APMail</b>')]);
         $titulo->layout = self::LAYOUT;
 
         foreach ($usuarios as $u)
@@ -74,7 +74,7 @@ class ApchatUsuarioList extends TPage
             $itens = $opcoes;
             if ($atendentes === null && $l && $l->apchat_usuario_id)
             {
-                $itens = [(int) $l->apchat_usuario_id => 'Atendente ' . (int) $l->apchat_usuario_id];
+                $itens = [(int) $l->apchat_usuario_id => 'Usuário ' . (int) $l->apchat_usuario_id . ' do APChat'];
             }
             $combo->addItems($itens);
             $combo->setSize('100%');
@@ -89,7 +89,7 @@ class ApchatUsuarioList extends TPage
             $email = new TEntry("email_apmail_{$id}");
             $email->setSize('100%');
             $email->setValue($m && trim((string) $m->email) !== '' ? $m->email : mb_strtolower(trim((string) $u['email'])));
-            $email->placeholder = 'e-mail no APMail';
+            $email->placeholder = 'e-mail de usuário do APMail';
             $avisosMail = new TCheckButton("avisos_apmail_{$id}");
             $avisosMail->setIndexValue('S');
             $avisosMail->setUseSwitch(true, 'blue');
@@ -111,7 +111,7 @@ class ApchatUsuarioList extends TPage
 
         $container = new TVBox;
         $container->style = 'width: 100%';
-        $container->add(TBreadCrumb::create(['Configurações', 'Usuários das integrações']));
+        $container->add(TBreadCrumb::create(['Administração', 'Usuários das integrações']));
         $container->add($this->form);
         parent::add($container);
     }
@@ -175,7 +175,7 @@ class ApchatUsuarioList extends TPage
                 $repetidos = array_filter(array_count_values(array_filter($escolhidos)), function ($n) { return $n > 1; });
                 if ($repetidos)
                 {
-                    throw new Exception('O mesmo atendente do APChat foi escolhido para mais de um usuário.');
+                    throw new Exception('O mesmo usuário do APChat foi escolhido para mais de um usuário da Curciol.');
                 }
                 foreach ($escolhidos as $id => $atendente)
                 {
