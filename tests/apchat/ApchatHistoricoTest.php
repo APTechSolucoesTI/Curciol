@@ -154,6 +154,7 @@ try
     ok('ticket: separador de dia', strpos($v, '06/11/2026') !== false);
     ok('ticket: conversa ate o fim da tela, com as ultimas mensagens embaixo', strpos($v, 'apc-conversa apc-conversa-tela') !== false && strpos($v, 'innerHeight') !== false
         && strpos($v, 'apc-trilha') !== false);
+    ok('ticket: so a conversa rola (desconta o que sobrar na rolagem do painel)', strpos($v, 'scrollHeight') !== false && strpos($v, 'clientHeight') !== false);
 
     $h = saida(function () use ($a) { (new HistoricosAtendimentoCliente(['key' => $a]))->show(); });
     ok('historico do cliente: abre com atendimento da Curciol e tickets juntos (sem erro de ticket_id)', strpos($h, 'não existe ou contém') === false && strpos($h, '>Atendimento<') !== false, substr($h, 0, 300));
