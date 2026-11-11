@@ -8,6 +8,7 @@
  * Conversa: so as mensagens de texto (sem arquivos, audios, imagens), e so de ticket do proprio cliente.
  * Ticket aberto so por um envio da Curciol (mensagem.apchat_ticket_id), sem mensagem do cliente, fica de fora: a mensagem da
  * Curciol ja aparece nos atendimentos, com a situacao de entrega.
+ * Homologacao (11/11/2026): com 'historico_somente_numeros' no app/config/apchat.php, so esses numeros trazem historico.
  */
 class ApchatHistoricoService
 {
@@ -30,7 +31,26 @@ class ApchatHistoricoService
             }
             foreach (APChatContactService::variantes($n) as $v) { $numeros[$v] = true; }
         }
-        return array_map('strval', array_keys($numeros));
+        $numeros = array_map('strval', array_keys($numeros));
+        $somente = self::liberados();
+        if ($somente === null) { return $numeros; }
+        return array_values(array_filter($numeros, function ($v) use ($somente) { return isset($somente[APChatContactService::numeroCanonico($v)]); }));
+    }
+
+    /** Homologacao: numeros liberados (canonicos) pela chave 'historico_somente_numeros'; null = todos. */
+    private static function liberados(): ?array
+    {
+        $lista = ApchatBancoService::historicoSomente();
+        if ($lista === null) { return null; }
+        $liberados = [];
+        foreach ($lista as $tel)
+        {
+            $n = APChatContactService::normalizarTelefone($tel);
+            if ($n === '') { continue; }
+            $n = substr($n, 0, 2) === '55' && strlen($n) >= 12 ? $n : '55' . $n;
+            $liberados[APChatContactService::numeroCanonico($n)] = true;
+        }
+        return $liberados;
     }
 
     /** [{id, arquivado, aberto_em, fechado_em, canal, fila, principal, atendentes[], numero, contato}] */

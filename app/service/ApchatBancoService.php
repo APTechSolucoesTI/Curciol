@@ -84,6 +84,18 @@ class ApchatBancoService
         return self::$erro;
     }
 
+    /**
+     * Homologacao (11/11/2026): numeros cujo historico do WhatsApp aparece no cadastro do cliente, pela chave
+     * 'historico_somente_numeros' do app/config/apchat.php. Sem a chave (producao): null = todos os numeros.
+     */
+    public static function historicoSomente(): ?array
+    {
+        if (!is_file(self::$config)) { return null; }
+        $c = include self::$config;
+        $lista = is_array($c) ? ($c['historico_somente_numeros'] ?? null) : null;
+        return is_array($lista) ? array_values($lista) : null;
+    }
+
     private static function conn(): PDO
     {
         if (self::$conn) { return self::$conn; }

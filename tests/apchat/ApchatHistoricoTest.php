@@ -87,6 +87,28 @@ try
     ok('canal, fila, abertura e encerramento', $t10['canal'] === 'Curciol - Oficial' && $t10['fila'] === 'Fila Um' && $t10['fechado_em'] === '2026-11-05 10:00:00' && $t10['aberto_em'] !== '');
     igual('sem quem encerrou: o atendente do ticket', 'Atendente Um', $ta[2]['principal'] ?? null);
 
+    // homologacao (11/11/2026): 'historico_somente_numeros' no app/config/apchat.php limita o historico a esses numeros
+    // (com ou sem o 9, com ou sem mascara); sem a chave (producao) vale para todos
+    $cfg = tempnam(sys_get_temp_dir(), 'apchat-cfg-');
+    try
+    {
+        file_put_contents($cfg, "<?php return ['historico_somente_numeros' => ['(19) 98222-0002', '551982220003']];");
+        ApchatBancoService::usarConfig($cfg);
+        ApchatBancoService::usarFalso($falso);
+        igual('somente numeros: o cliente A so ve o ticket do numero liberado', [11], array_column(ApchatHistoricoService::tickets($a), 'id'));
+        igual('somente numeros: liberado sem o 9 vale para o numero com o 9', [12], array_column(ApchatHistoricoService::tickets($b), 'id'));
+        file_put_contents($cfg, "<?php return ['historico_somente_numeros' => []];");
+        igual('somente numeros: lista vazia = nenhum historico', [], ApchatHistoricoService::tickets($a));
+        file_put_contents($cfg, "<?php return ['host' => 'x'];");
+        igual('sem a chave: todos', [16, 15, 11, 10], array_column(ApchatHistoricoService::tickets($a), 'id'));
+    }
+    finally
+    {
+        ApchatBancoService::usarConfig(null);
+        ApchatBancoService::usarFalso($falso);
+        @unlink($cfg);
+    }
+
     $conv = ApchatHistoricoService::conversa(10, $a);
     igual('conversa: so mensagens de texto', ['Bom dia, preciso de ajuda', 'Claro, pode falar'], array_column($conv, 'body'));
     lanca('conversa de ticket de outro cliente: recusa', fn() => ApchatHistoricoService::conversa(12, $a), 'não é deste cliente');
