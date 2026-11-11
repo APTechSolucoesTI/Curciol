@@ -139,7 +139,7 @@ class ApchatUsuarioList extends TPage
             try
             {
                 $n = ApmailApiService::notificacoes(ApmailApiService::url($escritorio), $token, $email);
-                $r[$id] = '<i class="fas fa-check-circle" style="color:#4CAF50" title="Reconhecido: ' . count($n['caixas']) . ' caixa(s), ' . $n['pendentes'] . ' pendente(s)"></i> '
+                $r[$id] = '<i class="fas fa-check-circle" style="color:#4CAF50" title="Reconhecido: ' . count($n['caixas']) . ' caixa(s), ' . $n['pendentes'] . ' conversa(s) de e-mail pendente(s)"></i> '
                         . '<small>' . count($n['caixas']) . ' cx</small>';
             }
             catch (Throwable $e)

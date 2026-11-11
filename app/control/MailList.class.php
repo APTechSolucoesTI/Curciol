@@ -2,8 +2,9 @@
 /**
  * Envelope do APMail no topo (10/11/2026), atualizado a cada 30 s pelo BuilderTemplate.js (so com a aba a vista). Termos (API do APMail):
  * - Pendentes = conversas em A Responder + Em Atendimento (o contador do icone);
- * - Nao lidas = MENSAGENS nao lidas pelo usuario (nao conversas): pode ser maior que o "nao lidos" da tela do APMail.
- * Ao passar o mouse, as caixas dele com pendentes e mensagens nao lidas; o clique abre a caixa no APMail,
+ * - Nao lidos = E-MAILS nao lidos pelo usuario (cada e-mail conta, nao a conversa): maior que o "nao lidos" da tela do APMail
+ *   quando uma conversa tem mais de um e-mail nao lido (conferido em 11/11/2026: 20 conversas, 23 e-mails).
+ * Do APMail, sempre "e-mail" (nunca "mensagem", que e do WhatsApp/APChat). Ao passar o mouse, as caixas dele com pendentes e e-mails nao lidos; o clique abre a caixa no APMail,
  * sempre na mesma aba ("apmail"). Dados: ApmailEnvelopeService (cache de 30 s por e-mail).
  */
 class MailList extends TElement
@@ -51,8 +52,8 @@ class MailList extends TElement
              . '<span style="margin-left:auto;font-weight:400;font-size:12px;color:#888;">pendentes</span></div>';
         $caixa->add($cab);
         // o que cada numero conta (como a API do APMail informa)
-        $caixa->add('<div style="font-size:11px;color:#888;margin:-4px 0 8px;line-height:1.35;white-space:normal;">Pendentes = conversas em A Responder + Em Atendimento.'
-                  . '<br>Não lidas = mensagens não lidas (cada mensagem conta, não a conversa).</div>');
+        $caixa->add('<div style="font-size:11px;color:#888;margin:-4px 0 8px;line-height:1.35;white-space:normal;">Pendentes = conversas de e-mail em A Responder + Em Atendimento.'
+                  . '<br>Não lidos = e-mails não lidos (cada e-mail conta: uma conversa com 3 e-mails não lidos conta 3).</div>');
 
         $avisos = [
             'sem_integracao' => 'Integração com o APMail não configurada (Escritório › Configurações › APMail).',
@@ -81,7 +82,7 @@ class MailList extends TElement
         TScript::create('BuilderTemplate.processFastDrop();');
     }
 
-    /** Caixa do APMail: nome e e-mail; chips "N pendentes" (destaque) e "N mensagens nao lidas"; zerada fica apagada. */
+    /** Caixa do APMail: nome e e-mail; chips "N pendentes" (destaque) e "N e-mails nao lidos"; zerada fica apagada. */
     private static function linha(array $c): TElement
     {
         $h = function ($v) { return htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8'); };
@@ -95,7 +96,7 @@ class MailList extends TElement
         $chips = '<span style="background:' . ($c['pendentes'] > 0 ? LogoSistemaService::COR_APMAIL : '#c5ccd3') . ';color:#fff;border-radius:6px;padding:1px 8px;font-size:12px;font-weight:600;">'
                . (int) $c['pendentes'] . ' pendente' . ($c['pendentes'] === 1 ? '' : 's') . '</span>'
                . '<span style="border:1px solid #d0d5dd;color:#555;border-radius:12px;padding:0 8px;font-size:12px;">'
-               . (int) $c['nao_lidas'] . ($c['nao_lidas'] === 1 ? ' mensagem não lida' : ' mensagens não lidas') . '</span>';
+               . (int) $c['nao_lidas'] . ($c['nao_lidas'] === 1 ? ' e-mail não lido' : ' e-mails não lidos') . '</span>';
         $a->add('<span style="flex:0 0 36px;width:36px;height:36px;border-radius:50%;background:rgba(19,121,156,.1);display:flex;align-items:center;justify-content:center;">'
               . LogoSistemaService::apmail(20) . '</span>'
               . '<span style="flex:1;min-width:0;display:block;">'

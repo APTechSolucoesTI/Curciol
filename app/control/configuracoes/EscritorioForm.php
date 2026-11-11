@@ -388,7 +388,7 @@ class EscritorioForm extends TPage
             $email = ApmailUsuarioService::email((int) TSession::getValue('userid'));
             TTransaction::close();
             $r = ApmailApiService::testar((string) ($param['url_apmail'] ?? ''), (string) ($param['token_apmail'] ?? ''), $email);
-            new TMessage('info', "APMail funcionando para {$email}: {$r['pendentes']} pendente(s), {$r['nao_lidas']} não lida(s) em " . count($r['caixas']) . ' caixa(s).');
+            new TMessage('info', "APMail funcionando para {$email}: {$r['pendentes']} conversa(s) pendente(s), {$r['nao_lidas']} e-mail(s) não lido(s) em " . count($r['caixas']) . ' caixa(s).');
         }
         catch (Exception $e)
         {

@@ -138,8 +138,10 @@ try
     TSession::setValue('userid', $u1);
     $mail = saida(function () { (new MailList(['theme' => 'theme-builder']))->show(); });
     ok('envelope: logo do APMail e contador de pendentes', strpos($mail, 'apmail-logo') !== false && strpos($mail, 'data-count="2"') !== false, substr($mail, 0, 400));
-    ok('envelope: caixa com pendentes e mensagens nao lidas (termos do APMail)', strpos($mail, '>Financeiro<') !== false && strpos($mail, '2 pendentes') !== false && strpos($mail, '3 mensagens não lidas') !== false, $mail);
-    ok('envelope: legenda do que cada numero conta', strpos($mail, 'Pendentes = conversas em A Responder + Em Atendimento') !== false && strpos($mail, 'Não lidas = mensagens') !== false, $mail);
+    ok('envelope: caixa com pendentes e e-mails nao lidos (termo do APMail: e-mail, nunca mensagem)', strpos($mail, '>Financeiro<') !== false && strpos($mail, '2 pendentes') !== false && strpos($mail, '3 e-mails não lidos') !== false
+        && stripos($mail, 'mensage') === false, $mail);
+    ok('envelope: legenda do que cada numero conta', strpos($mail, 'Pendentes = conversas de e-mail em A Responder + Em Atendimento') !== false
+        && strpos($mail, 'Não lidos = e-mails não lidos') !== false && strpos($mail, 'uma conversa com 3 e-mails não lidos conta 3') !== false, $mail);
     ok('envelope: abre a caixa no APMail, sempre na mesma aba', strpos($mail, "window.open('https://app.apmail.com.br/mail/a2?assigned=any', 'apmail')") !== false, $mail);
     ok('envelope: sem texto ao parar o mouse no icone', preg_match('/class="button-circle"[^>]*title=/', $mail) === 0);
     ok('envelope: fica aberto ao atravessar ate a lista', strpos($mail, '.fast-drop.apmail-aberto > .fast-drop-open') !== false);

@@ -2,7 +2,8 @@
 /**
  * Envelope do APMail no topo da Curciol (10/11/2026). Usa a transacao aberta ('escritorio').
  *
- * Contador = conversas pendentes (A Responder / Em Atendimento); cada caixa mostra pendentes e nao lidas (contagens independentes).
+ * Contador = conversas de e-mail pendentes (A Responder + Em Atendimento); cada caixa mostra pendentes e e-mails nao lidos (cada
+ * e-mail conta, nao a conversa; contagens independentes, nao somar).
  * Carga: o navegador pergunta a cada 30 s, so com a aba a vista; o servidor guarda a resposta de cada e-mail por 30 s (o APMail
  * aceita 1.200 consultas por minuto por token). Falhas:
  *  - 404 (e-mail fora da integracao): "nao liberado", guardado por 5 min;
