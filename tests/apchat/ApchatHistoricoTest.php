@@ -96,7 +96,7 @@ try
     // telas
     $v = saida(function () use ($a) { $t = new ApchatTicketView(['key' => 10, 'pessoa_id' => $a]); $t->onShow(['key' => 10, 'pessoa_id' => $a]); $t->show(); });
     ok('ticket: informacoes no topo', strpos($v, 'Atendente Dois') !== false && strpos($v, 'Curciol - Oficial') !== false && strpos($v, '05/11/2026 10:00') !== false, substr($v, 0, 500));
-    ok('ticket: botao Abrir no APChat', strpos($v, 'Abrir no APChat') !== false && strpos($v, "atendimento?ticketId=10', 'apchat'") !== false, $v);
+    ok('ticket: botao Abrir no APChat', strpos($v, 'Abrir no APChat') !== false && strpos($v, 'atendimento?ticketId=10&quot;, &quot;apchat&quot;') !== false, $v);
     ok('ticket: conversa sem a imagem', strpos($v, 'Claro, pode falar') !== false && strpos($v, 'foto.jpg') === false);
 
     $h = saida(function () use ($a) { (new HistoricosAtendimentoCliente(['key' => $a]))->show(); });
@@ -115,7 +115,7 @@ try
     ok('conversa do ticket cadastrada nas permissoes, com os mesmos grupos e usuarios do cadastro do cliente', (int) $perm['programa'] === 1 && (int) $perm['grupos_sem'] === 0 && (int) $perm['usuarios_sem'] === 0, json_encode($perm));
 
     $sv = saida(function () { $t = new ApchatContatoConversaView(['key' => 77]); $t->onShow(['key' => 77]); $t->show(); });
-    ok('contatos sem vinculo: Abrir no APChat (ticket mais recente)', strpos($sv, 'Abrir no APChat') !== false && strpos($sv, "atendimento?ticketId=55', 'apchat'") !== false, substr($sv, 0, 300));
+    ok('contatos sem vinculo: Abrir no APChat (ticket mais recente)', strpos($sv, 'Abrir no APChat') !== false && strpos($sv, 'atendimento?ticketId=55&quot;, &quot;apchat&quot;') !== false, substr($sv, 0, 300));
 }
 finally
 {

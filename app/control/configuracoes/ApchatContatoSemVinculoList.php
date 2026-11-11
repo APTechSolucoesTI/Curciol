@@ -215,6 +215,13 @@ class ApchatContatoSemVinculoList extends TPage
         parent::add($container);
     }
 
+    /** Celula de CSV sem formula: texto que comeca com = + - @ tab ou CR ganha um apostrofo na frente (o Excel mostra como texto). */
+    public static function celulaCsv($valor): string
+    {
+        $valor = (string) $valor;
+        return ($valor !== '' && strpos("=+-@\t\r", $valor[0]) !== false) ? "'" . $valor : $valor;
+    }
+
     public static function formatarNumero($numero): string
     {
         $d = preg_replace('/\D/', '', (string) $numero);
@@ -330,9 +337,10 @@ class ApchatContatoSemVinculoList extends TPage
             fputcsv($h, ['Nome no APChat', 'Número', 'Criado em', 'Última mensagem', 'Data da última mensagem', 'Último atendente', 'Fila']);
             foreach ($linhas as $l)
             {
-                fputcsv($h, [$l['name'], self::formatarNumero($l['number']), $l['criado_em'] ? date('d/m/Y H:i', strtotime($l['criado_em'])) : '',
+                // nome e mensagem vem do WhatsApp (o cliente escolhe): sem formula no Excel (seguranca 11/11/2026)
+                fputcsv($h, array_map([__CLASS__, 'celulaCsv'], [$l['name'], self::formatarNumero($l['number']), $l['criado_em'] ? date('d/m/Y H:i', strtotime($l['criado_em'])) : '',
                              trim(preg_replace('/\s+/', ' ', (string) $l['ultima_mensagem'])), $l['ultima_mensagem_em'] ? date('d/m/Y H:i', strtotime($l['ultima_mensagem_em'])) : '',
-                             $l['atendente'], $l['fila']]);
+                             $l['atendente'], $l['fila']]));
             }
             fclose($h);
             TPage::openFile($output);

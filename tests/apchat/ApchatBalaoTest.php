@@ -203,7 +203,7 @@ try
     ok('card: numero do ticket e tempo desde a ultima mensagem', strpos($html, '>#4<') !== false && preg_match('/apchat-balao-tempo[^>]*>1m</', $html) === 1, $html);
     ok('card: fila, atendente e canal como no APChat', strpos($html, 'apchat-balao-fila') !== false && strpos($html, '>Fila 9101<') !== false
         && strpos($html, 'apchat-balao-atendente') !== false && strpos($html, '>Atendente 9001<') !== false && strpos($html, 'apchat-balao-canal') !== false && strpos($html, '>Oficial<') !== false, $html);
-    ok('balao: abre o ticket na aba do APChat', strpos($html, "window.open('{$urlTicket1}', 'apchat')") !== false, $html);
+    ok('balao: abre o ticket na aba do APChat', strpos($html, LinkExterno::onclick($urlTicket1, 'apchat')) !== false, $html);
     ok('balao: nome do cliente', strpos($html, 'Cliente A') !== false);
     ok('balao: duas colunas lado a lado, Abertos e Pendentes', strpos($html, 'apchat-balao-colunas') !== false && substr_count($html, 'apchat-balao-coluna"') === 2
         && strpos($html, '>Abertos<') !== false && strpos($html, '>Pendentes<') !== false, $html);

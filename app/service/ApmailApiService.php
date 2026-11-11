@@ -44,11 +44,18 @@ class ApmailApiService
         return $url !== '' ? $url : self::URL_PADRAO;
     }
 
-    /** Endereco completo de uma caixa (a API devolve o caminho relativo). */
+    /**
+     * Endereco completo de uma caixa: a API devolve o caminho relativo; so ele e aceito (seguranca 11/11/2026: endereco absoluto ou
+     * //outro-site vindo da resposta nao vira link - fica a base do APMail).
+     */
     public static function urlCaixa(string $base, string $caminho): string
     {
-        if (preg_match('#^https?://#i', $caminho)) { return $caminho; }
-        return rtrim($base, '/') . '/' . ltrim($caminho !== '' ? $caminho : '/', '/');
+        $caminho = trim($caminho);
+        if ($caminho === '' || $caminho[0] !== '/' || strpos($caminho, '//') === 0 || preg_match('#[\s\\\\]#', $caminho))
+        {
+            $caminho = '/';
+        }
+        return rtrim($base, '/') . $caminho;
     }
 
     /**
@@ -119,6 +126,8 @@ class ApmailApiService
         $ch = curl_init($url);
         curl_setopt_array($ch, [
             CURLOPT_HTTPGET        => true,
+            // so http/https (seguranca 11/11/2026)
+            CURLOPT_PROTOCOLS      => CURLPROTO_HTTP | CURLPROTO_HTTPS,
             CURLOPT_HTTPHEADER     => ['Accept: application/json', 'Authorization: Bearer ' . $token],
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_CONNECTTIMEOUT => self::TIMEOUT_CONEXAO,

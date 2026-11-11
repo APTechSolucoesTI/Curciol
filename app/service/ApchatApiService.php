@@ -192,6 +192,8 @@ class ApchatApiService
         $ch = curl_init($url);
 
         curl_setopt_array($ch, [
+            // so http/https (seguranca 11/11/2026)
+            CURLOPT_PROTOCOLS      => CURLPROTO_HTTP | CURLPROTO_HTTPS,
             CURLOPT_POST           => true,
             CURLOPT_POSTFIELDS     => json_encode($corpo, JSON_UNESCAPED_UNICODE),
             CURLOPT_HTTPHEADER     => [

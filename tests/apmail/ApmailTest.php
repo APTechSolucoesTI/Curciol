@@ -161,7 +161,7 @@ try
         && stripos($mail, 'mensage') === false, $mail);
     ok('envelope: legenda do que cada numero conta', strpos($mail, 'Pendentes = conversas de e-mail em A Responder + Em Atendimento') !== false
         && strpos($mail, 'Não lidos = e-mails não lidos') !== false && strpos($mail, 'uma conversa com 3 e-mails não lidos conta 3') !== false, $mail);
-    ok('envelope: abre a caixa no APMail, sempre na mesma aba', strpos($mail, "window.open('https://app.apmail.com.br/mail/a2?assigned=any', 'apmail')") !== false, $mail);
+    ok('envelope: abre a caixa no APMail, sempre na mesma aba', strpos($mail, LinkExterno::onclick('https://app.apmail.com.br/mail/a2?assigned=any', 'apmail')) !== false, $mail);
     ok('envelope: sem texto ao parar o mouse no icone', preg_match('/class="button-circle"[^>]*title=/', $mail) === 0);
     ok('envelope: fica aberto ao atravessar ate a lista', strpos($mail, '.fast-drop.apmail-aberto > .fast-drop-open') !== false);
     TSession::setValue('userid', $u2);
@@ -175,6 +175,7 @@ try
         && strpos($tela, 'Avisos') === false && strpos($tela, 'Atendente do APChat') === false && strpos($tela, 'Conferir no APMail') !== false && stripos($tela, 'fatal error') === false, substr($tela, 0, 500));
     ok('tela unica: no submenu Administracao', strpos($tela, 'Administração') !== false);
     ok('tela unica: e-mail do cadastro como sugestao', strpos($tela, 'cadastro.um@teste.local') !== false);
+    TSession::setValue('usergroupids', [1]); // integracoes do escritorio: so Admin (11/11/2026)
     $esc = saida(function () { $t = new EscritorioForm([]); $t->show(); });
     ok('escritorio: endereco e token do APMail, com Testar', strpos($esc, 'url_apmail') !== false && strpos($esc, 'token_apmail') !== false && strpos($esc, 'onTestarApmail') !== false, '');
 }

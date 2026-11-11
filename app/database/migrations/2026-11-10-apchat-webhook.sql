@@ -4,6 +4,9 @@
 -- A chave e gerada aqui, diferente em cada banco (homologacao e producao): cadastrar o endereco com ela na tela de webhook do APChat.
 ALTER TABLE escritorio ADD COLUMN IF NOT EXISTS webhook_apchat_chave text;
 COMMENT ON COLUMN escritorio.webhook_apchat_chave IS 'Chave secreta do endereco do webhook do APChat (apchat-webhook.php?chave=...)';
+-- 11/11/2026 (seguranca): IPs dos servidores do APChat que podem chamar o webhook (separados por virgula; vazio = qualquer IP com a chave)
+ALTER TABLE escritorio ADD COLUMN IF NOT EXISTS webhook_apchat_ips text;
+COMMENT ON COLUMN escritorio.webhook_apchat_ips IS 'IPs que podem chamar o webhook do APChat (vazio = qualquer IP com a chave)';
 UPDATE escritorio SET webhook_apchat_chave = md5(random()::text || clock_timestamp()::text || id::text) || md5(random()::text || id::text)
  WHERE coalesce(webhook_apchat_chave, '') = '';
 

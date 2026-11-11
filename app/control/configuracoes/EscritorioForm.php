@@ -2,6 +2,9 @@
 
 class EscritorioForm extends TPage
 {
+    // seguranca (11/11/2026): campos dos tokens das integracoes (o onEdit nunca devolve o token salvo ao navegador)
+    private $camposToken = [];
+
     protected BootstrapFormBuilder $form;
     private $formFields = [];
     private static $database = 'escritorio';
@@ -118,6 +121,7 @@ class EscritorioForm extends TPage
         $smtp_auth->enableSearch();
         $token_apchat->enableToggleVisibility(true);
         $token_apmail->enableToggleVisibility(true);
+        $this->camposToken = ['token_apchat' => $token_apchat, 'token_apmail' => $token_apmail];
 
         $data_criacao->setDatabaseMask('yyyy-mm-dd hh:ii');
         $data_modificacao->setDatabaseMask('yyyy-mm-dd hh:ii');
@@ -284,8 +288,12 @@ class EscritorioForm extends TPage
         $row15d = $apchat_container->addFields([$button_testar_apchat, $button_enviar_teste_apchat]);
         $row15d->layout = [' col-sm-12'];
 
+        // seguranca (11/11/2026): integracoes (URLs e tokens do APChat e do APMail) so para o grupo Admin
+        if (ContaAdmin::sessaoEhAdmin())
+        {
         $row15c = $this->form->addFields([$apchat_container]);
         $row15c->layout = [' col-sm-12'];
+        }
 
         // APMail (10/11/2026): so consulta notificacoes (nada e marcado como lido); o e-mail de cada usuario fica em Usuarios das integracoes
         $url_apmail->setSize('100%');
@@ -299,8 +307,11 @@ class EscritorioForm extends TPage
         $row15e->layout = [' col-sm-5', ' col-sm-7'];
         $row15f = $apmail_container->addFields([$button_testar_apmail]);
         $row15f->layout = [' col-sm-12'];
+        if (ContaAdmin::sessaoEhAdmin())
+        {
         $row15g = $this->form->addFields([$apmail_container]);
         $row15g->layout = [' col-sm-12'];
+        }
 
         $this->form->appendPage("Informações de cadastro");
         $row16 = $this->form->addFields([new TLabel("Criado em:", null, '14px', null, '100%'),$data_criacao],[new TLabel("Criado por:", null, '14px', null, '100%'),$criacao_user_name],[new TLabel("Atualizado em:", null, '14px', null, '100%'),$data_modificacao],[new TLabel("Atualizado por:", null, '14px', null, '100%'),$modificacao_user_name]);
@@ -362,11 +373,59 @@ class EscritorioForm extends TPage
     /**
      * Confere a URL e o token da tela (antes de salvar) sem enviar mensagem.
      */
+    /** Botoes de teste e envio das integracoes: so o grupo Admin. */
+    public static function exigirAdmin(): void
+    {
+        if (!ContaAdmin::sessaoEhAdmin())
+        {
+            throw new Exception('Somente um administrador pode testar ou alterar as integrações.');
+        }
+    }
+
+    /** Token digitado na tela; vazio = o salvo no escritorio (o salvo nao vai para a tela). */
+    private static function tokenDaTela(string $campo, $param): string
+    {
+        $digitado = trim((string) ($param[$campo] ?? ''));
+        if ($digitado !== '')
+        {
+            return $digitado;
+        }
+        TTransaction::open(self::$database);
+        $escritorio = !empty($param['id']) ? Escritorio::find((int) $param['id']) : ($campo === 'token_apmail' ? ApmailApiService::escritorio() : ApchatApiService::escritorio());
+        $salvo = $escritorio ? trim((string) $escritorio->$campo) : '';
+        TTransaction::close();
+        return $salvo;
+    }
+
+    /**
+     * Integracoes ao salvar (seguranca 11/11/2026): token vazio mantem o salvo; quem nao e Admin nao muda as URLs nem os tokens do
+     * APChat e do APMail, mesmo que os envie.
+     */
+    public static function segredosAoSalvar($data, $atual, bool $admin)
+    {
+        $campos = ['url_apchat', 'token_apchat', 'url_tela_apchat', 'url_apmail', 'token_apmail'];
+        if (!$admin)
+        {
+            foreach ($campos as $c) { $data->$c = $atual ? $atual->$c : null; }
+            return $data;
+        }
+        $data->url_apchat = rtrim(trim((string) ($data->url_apchat ?? '')), '/');
+        $data->url_tela_apchat = rtrim(trim((string) ($data->url_tela_apchat ?? '')), '/') ?: null;
+        $data->url_apmail = rtrim(trim((string) ($data->url_apmail ?? '')), '/') ?: null;
+        foreach (['token_apchat', 'token_apmail'] as $t)
+        {
+            $digitado = trim((string) ($data->$t ?? ''));
+            $data->$t = $digitado !== '' ? $digitado : ($atual && trim((string) $atual->$t) !== '' ? $atual->$t : null);
+        }
+        return $data;
+    }
+
     public static function onTestarApchat($param = null)
     {
         try 
         {
-            ApchatApiService::testarConexao((string) ($param['url_apchat'] ?? ''), (string) ($param['token_apchat'] ?? ''));
+            self::exigirAdmin();
+            ApchatApiService::testarConexao((string) ($param['url_apchat'] ?? ''), self::tokenDaTela('token_apchat', $param));
 
             new TMessage('info', 'Conexão com o APChat funcionando: URL e token aceitos.');
         }
@@ -387,7 +446,8 @@ class EscritorioForm extends TPage
             TTransaction::open(self::$database);
             $email = ApmailUsuarioService::email((int) TSession::getValue('userid'));
             TTransaction::close();
-            $r = ApmailApiService::testar((string) ($param['url_apmail'] ?? ''), (string) ($param['token_apmail'] ?? ''), $email);
+            self::exigirAdmin();
+            $r = ApmailApiService::testar((string) ($param['url_apmail'] ?? ''), self::tokenDaTela('token_apmail', $param), $email);
             new TMessage('info', "APMail funcionando para {$email}: {$r['pendentes']} conversa(s) pendente(s), {$r['nao_lidas']} e-mail(s) não lido(s) em " . count($r['caixas']) . ' caixa(s).');
         }
         catch (Exception $e)
@@ -404,6 +464,7 @@ class EscritorioForm extends TPage
     {
         try 
         {
+            self::exigirAdmin();
             TTransaction::open(self::$database);
 
             $escritorio = ApchatApiService::escritorio();
@@ -412,7 +473,8 @@ class EscritorioForm extends TPage
 
             // botao da tela: o que esta na tela tem de ser o salvo (o dialogo nao manda URL nem token)
             $urlTela = rtrim(trim((string) ($param['url_apchat'] ?? $url)), '/');
-            $tokenTela = trim((string) ($param['token_apchat'] ?? $token));
+            // campo do token vazio = o salvo (o token salvo nao vai mais para a tela)
+            $tokenTela = trim((string) ($param['token_apchat'] ?? '')) ?: $token;
 
             if ($urlTela !== $url || $tokenTela !== $token)
             {
@@ -521,10 +583,8 @@ class EscritorioForm extends TPage
 
             $data->telefone = preg_replace('/[^0-9]/', '', $data->telefone);
             $data->cnpj = preg_replace('/[^0-9]/', '', $data->cnpj);
-            $data->url_apchat = rtrim(trim((string) $data->url_apchat), '/');
-            $data->token_apchat = trim((string) $data->token_apchat);
-            $data->url_apmail = rtrim(trim((string) ($data->url_apmail ?? '')), '/') ?: null;
-            $data->token_apmail = trim((string) ($data->token_apmail ?? '')) ?: null;
+            // integracoes (seguranca 11/11/2026): token vazio mantem o salvo; quem nao e Admin nao muda URL nem token
+            $data = self::segredosAoSalvar($data, !empty($data->id) ? Escritorio::find((int) $data->id) : null, ContaAdmin::sessaoEhAdmin());
 
             $object->fromArray( (array) $data); // load the object with data
 
@@ -661,6 +721,13 @@ class EscritorioForm extends TPage
                 $object = (object)  $data;
 
                 $this->form->setData($object); // fill the form 
+                // seguranca (11/11/2026): o token salvo nunca vai para o navegador; a tela mostra so o final
+                foreach ($this->camposToken as $nome => $campo)
+                {
+                    $salvo = trim((string) ($data[$nome] ?? ''));
+                    $campo->setValue('');
+                    $campo->placeholder = $salvo !== '' ? 'Token salvo (termina em ' . substr($salvo, -4) . '). Deixe em branco para manter.' : 'Sem token';
+                }
 
                 TTransaction::close(); // close the transaction 
             }

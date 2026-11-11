@@ -6,6 +6,8 @@
  * do balao: o webhook avisa mensagens (do cliente e do atendente), mas nao avisa pegar, transferir nem encerrar ticket - a
  * situacao dos tickets vem sempre do banco do APChat. Por isso guarda so o tipo do evento, o ticket, se a mensagem e nossa e a
  * hora (nunca o texto, o contato nem os tokens dos canais que vem junto), por 3 dias. Devolve o codigo HTTP da resposta.
+ * Seguranca (11/11/2026): no maximo LIMITE_POR_MINUTO pedidos por minuto por IP (antes ate de conferir a chave: enxurrada com chave
+ * errada nao chega ao banco) e, se escritorio.webhook_apchat_ips estiver preenchido, so esses IPs (os servidores do APChat).
  */
 class ApchatWebhookService
 {
@@ -14,6 +16,15 @@ class ApchatWebhookService
     // eventos de mensagem: tocam a campainha do balao
     const MENSAGEM = 'message';
     const ENVIO_PREFIXO = 'message_send';
+    const LIMITE_POR_MINUTO = 300;
+
+    /** @var int|null testes: relogio fixo */
+    private static $relogio = null;
+
+    public static function usarRelogio(?int $agora): void
+    {
+        self::$relogio = $agora;
+    }
 
     public static function receber(string $metodo, ?string $chave, string $corpo, string $ip): int
     {
@@ -21,7 +32,12 @@ class ApchatWebhookService
         {
             return 405;
         }
-        if (!self::chaveValida((string) $chave))
+        if (!self::dentroDoLimite($ip))
+        {
+            return 429;
+        }
+        $ips = self::chaveValida((string) $chave);
+        if ($ips === null || ($ips && !in_array(trim($ip), $ips, true)))
         {
             return 403;
         }
@@ -77,20 +93,47 @@ class ApchatWebhookService
         return TTransaction::get()->exec("DELETE FROM apchat_webhook_evento WHERE recebido_em < now() - interval '" . self::DIAS . " days'");
     }
 
-    private static function chaveValida(string $chave): bool
+    /** Chave certa: os IPs permitidos do escritorio dela ([] = qualquer IP); chave errada: null. */
+    private static function chaveValida(string $chave): ?array
     {
         if (strlen($chave) < 32)
         {
-            return false;
+            return null;
         }
-        $chaves = TTransaction::get()->query("SELECT webhook_apchat_chave FROM escritorio WHERE coalesce(webhook_apchat_chave, '') <> ''")->fetchAll(PDO::FETCH_COLUMN);
-        foreach ($chaves as $certa)
+        $linhas = TTransaction::get()->query("SELECT webhook_apchat_chave, webhook_apchat_ips FROM escritorio WHERE coalesce(webhook_apchat_chave, '') <> ''")->fetchAll(PDO::FETCH_ASSOC);
+        foreach ($linhas as $l)
         {
-            if (hash_equals((string) $certa, $chave))
+            if (hash_equals((string) $l['webhook_apchat_chave'], $chave))
             {
-                return true;
+                return array_values(array_filter(array_map('trim', preg_split('/[\s,;]+/', (string) $l['webhook_apchat_ips'])), 'strlen'));
             }
         }
-        return false;
+        return null;
+    }
+
+    /** Conta o pedido do IP no minuto atual (arquivo com trava); false = passou do limite. */
+    private static function dentroDoLimite(string $ip): bool
+    {
+        $minuto = intdiv(self::$relogio ?? time(), 60);
+        $arquivo = sys_get_temp_dir() . '/curciol-webhook-limite-' . md5(__DIR__) . '-' . md5(trim($ip)) . '.json';
+        $f = @fopen($arquivo, 'c+');
+        if (!$f)
+        {
+            return true;
+        }
+        flock($f, LOCK_EX);
+        $d = json_decode((string) stream_get_contents($f), true);
+        $n = (is_array($d) && ($d['minuto'] ?? 0) === $minuto) ? (int) $d['n'] + 1 : 1;
+        ftruncate($f, 0);
+        rewind($f);
+        fwrite($f, json_encode(['minuto' => $minuto, 'n' => $n]));
+        flock($f, LOCK_UN);
+        fclose($f);
+        return $n <= self::LIMITE_POR_MINUTO;
+    }
+
+    public static function limparLimite(): void
+    {
+        foreach (glob(sys_get_temp_dir() . '/curciol-webhook-limite-' . md5(__DIR__) . '-*.json') ?: [] as $f) { @unlink($f); }
     }
 }

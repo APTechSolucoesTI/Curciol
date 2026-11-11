@@ -73,7 +73,7 @@ class ApchatTicketView extends TPage
         $b->class = 'btn btn-sm btn-success';
         $b->style = 'margin-right:6px;';
         $b->href = '#';
-        $b->onclick = "window.open('" . htmlspecialchars($url, ENT_QUOTES, 'UTF-8') . "', 'apchat'); return false;";
+        $b->onclick = LinkExterno::onclick($url, 'apchat');
         $b->add('<i class="fab fa-whatsapp"></i> Abrir no APChat');
         return $b;
     }
