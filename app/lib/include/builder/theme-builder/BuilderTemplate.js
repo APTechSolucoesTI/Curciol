@@ -196,6 +196,25 @@ window.BuilderTemplate = ( function() {
         clearTimeout(mailTimer);
         $(this).addClass('apmail-aberto');
     });
+
+    // Curciol (11/11/2026): um balao por vez. Ao passar o mouse em qualquer icone do topo, o balao que ainda estava aberto
+    // por causa dos 400 ms de outro icone (APChat ou APMail) fecha na hora, para os dois nao ficarem abertos e sobrepostos.
+    const fecharBalao = function() {
+        clearTimeout(balaoTimer);
+        if (! $('#envelope_messages .fast-drop.apchat-aberto').length) { return; }
+        $('#envelope_messages .fast-drop').removeClass('apchat-aberto');
+        if (balaoPendente) { balaoPendente = false; updateMessagesMenu(); }
+    }
+    const fecharMail = function() {
+        clearTimeout(mailTimer);
+        if (! $('#envelope_mail .fast-drop.apmail-aberto').length) { return; }
+        $('#envelope_mail .fast-drop').removeClass('apmail-aberto');
+        if (mailPendente) { mailPendente = false; updateMailMenu(); }
+    }
+    $(document).on('mouseenter', '.fast-drop', function() {
+        if (! $(this).closest('#envelope_messages').length) { fecharBalao(); }
+        if (! $(this).closest('#envelope_mail').length) { fecharMail(); }
+    });
     $(document).on('mouseleave', '#envelope_mail .fast-drop', function() {
         const envelope = this;
         clearTimeout(mailTimer);
