@@ -135,7 +135,7 @@ class ApchatContatoConversaView extends TPage
             }
 
             $this->form->addContent([self::titulo('Conversa no APChat (só leitura)')]);
-            $this->form->addContent([self::conversaHtml($mensagens)]);
+            $this->form->addContent([self::conversaHtml($mensagens, ['contato' => (string) $c['name']])]);
         }
         catch (Exception $e)
         {
@@ -148,51 +148,10 @@ class ApchatContatoConversaView extends TPage
         return '<div style="font-weight:600; color:#0d4069; border-bottom:1px solid #d6dde6; margin:10px 0 6px; padding-bottom:3px">' . $texto . '</div>';
     }
 
-    /** Baloes de conversa: recebidas a esquerda, enviadas a direita (com o atendente), separadas por ticket. */
-    public static function conversaHtml(array $mensagens): string
+    /** Conversa no padrao do APChat (ApchatConversaHtml, 11/11/2026): baloes, formatacao do WhatsApp, separadores e vistos. */
+    public static function conversaHtml(array $mensagens, array $opcoes = []): string
     {
-        if (!$mensagens)
-        {
-            return '<div style="color:#777">Nenhuma mensagem com este contato.</div>';
-        }
-        $tipos = ['audio' => 'áudio', 'ptt' => 'áudio', 'image' => 'imagem', 'video' => 'vídeo', 'document' => 'documento', 'application' => 'documento',
-                  'sticker' => 'figurinha', 'location' => 'localização', 'vcard' => 'contato', 'contactMessage' => 'contato'];
-        $html = '<div style="background:#efeae2; padding:10px; border-radius:6px; display:flex; flex-direction:column; gap:6px; max-height:60vh; overflow:auto">';
-        $ticket = null;
-        foreach ($mensagens as $m)
-        {
-            if ($m['ticketId'] !== $ticket)
-            {
-                $ticket = $m['ticketId'];
-                $html .= '<div style="align-self:center; font-size:11px; color:#555; background:#fff; padding:1px 10px; border-radius:10px; margin-top:4px">Ticket #' . (int) $ticket
-                       . ($m['fila'] ? ' · ' . htmlspecialchars((string) $m['fila']) : '') . ($m['arquivada'] ? ' · arquivado' : '')
-                       . ' · ' . date('d/m/Y', strtotime($m['createdAt'])) . '</div>';
-            }
-            $texto = trim((string) $m['body']);
-            $tipo = (string) $m['mediaType'];
-            $chave = strtolower(strtok($tipo, '/'));
-            if (!empty($m['isDeleted']) && $m['isDeleted'] !== 'f')
-            {
-                $conteudo = '<i style="color:#888">[mensagem apagada]</i>';
-            }
-            elseif (isset($tipos[$chave]) || isset($tipos[$tipo]))
-            {
-                $rotulo = $tipos[$tipo] ?? $tipos[$chave];
-                $arquivo = trim((string) ($m['fileName'] ?? ''));
-                $legenda = ($texto !== '' && $texto !== $arquivo) ? '<br>' . nl2br(htmlspecialchars($texto)) : '';
-                $conteudo = '<i style="color:#555">[' . $rotulo . ($arquivo !== '' ? '] ' . htmlspecialchars($arquivo) : ']') . '</i>' . $legenda;
-            }
-            else
-            {
-                $conteudo = nl2br(htmlspecialchars($texto));
-            }
-            $enviada = !empty($m['fromMe']) && $m['fromMe'] !== 'f';
-            $rodape = ($enviada && $m['atendente'] ? htmlspecialchars((string) $m['atendente']) . ' · ' : '') . date('d/m H:i', strtotime($m['createdAt']));
-            $html .= '<div style="align-self:' . ($enviada ? 'flex-end' : 'flex-start') . '; max-width:78%; background:' . ($enviada ? '#d9fdd3' : '#fff')
-                   . '; border-radius:8px; padding:5px 9px; box-shadow:0 1px 1px rgba(0,0,0,.08); font-size:13px">' . $conteudo
-                   . '<div style="font-size:10px; color:#667; text-align:right; margin-top:2px">' . $rodape . '</div></div>';
-        }
-        return $html . '</div>';
+        return ApchatConversaHtml::html($mensagens, $opcoes);
     }
 
     /** Abre o cadastro escolhido (cortina por cima) ja com o numero e o nome do APChat. */

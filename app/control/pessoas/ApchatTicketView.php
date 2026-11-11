@@ -1,7 +1,8 @@
 <?php
 /**
- * Atendimento do WhatsApp (ticket fechado do APChat) no historico do cliente (10/11/2026): informacoes do ticket no topo, botao
+ * Atendimento do APChat (ticket fechado) no historico do cliente (10/11/2026): informacoes do ticket no topo, botao
  * "Abrir no APChat" e a conversa so com as mensagens de texto. So mostra ticket do proprio cliente (ApchatHistoricoService).
+ * 11/11/2026: visual do APChat (ApchatConversaHtml); Profissional = todos os atendentes do ticket.
  */
 class ApchatTicketView extends TPage
 {
@@ -44,20 +45,20 @@ class ApchatTicketView extends TPage
             $url = ApchatApiService::urlTicket($ticketId);
             TTransaction::close();
 
-            $this->form->setFormTitle('Atendimento pelo WhatsApp · Ticket #' . $ticketId);
+            $this->form->setFormTitle('Atendimento pelo APChat');
             $this->form->addHeaderWidget(self::botaoAbrir($url));
 
+            // 11/11/2026: no padrao do APChat - contato, "#ticket · numero · canal · atribuido"; campos vazios ficam vazios
             $h = function ($v) { return htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8'); };
             $data = function ($v) { return $v ? date('d/m/Y H:i', strtotime($v)) : ''; };
+            $info = array_filter(['#' . $ticketId, $h($t['numero']), $t['canal'] !== '' ? LogoSistemaService::apchat(14) . ' ' . $h($t['canal']) : '', $h($t['atribuido'])], 'strlen');
+            $this->form->addContent([ApchatConversaHtml::estilo() . '<div class="apc-topo">' . ApchatConversaHtml::avatar($t['contato'])
+                . '<div><div class="apc-topo-nome">' . ($h($t['contato']) ?: $h($t['numero'])) . '</div><div class="apc-topo-info">' . implode(' · ', $info) . '</div></div></div>']);
             $campo = function ($rotulo, $valor) { return [new TLabel($rotulo, null, '12px', 'B', '100%'), new TTextDisplay($valor, '', '12px', '')]; };
             $row = $this->form->addFields($campo('Abertura:', $data($t['aberto_em'])), $campo('Encerramento:', $data($t['fechado_em'])),
-                                          $campo('Canal:', $h($t['canal'])), $campo('Fila:', $h($t['fila']) ?: '—'));
-            $row->layout = ['col-sm-3', 'col-sm-3', 'col-sm-3', 'col-sm-3'];
-            $row = $this->form->addFields($campo('Profissional:', $h($t['principal']) ?: '—'),
-                                          $campo('Atenderam nesta conversa:', $h(implode(', ', $t['atendentes'])) ?: '—'),
-                                          $campo('Número:', ApchatContatoSemVinculoList::formatarNumero($t['numero'])));
-            $row->layout = ['col-sm-3', 'col-sm-6', 'col-sm-3'];
-            $this->form->addContent([ApchatContatoConversaView::conversaHtml($mensagens)]);
+                                          $campo('Fila:', $h($t['fila'])), $campo('Profissional:', $h(implode(', ', $t['profissionais']))));
+            $row->layout = ['col-sm-2', 'col-sm-2', 'col-sm-3', 'col-sm-5'];
+            $this->form->addContent([ApchatContatoConversaView::conversaHtml($mensagens, ['contato' => $t['contato']])]);
         }
         catch (Exception $e)
         {

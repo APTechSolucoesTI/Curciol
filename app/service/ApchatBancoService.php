@@ -309,11 +309,12 @@ class ApchatBancoService
     {
         if (self::$falso) { return self::$falso->conversa($contatoId, $limite); }
         $st = self::conn()->prepare('SELECT m.id, m.body, m."mediaType", m."fileName", m."fromMe", m."isDeleted", m."ticketId", m."createdAt", m.arquivada,
-                                            a.name AS atendente, t.status AS ticket_status, f.queue AS fila
+                                            a.name AS atendente, t.status AS ticket_status, f.queue AS fila, m.ack, w.name AS canal
                                        FROM curciol.mensagens m
                                        LEFT JOIN curciol.tickets t ON t.id = m."ticketId" AND t.arquivado = m.arquivada
                                        LEFT JOIN curciol.atendentes a ON a.id = m."userId"
                                        LEFT JOIN curciol.filas f ON f.id = t."queueId"
+                                      LEFT JOIN curciol.canais w ON w.id = t."whatsappId"
                                       WHERE m."contactId" = ?
                                       ORDER BY m."createdAt" DESC LIMIT ' . (int) $limite);
         $st->execute([$contatoId]);
@@ -419,11 +420,12 @@ class ApchatBancoService
     {
         if (self::$falso) { return self::$falso->mensagensDoTicket($ticketId, $arquivado); }
         $st = self::conn()->prepare('SELECT m.id, m.body, m."mediaType", m."fileName", m."fromMe", m."isDeleted", m."ticketId", m."createdAt", m.arquivada,
-                                            a.name AS atendente, f.queue AS fila
+                                            a.name AS atendente, f.queue AS fila, m.ack, w.name AS canal
                                        FROM curciol.mensagens m
                                        LEFT JOIN curciol.atendentes a ON a.id = m."userId"
                                        LEFT JOIN curciol.tickets t ON t.id = m."ticketId" AND t.arquivado = m.arquivada
                                        LEFT JOIN curciol.filas f ON f.id = t."queueId"
+                                      LEFT JOIN curciol.canais w ON w.id = t."whatsappId"
                                       WHERE m."ticketId" = ? AND m.arquivada = ?
                                       ORDER BY m."createdAt", m.id LIMIT 3000');
         $st->execute([$ticketId, $arquivado ? 'true' : 'false']);

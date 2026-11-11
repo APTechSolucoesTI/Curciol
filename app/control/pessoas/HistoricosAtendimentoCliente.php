@@ -56,50 +56,26 @@ class HistoricosAtendimentoCliente extends TPage
         $action_onShow->setDisplayCondition(function ($object) { return empty($object->ticket_id); });
         $this->atendimento_cliente_id_list->addAction($action_onShow);
 
-        // WhatsApp (10/11/2026): ticket fechado do APChat abre so a conversa, com "Abrir no APChat"
+        // APChat (10/11/2026): ticket fechado do APChat abre so a conversa, com "Abrir no APChat"
         $action_ticket = new TDataGridAction(['ApchatTicketView', 'onShow']);
         $action_ticket->setUseButton(false);
         $action_ticket->setButtonClass('btn btn-default btn-sm');
         $action_ticket->setLabel('Ver conversa');
-        $action_ticket->setImage('fab:whatsapp #25D366');
+        $action_ticket->setImage('fas:search #2196F3');
         $action_ticket->setField('ticket_id');
         $action_ticket->setParameter('key', '{ticket_id}');
         $action_ticket->setParameter('pessoa_id', '{pessoa_id}');
         $action_ticket->setDisplayCondition(function ($object) { return !empty($object->ticket_id); });
         $this->atendimento_cliente_id_list->addAction($action_ticket);
 
-        $column_tipo = $this->atendimento_cliente_id_list->addQuickColumn('Tipo', 'tipo', 'left');
-        $column_tipo->setTransformer(function ($value) {
-            return $value === 'WhatsApp' ? '<i class="fab fa-whatsapp" style="color:#25D366"></i> WhatsApp' : 'Atendimento';
-        });
-
-        $column_dt_inicio_transformed = $this->atendimento_cliente_id_list->addQuickColumn("Data", 'dt_inicio', 'left');
-        $column_dt_inicio_transformed1 = $this->atendimento_cliente_id_list->addQuickColumn("Início", 'dt_inicio', 'left');
-        $column_profissional_nome = $this->atendimento_cliente_id_list->addQuickColumn("Profissional", 'profissional->nome', 'left' , '40%');
-        $column_agendamento_especialidade_descricao = $this->atendimento_cliente_id_list->addQuickColumn("Especialidade", 'agendamento->especialidade->descricao', 'left' , '30%');
-
-        $column_dt_inicio_transformed->setTransformer(function($value, $object, $row, $cell = null, $last_row = null)
-        {
-            if(!empty(trim((string) $value)))
-            {
-                try
-                {
-                    $date = new DateTime($value);
-                    return $date->format('d/m/Y');
-                }
-                catch (Exception $e)
-                {
-                    return $value;
-                }
-            }
-        });
-
-        $column_dt_inicio_transformed1->setTransformer(function($value, $object, $row, $cell = null, $last_row = null)
-        {
-            $date = new DateTime($value);
-            return $date->format('H:i');
-
-        });
+        // 11/11/2026: atendimentos da Curciol e tickets do APChat com as mesmas colunas (AtendimentoTimeLine::prepararAtendimento e
+        // ticketsDoWhatsapp); Profissional do ticket = atendente atribuido; campo sem valor fica vazio
+        $this->atendimento_cliente_id_list->addQuickColumn('Tipo', 'tipo', 'left');
+        $this->atendimento_cliente_id_list->addQuickColumn('Início', 'inicio_texto', 'left');
+        $this->atendimento_cliente_id_list->addQuickColumn('Fim', 'fim_texto', 'left');
+        $this->atendimento_cliente_id_list->addQuickColumn('Profissional', 'profissional_texto', 'left', '25%');
+        $this->atendimento_cliente_id_list->addQuickColumn('Especialidade', 'especialidade_texto', 'left', '25%');
+        $this->atendimento_cliente_id_list->addQuickColumn('Fila', 'fila_texto', 'left', '20%');
 
         $this->atendimento_cliente_id_list->enablePopover("Histórico", " {atendimento_historico_historico_to_string} ");
 
@@ -110,9 +86,10 @@ class HistoricosAtendimentoCliente extends TPage
 
         $criteria_atendimento_cliente_id->setProperty('order', 'dt_inicio desc');
 
-        $atendimento_cliente_id_items = Atendimento::getObjects($criteria_atendimento_cliente_id);
+        $atendimento_cliente_id_items = Atendimento::getObjects($criteria_atendimento_cliente_id) ?: [];
+        foreach ($atendimento_cliente_id_items as $item) { AtendimentoTimeLine::prepararAtendimento($item); }
 
-        // WhatsApp (10/11/2026): tickets fechados do APChat na mesma lista, pela data e hora de encerramento
+        // APChat (10/11/2026): tickets fechados do APChat na mesma lista, pela data e hora de abertura (11/11)
         foreach (AtendimentoTimeLine::ticketsDoWhatsapp((int) $pessoa->id) as $ticket)
         {
             $atendimento_cliente_id_items[] = $ticket;

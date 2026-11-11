@@ -41,7 +41,8 @@ class AtendimentoTimeLine extends TPage
 
             $objects = Atendimento::getObjects($this->timelineCriteria) ?: [];
 
-            // WhatsApp (10/11/2026): tickets fechados do APChat na mesma linha do tempo, pela data e hora de encerramento
+            // APChat (10/11/2026): tickets fechados do APChat na mesma linha do tempo, pela data e hora de abertura (11/11)
+            foreach ($objects as $objeto) { self::prepararAtendimento($objeto); }
             foreach (self::ticketsDoWhatsapp((int) $filterVar) as $ticket)
             {
                 $objects[] = $ticket;
@@ -74,13 +75,9 @@ class AtendimentoTimeLine extends TPage
                     $title = "Atendimento #{id}";
                     if (!empty($object->ticket_id))
                     {
-                        $title = "Atendimento pelo WhatsApp #{ticket_id}";
+                        $title = "APChat · Ticket #{ticket_id}";
                     }
-                    $htmlTemplate = !empty($object->ticket_id) ? "Canal: <b>{canal}</b><br/>
-Fila: <b>{fila}</b><br/>
-Profissional: <b>{principal}</b><br/>
-Atenderam: <b>{atendentes_texto}</b><br/>
-Abertura: <b>{aberto_texto}</b>" : "Agenda: <b>{agendamento->agenda->nome}</b><br/>
+                    $htmlTemplate = !empty($object->ticket_id) ? "{detalhes_html}" : "Agenda: <b>{agendamento->agenda->nome}</b><br/>
 Parceiro: <b>{agendamento->agendamento_procedimento_convenio_to_string} </b><br/>
 Profissional: <b>{profissional->nome_formatado}</b><br/>
 Escritório: <b>{agendamento->agenda->escritorio->nome}</b><br/>
@@ -122,7 +119,7 @@ Tipo: <b>{tipo_atendimento->nome}</b>";
 
             $action_ticket = new TAction(['ApchatTicketView', 'onShow'], ['key' => '{ticket_id}', 'pessoa_id' => '{pessoa_id}']);
             $action_ticket->setProperty('btn-class', 'btn btn-default');
-            $this->timeline->addAction($action_ticket, 'Ver conversa', 'fab:whatsapp #25D366', 'AtendimentoTimeLine::ehTicket');
+            $this->timeline->addAction($action_ticket, 'Ver conversa', 'fas:comments #1B4A6E', 'AtendimentoTimeLine::ehTicket');
 
             $container = new TVBox;
 
@@ -150,8 +147,8 @@ Tipo: <b>{tipo_atendimento->nome}</b>";
     }
 
     /**
-     * Tickets fechados do WhatsApp do cliente (ApchatHistoricoService) no formato da lista e da linha do tempo: dt_inicio = data
-     * do encerramento. Usa a transacao aberta. APChat fora: nenhum (a aba continua com os atendimentos).
+     * Tickets fechados do APChat do cliente (ApchatHistoricoService) no formato da lista e da linha do tempo: dt_inicio = abertura,
+     * dt_final = encerramento (11/11/2026). Usa a transacao aberta. APChat fora: nenhum (a aba continua com os atendimentos).
      */
     public static function ticketsDoWhatsapp(int $pessoaId): array
     {
@@ -172,19 +169,54 @@ Tipo: <b>{tipo_atendimento->nome}</b>";
             $o->id = 'w' . $t['id'];
             $o->ticket_id = $t['id'];
             $o->pessoa_id = $pessoaId;
-            $o->tipo = 'WhatsApp';
-            $o->dt_inicio = $t['fechado_em'];
-            $o->canal = $h($t['canal']);
-            $o->fila = $h($t['fila']) ?: '—';
-            $o->principal = $h($t['principal']) ?: '—';
-            $o->atendentes_texto = $h(implode(', ', $t['atendentes'])) ?: '—';
-            $o->aberto_texto = $t['aberto_em'] ? date('d/m/Y H:i', strtotime($t['aberto_em'])) : '';
-            $o->profissional = (object) ['nome' => $o->principal, 'nome_formatado' => $o->principal];
-            $o->agendamento = (object) ['especialidade' => (object) ['descricao' => trim('WhatsApp · ' . $o->canal . ($t['fila'] ? ' · ' . $o->fila : ''))]];
-            $o->atendimento_historico_historico_to_string = 'Atenderam: ' . $o->atendentes_texto;
+            $o->tipo = 'APChat';
+            $o->dt_inicio = $t['aberto_em'] ?: $t['fechado_em'];
+            $o->dt_final = $t['fechado_em'];
+            $o->inicio_texto = self::dataHora($o->dt_inicio);
+            $o->fim_texto = self::dataHora($o->dt_final);
+            $o->profissional_texto = $h($t['atribuido']);
+            $o->especialidade_texto = $h($t['especialidade']);
+            $o->fila_texto = $h($t['fila']);
+            $o->atendimento_historico_historico_to_string = ''; // na lista so o atribuido; todos aparecem ao abrir o ticket
+            // linha do tempo: so as linhas com valor (sem traco)
+            $o->detalhes_html = implode('<br/>', array_filter([
+                $t['canal'] !== '' ? 'Canal: <b>' . $h($t['canal']) . '</b>' : '',
+                $t['fila'] !== '' ? 'Fila: <b>' . $h($t['fila']) . '</b>' : '',
+                $t['profissionais'] ? 'Profissional: <b>' . $h(implode(', ', $t['profissionais'])) . '</b>' : '',
+                $t['especialidade'] !== '' ? 'Especialidade: <b>' . $h($t['especialidade']) . '</b>' : '',
+                'Início: <b>' . $o->inicio_texto . '</b> · Fim: <b>' . $o->fim_texto . '</b>',
+            ], 'strlen'));
             $lista[] = $o;
         }
         return $lista;
+    }
+
+    /**
+     * Atendimento da Curciol com os mesmos campos de tela dos tickets do APChat (11/11/2026): ticket_id = 0 (a acao "Ver conversa"
+     * da lista le o campo antes de ver se aparece - sem ele dava "Campo ticket_id nao existe"); especialidade do agendamento,
+     * senao a do profissional (atendimento avulso).
+     */
+    public static function prepararAtendimento($a)
+    {
+        $a->ticket_id = 0;
+        $a->pessoa_id = $a->cliente_id;
+        $a->tipo = 'Atendimento';
+        $a->inicio_texto = self::dataHora($a->dt_inicio);
+        $a->fim_texto = self::dataHora($a->dt_final);
+        $h = function ($v) { return htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8'); };
+        $profissional = $a->profissional_id ? $a->profissional : null;
+        $a->profissional_texto = $profissional ? $h($profissional->nome) : '';
+        $agendamento = $a->agendamento_id ? $a->agendamento : null;
+        $especialidade = ($agendamento && $agendamento->especialidade_id) ? (string) $agendamento->especialidade->descricao : '';
+        if ($especialidade === '') { $especialidade = ApchatHistoricoService::especialidadesDoProfissional($a->profissional_id ? (int) $a->profissional_id : null); }
+        $a->especialidade_texto = $h($especialidade);
+        $a->fila_texto = '';
+        return $a;
+    }
+
+    public static function dataHora($valor): string
+    {
+        return trim((string) $valor) !== '' ? date('d/m/Y H:i', strtotime((string) $valor)) : '';
     }
 
     public static function podeExibir($object)

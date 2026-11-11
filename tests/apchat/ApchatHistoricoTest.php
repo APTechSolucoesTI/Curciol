@@ -1,7 +1,7 @@
 <?php
 // tests/apchat/ApchatHistoricoTest.php
 // Historico do WhatsApp no cadastro do cliente (10/11/2026): numero do contato principal e dos auxiliares (enquanto nenhum outro
-// cliente tiver o numero como principal); so tickets fechados, ordem pelo encerramento; principal = quem encerrou, senao o
+// cliente tiver o numero como principal); so tickets fechados, ordem pelo encerramento; atribuido = atendente do ticket; profissionais = ele e quem respondeu; especialidade do profissional ligado; o
 // atendente do ticket; conversa so com texto e so do proprio cliente; botao "Abrir no APChat". APChat falso.
 require __DIR__ . '/../bootstrap.php';
 if (!class_exists('TApplication')) { class TApplication extends AdiantiCoreApplication {} }
@@ -11,8 +11,11 @@ function x(string $sql): void { TTransaction::open('escritorio'); TTransaction::
 function q(string $sql) { TTransaction::open('escritorio'); $r = TTransaction::get()->query($sql)->fetchAll(PDO::FETCH_ASSOC); TTransaction::close(); return $r; }
 function saida(callable $f): string { ob_start(); try { $f(); } finally { $s = ob_get_clean(); } return $s; }
 $limpar = function () {
+    x("DELETE FROM apchat_usuario WHERE apchat_usuario_id = 987650");
     foreach (q("SELECT id FROM pessoa WHERE nome LIKE '" . MARCA_HIST . "%'") as $s)
     {
+        x("DELETE FROM atendimento WHERE cliente_id = {$s['id']} OR profissional_id = {$s['id']}");
+        x("DELETE FROM pessoa_especialidade WHERE pessoa_id = {$s['id']}");
         x("DELETE FROM pessoa_contato WHERE pessoa_id = {$s['id']}");
         x("DELETE FROM pessoa WHERE id = {$s['id']}");
     }
@@ -23,7 +26,7 @@ $limpar();
 $tk = function (int $id, string $numero, string $status, string $fechado, ?int $fechou, ?string $nomeFechou, string $atendentes, bool $doCliente = true) {
     return ['id' => $id, 'arquivado' => false, 'status' => $status, 'numero' => $numero, 'contato' => 'Contato ' . $id,
             'aberto_em' => date('Y-m-d H:i:s', strtotime($fechado . ' -2 hours')), 'fechado_em' => $status === 'closed' ? $fechado : null,
-            'canal' => 'Curciol - Oficial', 'fila' => 'Fila Um', 'userId' => 9001, 'atendente' => 'Atendente Um',
+            'canal' => 'Curciol - Oficial', 'fila' => 'Fila Um', 'userId' => 987650, 'atendente' => 'Atendente Um',
             'closedByUserId' => $fechou, 'fechou' => $nomeFechou, 'atendentes' => $atendentes, 'do_cliente' => $doCliente];
 };
 $falso = new class([
@@ -45,13 +48,19 @@ $falso = new class([
         return [
             ['id' => 'a', 'body' => 'Bom dia, preciso de ajuda', 'mediaType' => 'chat', 'fileName' => null, 'fromMe' => false, 'isDeleted' => false, 'ticketId' => $ticketId, 'createdAt' => '2026-11-05 08:00:00', 'arquivada' => false, 'atendente' => null, 'fila' => 'Fila Um'],
             ['id' => 'b', 'body' => 'foto.jpg', 'mediaType' => 'image', 'fileName' => 'foto.jpg', 'fromMe' => false, 'isDeleted' => false, 'ticketId' => $ticketId, 'createdAt' => '2026-11-05 08:01:00', 'arquivada' => false, 'atendente' => null, 'fila' => 'Fila Um'],
-            ['id' => 'c', 'body' => 'Claro, pode falar', 'mediaType' => 'chat', 'fileName' => null, 'fromMe' => true, 'isDeleted' => false, 'ticketId' => $ticketId, 'createdAt' => '2026-11-05 08:02:00', 'arquivada' => false, 'atendente' => 'Atendente Um', 'fila' => 'Fila Um'],
+            ['id' => 'c', 'body' => "*Atendente Um*:\n Claro, _pode_ falar", 'mediaType' => 'chat', 'ack' => 3, 'fileName' => null, 'fromMe' => true, 'isDeleted' => false, 'ticketId' => $ticketId, 'createdAt' => '2026-11-05 08:02:00', 'arquivada' => false, 'atendente' => 'Atendente Um', 'fila' => 'Fila Um', 'canal' => 'Curciol - Oficial'],
+            ['id' => 'e', 'body' => '{"body":"Escolha *uma* opção:","footer":"","button_text":"Ver opções","sections":[{"title":"","rows":[{"title":"Opção A"},{"title":"Opção B"}]}]}', 'mediaType' => 'list', 'fileName' => null, 'fromMe' => true, 'isDeleted' => false, 'ticketId' => $ticketId, 'createdAt' => '2026-11-05 08:02:30', 'arquivada' => false, 'atendente' => null, 'fila' => 'Fila Um'],
+            ['id' => 'f', 'body' => 'Atendente Dois - Fila Um • 05/11/2026, 08:03', 'mediaType' => 'transfer', 'fileName' => null, 'fromMe' => true, 'isDeleted' => false, 'ticketId' => $ticketId, 'createdAt' => '2026-11-05 08:02:40', 'arquivada' => false, 'atendente' => 'Atendente Um', 'fila' => 'Fila Um'],
+            ['id' => 'g', 'body' => '<script>alert(1)</script>', 'mediaType' => 'chat', 'fileName' => null, 'fromMe' => false, 'isDeleted' => false, 'ticketId' => $ticketId, 'createdAt' => '2026-11-06 07:00:00', 'arquivada' => false, 'atendente' => null, 'fila' => 'Fila Um'],
             ['id' => 'd', 'body' => '', 'mediaType' => 'chat', 'fileName' => null, 'fromMe' => true, 'isDeleted' => false, 'ticketId' => $ticketId, 'createdAt' => '2026-11-05 08:03:00', 'arquivada' => false, 'atendente' => 'Atendente Um', 'fila' => 'Fila Um'],
         ];
     }
     public function contato(int $id): ?array { return ['id' => $id, 'name' => 'Sem vinculo', 'number' => '5511900007777', 'createdAt' => '2026-11-06 16:52:00']; }
     public function conversa(int $contatoId, int $limite = 3000): array { return [['id' => 'z', 'body' => 'oi', 'mediaType' => 'chat', 'fileName' => null, 'fromMe' => false, 'isDeleted' => false, 'ticketId' => 55, 'createdAt' => '2026-11-06 17:00:00', 'arquivada' => false, 'atendente' => null, 'fila' => null, 'ticket_status' => 'closed']]; }
 };
+// a homologacao tem historico_somente_numeros no apchat.php real: o teste usa um arquivo inexistente (= todos os numeros)
+$semConfig = sys_get_temp_dir() . "/apchat-sem-config-" . getmypid() . ".php";
+ApchatBancoService::usarConfig($semConfig);
 ApchatBancoService::usarFalso($falso);
 TSession::setValue('userid', 1);
 
@@ -68,6 +77,17 @@ try
     $ag = (int) $c->query('SELECT id FROM agendamento ORDER BY id LIMIT 1')->fetchColumn();
     $c->exec("INSERT INTO mensagem (agendamento_id, system_user_id, tipo_mensagem, destino, template, enviado_em, apchat_ticket_id) VALUES
               ({$ag}, 1, 'WHATSAPP', '19982220001', '" . MARCA_HIST . "', now(), 14), ({$ag}, 1, 'WHATSAPP', '19982220001', '" . MARCA_HIST . "', now(), 15)");
+    // profissional da Curciol ligado ao atendente do APChat (987650) com duas especialidades; e um atendimento avulso da Curciol
+    // para o cliente A, com esse profissional (atendimento avulso nao tem agendamento: especialidade vem do profissional)
+    $prof = (int) $c->query("INSERT INTO pessoa (nome, tipo_pessoa_id) VALUES ('" . MARCA_HIST . " PROF', 1) RETURNING id")->fetchColumn();
+    $livre = (int) $c->query('SELECT u.id FROM system_users u WHERE NOT EXISTS (SELECT 1 FROM apchat_usuario a WHERE a.system_user_id = u.id)
+                               AND NOT EXISTS (SELECT 1 FROM pessoa p WHERE p.system_users_id = u.id) ORDER BY u.id LIMIT 1')->fetchColumn();
+    $c->exec("UPDATE pessoa SET system_users_id = {$livre} WHERE id = {$prof}");
+    $c->exec("INSERT INTO apchat_usuario (system_user_id, apchat_usuario_id) VALUES ({$livre}, 987650)");
+    $esp = $c->query('SELECT id, descricao FROM especialidade ORDER BY descricao LIMIT 2')->fetchAll(PDO::FETCH_ASSOC);
+    $c->exec("INSERT INTO pessoa_especialidade (pessoa_id, especialidade_id) VALUES ({$prof}, {$esp[1]['id']}), ({$prof}, {$esp[0]['id']})");
+    $espTexto = $esp[0]['descricao'] . ', ' . $esp[1]['descricao'];
+    $c->exec("INSERT INTO atendimento (cliente_id, profissional_id, tipo_atendimento_id, dt_inicio, dt_final) VALUES ({$a}, {$prof}, 2, '2026-11-06 09:00:00', '2026-11-06 09:30:00')");
     TTransaction::close();
     TSession::setValue('userunitid', $unidade);
 
@@ -82,10 +102,11 @@ try
     igual('cliente A: so fechados, ordem pelo encerramento, sem o ticket aberto so pelo envio da Curciol', [16, 15, 11, 10], array_column($ta, 'id'));
     igual('cliente B: o ticket do principal dele', [12], array_column(ApchatHistoricoService::tickets($b), 'id'));
     $t10 = $ta[3] ?? [];
-    igual('principal = quem encerrou', 'Atendente Dois', $t10['principal']);
+    igual('atribuido = o atendente do ticket (nao quem encerrou)', 'Atendente Um', $t10['atribuido']);
     igual('todos os atendentes', ['Atendente Um', 'Atendente Dois'], $t10['atendentes']);
+    igual('profissionais: o atribuido e quem respondeu, sem repetir', ['Atendente Um', 'Atendente Dois'], $t10['profissionais']);
+    igual('especialidade: do profissional da Curciol ligado ao atendente atribuido', $espTexto, $t10['especialidade']);
     ok('canal, fila, abertura e encerramento', $t10['canal'] === 'Curciol - Oficial' && $t10['fila'] === 'Fila Um' && $t10['fechado_em'] === '2026-11-05 10:00:00' && $t10['aberto_em'] !== '');
-    igual('sem quem encerrou: o atendente do ticket', 'Atendente Um', $ta[2]['principal'] ?? null);
 
     // homologacao (11/11/2026): 'historico_somente_numeros' no app/config/apchat.php limita o historico a esses numeros
     // (com ou sem o 9, com ou sem mascara); sem a chave (producao) vale para todos
@@ -104,27 +125,48 @@ try
     }
     finally
     {
-        ApchatBancoService::usarConfig(null);
+        ApchatBancoService::usarConfig($semConfig);
         ApchatBancoService::usarFalso($falso);
         @unlink($cfg);
     }
 
     $conv = ApchatHistoricoService::conversa(10, $a);
-    igual('conversa: so mensagens de texto', ['Bom dia, preciso de ajuda', 'Claro, pode falar'], array_column($conv, 'body'));
+    igual('conversa: texto, lista e transferencia (sem midia nem vazia)', ['Bom dia, preciso de ajuda', "*Atendente Um*:\n Claro, _pode_ falar", 'e', 'f', '<script>alert(1)</script>'],
+          array_map(function ($m) { return in_array($m['id'], ['e', 'f'], true) ? $m['id'] : $m['body']; }, $conv));
     lanca('conversa de ticket de outro cliente: recusa', fn() => ApchatHistoricoService::conversa(12, $a), 'não é deste cliente');
     lanca('ticket aberto nao aparece', fn() => ApchatHistoricoService::conversa(13, $a), 'não é deste cliente');
     TTransaction::close();
 
     // telas
     $v = saida(function () use ($a) { $t = new ApchatTicketView(['key' => 10, 'pessoa_id' => $a]); $t->onShow(['key' => 10, 'pessoa_id' => $a]); $t->show(); });
-    ok('ticket: informacoes no topo', strpos($v, 'Atendente Dois') !== false && strpos($v, 'Curciol - Oficial') !== false && strpos($v, '05/11/2026 10:00') !== false, substr($v, 0, 500));
+    ok('ticket: informacoes no topo', strpos($v, 'Curciol - Oficial') !== false && strpos($v, '05/11/2026 10:00') !== false && strpos($v, '05/11/2026 08:00') !== false
+        && strpos($v, '#10 · 5519982220001') !== false, substr($v, 0, 500));
+    ok('ticket: Profissional com todos os atendentes no mesmo campo', strpos($v, 'Atendente Um, Atendente Dois') !== false && strpos($v, 'Atenderam') === false);
+    ok('ticket: sem traco no campo vazio', strpos($v, '—') === false);
     ok('ticket: botao Abrir no APChat', strpos($v, 'Abrir no APChat') !== false && strpos($v, 'atendimento?ticketId=10&quot;, &quot;apchat&quot;') !== false, $v);
-    ok('ticket: conversa sem a imagem', strpos($v, 'Claro, pode falar') !== false && strpos($v, 'foto.jpg') === false);
+    ok('ticket: conversa sem a imagem', strpos($v, 'foto.jpg') === false);
+    ok('ticket: formatacao do WhatsApp (negrito e italico)', strpos($v, '<b>Atendente Um</b>:<br>Claro, <i>pode</i> falar') !== false);
+    ok('ticket: lista do robo desenhada, nao o JSON', strpos($v, 'Escolha <b>uma</b> opção:') !== false && strpos($v, 'Ver opções') !== false && strpos($v, 'Opção B') !== false
+        && strpos($v, 'button_text') === false);
+    ok('ticket: transferencia como aviso no meio da conversa', strpos($v, 'apc-aviso') !== false && strpos($v, 'Atendente Dois - Fila Um') !== false);
+    ok('ticket: HTML da mensagem escapado', strpos($v, '<script>alert(1)') === false && strpos($v, '&lt;script&gt;alert(1)') !== false);
+    ok('ticket: visto azul na mensagem lida', strpos($v, 'apc-lida') !== false);
+    ok('ticket: separador de dia', strpos($v, '06/11/2026') !== false);
 
     $h = saida(function () use ($a) { (new HistoricosAtendimentoCliente(['key' => $a]))->show(); });
-    ok('historico do cliente: linhas do WhatsApp', strpos($h, 'WhatsApp') !== false && strpos($h, 'Atendente Dois') !== false && strpos($h, '07/11/2026') !== false, substr($h, 0, 300));
+    ok('historico do cliente: abre com atendimento da Curciol e tickets juntos (sem erro de ticket_id)', strpos($h, 'não existe ou contém') === false && strpos($h, '>Atendimento<') !== false, substr($h, 0, 300));
+    ok('historico: colunas Tipo, Inicio, Fim, Profissional, Especialidade e Fila', strpos($h, '>Início<') !== false && strpos($h, '>Fim<') !== false && strpos($h, '>Fila<') !== false
+        && strpos($h, '>Data<') === false, substr($h, 0, 300));
+    ok('historico: ticket como APChat, sem icone do WhatsApp', strpos($h, 'APChat') !== false && strpos($h, 'fa-whatsapp') === false);
+    ok('historico: ticket com inicio, fim, atribuido, especialidade e fila', strpos($h, '05/11/2026 08:00') !== false && strpos($h, '05/11/2026 10:00') !== false
+        && strpos($h, 'Atendente Um') !== false && strpos($h, $espTexto) !== false && strpos($h, 'Fila Um') !== false);
+    ok('historico: na lista so o atribuido (quem so respondeu nao aparece)', strpos($h, 'Atendente Dois') === false);
+    ok('historico: atendimento da Curciol com inicio, fim, profissional e especialidade do profissional', strpos($h, '06/11/2026 09:00') !== false && strpos($h, '06/11/2026 09:30') !== false
+        && strpos($h, MARCA_HIST . ' PROF') !== false);
+    ok('historico: sem traco', strpos($h, '—') === false);
     $tl = saida(function () use ($a) { (new AtendimentoTimeLine(['cliente_id' => $a, 'target_container' => 'x']))->show(); });
-    ok('timeline do cliente: tickets do WhatsApp', strpos($tl, 'WhatsApp #10') !== false && strpos($tl, 'WhatsApp #11') !== false && strpos($tl, 'WhatsApp #12') === false, substr($tl, 0, 300));
+    ok('timeline do cliente: tickets do APChat', strpos($tl, 'APChat · Ticket #10') !== false && strpos($tl, 'APChat · Ticket #11') !== false && strpos($tl, 'Ticket #12') === false, substr($tl, 0, 300));
+    ok('timeline: sem traco e sem WhatsApp', strpos($tl, '—') === false && strpos($tl, 'fa-whatsapp') === false);
 
     // permissao: quem abre o cadastro do cliente abre a conversa do ticket (grupos e permissao direta)
     $perm = q("SELECT (SELECT count(*) FROM system_program WHERE controller = 'ApchatTicketView') programa,
@@ -143,6 +185,7 @@ finally
 {
     while (TTransaction::get()) { TTransaction::rollback(); }
     ApchatBancoService::usarFalso(null);
+    ApchatBancoService::usarConfig(null);
     $limpar();
 }
 
