@@ -58,7 +58,7 @@ class ApchatTicketView extends TPage
             $row = $this->form->addFields($campo('Abertura:', $data($t['aberto_em'])), $campo('Encerramento:', $data($t['fechado_em'])),
                                           $campo('Fila:', $h($t['fila'])), $campo('Profissional:', $h(implode(', ', $t['profissionais']))));
             $row->layout = ['col-sm-2', 'col-sm-2', 'col-sm-3', 'col-sm-5'];
-            $this->form->addContent([ApchatContatoConversaView::conversaHtml($mensagens, ['contato' => $t['contato']])]);
+            $this->form->addContent([ApchatContatoConversaView::conversaHtml($mensagens, ['contato' => $t['contato'], 'tela' => true])]);
         }
         catch (Exception $e)
         {

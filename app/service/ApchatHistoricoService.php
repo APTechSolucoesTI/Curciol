@@ -5,8 +5,8 @@
  * Numeros do cliente: o do contato principal e os dos auxiliares, enquanto nenhum outro cliente tiver aquele numero como
  * principal (decidido na hora: se depois virar principal de outro, os tickets passam a aparecer so la). Com e sem o 9.
  * So tickets fechados, do encerramento mais recente para o mais antigo.
- * 11/11/2026: atribuido = o atendente do ticket (lista); profissionais = ele e quem respondeu (tela do ticket); especialidade =
- * as do profissional da Curciol ligado ao atendente atribuido (Usuarios das integracoes -> pessoa do usuario).
+ * 11/11/2026: atribuido = o atendente do ticket (lista); profissionais = ele e quem respondeu (tela do ticket); ticket do APChat
+ * nao tem especialidade (pedido do usuario).
  * Conversa: so as mensagens de texto (sem arquivos, audios, imagens), e so de ticket do proprio cliente.
  * Ticket aberto so por um envio da Curciol (mensagem.apchat_ticket_id), sem mensagem do cliente, fica de fora: a mensagem da
  * Curciol ja aparece nos atendimentos, com a situacao de entrega.
@@ -84,7 +84,6 @@ class ApchatHistoricoService
                 'atribuido_id'  => $atribuidoId,
                 'atendentes'    => $atendentes,
                 'profissionais' => array_values(array_unique(array_filter(array_merge([$atribuido], $atendentes), 'strlen'))),
-                'especialidade' => self::especialidadesDoAtendente($atribuidoId),
                 'numero'     => (string) $t['numero'],
                 'contato'    => (string) ($t['contato'] ?? ''),
             ];
@@ -95,16 +94,6 @@ class ApchatHistoricoService
 
     /** @var array especialidades ja buscadas no pedido [chave => texto] */
     private static $especialidades = [];
-
-    /**
-     * Especialidades do profissional da Curciol ligado ao atendente do APChat (apchat_usuario -> pessoa do usuario),
-     * em ordem alfabetica, separadas por virgula. Sem ligacao ou sem especialidade: ''.
-     */
-    public static function especialidadesDoAtendente(?int $apchatUsuarioId): string
-    {
-        if (!$apchatUsuarioId) { return ''; }
-        return self::especialidades('a' . $apchatUsuarioId, 'JOIN apchat_usuario au ON au.system_user_id = p.system_users_id WHERE au.apchat_usuario_id = ?', $apchatUsuarioId);
-    }
 
     /** Especialidades cadastradas na pessoa do profissional (atendimento avulso da Curciol, que nao tem agendamento). */
     public static function especialidadesDoProfissional(?int $pessoaId): string

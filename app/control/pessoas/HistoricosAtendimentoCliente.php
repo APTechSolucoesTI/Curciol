@@ -45,32 +45,24 @@ class HistoricosAtendimentoCliente extends TPage
         $this->atendimento_cliente_id_list->style = 'width:100%';
         $this->atendimento_cliente_id_list->disableDefaultClick();
 
-        $action_onShow = new TDataGridAction(array('AtendimentoFormView', 'onShow'));
-        $action_onShow->setUseButton(false);
-        $action_onShow->setButtonClass('btn btn-default btn-sm');
-        $action_onShow->setLabel("Visualizar");
-        $action_onShow->setImage('fas:search #2196F3');
-        $action_onShow->setField('id');
-
-        $action_onShow->setParameter('key', '{id}');
-        $action_onShow->setDisplayCondition(function ($object) { return empty($object->ticket_id); });
-        $this->atendimento_cliente_id_list->addAction($action_onShow);
-
-        // APChat (10/11/2026): ticket fechado do APChat abre so a conversa, com "Abrir no APChat"
-        $action_ticket = new TDataGridAction(['ApchatTicketView', 'onShow']);
-        $action_ticket->setUseButton(false);
-        $action_ticket->setButtonClass('btn btn-default btn-sm');
-        $action_ticket->setLabel('Ver conversa');
-        $action_ticket->setImage('fas:search #2196F3');
-        $action_ticket->setField('ticket_id');
-        $action_ticket->setParameter('key', '{ticket_id}');
-        $action_ticket->setParameter('pessoa_id', '{pessoa_id}');
-        $action_ticket->setDisplayCondition(function ($object) { return !empty($object->ticket_id); });
-        $this->atendimento_cliente_id_list->addAction($action_ticket);
+        // 11/11/2026: uma acao so (uma coluna, lupa alinhada a esquerda): onAbrir abre o atendimento da Curciol ou, se a linha for
+        // um ticket do APChat, so a conversa (com "Abrir no APChat")
+        $action_abrir = new TDataGridAction([__CLASS__, 'onAbrir']);
+        $action_abrir->setUseButton(false);
+        $action_abrir->setButtonClass('btn btn-default btn-sm');
+        $action_abrir->setLabel('Visualizar');
+        $action_abrir->setImage('fas:search #2196F3');
+        $action_abrir->setField('id');
+        $action_abrir->setParameter('key', '{id}');
+        $action_abrir->setParameter('ticket_id', '{ticket_id}');
+        $action_abrir->setParameter('pessoa_id', '{pessoa_id}');
+        $action_abrir->setParameter('static', '1');
+        $this->atendimento_cliente_id_list->addAction($action_abrir);
 
         // 11/11/2026: atendimentos da Curciol e tickets do APChat com as mesmas colunas (AtendimentoTimeLine::prepararAtendimento e
-        // ticketsDoWhatsapp); Profissional do ticket = atendente atribuido; campo sem valor fica vazio
+        // ticketsDoWhatsapp); Profissional do ticket = atendente atribuido; campo sem valor fica vazio; ID = do atendimento ou do ticket
         $this->atendimento_cliente_id_list->addQuickColumn('Tipo', 'tipo', 'left');
+        $this->atendimento_cliente_id_list->addQuickColumn('ID', 'id_texto', 'left');
         $this->atendimento_cliente_id_list->addQuickColumn('Início', 'inicio_texto', 'left');
         $this->atendimento_cliente_id_list->addQuickColumn('Fim', 'fim_texto', 'left');
         $this->atendimento_cliente_id_list->addQuickColumn('Profissional', 'profissional_texto', 'left', '25%');
@@ -136,8 +128,20 @@ class HistoricosAtendimentoCliente extends TPage
     }
 
     public function onShow($param = null)
-    {     
+    {
 
+    }
+
+    /** Lupa da lista (11/11/2026): ticket do APChat abre a conversa; atendimento da Curciol abre o atendimento. */
+    public static function onAbrir($param = null)
+    {
+        $ticket = (int) ($param['ticket_id'] ?? 0);
+        if ($ticket > 0)
+        {
+            AdiantiCoreApplication::loadPage('ApchatTicketView', 'onShow', ['key' => $ticket, 'pessoa_id' => (int) ($param['pessoa_id'] ?? 0)]);
+            return;
+        }
+        AdiantiCoreApplication::loadPage('AtendimentoFormView', 'onShow', ['key' => (int) ($param['key'] ?? 0)]);
     }
 
     public static function addAtendimentoAvulso($param = null) 

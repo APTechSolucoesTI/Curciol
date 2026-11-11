@@ -11,15 +11,18 @@ class ApchatConversaHtml
                     'sticker' => 'figurinha', 'location' => 'localização', 'vcard' => 'contato', 'contactmessage' => 'contato'];
     const CORES = ['#2e7d32', '#6a1b9a', '#c62828', '#ef6c00', '#00838f', '#283593', '#ad1457', '#4e342e', '#558b2f', '#0277bd'];
 
-    /** @param array $opcoes ['contato' => nome do cliente no APChat] */
+    /**
+     * @param array $opcoes ['contato' => nome do cliente no APChat, 'tela' => true: a conversa vai ate o fim da tela (tela do ticket)]
+     * As ultimas mensagens ficam embaixo e a rolagem comeca no fim (coluna invertida por fora, trilha normal por dentro).
+     */
     public static function html(array $mensagens, array $opcoes = []): string
     {
         if (!$mensagens)
         {
-            return self::estilo() . '<div class="apc-conversa"><div class="apc-sep">Nenhuma mensagem com este contato.</div></div>';
+            return self::estilo() . self::abrir($opcoes) . '<div class="apc-sep">Nenhuma mensagem com este contato.</div>' . self::fechar($opcoes);
         }
         $contato = trim((string) ($opcoes['contato'] ?? ''));
-        $html = self::estilo() . '<div class="apc-conversa">';
+        $html = self::estilo() . self::abrir($opcoes);
         $ticket = null;
         $dia = null;
         foreach ($mensagens as $m)
@@ -38,7 +41,22 @@ class ApchatConversaHtml
             }
             $html .= self::mensagem($m, $contato, $quando);
         }
-        return $html . '</div>';
+        return $html . self::fechar($opcoes);
+    }
+
+    private static function abrir(array $opcoes): string
+    {
+        return '<div class="apc-conversa' . (!empty($opcoes['tela']) ? ' apc-conversa-tela' : '') . '"><div class="apc-trilha">';
+    }
+
+    /** Fecha a conversa; na tela do ticket, ajusta a altura ate o fim da janela (e de novo ao redimensionar). */
+    private static function fechar(array $opcoes): string
+    {
+        if (empty($opcoes['tela'])) { return '</div></div>'; }
+        return '</div></div><script>(function(){var ajustar=function(){var l=document.querySelectorAll(".apc-conversa-tela");if(!l.length){return;}'
+             . 'var c=l[l.length-1];c.style.height=Math.max(220,window.innerHeight-c.getBoundingClientRect().top-14)+"px";};'
+             . 'setTimeout(ajustar,30);setTimeout(ajustar,400);if(window.__apcTela){window.removeEventListener("resize",window.__apcTela);}'
+             . 'window.__apcTela=ajustar;window.addEventListener("resize",ajustar);})();</script>';
     }
 
     /** Hoje, Ontem ou a data. */
@@ -200,7 +218,9 @@ class ApchatConversaHtml
     public static function estilo(): string
     {
         return '<style>
-.apc-conversa{background:#efeae2;padding:12px 14px;border-radius:6px;display:flex;flex-direction:column;gap:8px;max-height:65vh;overflow:auto;font-size:13px;line-height:1.35}
+.apc-conversa{background:#efeae2;padding:12px 14px;border-radius:6px;display:flex;flex-direction:column-reverse;max-height:65vh;overflow:auto;font-size:13px;line-height:1.35}
+.apc-trilha{display:flex;flex-direction:column;gap:8px}
+.apc-conversa-tela{max-height:none;height:calc(100vh - 170px);min-height:220px}
 .apc-linha{display:flex;align-items:flex-end;gap:8px}
 .apc-enviada{justify-content:flex-end}
 .apc-av{width:30px;height:30px;border-radius:50%;color:#fff;font-size:11px;font-weight:600;display:flex;align-items:center;justify-content:center;flex:0 0 30px}

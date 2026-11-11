@@ -175,7 +175,8 @@ Tipo: <b>{tipo_atendimento->nome}</b>";
             $o->inicio_texto = self::dataHora($o->dt_inicio);
             $o->fim_texto = self::dataHora($o->dt_final);
             $o->profissional_texto = $h($t['atribuido']);
-            $o->especialidade_texto = $h($t['especialidade']);
+            $o->id_texto = (string) $t['id'];
+            $o->especialidade_texto = ''; // ticket do APChat nao tem especialidade (11/11/2026)
             $o->fila_texto = $h($t['fila']);
             $o->atendimento_historico_historico_to_string = ''; // na lista so o atribuido; todos aparecem ao abrir o ticket
             // linha do tempo: so as linhas com valor (sem traco)
@@ -183,7 +184,6 @@ Tipo: <b>{tipo_atendimento->nome}</b>";
                 $t['canal'] !== '' ? 'Canal: <b>' . $h($t['canal']) . '</b>' : '',
                 $t['fila'] !== '' ? 'Fila: <b>' . $h($t['fila']) . '</b>' : '',
                 $t['profissionais'] ? 'Profissional: <b>' . $h(implode(', ', $t['profissionais'])) . '</b>' : '',
-                $t['especialidade'] !== '' ? 'Especialidade: <b>' . $h($t['especialidade']) . '</b>' : '',
                 'Início: <b>' . $o->inicio_texto . '</b> · Fim: <b>' . $o->fim_texto . '</b>',
             ], 'strlen'));
             $lista[] = $o;
@@ -201,6 +201,7 @@ Tipo: <b>{tipo_atendimento->nome}</b>";
         $a->ticket_id = 0;
         $a->pessoa_id = $a->cliente_id;
         $a->tipo = 'Atendimento';
+        $a->id_texto = (string) $a->id;
         $a->inicio_texto = self::dataHora($a->dt_inicio);
         $a->fim_texto = self::dataHora($a->dt_final);
         $h = function ($v) { return htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8'); };

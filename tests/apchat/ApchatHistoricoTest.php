@@ -1,7 +1,7 @@
 <?php
 // tests/apchat/ApchatHistoricoTest.php
 // Historico do WhatsApp no cadastro do cliente (10/11/2026): numero do contato principal e dos auxiliares (enquanto nenhum outro
-// cliente tiver o numero como principal); so tickets fechados, ordem pelo encerramento; atribuido = atendente do ticket; profissionais = ele e quem respondeu; especialidade do profissional ligado; o
+// cliente tiver o numero como principal); so tickets fechados, ordem pelo encerramento; atribuido = atendente do ticket; profissionais = ele e quem respondeu; ticket sem especialidade; o
 // atendente do ticket; conversa so com texto e so do proprio cliente; botao "Abrir no APChat". APChat falso.
 require __DIR__ . '/../bootstrap.php';
 if (!class_exists('TApplication')) { class TApplication extends AdiantiCoreApplication {} }
@@ -105,7 +105,7 @@ try
     igual('atribuido = o atendente do ticket (nao quem encerrou)', 'Atendente Um', $t10['atribuido']);
     igual('todos os atendentes', ['Atendente Um', 'Atendente Dois'], $t10['atendentes']);
     igual('profissionais: o atribuido e quem respondeu, sem repetir', ['Atendente Um', 'Atendente Dois'], $t10['profissionais']);
-    igual('especialidade: do profissional da Curciol ligado ao atendente atribuido', $espTexto, $t10['especialidade']);
+    ok('ticket do APChat sem especialidade, mesmo com profissional ligado que tem especialidade (11/11 tarde)', ($t10['especialidade'] ?? '') === '');
     ok('canal, fila, abertura e encerramento', $t10['canal'] === 'Curciol - Oficial' && $t10['fila'] === 'Fila Um' && $t10['fechado_em'] === '2026-11-05 10:00:00' && $t10['aberto_em'] !== '');
 
     // homologacao (11/11/2026): 'historico_somente_numeros' no app/config/apchat.php limita o historico a esses numeros
@@ -152,18 +152,37 @@ try
     ok('ticket: HTML da mensagem escapado', strpos($v, '<script>alert(1)') === false && strpos($v, '&lt;script&gt;alert(1)') !== false);
     ok('ticket: visto azul na mensagem lida', strpos($v, 'apc-lida') !== false);
     ok('ticket: separador de dia', strpos($v, '06/11/2026') !== false);
+    ok('ticket: conversa ate o fim da tela, com as ultimas mensagens embaixo', strpos($v, 'apc-conversa apc-conversa-tela') !== false && strpos($v, 'innerHeight') !== false
+        && strpos($v, 'apc-trilha') !== false);
 
     $h = saida(function () use ($a) { (new HistoricosAtendimentoCliente(['key' => $a]))->show(); });
     ok('historico do cliente: abre com atendimento da Curciol e tickets juntos (sem erro de ticket_id)', strpos($h, 'não existe ou contém') === false && strpos($h, '>Atendimento<') !== false, substr($h, 0, 300));
     ok('historico: colunas Tipo, Inicio, Fim, Profissional, Especialidade e Fila', strpos($h, '>Início<') !== false && strpos($h, '>Fim<') !== false && strpos($h, '>Fila<') !== false
         && strpos($h, '>Data<') === false, substr($h, 0, 300));
     ok('historico: ticket como APChat, sem icone do WhatsApp', strpos($h, 'APChat') !== false && strpos($h, 'fa-whatsapp') === false);
-    ok('historico: ticket com inicio, fim, atribuido, especialidade e fila', strpos($h, '05/11/2026 08:00') !== false && strpos($h, '05/11/2026 10:00') !== false
-        && strpos($h, 'Atendente Um') !== false && strpos($h, $espTexto) !== false && strpos($h, 'Fila Um') !== false);
     ok('historico: na lista so o atribuido (quem so respondeu nao aparece)', strpos($h, 'Atendente Dois') === false);
-    ok('historico: atendimento da Curciol com inicio, fim, profissional e especialidade do profissional', strpos($h, '06/11/2026 09:00') !== false && strpos($h, '06/11/2026 09:30') !== false
-        && strpos($h, MARCA_HIST . ' PROF') !== false);
     ok('historico: sem traco', strpos($h, '—') === false);
+    // 11/11/2026 (tarde): coluna ID entre Tipo e Inicio; uma coluna so de acao (lupa alinhada a esquerda); ticket sem especialidade
+    preg_match_all('#<tr popover[^>]*>(.*?)</tr>#s', $h, $trs);
+    $linhas = [];
+    foreach ($trs[1] as $tr)
+    {
+        preg_match_all('#<td[^>]*class="tdatagrid_cell( action)?"[^>]*>(.*?)</td>#s', $tr, $tds, PREG_SET_ORDER);
+        $acoes = array_values(array_filter($tds, function ($td) { return $td[1] === ' action'; }));
+        $dados = array_values(array_map(function ($td) { return trim(strip_tags($td[2])); }, array_filter($tds, function ($td) { return $td[1] === ''; })));
+        $linhas[$dados[1] ?? ''] = ['acoes' => count($acoes), 'acao' => $acoes[0][2] ?? '', 'dados' => $dados];
+    }
+    $atend = (int) q("SELECT id FROM atendimento WHERE cliente_id = {$a} ORDER BY id DESC LIMIT 1")[0]['id'];
+    ok('historico: cabecalho Tipo, ID, Inicio, Fim, Profissional, Especialidade, Fila nessa ordem', preg_match('#>Tipo<.*>ID<.*>Início<.*>Fim<.*>Profissional<.*>Especialidade<.*>Fila<#s', $h) === 1);
+    igual('historico: linha do ticket #10 (ID, inicio, fim, atribuido, sem especialidade, fila)', ['APChat', '10', '05/11/2026 08:00', '05/11/2026 10:00', 'Atendente Um', '', 'Fila Um'], $linhas['10']['dados'] ?? null);
+    igual('historico: linha do atendimento da Curciol (especialidade do profissional)', ['Atendimento', (string) $atend, '06/11/2026 09:00', '06/11/2026 09:30', MARCA_HIST . ' PROF', $espTexto, ''],
+          $linhas[(string) $atend]['dados'] ?? null);
+    ok('historico: uma coluna so de acao em todas as linhas, com a lupa', count($linhas) === 5 && count(array_filter($linhas, function ($l) { return $l['acoes'] === 1 && strpos($l['acao'], 'fa-search') !== false; })) === 5,
+       json_encode(array_map(function ($l) { return $l['acoes']; }, $linhas)));
+    ok('historico: a acao abre pelo mesmo metodo (ticket ou atendimento)', strpos($linhas['10']['acao'] ?? '', 'method=onAbrir') !== false && strpos($linhas[(string) $atend]['acao'] ?? '', 'method=onAbrir') !== false);
+    $abrir = function (array $p) { ob_start(); HistoricosAtendimentoCliente::onAbrir($p); return ob_get_clean(); };
+    ok('abrir ticket: carrega a conversa do ticket', strpos($abrir(['key' => 'w10', 'ticket_id' => 10, 'pessoa_id' => $a]), 'ApchatTicketView') !== false);
+    ok('abrir atendimento: carrega o atendimento', strpos($abrir(['key' => $atend, 'ticket_id' => 0, 'pessoa_id' => $a]), 'AtendimentoFormView') !== false);
     $tl = saida(function () use ($a) { (new AtendimentoTimeLine(['cliente_id' => $a, 'target_container' => 'x']))->show(); });
     ok('timeline do cliente: tickets do APChat', strpos($tl, 'APChat · Ticket #10') !== false && strpos($tl, 'APChat · Ticket #11') !== false && strpos($tl, 'Ticket #12') === false, substr($tl, 0, 300));
     ok('timeline: sem traco e sem WhatsApp', strpos($tl, '—') === false && strpos($tl, 'fa-whatsapp') === false);
