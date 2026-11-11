@@ -51,18 +51,19 @@ class ApchatConversaHtml
 
     /**
      * Fecha a conversa; na tela do ticket, ajusta a altura ate o fim da janela (e de novo ao redimensionar). So a conversa rola:
-     * depois de ajustar, o que ainda sobrar na rolagem do painel (espacamento do formulario abaixo dela) sai da altura da conversa.
+     * depois de ajustar, o que ainda sobrar na rolagem do painel onde a tela esta (o rolavel mais proximo: o painel lateral;
+     * nunca a pagina de tras, que tem a rolagem dela) sai da altura da conversa.
      */
     private static function fechar(array $opcoes): string
     {
         if (empty($opcoes['tela'])) { return '</div></div>'; }
         return '</div></div><script>(function(){'
-             . 'var rolaveis=function(c){var r=[],p=c.parentElement;while(p){var o=getComputedStyle(p).overflowY;'
-             . 'if(o==="auto"||o==="scroll"||p===document.documentElement){r.push(p);}p=p.parentElement;}return r;};'
+             . 'var painel=function(c){var p=c.parentElement;while(p&&p!==document.body&&p!==document.documentElement){var o=getComputedStyle(p).overflowY;'
+             . 'if(o==="auto"||o==="scroll"){return p;}p=p.parentElement;}return null;};'
              . 'var ajustar=function(){var l=document.querySelectorAll(".apc-conversa-tela");if(!l.length){return;}var c=l[l.length-1];'
-             . 'var ps=rolaveis(c);ps.forEach(function(p){p.scrollTop=0;});'
+             . 'var p=painel(c);if(p){p.scrollTop=0;}'
              . 'var h=Math.max(220,window.innerHeight-c.getBoundingClientRect().top-8);c.style.height=h+"px";'
-             . 'ps.forEach(function(p){var sobra=p.scrollHeight-p.clientHeight;if(sobra>0){h=Math.max(220,h-sobra);c.style.height=h+"px";}});};'
+             . 'if(p){var sobra=p.scrollHeight-p.clientHeight;if(sobra>0){h=Math.max(220,h-sobra);c.style.height=h+"px";}}};'
              . 'setTimeout(ajustar,30);setTimeout(ajustar,400);if(window.__apcTela){window.removeEventListener("resize",window.__apcTela);}'
              . 'window.__apcTela=ajustar;window.addEventListener("resize",ajustar);})();</script>';
     }
