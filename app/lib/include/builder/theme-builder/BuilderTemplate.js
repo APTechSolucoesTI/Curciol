@@ -650,8 +650,9 @@ window.CurciolAbrirApp = function(link, nome) {
         window.removeEventListener('blur', marcar);
         document.removeEventListener('visibilitychange', oculto);
         if (!abriu && document.hasFocus()) {
-            var texto = 'O ' + nome + ' não abriu neste computador. Instale o app do ' + nome + ': abra o ' + nome + ' no Chrome, Edge ou Brave e use o botão '
-                      + '"Instalar app" na barra de endereço. Depois clique de novo aqui. Se o navegador perguntar se pode abrir o ' + nome + ', escolha Abrir e marque para lembrar.';
+            var texto = 'O ' + nome + ' não abriu neste computador. Instale o app do ' + nome + ': abra o ' + nome + ' no Chrome, Edge ou Brave e clique no botão '
+                      + '"Instalar" da barra de endereço (o atalho criado pelo menu, em "Criar atalho" ou "Salvar página como app", não recebe os links da Curciol: '
+                      + 'se instalou assim, remova esse atalho e instale pelo botão). Depois clique de novo aqui. Se o navegador perguntar se pode abrir o ' + nome + ', escolha Abrir e marque para lembrar.';
             if (typeof __adianti_warning === 'function') { __adianti_warning(nome, texto); } else { alert(texto); }
         }
     }, 2500);

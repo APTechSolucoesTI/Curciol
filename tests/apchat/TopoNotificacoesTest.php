@@ -52,7 +52,7 @@ ok('JS: so redesenha a parte cuja assinatura mudou', strpos($js, "data('assinatu
 ok('JS: aba escondida nao pergunta nada (inclusive o sino); ao voltar, tudo na hora e o APMail fresco', strpos($js, 'topoPendente') !== false && strpos($js, 'updateTopo(true)') !== false);
 ok('JS: os tres intervalos antigos sairam', strpos($js, 'setInterval( BuilderTemplate.updateMessagesMenu') === false && strpos($js, 'setInterval( BuilderTemplate.updateNotificationsMenu') === false
     && strpos($js, 'setInterval(BuilderTemplate.updateMailMenu') === false);
-ok('JS: versao nova do arquivo no layout', strpos((string) file_get_contents('app/templates/theme-builder/libraries_builder.html'), 'BuilderTemplate.js?appver=523988') !== false);
+ok('JS: versao nova do arquivo no layout', strpos((string) file_get_contents('app/templates/theme-builder/libraries_builder.html'), 'BuilderTemplate.js?appver=523989') !== false);
 ok('JS: um balao por vez (mouse num icone fecha na hora o balao do outro)', strpos($js, "on('mouseenter', '.fast-drop'") !== false
     && strpos($js, "closest('#envelope_messages').length) { fecharBalao(); }") !== false && strpos($js, "closest('#envelope_mail').length) { fecharMail(); }") !== false);
 
