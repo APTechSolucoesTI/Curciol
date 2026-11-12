@@ -5,6 +5,8 @@
  *   pelo e-mail, senao pelo nome (ApchatUsuarioService);
  * - APMail: o e-mail de usuario do APMail (comeca com o do cadastro) e as notificacoes do envelope; "Conferir no APMail" consulta
  *   cada e-mail (so leitura) e mostra na Verificacao APMail se o APMail o reconhece.
+ * - 12/11/2026: um botao "Ligar automaticamente" so (APChat como antes + APMail: ApmailUsuarioService::ligarAutomatico testa o e-mail
+ *   escolhido, o do cadastro e o login); a Verificacao APMail mostra a situacao gravada (com a data) sem precisar conferir de novo.
  * So o grupo Admin (migracao 2026-11-10-apmail.sql). Endereco e token das integracoes: Escritorio > Configuracoes.
  */
 class ApchatUsuarioList extends TPage
@@ -95,7 +97,7 @@ class ApchatUsuarioList extends TPage
             $avisosMail->setUseSwitch(true, 'blue');
             $avisosMail->setValue(!$m || $m->avisos !== 'N' ? 'S' : null);
             $situacao = new TElement('span');
-            $situacao->add($conferir[$id] ?? '');
+            $situacao->add($conferir[$id] ?? self::situacaoGravada($m ? $m->situacao : null, $m ? $m->conferido_em : null));
 
             $row = $this->form->addFields([new TLabel(htmlspecialchars((string) $u['name'], ENT_QUOTES, 'UTF-8'))], [$combo], [$avisos], [$email], [$avisosMail], [$situacao]);
             $row->layout = self::LAYOUT;
@@ -103,10 +105,7 @@ class ApchatUsuarioList extends TPage
 
         $btn = $this->form->addAction('Salvar', new TAction([__CLASS__, 'onSalvar'], ['static' => 1]), 'fas:save #ffffff');
         $btn->addStyleClass('btn-primary');
-        if ($atendentes !== null)
-        {
-            $this->form->addAction('Ligar automaticamente (APChat)', new TAction([__CLASS__, 'onLigarAutomatico'], ['static' => 1]), 'fas:magic #2196F3');
-        }
+        $this->form->addAction('Ligar automaticamente', new TAction([__CLASS__, 'onLigarAutomatico'], ['static' => 1]), 'fas:magic #2196F3');
         $this->form->addAction('Conferir no APMail', new TAction([__CLASS__, 'onConferirApmail'], ['static' => 1]), 'fas:check-double ' . LogoSistemaService::COR_APMAIL);
 
         $container = new TVBox;
@@ -148,6 +147,16 @@ class ApchatUsuarioList extends TPage
             }
         }
         return $r;
+    }
+
+    /** Coluna Verificacao APMail com a ultima conferencia gravada (S reconhecido, N nao reconhecido). */
+    public static function situacaoGravada(?string $situacao, ?string $quando): string
+    {
+        if ($situacao !== 'S' && $situacao !== 'N') { return ''; }
+        $data = $quando ? date('d/m/Y H:i', strtotime($quando)) : '';
+        return $situacao === 'S'
+            ? '<i class="fas fa-check-circle" style="color:#4CAF50" title="Reconhecido no APMail' . ($data ? ' em ' . $data : '') . '"></i> <small style="color:#888">' . $data . '</small>'
+            : '<i class="fas fa-times-circle" style="color:#e53935" title="Não reconhecido no APMail' . ($data ? ' em ' . $data : '') . '"></i> <small style="color:#888">' . $data . '</small>';
     }
 
     public static function onConferirApmail($param = null)
@@ -213,10 +222,26 @@ class ApchatUsuarioList extends TPage
     {
         try
         {
+            $partes = [];
+            // APChat: so com o banco do APChat respondendo
+            if (ApchatBancoService::configurado() && ApchatBancoService::disponivel())
+            {
+                TTransaction::open('escritorio');
+                $n = ApchatUsuarioService::ligarAutomatico();
+                TTransaction::close();
+                $partes[] = 'APChat: ' . ($n ? "{$n} usuário(s) ligado(s) pelo e-mail ou pelo nome" : 'nenhum novo');
+            }
+            else
+            {
+                $partes[] = 'APChat: banco do APChat não respondeu';
+            }
+            // APMail: testa o e-mail escolhido, o do cadastro e o login de cada usuario
             TTransaction::open('escritorio');
-            $n = ApchatUsuarioService::ligarAutomatico();
+            $m = ApmailUsuarioService::ligarAutomatico();
             TTransaction::close();
-            TToast::show('success', $n ? "{$n} usuário(s) ligado(s) pelo e-mail ou pelo nome" : 'Nenhum usuário novo para ligar', 'topRight', 'fas:magic');
+            ApmailEnvelopeService::limparCache();
+            $partes[] = "APMail: {$m['ligados']} reconhecido(s), {$m['nao_reconhecidos']} não reconhecido(s)";
+            TToast::show('success', implode('<br>', $partes), 'topRight', 'fas:magic');
             AdiantiCoreApplication::loadPage(__CLASS__, 'onReload');
         }
         catch (Exception $e)
