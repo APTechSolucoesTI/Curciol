@@ -109,7 +109,7 @@ class ApmailConversaView extends TPage
                  . 'img{max-width:100%;height:auto}table{max-width:100%}.apm-img{color:#888;font-style:italic}'
                  . 'blockquote{border-left:3px solid #d6dbe1;margin:6px 0;padding-left:8px;color:#555}</style></head><body>' . $corpoHtml . '</body></html>';
             $corpo = '<iframe class="apm-quadro" sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox" referrerpolicy="no-referrer" '
-                   . 'onload="try{this.style.height=(this.contentWindow.document.documentElement.scrollHeight+4)+\'px\'}catch(e){}" srcdoc="' . $h($doc) . '"></iframe>';
+                   . 'onload="try{var d=this.contentWindow.document;this.style.height=\'10px\';this.style.height=(Math.max(d.body.scrollHeight,d.documentElement.scrollHeight)+4)+\'px\'}catch(e){}" srcdoc="' . $h($doc) . '"></iframe>';
         }
         else
         {
