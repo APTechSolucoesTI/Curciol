@@ -267,9 +267,11 @@ try {
 $criados = function () { return array_map('intval', array_column(q("SELECT id FROM pessoa WHERE nome LIKE '" . MARCA . "%'"), 'id')); };
 try {
     $base = ['id' => '', 'tipo_pessoa_id' => TipoPessoa::FISICA, 'email' => '', 'cpf_cnpj' => '', 'rg_ie' => ''];
+    // pessoa nova precisa de CPF ou RG/CIN (12/11/2026): um RG/CIN diferente a cada cadastro novo
+    $rgN = 0; $rg = function () use (&$rgN) { return (string) (70000000 + (getmypid() % 100000) * 10 + (++$rgN)); };
 
     // Fornecedor novo: telefone e e-mail viram o contato principal, com o nome da pessoa
-    $s = saida(function () use ($base) { $p = post(['nome' => MARCA . ' FORNECEDOR', 'telefone' => '(19) 99876-0101', 'email' => 'forn@teste.com'] + $base); (new FornecedorForm($p))->onSave($p); });
+    $s = saida(function () use ($base, $rg) { $p = post(['nome' => MARCA . ' FORNECEDOR', 'telefone' => '(19) 99876-0101', 'email' => 'forn@teste.com', 'rg_ie' => $rg()] + $base); (new FornecedorForm($p))->onSave($p); });
     $f = q("SELECT id FROM pessoa WHERE nome = '" . MARCA . " FORNECEDOR'");
     $fid = (int) ($f[0]['id'] ?? 0);
     igual('Fornecedor novo: salvou e criou o principal com telefone, e-mail e nome', [1, ['19998760101', 'forn@teste.com', MARCA . ' FORNECEDOR']],
@@ -279,17 +281,17 @@ try {
         strpos($s, "class=FornecedorForm&method=onEdit&key={$fid}") !== false && strpos($s, 'closeRightPanel') === false, substr($s, -400));
 
     // Fornecedor com telefone invalido: bloqueia e nao grava nada
-    $s = saida(function () use ($base) { $p = post(['nome' => MARCA . ' INVALIDO', 'telefone' => '(19) 8765-432'] + $base); (new FornecedorForm($p))->onSave($p); });
+    $s = saida(function () use ($base, $rg) { $p = post(['nome' => MARCA . ' INVALIDO', 'telefone' => '(19) 8765-432', 'rg_ie' => $rg()] + $base); (new FornecedorForm($p))->onSave($p); });
     ok('Fornecedor com telefone invalido: aviso e nada gravado', strpos(erro($s), 'Telefone inválido') !== false && !q("SELECT id FROM pessoa WHERE nome = '" . MARCA . " INVALIDO'"), erro($s));
 
     // outra pessoa com o mesmo telefone do Fornecedor: salva, mas o numero fica nao principal e o Telefone principal vazio
-    $s = saida(function () use ($base) { $p = post(['nome' => MARCA . ' MESMO TELEFONE', 'telefone' => '(19) 99876-0101'] + $base); (new FornecedorForm($p))->onSave($p); });
+    $s = saida(function () use ($base, $rg) { $p = post(['nome' => MARCA . ' MESMO TELEFONE', 'telefone' => '(19) 99876-0101', 'rg_ie' => $rg()] + $base); (new FornecedorForm($p))->onSave($p); });
     $m = q("SELECT p.telefone, c.telefone AS contato, c.principal FROM pessoa p JOIN pessoa_contato c ON c.pessoa_id = p.id WHERE p.nome = '" . MARCA . " MESMO TELEFONE'");
     igual('telefone que ja e principal de outra pessoa: contato nao principal e Telefone principal vazio', [[null, '19998760101', 'N']], array_map('array_values', $m));
     ok('telefone que ja e principal de outra pessoa: aviso na tela', strpos(avisos($s), MARCA . ' FORNECEDOR') !== false, erro($s) ?: avisos($s));
 
     // Cliente: Dados sem telefone, aba com 2 contatos e o segundo marcado como principal -> Dados recebem telefone e e-mail dele
-    $p = ['nome' => MARCA . ' CLIENTE', 'telefone' => ''] + $base + grade([linha(null, 'CASA', '1932340102', 'N'), linha(null, 'CELULAR', '19998760102', 'S', 'cel@teste.com')]);
+    $p = ['nome' => MARCA . ' CLIENTE', 'telefone' => '', 'rg_ie' => $rg()] + $base + grade([linha(null, 'CASA', '1932340102', 'N'), linha(null, 'CELULAR', '19998760102', 'S', 'cel@teste.com')]);
     $s = saida(function () use ($p) { post($p); (new ClienteForm($p))->onSave($p); });
     $c = q("SELECT id, telefone, email FROM pessoa WHERE nome = '" . MARCA . " CLIENTE'");
     $cid = (int) ($c[0]['id'] ?? 0);
@@ -323,7 +325,7 @@ try {
     ok('Cliente: dois principais na aba bloqueia', strpos(erro($s), 'apenas um contato como principal') !== false, erro($s));
 
     // Cliente com representante legal: o contato dele entra na aba como nao principal; desvinculado, sai
-    $s = saida(function () use ($base) { $p = post(['nome' => MARCA . ' REPRESENTANTE', 'telefone' => '(19) 99876-0150', 'email' => 'rep@teste.com'] + $base); (new FornecedorForm($p))->onSave($p); });
+    $s = saida(function () use ($base, $rg) { $p = post(['nome' => MARCA . ' REPRESENTANTE', 'telefone' => '(19) 99876-0150', 'email' => 'rep@teste.com', 'rg_ie' => $rg()] + $base); (new FornecedorForm($p))->onSave($p); });
     $rid = (int) (q("SELECT id FROM pessoa WHERE nome = '" . MARCA . " REPRESENTANTE'")[0]['id'] ?? 0);
     $rep = (object) ['id' => null, 'descricao' => 'SÓCIO', 'representante_id' => $rid, 'principal' => 'S', '__row__id' => 'brep', '__display__' => (object) []];
     $p = ['id' => $cid, 'nome' => MARCA . ' CLIENTE', 'telefone' => '1932340199', 'email' => 'casa@teste.com'] + $base + grade([linha($casa, 'CASA', '1932340199', 'S', 'casa@teste.com'), linha($cel, 'CELULAR', '19998760102', 'N', 'cel@teste.com')])

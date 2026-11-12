@@ -21,7 +21,7 @@ try {
     ok('existe usuario livre para a fixture', $usuario > 0);
     $_POST = $_REQUEST = $p = ['id' => '', 'nome' => $marca, 'tipo_pessoa_id' => TipoPessoa::FISICA,
         'tipo_profissional_id' => $tipo, 'system_users_id' => $usuario, 'telefone' => '19912340982',
-        'email' => '', 'cpf_cnpj' => '', 'rg_ie' => '', 'registro_profissional' => 'TESTE', 'orgao_registro_profissional' => 'OAB'];
+        'email' => '', 'cpf_cnpj' => '', 'rg_ie' => (string) (60000000 + getmypid() % 1000000), 'registro_profissional' => 'TESTE', 'orgao_registro_profissional' => 'OAB'];
     ob_start(); (new ProfissionalForm($p))->onSave($p); $html = ob_get_clean();
     TTransaction::open('escritorio');
     $st=TTransaction::get()->prepare('SELECT id FROM pessoa WHERE nome=?');$st->execute([$marca]);$id=(int)$st->fetchColumn();TTransaction::close();

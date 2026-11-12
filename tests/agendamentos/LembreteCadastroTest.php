@@ -83,47 +83,66 @@ $agendar = function (int $ag, string $quando, string $texto = 'Lembrete: {$clien
 };
 $vencer = function (int $id) { x("UPDATE mensagem_agendada SET enviar_em = '" . date('Y-m-d H:i:s', strtotime('-1 minute')) . "' WHERE id = {$id}"); };
 $rodar = function () { ob_start(); MensagemAgendadaService::rodada(); return ob_get_clean(); };
-$campoCompletos = ['telefone' => '19912345000', 'cpf_cnpj' => '11144477735', 'rg_ie' => '123', 'orgao_emissor' => 'SSP', 'dt_nascimento_abertura' => '1980-01-01'];
+$ids = q('SELECT (SELECT min(id) FROM nacionalidade) n, (SELECT min(id) FROM sexo) s, (SELECT min(id) FROM estado_civil) e')[0];
+$campoCompletos = ['telefone' => '19912345000', 'cpf_cnpj' => '11144477735', 'rg_ie' => '12.345.678-9', 'orgao_emissor' => 'SSP', 'dt_nascimento_abertura' => '1980-01-01',
+                   'nacionalidade_id' => (int) $ids['n'], 'sexo_id' => (int) $ids['s'], 'estado_civil_id' => (int) $ids['e']];
 $bloqueioAgenda = null;
+// regra de 12/11/2026: PF = nome, data de nascimento, CPF, RG/CIN, orgao emissor, nacionalidade, sexo, estado civil, um endereco e um contato
+// (telefone ou e-mail, principal ou nao); PJ = nome, CNPJ, data de abertura, representante legal, um endereco e um contato
+$pfTudo = ['data de nascimento', 'CPF', 'RG/CIN', 'órgão emissor do RG/CIN', 'nacionalidade', 'sexo', 'estado civil', 'endereço', 'contato (telefone ou e-mail)'];
 
 try {
-    // ---------- pendencias do cadastro: os mesmos campos da regra antiga ----------
+    // ---------- pendencias do cadastro ----------
     $pfVazia = $cliente('PF VAZIA');
     TTransaction::open('escritorio');
-    igual('PF vazia: tudo falta', ['telefone', 'endereço principal', 'CPF', 'RG', 'órgão emissor do RG', 'data de nascimento'], AgendamentoService::pendenciasCadastro($pfVazia));
+    igual('PF vazia: tudo falta, na ordem do formulario', $pfTudo, AgendamentoService::pendenciasCadastro($pfVazia));
     TTransaction::close();
 
     $pjVazia = $cliente('PJ VAZIA', [], 2);
     TTransaction::open('escritorio');
-    igual('PJ vazia: os campos de PJ', ['telefone', 'endereço principal', 'CNPJ', 'data de abertura', 'representante legal'], AgendamentoService::pendenciasCadastro($pjVazia));
+    igual('PJ vazia: os campos de PJ', ['CNPJ', 'data de abertura', 'representante legal', 'endereço', 'contato (telefone ou e-mail)'], AgendamentoService::pendenciasCadastro($pjVazia));
     TTransaction::close();
 
-    // sexo, nacionalidade e estado civil nao contam
+    // completa: endereco nao principal tambem vale
     $pfCompleta = $cliente('PF COMPLETA', $campoCompletos);
     TTransaction::open('escritorio');
-    TTransaction::get()->prepare('INSERT INTO pessoa_endereco (pessoa_id, principal, cidade_id, rua, numero, bairro, cep) VALUES (?, ?, (SELECT id FROM cidade ORDER BY id LIMIT 1), ?, ?, ?, ?)')->execute([$pfCompleta, 'S', 'Rua', '1', 'Centro', '13000000']);
-    igual('PF completa: nada falta', [], AgendamentoService::pendenciasCadastro($pfCompleta));
-    // telefone: basta um numero, nos Dados ou em qualquer contato, principal ou nao
-    $semTelefone = ['endereço principal', 'CPF', 'RG', 'órgão emissor do RG', 'data de nascimento'];
+    TTransaction::get()->prepare('INSERT INTO pessoa_endereco (pessoa_id, principal, cidade_id, rua, numero, bairro, cep) VALUES (?, ?, (SELECT id FROM cidade ORDER BY id LIMIT 1), ?, ?, ?, ?)')->execute([$pfCompleta, 'N', 'Rua', '1', 'Centro', '13000000']);
+    igual('PF completa (endereco nao principal vale): nada falta', [], AgendamentoService::pendenciasCadastro($pfCompleta));
+    TTransaction::close();
+    // nacionalidade, sexo e estado civil agora contam
+    $parcial = $campoCompletos; unset($parcial['sexo_id'], $parcial['estado_civil_id']);
+    $pfSemSexo = $cliente('PF SEM SEXO', $parcial);
+    TTransaction::open('escritorio');
+    TTransaction::get()->prepare('INSERT INTO pessoa_endereco (pessoa_id, principal, cidade_id, rua, numero, bairro, cep) VALUES (?, ?, (SELECT id FROM cidade ORDER BY id LIMIT 1), ?, ?, ?, ?)')->execute([$pfSemSexo, 'S', 'Rua', '1', 'Centro', '13000000']);
+    igual('PF sem sexo e estado civil: os dois faltam', ['sexo', 'estado civil'], AgendamentoService::pendenciasCadastro($pfSemSexo));
+    TTransaction::close();
+    // contato: telefone ou e-mail, nos Dados ou em qualquer contato, principal ou nao
+    $semContato = array_values(array_diff($pfTudo, ['contato (telefone ou e-mail)']));
     $contato = function (int $pessoa, ?string $telefone, ?string $email, string $principal = 'N') {
+        TTransaction::open('escritorio');
         TTransaction::get()->prepare('INSERT INTO pessoa_contato (pessoa_id, telefone, email, principal) VALUES (?, ?, ?, ?)')->execute([$pessoa, $telefone, $email, $principal]);
+        TTransaction::close();
     };
+    $pend = function (int $id) { TTransaction::open('escritorio'); $r = AgendamentoService::pendenciasCadastro($id); TTransaction::close(); return $r; };
+    $pfZerado = $cliente('PF ZERADO');
+    $contato($pfZerado, '0', null);
+    igual('contato: numero zerado nao conta', $pfTudo, $pend($pfZerado));
+    $pfEmail = $cliente('PF EMAIL');
+    $contato($pfEmail, null, 'teste@example.invalid');
+    igual('contato: so com e-mail conta (nao principal)', $semContato, $pend($pfEmail));
     $pfContato = $cliente('PF CONTATO');
-    $contato($pfContato, null, 'teste@example.invalid');
-    igual('telefone: contato so com e-mail nao conta', array_merge(['telefone'], $semTelefone), AgendamentoService::pendenciasCadastro($pfContato));
-    $contato($pfContato, '0', null);
-    igual('telefone: numero zerado nao conta', array_merge(['telefone'], $semTelefone), AgendamentoService::pendenciasCadastro($pfContato));
     $contato($pfContato, '19912345002', null);
-    igual('telefone: contato nao principal conta', $semTelefone, AgendamentoService::pendenciasCadastro($pfContato));
+    igual('contato: telefone nao principal conta', $semContato, $pend($pfContato));
     $pfPrincipal = $cliente('PF PRINCIPAL');
     $contato($pfPrincipal, '19912345003', null, 'S');
-    igual('telefone: contato principal conta', $semTelefone, AgendamentoService::pendenciasCadastro($pfPrincipal));
+    igual('contato: principal conta', $semContato, $pend($pfPrincipal));
     $pfDados = $cliente('PF DADOS', ['telefone' => '19912345004']);
-    igual('telefone: nos Dados conta, sem contato', $semTelefone, AgendamentoService::pendenciasCadastro($pfDados));
+    igual('contato: telefone nos Dados conta, sem contato', $semContato, $pend($pfDados));
 
     igual('por extenso: um campo', 'CPF', AgendamentoService::camposPorExtenso(['CPF']));
-    igual('por extenso: dois campos', 'CPF e RG', AgendamentoService::camposPorExtenso(['CPF', 'RG']));
-    igual('por extenso: virgula e "e" no ultimo', 'telefone, CPF e RG', AgendamentoService::camposPorExtenso(['telefone', 'CPF', 'RG']));
+    igual('por extenso: dois campos', 'CPF e RG/CIN', AgendamentoService::camposPorExtenso(['CPF', 'RG/CIN']));
+    igual('por extenso: virgula e "e" no ultimo', 'sexo, CPF e RG/CIN', AgendamentoService::camposPorExtenso(['sexo', 'CPF', 'RG/CIN']));
+    TTransaction::open('escritorio');
     igual('varios: so quem tem pendencia', [$pfVazia, $pjVazia], array_keys(AgendamentoService::pendenciasCadastroDe([$pfVazia, $pjVazia, $pfCompleta])));
     TTransaction::close();
 
@@ -134,12 +153,12 @@ try {
     igual('confirmou: atendimento criado', 1, count(q("SELECT 1 FROM atendimento WHERE agendamento_id = {$agIncompleto}")));
 
     $s = saida(function () use ($agIncompleto) { AgendamentoFormView::onIniciar(['key' => $agIncompleto]); });
-    ok('Iniciar bloqueado: diz o que falta, sem a palavra falta', strpos($s, 'Cadastro do cliente incompleto: telefone') !== false && strpos($s, 'órgão emissor do RG e data de nascimento') !== false && strpos($s, 'falta') === false, substr($s, 0, 200));
+    ok('Iniciar bloqueado: diz o que falta, sem a palavra falta', strpos($s, 'Cadastro do cliente incompleto: data de nascimento, CPF, RG/CIN') !== false && strpos($s, 'endereço e contato (telefone ou e-mail)') !== false && strpos($s, 'falta') === false, substr($s, 0, 300));
     igual('Iniciar bloqueado: continua Confirmado', (int) EstadoAgenda::CONFIRMADO, (int) q("SELECT estado_agenda_id e FROM agendamento WHERE id = {$agIncompleto}")[0]['e']);
     ok('Iniciar bloqueado: atendimento nao comeca', q("SELECT dt_inicio FROM atendimento WHERE agendamento_id = {$agIncompleto}")[0]['dt_inicio'] === null);
 
     $html = saida(function () use ($agIncompleto) { (new AgendamentoFormView(['key' => $agIncompleto]))->show(); });
-    ok('tela: mostra o cadastro incompleto e os campos', strpos($html, 'Cadastro incompleto:</b> telefone, endereço principal, CPF, RG, órgão emissor do RG e data de nascimento') !== false);
+    ok('tela: mostra o cadastro incompleto e os campos', strpos($html, 'Cadastro incompleto:</b> data de nascimento, CPF, RG/CIN, órgão emissor do RG/CIN, nacionalidade, sexo, estado civil, endereço e contato (telefone ou e-mail)') !== false);
     ok('tela: botao de completar o cadastro', strpos($html, 'Completar cadastro') !== false && strpos($html, 'onVisualizarCliente') !== false);
     ok('tela: Iniciar desabilitado', preg_match('/onIniciar[^>]*opacity:\.5|opacity:\.5[^>]*onIniciar/', $html) === 1);
 
@@ -301,7 +320,8 @@ try {
     foreach ([$agDuas1, $agDuas2] as $agDuas) {
         ok("duas agendas: {$agDuas} com a borda antes de completar", in_array('agd-incompleto', $doAg($eventos(), $agDuas)['classNames'] ?? [], true));
     }
-    x("UPDATE pessoa SET telefone = '19912345005', cpf_cnpj = '11144477735', rg_ie = '123', orgao_emissor = 'SSP', dt_nascimento_abertura = '1980-01-01' WHERE id = {$pfDuas}");
+    x("UPDATE pessoa SET telefone = '19912345005', cpf_cnpj = '11144477735', rg_ie = '123', orgao_emissor = 'SSP', dt_nascimento_abertura = '1980-01-01',
+           nacionalidade_id = {$campoCompletos['nacionalidade_id']}, sexo_id = {$campoCompletos['sexo_id']}, estado_civil_id = {$campoCompletos['estado_civil_id']} WHERE id = {$pfDuas}");
     x("INSERT INTO pessoa_endereco (pessoa_id, principal, cidade_id, rua, numero, bairro, cep) VALUES ({$pfDuas}, 'S', (SELECT id FROM cidade ORDER BY id LIMIT 1), 'Rua', '1', 'Centro', '13000000')");
     foreach ([$agDuas1, $agDuas2] as $agDuas) {
         $eDuas = $doAg($eventos(), $agDuas);

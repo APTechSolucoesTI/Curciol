@@ -233,7 +233,7 @@ class ProfissionalForm extends TPage
         $row5->layout = [' col-sm-8',' col-sm-4'];
 
         $row6 = $this->form->addContent([new TFormSeparator("", '#333', '18', '#eee')]);
-        $row7 = $this->form->addFields([new TLabel("Data de nascimento:", null, '12px', null, '100%'),$dt_nascimento_abertura],[new TLabel("CPF:", null, '12px', null, '100%'),$cpf_cnpj],[new TLabel("RG:", null, '12px', null, '100%'),$rg_ie],[new TLabel("Órgão emissor:", '#000000', '12px', null, '100%'),$orgao_emissor]);
+        $row7 = $this->form->addFields([new TLabel("Data de nascimento:", null, '12px', null, '100%'),$dt_nascimento_abertura],[new TLabel("CPF:", null, '12px', null, '100%'),$cpf_cnpj],[new TLabel("RG/CIN:", null, '12px', null, '100%'),$rg_ie],[new TLabel("Órgão emissor:", '#000000', '12px', null, '100%'),$orgao_emissor]);
         $row7->layout = [' col-sm-3',' col-sm-3',' col-sm-3',' col-sm-3'];
 
         $row8 = $this->form->addFields([new TLabel("Nacionalidade:", '#000000', '12px', null, '100%'),$nacionalidade_id],[new TLabel("Sexo:", '#000000', '12px', null, '100%'),$sexo_id],[new TLabel("Estado civil:", '#000000', '12px', null, '100%'),$estado_civil_id]);
@@ -653,6 +653,9 @@ class ProfissionalForm extends TPage
                 $data->tipo_pessoa_id = (strlen($data->cpf_cnpj) == 11) ? TipoPessoa::FISICA : TipoPessoa::JURIDICA;
             }
 
+            // 12/11/2026: cadastro novo salva com nome e CPF ou RG/CIN (PF) / CNPJ (PJ); o resto so e exigido para iniciar atendimento de agendamento
+            PessoaDocumentoService::exigirIdentificacaoNovo($data->id ?? null, $data->tipo_pessoa_id ?? null, $data->cpf_cnpj ?? '', $data->rg_ie ?? '');
+
             $idAux = $data->id ?? -1;
             //CPF/CNPJ
             if($data->cpf_cnpj){
@@ -702,10 +705,10 @@ class ProfissionalForm extends TPage
                                                     ->count();
                     $pageParam['pessoa_id'] = $searchCPF_CNPJ->id;
                     if($verificarGrupoAtual>0){
-                        new TQuestion("Este RG já está cadastrado como profissional. Deseja editar o cadastro existente?", new TAction([__CLASS__, 'onEditarProfissional'], $pageParam), new TAction([__CLASS__, 'btnNaoTQuestion'], $pageParam));
+                        new TQuestion("Este RG/CIN já está cadastrado como profissional. Deseja editar o cadastro existente?", new TAction([__CLASS__, 'onEditarProfissional'], $pageParam), new TAction([__CLASS__, 'btnNaoTQuestion'], $pageParam));
                         exit;
                     }else{
-                        new TQuestion("Este RG já está cadastrado. Deseja adicionar como profissional?", new TAction([__CLASS__, 'onAdicionarGrupoProfissional'], $pageParam), new TAction([__CLASS__, 'btnNaoTQuestion'], $pageParam));
+                        new TQuestion("Este RG/CIN já está cadastrado. Deseja adicionar como profissional?", new TAction([__CLASS__, 'onAdicionarGrupoProfissional'], $pageParam), new TAction([__CLASS__, 'btnNaoTQuestion'], $pageParam));
                         exit;
                     }
                 }elseif($countCPF_CNPJ>0 && $data->tipo_pessoa_id==TipoPessoa::JURIDICA){

@@ -278,8 +278,12 @@ class AgendamentoService
     }
 
     /**
-     * Campos essenciais que faltam no cadastro do cliente: sem eles o agendamento confirma, mas o atendimento nao inicia.
-     * Telefone: basta um numero, nos Dados ou em qualquer contato, principal ou nao (a normalizacao tirou dos Dados o que estava em conflito).
+     * Campos essenciais que faltam no cadastro do cliente: sem eles o agendamento confirma, mas o atendimento nao inicia
+     * (o atendimento avulso, sem agendamento, nao exige nada). Regra de 12/11/2026, na ordem do formulario:
+     * PF = nome, data de nascimento, CPF, RG/CIN, orgao emissor, nacionalidade, sexo, estado civil, endereco e contato;
+     * PJ = nome, CNPJ, data de abertura, representante legal, endereco e contato.
+     * Endereco: qualquer um, principal ou nao. Contato: um telefone (com algum digito diferente de zero) ou um e-mail, nos Dados
+     * ou em qualquer contato, principal ou nao. O formato de CPF e RG/CIN e conferido ao salvar, nao aqui.
      */
     public static function pendenciasCadastro(int $clienteId): array
     {
@@ -292,25 +296,31 @@ class AgendamentoService
         $ids = array_values(array_unique(array_filter(array_map('intval', $clienteIds))));
         if (!$ids) { return []; }
 
-        $linhas = TTransaction::get()->query("SELECT p.id, p.tipo_pessoa_id, p.cpf_cnpj, p.rg_ie, p.orgao_emissor, p.dt_nascimento_abertura,
-                                                     (COALESCE(p.telefone, '') ~ '[1-9]' OR EXISTS (SELECT 1 FROM pessoa_contato c WHERE c.pessoa_id = p.id AND COALESCE(c.telefone, '') ~ '[1-9]'))::int AS tem_telefone,
-                                                     (EXISTS (SELECT 1 FROM pessoa_endereco e WHERE e.pessoa_id = p.id AND e.principal = 'S'))::int AS tem_endereco,
+        $linhas = TTransaction::get()->query("SELECT p.id, p.tipo_pessoa_id, NULLIF(trim(p.nome), '') AS nome, NULLIF(trim(p.cpf_cnpj), '') AS cpf_cnpj,
+                                                     NULLIF(trim(p.rg_ie), '') AS rg_ie, NULLIF(trim(p.orgao_emissor), '') AS orgao_emissor, p.dt_nascimento_abertura,
+                                                     p.nacionalidade_id, p.sexo_id, p.estado_civil_id,
+                                                     (EXISTS (SELECT 1 FROM pessoa_endereco e WHERE e.pessoa_id = p.id))::int AS tem_endereco,
+                                                     (COALESCE(p.telefone, '') ~ '[1-9]' OR COALESCE(p.email, '') LIKE '%_@_%'
+                                                      OR EXISTS (SELECT 1 FROM pessoa_contato c WHERE c.pessoa_id = p.id
+                                                                    AND (COALESCE(c.telefone, '') ~ '[1-9]' OR COALESCE(c.email, '') LIKE '%_@_%')))::int AS tem_contato,
                                                      (EXISTS (SELECT 1 FROM pessoa_representantes_legais r WHERE r.pessoa_juridica_id = p.id))::int AS tem_representante
-                                                FROM pessoa p WHERE p.id IN (" . implode(',', $ids) . ")")->fetchAll(PDO::FETCH_ASSOC);
+                                                FROM pessoa p WHERE p.id IN (" . implode(',', $ids) . ") ORDER BY p.id")->fetchAll(PDO::FETCH_ASSOC);
 
         $pendencias = [];
         foreach ($linhas as $p)
         {
-            $campos = ['tem_telefone' => 'telefone', 'tem_endereco' => 'endereço principal'];
+            $campos = ['nome' => 'nome'];
 
             if ((string) $p['tipo_pessoa_id'] === (string) TipoPessoa::FISICA)
             {
-                $campos += ['cpf_cnpj' => 'CPF', 'rg_ie' => 'RG', 'orgao_emissor' => 'órgão emissor do RG', 'dt_nascimento_abertura' => 'data de nascimento'];
+                $campos += ['dt_nascimento_abertura' => 'data de nascimento', 'cpf_cnpj' => 'CPF', 'rg_ie' => 'RG/CIN', 'orgao_emissor' => 'órgão emissor do RG/CIN',
+                            'nacionalidade_id' => 'nacionalidade', 'sexo_id' => 'sexo', 'estado_civil_id' => 'estado civil'];
             }
             elseif ((string) $p['tipo_pessoa_id'] === (string) TipoPessoa::JURIDICA)
             {
                 $campos += ['cpf_cnpj' => 'CNPJ', 'dt_nascimento_abertura' => 'data de abertura', 'tem_representante' => 'representante legal'];
             }
+            $campos += ['tem_endereco' => 'endereço', 'tem_contato' => 'contato (telefone ou e-mail)'];
 
             $faltam = [];
             foreach ($campos as $coluna => $rotulo)

@@ -13,7 +13,7 @@ foreach (['ContraparteForm' => Grupo::CONTRAPARTE, 'ClienteForm' => Grupo::CLIEN
 $marca = 'TESTE ROLLBACK CADASTRO ' . getmypid() . ' ' . $classe;
 echo $classe . PHP_EOL;
 $param = ['id' => '', 'nome' => $marca, 'tipo_pessoa_id' => TipoPessoa::FISICA,
-    'cpf_cnpj' => '', 'rg_ie' => '', 'telefone' => '', 'email' => '',
+    'cpf_cnpj' => '', 'rg_ie' => (string) (70000000 + (getmypid() % 100000) * 10 + $grupo), 'telefone' => '', 'email' => '', // pessoa nova: CPF ou RG/CIN (12/11/2026)
     'pessoa_contato_pessoa_nome' => 'AUX TESTE', 'pessoa_contato_pessoa_telefone' => '19912340981',
     'pessoa_endereco_pessoa_list___row__data' => ['invalido'],
     'pessoa_endereco_pessoa_list_principal' => ['N']];

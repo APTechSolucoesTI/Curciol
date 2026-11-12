@@ -38,13 +38,38 @@ try {
     $lanca = function ($rg, $tipo) { try { PessoaDocumentoService::exigirRgValido($rg, $tipo); return null; } catch (Exception $e) { return $e->getMessage(); } };
     igual('RG vazio pode', null, $lanca('', TipoPessoa::FISICA));
     igual('RG so com espaco pode', null, $lanca('   ', TipoPessoa::FISICA));
-    igual('pessoa fisica: RG errado barra', 'RG inválido: confira os números digitados.', $lanca('abc', TipoPessoa::FISICA));
+    igual('pessoa fisica: RG errado barra', 'RG/CIN inválido: confira os números digitados.', $lanca('abc', TipoPessoa::FISICA));
     igual('pessoa juridica: inscricao estadual nao passa por aqui', null, $lanca('ISENTO', TipoPessoa::JURIDICA));
+
+    // ---------- 12/11/2026: RG com a sigla do estado na frente (MG) e CIN (mesmo formato do CPF) ----------
+    foreach (['MG-12.345.678', 'MG12345678', 'M-1.234.567', '123.456.789-09'] as $rg) {
+        ok("RG/CIN valido: {$rg}", PessoaDocumentoService::rgValido($rg));
+    }
+
+    // ---------- 12/11/2026: cadastro NOVO de cliente salva com nome e CPF ou RG/CIN (um dos dois); edicao de antigo nao exige ----------
+    $id = function ($novoId, $tipo, $cpf, $rg) { try { PessoaDocumentoService::exigirIdentificacaoNovo($novoId, $tipo, $cpf, $rg); return null; } catch (Exception $e) { return $e->getMessage(); } };
+    igual('novo PF sem CPF e sem RG/CIN: barra', 'Informe o CPF ou o RG/CIN.', $id(null, TipoPessoa::FISICA, '', ' '));
+    igual('novo PF so com RG/CIN: salva', null, $id(null, TipoPessoa::FISICA, '', '12.345.678-9'));
+    igual('novo PF so com CPF: salva', null, $id('', TipoPessoa::FISICA, '11144477735', ''));
+    igual('novo PJ sem CNPJ: barra', 'Informe o CNPJ.', $id(null, TipoPessoa::JURIDICA, '', 'ISENTO'));
+    igual('edicao de cadastro antigo sem CPF nem RG: salva', null, $id(123, TipoPessoa::FISICA, '', ''));
+    $form = (string) file_get_contents('app/control/pessoas/ClienteForm.php');
+    ok('ClienteForm exige CPF ou RG/CIN no cadastro novo', strpos($form, 'PessoaDocumentoService::exigirIdentificacaoNovo($data->id ?? null, $data->tipo_pessoa_id ?? null, $data->cpf_cnpj ?? \'\', $data->rg_ie ?? \'\')') !== false);
+    ok('ClienteForm: campo RG/CIN (rotulo e troca com Inscricao Estadual)', strpos($form, 'new TLabel("RG/CIN:"') !== false && strpos($form, "html('RG/CIN:')") !== false
+       && strpos($form, 'label:contains(\"RG/CIN:\")') !== false && strpos($form, "html('RG:')") === false);
+
+    // ---------- 12/11/2026: atendimento avulso (sem agendamento) cria sem exigencia de cadastro ----------
+    $semNada = $pessoa('AVULSO', TipoPessoa::FISICA);
+    saida(function () use ($semNada) { HistoricosAtendimentoCliente::addAtendimentoAvulso(['cliente_id' => $semNada]); });
+    igual('avulso: cria mesmo sem endereco nem documentos', 1, count(q("SELECT 1 FROM atendimento WHERE cliente_id = {$semNada}")));
+    x("DELETE FROM atendimento WHERE cliente_id = {$semNada}");
 
     // ---------- os 6 formularios validam antes de gravar ----------
     foreach (['Cliente', 'Contraparte', 'Fornecedor', 'Parceiro', 'Profissional', 'RepresentanteLegal'] as $f) {
         $codigo = preg_replace('~^\s*//.*$~m', '', file_get_contents("app/control/pessoas/{$f}Form.php"));
         ok("{$f}Form valida RG", substr_count($codigo, 'PessoaDocumentoService::exigirRgValido($data->rg_ie') === 1);
+        ok("{$f}Form exige CPF ou RG/CIN no cadastro novo", substr_count($codigo, 'PessoaDocumentoService::exigirIdentificacaoNovo($data->id ?? null, $data->tipo_pessoa_id ?? null, $data->cpf_cnpj ?? \'\', $data->rg_ie ?? \'\')') === 1);
+        ok("{$f}Form: rotulo RG/CIN", strpos($codigo, 'new TLabel("RG/CIN:"') !== false && strpos($codigo, 'new TLabel("RG:"') === false && strpos($codigo, 'Este RG já') === false);
         ok("{$f}Form valida CPF e CNPJ", strpos($codigo, 'new TCPFValidator') !== false && strpos($codigo, 'new TCNPJValidator') !== false);
         ok("{$f}Form valida telefone dos Dados", strpos($codigo, 'PessoaContatoService::exigirTelefoneValido($data->telefone)') !== false);
     }
@@ -52,7 +77,7 @@ try {
     // ---------- edicao direto na lista ----------
     $pf = $pessoa('PF', (int) TipoPessoa::FISICA);
     $s = $inline($pf, 'rg_ie', 'abc');
-    ok('lista: RG errado barra', strpos($s, 'RG inválido') !== false && $campo($pf, 'rg_ie') === null, substr($s, 0, 200));
+    ok('lista: RG errado barra', strpos($s, 'RG/CIN inválido') !== false && $campo($pf, 'rg_ie') === null, substr($s, 0, 200));
     $inline($pf, 'rg_ie', '12.345.678-X');
     igual('lista: RG certo grava', '12.345.678-X', $campo($pf, 'rg_ie'));
     $s = $inline($pf, 'cpf_cnpj', '111.444.777-00');

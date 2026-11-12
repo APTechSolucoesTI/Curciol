@@ -170,9 +170,7 @@ class HistoricosAtendimentoCliente extends TPage
             }
 
             if(isset($param['cliente_id'])){
-                if(!PessoaEndereco::where('pessoa_id','=',(int)$param['cliente_id'])->where('principal','=','S')->first()){
-                    throw new Exception("Cadastre um endereço principal para criar um atendimento.");
-                }
+                // 12/11/2026: atendimento avulso (sem agendamento) cria sem exigencia de cadastro
                 $atendimento->cliente_id = $param['cliente_id'];
             }
             $atendimento->tipo_atendimento_id = TipoAtendimento::AVULSO;
