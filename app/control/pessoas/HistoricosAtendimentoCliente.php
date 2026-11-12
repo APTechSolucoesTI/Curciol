@@ -55,6 +55,7 @@ class HistoricosAtendimentoCliente extends TPage
         $action_abrir->setField('id');
         $action_abrir->setParameter('key', '{id}');
         $action_abrir->setParameter('ticket_id', '{ticket_id}');
+        $action_abrir->setParameter('conversa_id', '{conversa_id}');
         $action_abrir->setParameter('pessoa_id', '{pessoa_id}');
         $action_abrir->setParameter('static', '1');
         $this->atendimento_cliente_id_list->addAction($action_abrir);
@@ -82,6 +83,11 @@ class HistoricosAtendimentoCliente extends TPage
         foreach ($atendimento_cliente_id_items as $item) { AtendimentoTimeLine::prepararAtendimento($item); }
 
         // APChat (10/11/2026): tickets fechados do APChat na mesma lista, pela data e hora de abertura (11/11)
+        // APMail (12/11/2026): conversas de e-mail do cliente na mesma lista, pelo primeiro e-mail
+        foreach (AtendimentoTimeLine::conversasDoApmail((int) $pessoa->id) as $conversa)
+        {
+            $atendimento_cliente_id_items[] = $conversa;
+        }
         foreach (AtendimentoTimeLine::ticketsDoWhatsapp((int) $pessoa->id) as $ticket)
         {
             $atendimento_cliente_id_items[] = $ticket;
@@ -132,9 +138,15 @@ class HistoricosAtendimentoCliente extends TPage
 
     }
 
-    /** Lupa da lista (11/11/2026): ticket do APChat abre a conversa; atendimento da Curciol abre o atendimento. */
+    /** Lupa da lista (11/11/2026): ticket do APChat abre a conversa; conversa do APMail (12/11) abre os e-mails; atendimento da Curciol abre o atendimento. */
     public static function onAbrir($param = null)
     {
+        $conversa = (int) ($param['conversa_id'] ?? 0);
+        if ($conversa > 0)
+        {
+            AdiantiCoreApplication::loadPage('ApmailConversaView', 'onShow', ['key' => $conversa, 'pessoa_id' => (int) ($param['pessoa_id'] ?? 0)]);
+            return;
+        }
         $ticket = (int) ($param['ticket_id'] ?? 0);
         if ($ticket > 0)
         {

@@ -57,15 +57,26 @@ class ApchatConversaHtml
     private static function fechar(array $opcoes): string
     {
         if (empty($opcoes['tela'])) { return '</div></div>'; }
-        return '</div></div><script>(function(){'
+        return '</div></div>' . self::scriptAlturaTela('.apc-conversa-tela');
+    }
+
+    /**
+     * Script que leva o bloco (o ultimo que casar com o seletor) ate o fim da janela e desconta o que sobrar na rolagem do painel
+     * onde a tela esta (so a lista rola, nunca o painel nem a pagina de tras). Tambem usado pela conversa do APMail (12/11/2026).
+     */
+    public static function scriptAlturaTela(string $seletor): string
+    {
+        $sel = json_encode($seletor, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP);
+        $chave = '__alt' . substr(md5($seletor), 0, 8);
+        return '<script>(function(){'
              . 'var painel=function(c){var p=c.parentElement;while(p&&p!==document.body&&p!==document.documentElement){var o=getComputedStyle(p).overflowY;'
              . 'if(o==="auto"||o==="scroll"){return p;}p=p.parentElement;}return null;};'
-             . 'var ajustar=function(){var l=document.querySelectorAll(".apc-conversa-tela");if(!l.length){return;}var c=l[l.length-1];'
+             . 'var ajustar=function(){var l=document.querySelectorAll(' . $sel . ');if(!l.length){return;}var c=l[l.length-1];'
              . 'var p=painel(c);if(p){p.scrollTop=0;}'
              . 'var h=Math.max(220,window.innerHeight-c.getBoundingClientRect().top-8);c.style.height=h+"px";'
              . 'if(p){var sobra=p.scrollHeight-p.clientHeight;if(sobra>0){h=Math.max(220,h-sobra);c.style.height=h+"px";}}};'
-             . 'setTimeout(ajustar,30);setTimeout(ajustar,400);if(window.__apcTela){window.removeEventListener("resize",window.__apcTela);}'
-             . 'window.__apcTela=ajustar;window.addEventListener("resize",ajustar);})();</script>';
+             . 'setTimeout(ajustar,30);setTimeout(ajustar,400);if(window.' . $chave . '){window.removeEventListener("resize",window.' . $chave . ');}'
+             . 'window.' . $chave . '=ajustar;window.addEventListener("resize",ajustar);})();</script>';
     }
 
     /** Hoje, Ontem ou a data. */

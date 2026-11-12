@@ -43,6 +43,8 @@ class AtendimentoTimeLine extends TPage
 
             // APChat (10/11/2026): tickets fechados do APChat na mesma linha do tempo, pela data e hora de abertura (11/11)
             foreach ($objects as $objeto) { self::prepararAtendimento($objeto); }
+            // APMail (12/11/2026): conversas de e-mail do cliente, pela data e hora do primeiro e-mail
+            foreach (self::conversasDoApmail((int) $filterVar) as $conversa) { $objects[] = $conversa; }
             foreach (self::ticketsDoWhatsapp((int) $filterVar) as $ticket)
             {
                 $objects[] = $ticket;
@@ -77,7 +79,11 @@ class AtendimentoTimeLine extends TPage
                     {
                         $title = "APChat · Ticket #{ticket_id}";
                     }
-                    $htmlTemplate = !empty($object->ticket_id) ? "{detalhes_html}" : "Agenda: <b>{agendamento->agenda->nome}</b><br/>
+                    if (!empty($object->conversa_id))
+                    {
+                        $title = "APMail · {assunto_html}";
+                    }
+                    $htmlTemplate = (!empty($object->ticket_id) || !empty($object->conversa_id)) ? "{detalhes_html}" : "Agenda: <b>{agendamento->agenda->nome}</b><br/>
 Parceiro: <b>{agendamento->agendamento_procedimento_convenio_to_string} </b><br/>
 Profissional: <b>{profissional->nome_formatado}</b><br/>
 Escritório: <b>{agendamento->agenda->escritorio->nome}</b><br/>
@@ -121,6 +127,10 @@ Tipo: <b>{tipo_atendimento->nome}</b>";
             $action_ticket->setProperty('btn-class', 'btn btn-default');
             $this->timeline->addAction($action_ticket, 'Ver conversa', 'fas:comments #1B4A6E', 'AtendimentoTimeLine::ehTicket');
 
+            $action_email = new TAction(['ApmailConversaView', 'onShow'], ['key' => '{conversa_id}', 'pessoa_id' => '{pessoa_id}']);
+            $action_email->setProperty('btn-class', 'btn btn-default');
+            $this->timeline->addAction($action_email, 'Ver conversa', 'fas:envelope-open-text #13799C', 'AtendimentoTimeLine::ehConversaApmail');
+
             $container = new TVBox;
 
             $container->style = 'width: 100%';
@@ -146,6 +156,57 @@ Tipo: <b>{tipo_atendimento->nome}</b>";
         return !empty($object->ticket_id);
     }
 
+    public static function ehConversaApmail($object)
+    {
+        return !empty($object->conversa_id);
+    }
+
+    /**
+     * Conversas do APMail do cliente (ApmailHistoricoService, 12/11/2026) no formato da lista e da linha do tempo: dt_inicio = primeiro
+     * e-mail, dt_final = ultimo; Profissional = responsavel atual; Fila = caixa. So le o banco da Curciol. Erro: nenhuma.
+     */
+    public static function conversasDoApmail(int $pessoaId): array
+    {
+        try
+        {
+            $conversas = $pessoaId ? ApmailHistoricoService::conversas($pessoaId) : [];
+        }
+        catch (Throwable $e)
+        {
+            return [];
+        }
+        $h = function ($v) { return htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8'); };
+        $lista = [];
+        foreach ($conversas as $c)
+        {
+            $o = new stdClass;
+            $o->id = 'm' . $c['id'];
+            $o->ticket_id = 0;
+            $o->conversa_id = (int) $c['id'];
+            $o->pessoa_id = $pessoaId;
+            $o->tipo = 'APMail';
+            $o->id_texto = (string) $c['id'];
+            $o->dt_inicio = $c['inicio_em'];
+            $o->dt_final = $c['fim_em'];
+            $o->inicio_texto = self::dataHora($o->dt_inicio);
+            $o->fim_texto = self::dataHora($o->dt_final);
+            $o->profissional_texto = $h($c['responsavel_nome']);
+            $o->especialidade_texto = '';
+            $o->fila_texto = $h($c['caixa_nome']);
+            $o->assunto_html = $h($c['assunto']) ?: '(sem assunto)';
+            $o->atendimento_historico_historico_to_string = '';
+            $n = (int) $c['qtd_mensagens'];
+            $o->detalhes_html = implode('<br/>', array_filter([
+                trim((string) $c['caixa_nome']) !== '' ? 'Caixa: <b>' . $h($c['caixa_nome']) . '</b>' : '',
+                trim((string) $c['responsavel_nome']) !== '' ? 'Responsável: <b>' . $h($c['responsavel_nome']) . '</b>' : '',
+                $n . ($n === 1 ? ' e-mail' : ' e-mails'),
+                'Início: <b>' . $o->inicio_texto . '</b> · Fim: <b>' . $o->fim_texto . '</b>',
+            ], 'strlen'));
+            $lista[] = $o;
+        }
+        return $lista;
+    }
+
     /**
      * Tickets fechados do APChat do cliente (ApchatHistoricoService) no formato da lista e da linha do tempo: dt_inicio = abertura,
      * dt_final = encerramento (11/11/2026). Usa a transacao aberta. APChat fora: nenhum (a aba continua com os atendimentos).
@@ -168,6 +229,7 @@ Tipo: <b>{tipo_atendimento->nome}</b>";
             $o = new stdClass;
             $o->id = 'w' . $t['id'];
             $o->ticket_id = $t['id'];
+            $o->conversa_id = 0;
             $o->pessoa_id = $pessoaId;
             $o->tipo = 'APChat';
             $o->dt_inicio = $t['aberto_em'] ?: $t['fechado_em'];
@@ -199,6 +261,7 @@ Tipo: <b>{tipo_atendimento->nome}</b>";
     public static function prepararAtendimento($a)
     {
         $a->ticket_id = 0;
+        $a->conversa_id = 0;
         $a->pessoa_id = $a->cliente_id;
         $a->tipo = 'Atendimento';
         $a->id_texto = (string) $a->id;
@@ -222,7 +285,7 @@ Tipo: <b>{tipo_atendimento->nome}</b>";
 
     public static function podeExibir($object)
     {
-        if (!empty($object->ticket_id))
+        if (!empty($object->ticket_id) || !empty($object->conversa_id))
         {
             return false;
         }
