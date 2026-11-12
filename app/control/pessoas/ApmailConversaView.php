@@ -3,7 +3,8 @@
  * Conversa de e-mail do APMail no historico do cliente (12/11/2026), aberta pela aba Atendimentos (lista e linha do tempo).
  * Layout do APMail: cada e-mail com remetente, Para, Cc, data e corpo, do mais antigo para o mais recente (a lista comeca no topo).
  * So a conversa do proprio cliente (ApmailHistoricoService). Sem anexos: so o aviso para abrir no APMail.
- * Corpo: limpo no servidor (EmailHtmlLimpo) e isolado num iframe com sandbox (sem scripts) e CSP propria (sem nada de fora).
+ * Corpo: limpo no servidor (EmailHtmlLimpo) e isolado num iframe com sandbox (sem scripts nem janelas) e CSP propria (sem nada de
+ * fora). Links e botoes aparecem com o estilo, mas sem endereco e sem clique (12/11/2026).
  */
 class ApmailConversaView extends TPage
 {
@@ -105,10 +106,11 @@ class ApmailConversaView extends TPage
         {
             $doc = '<!DOCTYPE html><html><head><meta charset="utf-8">'
                  . '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; img-src data:; style-src \'unsafe-inline\'">'
-                 . '<base target="_blank"><style>body{font:13px/1.45 Arial,Helvetica,sans-serif;margin:0;color:#222;overflow-wrap:anywhere}'
+                 . '<style>body{font:13px/1.45 Arial,Helvetica,sans-serif;margin:0;color:#222;overflow-wrap:anywhere}'
                  . 'img{max-width:100%;height:auto}table{max-width:100%}.apm-img{color:#888;font-style:italic}'
-                 . 'blockquote{border-left:3px solid #d6dbe1;margin:6px 0;padding-left:8px;color:#555}</style></head><body>' . $corpoHtml . '</body></html>';
-            $corpo = '<iframe class="apm-quadro" sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox" referrerpolicy="no-referrer" '
+                 . 'blockquote{border-left:3px solid #d6dbe1;margin:6px 0;padding-left:8px;color:#555}'
+                 . 'a{pointer-events:none;cursor:default}a:not([style]){color:#1a73e8;text-decoration:underline}</style></head><body>' . $corpoHtml . '</body></html>';
+            $corpo = '<iframe class="apm-quadro" sandbox="allow-same-origin" referrerpolicy="no-referrer" '
                    . 'onload="try{var d=this.contentWindow.document;this.style.height=\'10px\';this.style.height=(Math.max(d.body.scrollHeight,d.documentElement.scrollHeight)+4)+\'px\'}catch(e){}" srcdoc="' . $h($doc) . '"></iframe>';
         }
         else

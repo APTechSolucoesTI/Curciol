@@ -68,7 +68,7 @@ try
     ok('conversa: De, Para e Cc', strpos($v, 'cliente.tela@teste.com') !== false && strpos($v, 'suporte@escritorio.com') !== false && strpos($v, 'copia@teste.com') !== false);
     ok('conversa: Enviado por no e-mail enviado', strpos($v, 'Enviado por') !== false && strpos($v, 'Atendente Dois') !== false);
     ok('conversa: aviso de anexos', strpos($v, '2 anexos') !== false && strpos($v, 'abra no APMail') !== false);
-    ok('conversa: corpo HTML num iframe com sandbox e CSP propria, ja limpo', strpos($v, 'sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"') !== false
+    ok('conversa: corpo HTML num iframe com sandbox e CSP propria, ja limpo', strpos($v, 'sandbox="allow-same-origin"') !== false && strpos($v, 'pointer-events:none') !== false && strpos($v, 'allow-popups') === false
         && strpos($v, 'srcdoc=') !== false && strpos($v, 'default-src') !== false && strpos($v, 'alert(1)') === false && strpos($v, '[imagem do e-mail]') !== false);
     ok('conversa: e-mail so texto com quebra de linha', strpos($v, 'Recebido,<br />') !== false);
     ok('conversa: botao Abrir no APMail pelo app, no ultimo e-mail', strpos($v, 'Abrir no APMail') !== false && strpos($v, 'web+apmail://mensagem/' . PFT . '12') !== false);
