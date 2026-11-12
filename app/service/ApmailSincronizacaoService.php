@@ -188,23 +188,24 @@ class ApmailSincronizacaoService
             $conversaId = (int) $st->fetchColumn();
 
             $m = $c->prepare('INSERT INTO apmail_mensagem (apmail_id, conversa_id, direcao, assunto, de_nome, de_email, para, cc, mensagem_em, enviado_por_nome,
-                                                           enviado_por_email, corpo_html, corpo_texto, qtd_anexos, importado_em)
-                              VALUES (?, ?, ?, ?, ?, ?, ?::jsonb, ?::jsonb, ?, ?, ?, ?, ?, ?, now())
+                                                           enviado_por_email, corpo_html, corpo_texto, qtd_anexos, qtd_imagens_corpo, tem_convite, importado_em)
+                              VALUES (?, ?, ?, ?, ?, ?, ?::jsonb, ?::jsonb, ?, ?, ?, ?, ?, ?, ?, ?, now())
                               ON CONFLICT (apmail_id) DO UPDATE SET conversa_id = EXCLUDED.conversa_id, direcao = EXCLUDED.direcao, assunto = EXCLUDED.assunto,
                                      de_nome = EXCLUDED.de_nome, de_email = EXCLUDED.de_email, para = EXCLUDED.para, cc = EXCLUDED.cc, mensagem_em = EXCLUDED.mensagem_em,
                                      enviado_por_nome = EXCLUDED.enviado_por_nome, enviado_por_email = EXCLUDED.enviado_por_email,
                                      corpo_html = COALESCE(EXCLUDED.corpo_html, apmail_mensagem.corpo_html), corpo_texto = COALESCE(EXCLUDED.corpo_texto, apmail_mensagem.corpo_texto),
-                                     qtd_anexos = EXCLUDED.qtd_anexos');
+                                     qtd_anexos = EXCLUDED.qtd_anexos, qtd_imagens_corpo = EXCLUDED.qtd_imagens_corpo, tem_convite = EXCLUDED.tem_convite');
             foreach ($mensagens as $x)
             {
                 $id = self::uuid($x['id'] ?? null);
                 if ($id === null) { continue; }
                 $corpo = is_array($x['body'] ?? null) ? $x['body'] : [];
+                $arq = self::arquivos($x);
                 $m->execute([$id, $conversaId, ($x['direction'] ?? '') === 'outbound' ? 'outbound' : 'inbound', self::texto($x['subject'] ?? null),
                              self::texto($x['from']['name'] ?? null), self::email($x['from']['email'] ?? null), self::lista($x['to'] ?? []), self::lista($x['cc'] ?? []),
                              self::data($x['messageAt'] ?? null), self::texto($x['sentByUser']['name'] ?? null), self::email($x['sentByUser']['email'] ?? null),
                              isset($corpo['sanitizedHtml']) ? (string) $corpo['sanitizedHtml'] : (isset($corpo['html']) ? (string) $corpo['html'] : null),
-                             isset($corpo['text']) ? (string) $corpo['text'] : null, (int) ($x['attachmentCount'] ?? 0)]);
+                             isset($corpo['text']) ? (string) $corpo['text'] : null, $arq['anexos'], $arq['imagens_corpo'], $arq['convite'] ? 'true' : 'false']);
             }
 
             $c->prepare('DELETE FROM apmail_conversa_email WHERE conversa_id = ?')->execute([$conversaId]);
@@ -218,6 +219,44 @@ class ApmailSincronizacaoService
             TTransaction::rollback();
             throw $erro;
         }
+    }
+
+    /**
+     * Separa os arquivos do e-mail (12/11/2026): imagem do corpo (assinatura/logo: inline ou com contentId) e convite de agenda
+     * (.ics/text/calendar, conta uma vez) nao sao anexo; confirmacao de leitura (message/disposition-notification) e tecnica e nao conta.
+     * Sem a lista de arquivos (corpo grande demais no APMail): usa attachmentCount.
+     *
+     * @return array {anexos: int, imagens_corpo: int, convite: bool}
+     */
+    private static function arquivos(array $x): array
+    {
+        if (!isset($x['attachments']) || !is_array($x['attachments']))
+        {
+            return ['anexos' => (int) ($x['attachmentCount'] ?? 0), 'imagens_corpo' => 0, 'convite' => false];
+        }
+        $r = ['anexos' => 0, 'imagens_corpo' => 0, 'convite' => false];
+        foreach ($x['attachments'] as $a)
+        {
+            $tipo = strtolower(trim((string) ($a['contentType'] ?? '')));
+            $nome = strtolower((string) ($a['filename'] ?? ''));
+            if (strpos($tipo, 'image/') === 0 && (!empty($a['inline']) || trim((string) ($a['contentId'] ?? '')) !== ''))
+            {
+                $r['imagens_corpo']++;
+            }
+            elseif ($tipo === 'text/calendar' || $tipo === 'application/ics' || substr($nome, -4) === '.ics')
+            {
+                $r['convite'] = true;
+            }
+            elseif ($tipo === 'message/disposition-notification' || $tipo === 'message/delivery-status')
+            {
+                continue;
+            }
+            else
+            {
+                $r['anexos']++;
+            }
+        }
+        return $r;
     }
 
     /** E-mails de remetente, destinatarios e Cc (minusculas), sem os das caixas do APMail. */

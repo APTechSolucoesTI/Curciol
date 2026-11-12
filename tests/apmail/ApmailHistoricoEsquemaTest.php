@@ -25,7 +25,7 @@ $cols = function (string $t) { return array_column(qe("SELECT column_name FROM i
 ok('escritorio.apmail_email_integracao', in_array('apmail_email_integracao', $cols('escritorio'), true));
 ok('apmail_usuario.situacao e conferido_em', !array_diff(['situacao', 'conferido_em'], $cols('apmail_usuario')));
 ok('apmail_mensagem com corpo, participantes e quem enviou', !array_diff(['conversa_id', 'direcao', 'assunto', 'de_nome', 'de_email', 'para', 'cc', 'mensagem_em',
-   'enviado_por_nome', 'enviado_por_email', 'corpo_html', 'corpo_texto', 'qtd_anexos'], $cols('apmail_mensagem')));
+   'enviado_por_nome', 'enviado_por_email', 'corpo_html', 'corpo_texto', 'qtd_anexos', 'qtd_imagens_corpo', 'tem_convite'], $cols('apmail_mensagem')));
 ok('apmail_conversa com caixa, periodo e responsavel', !array_diff(['thread_id', 'assunto', 'caixa_id', 'caixa_nome', 'caixa_email', 'inicio_em', 'fim_em',
    'responsavel_nome', 'responsavel_email', 'situacao', 'qtd_mensagens'], $cols('apmail_conversa')));
 

@@ -39,6 +39,10 @@ CREATE TABLE IF NOT EXISTS apmail_mensagem (
     importado_em      timestamp NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS ix_apmail_mensagem_conversa ON apmail_mensagem (conversa_id, mensagem_em);
+-- anexo x imagem do corpo (assinatura/logo: inline ou com contentId) x convite de agenda (.ics/text/calendar): so arquivos de
+-- verdade contam como anexo (12/11/2026)
+ALTER TABLE apmail_mensagem ADD COLUMN IF NOT EXISTS qtd_imagens_corpo integer NOT NULL DEFAULT 0;
+ALTER TABLE apmail_mensagem ADD COLUMN IF NOT EXISTS tem_convite boolean NOT NULL DEFAULT false;
 COMMENT ON TABLE apmail_mensagem IS 'E-mail (recebido ou enviado) de uma conversa do APMail (12/11/2026). corpo_html = sanitizedHtml do APMail; a tela limpa de novo';
 
 CREATE TABLE IF NOT EXISTS apmail_conversa_email (

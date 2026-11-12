@@ -1,7 +1,7 @@
 <?php
 /**
  * Conversa de e-mail do APMail no historico do cliente (12/11/2026), aberta pela aba Atendimentos (lista e linha do tempo).
- * Layout do APMail: cada e-mail com remetente, Para, Cc, data e corpo, do mais antigo para o mais recente (a lista abre no fim).
+ * Layout do APMail: cada e-mail com remetente, Para, Cc, data e corpo, do mais antigo para o mais recente (a lista comeca no topo).
  * So a conversa do proprio cliente (ApmailHistoricoService). Sem anexos: so o aviso para abrir no APMail.
  * Corpo: limpo no servidor (EmailHtmlLimpo) e isolado num iframe com sandbox (sem scripts) e CSP propria (sem nada de fora).
  */
@@ -115,8 +115,14 @@ class ApmailConversaView extends TPage
         {
             $corpo = '<div class="apm-texto">' . nl2br($h(trim((string) $m['corpo_texto']))) . '</div>';
         }
+        // 12/11/2026: anexo (arquivo de verdade), convite de agenda e imagem do corpo (assinatura/logo) separados; nada e exibido
         $anexos = (int) $m['qtd_anexos'];
-        $aviso = $anexos > 0 ? '<div class="apm-anexos"><i class="fas fa-paperclip"></i> ' . $anexos . ($anexos === 1 ? ' anexo' : ' anexos') . ': abra no APMail para ver.</div>' : '';
+        $imagens = (int) ($m['qtd_imagens_corpo'] ?? 0);
+        $convite = in_array($m['tem_convite'] ?? false, [true, 't', 1, '1', 'true'], true);
+        $aviso = ($anexos > 0 ? '<div class="apm-anexos"><i class="fas fa-paperclip"></i> ' . $anexos . ($anexos === 1 ? ' anexo' : ' anexos') . ': abra no APMail para ver.</div>' : '')
+               . ($convite ? '<div class="apm-anexos apm-convite"><i class="far fa-calendar-alt"></i> Convite de agenda: abra no APMail para ver.</div>' : '')
+               . ($imagens > 0 ? '<div class="apm-nota"><i class="far fa-image"></i> ' . ($imagens === 1 ? 'Imagem da assinatura ou do corpo do e-mail' : $imagens . ' imagens da assinatura ou do corpo do e-mail')
+                                  . ' (não exibida' . ($imagens === 1 ? '' : 's') . ').</div>' : '');
 
         return '<div class="apm-email' . ($enviado ? ' apm-enviado' : '') . '"><div class="apm-cab">' . ApchatConversaHtml::avatar($nome !== '' ? $nome : (string) $m['de_email'])
              . '<div class="apm-cab-texto">' . $cab . '</div><div class="apm-data">' . AtendimentoTimeLine::dataHora($m['mensagem_em']) . '</div></div>'
@@ -144,7 +150,7 @@ class ApmailConversaView extends TPage
 .apm-topo{margin:2px 0 8px}
 .apm-assunto{font-weight:600;font-size:16px;color:#222}
 .apm-info{font-size:12px;color:#667}
-.apm-lista{background:#f3f5f8;border-radius:6px;padding:12px;display:flex;flex-direction:column-reverse;overflow:auto;height:calc(100vh - 190px);min-height:220px}
+.apm-lista{background:#f3f5f8;border-radius:6px;padding:12px;display:flex;flex-direction:column;overflow:auto;height:calc(100vh - 190px);min-height:220px}
 .apm-trilha{display:flex;flex-direction:column;gap:10px}
 .apm-email{background:#fff;border:1px solid #e1e5ea;border-radius:8px;overflow:hidden;flex:0 0 auto}
 .apm-email.apm-enviado{border-left:4px solid ' . LogoSistemaService::COR_APMAIL . '}
@@ -160,6 +166,8 @@ class ApmailConversaView extends TPage
 .apm-quadro{width:100%;border:0;min-height:40px;display:block}
 .apm-texto{font-size:13px;line-height:1.45;overflow-wrap:anywhere}
 .apm-anexos{padding:6px 12px;font-size:12px;color:#5d4a00;background:#fffbea;border-top:1px solid #f0e6c0}
+.apm-convite{color:#1b4a6e;background:#eef6fb;border-top-color:#d3e6f2}
+.apm-nota{padding:4px 12px 6px;font-size:11.5px;color:#888}
 </style>';
     }
 }

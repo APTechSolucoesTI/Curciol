@@ -36,7 +36,7 @@ try
                '[{\"nome\":\"\",\"email\":\"copia@teste.com\"}]', '2026-11-10 09:00', '<p>Segue <b>pedido</b></p><script>alert(1)</script><img src=\"cid:logo\">', 'Segue pedido', 2),
               ('" . PFT . "12', {$conv}, 'outbound', 'Re: Pedido', 'Suporte', 'suporte@escritorio.com', '[{\"nome\":\"Cliente Tela\",\"email\":\"cliente.tela@teste.com\"}]',
                '[]', '2026-11-10 10:30', NULL, 'Recebido,\nobrigado.', 0)");
-    $c->exec("UPDATE apmail_mensagem SET enviado_por_nome = 'Atendente Dois' WHERE apmail_id = '" . PFT . "12'");
+    $c->exec("UPDATE apmail_mensagem SET enviado_por_nome = 'Atendente Dois', qtd_imagens_corpo = 1, tem_convite = true WHERE apmail_id = '" . PFT . "12'");
     TTransaction::close();
 
     // lista
@@ -73,6 +73,9 @@ try
     ok('conversa: e-mail so texto com quebra de linha', strpos($v, 'Recebido,<br />') !== false);
     ok('conversa: botao Abrir no APMail pelo app, no ultimo e-mail', strpos($v, 'Abrir no APMail') !== false && strpos($v, 'web+apmail://mensagem/' . PFT . '12') !== false);
     ok('conversa: lista de e-mails ate o fim da tela', strpos($v, 'apm-lista') !== false && strpos($v, 'innerHeight') !== false);
+    ok('conversa: lista comeca no topo (mais antigo em cima, sem inverter)', preg_match('/.apm-lista{[^}]*flex-direction:column;/', $v) === 1 && preg_match('/.apm-lista{[^}]*column-reverse/', $v) === 0);
+    ok('conversa: imagem da assinatura diferenciada (nao e anexo)', strpos($v, 'assinatura') !== false && strpos($v, '1 anexo') === false);
+    ok('conversa: convite de agenda diferenciado', strpos($v, 'Convite de agenda') !== false);
     ok('conversa: sem traco', strpos($v, '—') === false);
     $x = saidat(function () use ($conv, $b) { $t = new ApmailConversaView(['key' => $conv, 'pessoa_id' => $b]); $t->onShow(['key' => $conv, 'pessoa_id' => $b]); $t->show(); });
     ok('conversa de outro cliente: mostra o erro', strpos($x, 'não é deste cliente') !== false && strpos($x, 'Segue') === false);

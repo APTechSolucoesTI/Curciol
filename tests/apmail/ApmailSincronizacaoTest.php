@@ -15,18 +15,25 @@ $limpar = function () {
 };
 $limpar();
 
-$msg = function (string $id, string $thread, string $dir, string $quando, string $de, array $para, ?array $quem = null, int $anexos = 0) {
+$msg = function (string $id, string $thread, string $dir, string $quando, string $de, array $para, ?array $quem = null, int $anexos = 0, ?array $arquivos = null) {
     return ['id' => PFX . $id, 'threadId' => PFX . $thread, 'direction' => $dir, 'subject' => 'Assunto ' . $thread, 'messageAt' => $quando,
             'from' => ['name' => 'De ' . $de, 'email' => $de], 'to' => array_map(function ($e) { return ['name' => '', 'email' => $e]; }, $para), 'cc' => [],
             'mailbox' => ['id' => PFX . 'f1', 'name' => 'Suporte', 'email' => 'suporte@escritorio.com'], 'status' => 'done',
             'assignedToUser' => ['id' => 'u1', 'name' => 'Atendente Um', 'email' => 'um@escritorio.com'], 'sentByUser' => $quem,
             'body' => ['text' => 'Texto ' . $id, 'sanitizedHtml' => '<p>Corpo ' . $id . '</p>', 'html' => '<p>orig</p>'], 'bodyIncluded' => true,
-            'attachmentCount' => $anexos, 'hasAttachments' => $anexos > 0];
+            'attachmentCount' => $anexos, 'hasAttachments' => $anexos > 0] + ($arquivos !== null ? ['attachments' => $arquivos] : []);
 };
 // conversas: a1 (cliente1, recebido + resposta), a2 (cliente2), a3 (outra pessoa: ignorada na homologacao)
 $conversas = [
-    'a1' => [$msg('b1', 'a1', 'inbound', '2026-11-10T12:00:00.000Z', 'Cliente1@Teste.com', ['suporte@escritorio.com'], null, 2),
-             $msg('b2', 'a1', 'outbound', '2026-11-10T13:30:00.000Z', 'suporte@escritorio.com', ['cliente1@teste.com'], ['id' => 'u2', 'name' => 'Atendente Dois', 'email' => 'dois@escritorio.com'])],
+    // b1: logo da assinatura (inline) + PDF = 1 anexo e 1 imagem do corpo; b2: imagem com contentId (corpo) + convite (.ics e text/calendar = 1 convite)
+    'a1' => [$msg('b1', 'a1', 'inbound', '2026-11-10T12:00:00.000Z', 'Cliente1@Teste.com', ['suporte@escritorio.com'], null, 2, [
+                 ['id' => 'x1', 'filename' => 'logo.png', 'contentType' => 'image/png', 'size' => 3398, 'inline' => true, 'contentId' => 'logo'],
+                 ['id' => 'x2', 'filename' => 'contrato.pdf', 'contentType' => 'application/pdf', 'size' => 90000, 'inline' => false, 'contentId' => null]]),
+             $msg('b2', 'a1', 'outbound', '2026-11-10T13:30:00.000Z', 'suporte@escritorio.com', ['cliente1@teste.com'], ['id' => 'u2', 'name' => 'Atendente Dois', 'email' => 'dois@escritorio.com'], 4, [
+                 ['id' => 'x3', 'filename' => 'assinatura.jpg', 'contentType' => 'image/jpeg', 'size' => 22998, 'inline' => false, 'contentId' => 'img001'],
+                 ['id' => 'x4', 'filename' => 'invite.ics', 'contentType' => 'application/ics', 'size' => 700, 'inline' => false, 'contentId' => null],
+                 ['id' => 'x5', 'filename' => null, 'contentType' => 'text/calendar', 'size' => 700, 'inline' => false, 'contentId' => null],
+                 ['id' => 'x6', 'filename' => null, 'contentType' => 'message/disposition-notification', 'size' => 233, 'inline' => false, 'contentId' => null]])],
     'a2' => [$msg('b3', 'a2', 'inbound', '2026-11-11T09:00:00.000Z', 'cliente2@teste.com', ['suporte@escritorio.com'])],
     'a3' => [$msg('b4', 'a3', 'inbound', '2026-11-11T10:00:00.000Z', 'outro@fora.com', ['suporte@escritorio.com'])],
 ];
@@ -72,10 +79,14 @@ try
           [$conv[0]['assunto'], $conv[0]['caixa_nome'], $conv[0]['i'], $conv[0]['f'], $conv[0]['responsavel_nome'], (int) $conv[0]['qtd_mensagens']]);
     $m = qs("SELECT apmail_id::text a, direcao, de_email, enviado_por_nome, corpo_html, corpo_texto, qtd_anexos, para::text para FROM apmail_mensagem
               WHERE apmail_id::text LIKE '" . PFX . "%' ORDER BY apmail_id");
-    igual('mensagens: direcao, quem enviou, corpo do APMail (sanitizedHtml), anexos so a quantidade',
-          [['inbound', null, '<p>Corpo b1</p>', 2], ['outbound', 'Atendente Dois', '<p>Corpo b2</p>', 0]],
+    igual('mensagens: direcao, quem enviou, corpo do APMail (sanitizedHtml), so arquivos de verdade contam como anexo',
+          [['inbound', null, '<p>Corpo b1</p>', 1], ['outbound', 'Atendente Dois', '<p>Corpo b2</p>', 0]],
           [[$m[0]['direcao'], $m[0]['enviado_por_nome'], $m[0]['corpo_html'], (int) $m[0]['qtd_anexos']], [$m[1]['direcao'], $m[1]['enviado_por_nome'], $m[1]['corpo_html'], (int) $m[1]['qtd_anexos']]]);
     ok('mensagens: para em JSON com nome e e-mail', strpos($m[1]['para'], 'cliente1@teste.com') !== false);
+    $ext = qs("SELECT qtd_imagens_corpo, tem_convite FROM apmail_mensagem WHERE apmail_id::text LIKE '" . PFX . "%' ORDER BY apmail_id");
+    igual('imagens do corpo (assinatura) e convite separados dos anexos', [[1, false], [1, true]],
+          [[(int) $ext[0]['qtd_imagens_corpo'], $ext[0]['tem_convite'] === true || $ext[0]['tem_convite'] === 't'], [(int) $ext[1]['qtd_imagens_corpo'], $ext[1]['tem_convite'] === true || $ext[1]['tem_convite'] === 't']]);
+    igual('sem a lista de arquivos: usa attachmentCount', 0, (int) qs("SELECT qtd_anexos FROM apmail_mensagem WHERE apmail_id = '" . PFX . "b3'")[0]['qtd_anexos']);
     $emails = array_column(qs("SELECT e.email FROM apmail_conversa_email e JOIN apmail_conversa c ON c.id = e.conversa_id WHERE c.thread_id = '" . PFX . "a1' ORDER BY 1"), 'email');
     igual('e-mails da conversa: so os participantes, em minusculas, sem o da caixa', ['cliente1@teste.com'], $emails);
 
