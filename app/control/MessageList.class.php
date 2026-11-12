@@ -101,7 +101,7 @@ class MessageList extends TElement
         $a->title = 'Abrir no APChat';
         $a->style = 'display:flex;gap:10px;align-items:flex-start;padding:8px;margin-bottom:6px;border-radius:8px;white-space:normal;color:inherit;border:1px solid '
                   . ($item['aguardando'] ? 'rgba(37,211,102,.45);background:rgba(37,211,102,.07);' : '#e6e8eb;');
-        $a->onclick = LinkExterno::onclick((string) $item['url'], 'apchat');
+        $a->onclick = LinkApp::apchatTicket((int) ($item['ticket_id'] ?? 0), (string) $item['url']);
 
         $corta = 'flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
         $miudo = 'color:#888;font-size:12px;white-space:nowrap;';

@@ -72,7 +72,7 @@ class ApchatContatoConversaView extends TPage
                 TTransaction::open('escritorio');
                 $url = ApchatApiService::urlTicket((int) $ultima['ticketId']);
                 TTransaction::close();
-                $this->form->addHeaderWidget(ApchatTicketView::botaoAbrir($url));
+                $this->form->addHeaderWidget(ApchatTicketView::botaoAbrir((int) $ultima['ticketId'], $url));
             }
 
             $row = $this->form->addFields(

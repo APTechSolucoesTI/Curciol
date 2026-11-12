@@ -93,7 +93,7 @@ class MailList extends TElement
         $a->href = '#';
         $a->style = 'display:flex;gap:10px;align-items:center;padding:8px;margin-bottom:6px;border-radius:8px;white-space:normal;color:inherit;border:1px solid '
                   . ($c['pendentes'] > 0 ? 'rgba(19,121,156,.45);background:rgba(19,121,156,.07);' : '#e6e8eb;') . ($zerada ? 'opacity:.6;' : '');
-        $a->onclick = LinkExterno::onclick((string) $c['url'], 'apmail');
+        $a->onclick = LinkApp::apmailCaixa((string) $c['url'], (string) ($c['caminho'] ?? '/'));
         $chips = '<span style="background:' . ($c['pendentes'] > 0 ? LogoSistemaService::COR_APMAIL : '#c5ccd3') . ';color:#fff;border-radius:6px;padding:1px 8px;font-size:12px;font-weight:600;">'
                . (int) $c['pendentes'] . ' pendente' . ($c['pendentes'] === 1 ? '' : 's') . '</span>'
                . '<span style="border:1px solid #d0d5dd;color:#555;border-radius:12px;padding:0 8px;font-size:12px;">'

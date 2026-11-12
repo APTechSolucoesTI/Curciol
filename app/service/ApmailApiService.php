@@ -83,6 +83,7 @@ class ApmailApiService
                 'pendentes' => (int) ($m['pending'] ?? 0),
                 'nao_lidas' => (int) ($m['unread'] ?? 0),
                 'url'       => self::urlCaixa($url, (string) ($m['url'] ?? '/')),
+                'caminho'   => substr(self::urlCaixa($url, (string) ($m['url'] ?? '/')), strlen(rtrim($url, '/'))) ?: '/',
             ];
         }
         usort($caixas, function ($a, $b) { return [$b['pendentes'], $b['nao_lidas']] <=> [$a['pendentes'], $a['nao_lidas']] ?: strcmp($a['nome'], $b['nome']); });

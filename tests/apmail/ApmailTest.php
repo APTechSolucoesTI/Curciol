@@ -5,6 +5,7 @@
 // Cache de 30 s por e-mail; 404 = e-mail fora da integracao; 401/403/5xx = integracao indisponivel (60 s sem tentar);
 // 429 = espera o Retry-After. API falsa; dados gravados dentro de transacao desfeita.
 require __DIR__ . '/../bootstrap.php';
+LinkApp::forcar('apmail', false); // links pelo app instalado tem teste proprio (LinkAppTest)
 if (!class_exists('TApplication')) { class TApplication extends AdiantiCoreApplication {} }
 function saida(callable $f): string { ob_start(); try { $f(); } finally { $s = ob_get_clean(); } return $s; }
 

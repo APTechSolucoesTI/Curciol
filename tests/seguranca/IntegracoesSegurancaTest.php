@@ -23,7 +23,7 @@ foreach (['app/service/ApmailApiService.php', 'app/service/ApchatApiService.php'
 }
 foreach (['app/control/MailList.class.php', 'app/control/MessageList.class.php', 'app/control/pessoas/ApchatTicketView.php'] as $f)
 {
-    ok("{$f}: abre pelo LinkExterno", strpos((string) file_get_contents($f), 'LinkExterno::onclick') !== false && strpos((string) file_get_contents($f), "window.open('") === false);
+    ok("{$f}: abre pelo LinkExterno ou LinkApp", (strpos((string) file_get_contents($f), 'LinkExterno::onclick') !== false || strpos((string) file_get_contents($f), 'LinkApp::') !== false) && strpos((string) file_get_contents($f), "window.open('") === false);
 }
 
 // ---------- 6) CSV ----------

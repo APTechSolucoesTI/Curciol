@@ -46,7 +46,7 @@ class ApchatTicketView extends TPage
             TTransaction::close();
 
             $this->form->setFormTitle('Atendimento pelo APChat');
-            $this->form->addHeaderWidget(self::botaoAbrir($url));
+            $this->form->addHeaderWidget(self::botaoAbrir($ticketId, $url));
 
             // 11/11/2026: no padrao do APChat - contato, "#ticket · numero · canal · atribuido"; campos vazios ficam vazios
             $h = function ($v) { return htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8'); };
@@ -67,14 +67,14 @@ class ApchatTicketView extends TPage
         }
     }
 
-    /** Botao que abre o ticket no APChat, sempre na mesma aba ("apchat"). */
-    public static function botaoAbrir(string $url): TElement
+    /** Botao que abre o ticket no APChat: pelo app instalado (LinkApp, chave do escritorio) ou na mesma aba ("apchat"). */
+    public static function botaoAbrir(int $ticketId, string $url): TElement
     {
         $b = new TElement('a');
         $b->class = 'btn btn-sm btn-success';
         $b->style = 'margin-right:6px;';
         $b->href = '#';
-        $b->onclick = LinkExterno::onclick($url, 'apchat');
+        $b->onclick = LinkApp::apchatTicket($ticketId, $url);
         $b->add('<i class="fab fa-whatsapp"></i> Abrir no APChat');
         return $b;
     }

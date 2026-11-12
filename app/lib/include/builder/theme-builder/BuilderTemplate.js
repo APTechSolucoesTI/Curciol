@@ -629,3 +629,30 @@ window.BuilderTemplate = ( function() {
     };
 
 })();
+
+// Curciol (12/11/2026): links do APChat e do APMail so pelo app instalado (app/lib/util/LinkApp.php). O link web+apchat:// ou
+// web+apmail:// vai para o sistema operacional, que entrega ao app instalado (manifesto do app com protocol_handlers); sem app,
+// nada abre. Se a janela da Curciol nao perder o foco em 2,5 s, o app nao abriu: avisa para instalar.
+window.CurciolAbrirApp = function(link, nome) {
+    if (!/^web\+(apchat|apmail):\/\//.test(String(link))) { return; }
+    var abriu = false;
+    var marcar = function() { abriu = true; };
+    var oculto = function() { if (document.hidden) { abriu = true; } };
+    window.addEventListener('blur', marcar);
+    document.addEventListener('visibilitychange', oculto);
+    var a = document.createElement('a');
+    a.href = link;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function() {
+        window.removeEventListener('blur', marcar);
+        document.removeEventListener('visibilitychange', oculto);
+        if (!abriu && document.hasFocus()) {
+            var texto = 'O ' + nome + ' não abriu neste computador. Instale o app do ' + nome + ': abra o ' + nome + ' no Chrome, Edge ou Brave e use o botão '
+                      + '"Instalar app" na barra de endereço. Depois clique de novo aqui. Se o navegador perguntar se pode abrir o ' + nome + ', escolha Abrir e marque para lembrar.';
+            if (typeof __adianti_warning === 'function') { __adianti_warning(nome, texto); } else { alert(texto); }
+        }
+    }, 2500);
+};

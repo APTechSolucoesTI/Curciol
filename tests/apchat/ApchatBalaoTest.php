@@ -4,6 +4,7 @@
 // (quem tem acesso ao canal e, se houver, a fila). Ticket cuja ultima mensagem e do cliente ganha o numero de mensagens sem
 // resposta; o icone conta TICKETS esperando resposta. Pendente aguardando o SIM/NAO da Curciol fica de fora (ela mesma responde). Cache curto; APChat fora = balao vazio. Envelope do APMail reservado.
 require __DIR__ . '/../bootstrap.php';
+LinkApp::forcar('apchat', false); // links pelo app instalado tem teste proprio (LinkAppTest)
 if (!class_exists('TApplication')) { class TApplication extends AdiantiCoreApplication {} }
 function saida(callable $f): string { ob_start(); try { $f(); } finally { $s = ob_get_clean(); } return $s; }
 

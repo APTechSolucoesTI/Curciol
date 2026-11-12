@@ -43,6 +43,8 @@ class Escritorio extends TRecord
         parent::addAttribute('url_tela_apchat');
         parent::addAttribute('url_apmail');
         parent::addAttribute('token_apmail');
+        parent::addAttribute('apchat_abrir_app');
+        parent::addAttribute('apmail_abrir_app');
     
     }
 

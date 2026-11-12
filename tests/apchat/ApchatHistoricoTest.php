@@ -4,6 +4,7 @@
 // cliente tiver o numero como principal); so tickets fechados, ordem pelo encerramento; atribuido = atendente do ticket; profissionais = ele e quem respondeu; ticket sem especialidade; o
 // atendente do ticket; conversa so com texto e so do proprio cliente; botao "Abrir no APChat". APChat falso.
 require __DIR__ . '/../bootstrap.php';
+LinkApp::forcar('apchat', false); // links pelo app instalado tem teste proprio (LinkAppTest)
 if (!class_exists('TApplication')) { class TApplication extends AdiantiCoreApplication {} }
 
 const MARCA_HIST = 'TESTE HISTORICO WHATSAPP';
