@@ -11,7 +11,7 @@ const PFX = '00000000-0000-4000-8000-0000000000';
 const TOKEN_TESTE = 'token-de-teste-sincronizacao';
 $limpar = function () {
     xs("DELETE FROM apmail_conversa WHERE thread_id::text LIKE '" . PFX . "%'");
-    xs("DELETE FROM apmail_sincronizacao WHERE chave = '" . sha1(TOKEN_TESTE . '|integra@escritorio.com|all') . "'");
+    xs("DELETE FROM apmail_sincronizacao WHERE chave IN ('" . sha1(TOKEN_TESTE . '|integra@escritorio.com|all') . "', '" . sha1(TOKEN_TESTE . '|integra@escritorio.com|all|reconciliacao') . "')");
 };
 $limpar();
 
@@ -126,6 +126,30 @@ try
     });
     $r = ApmailSincronizacaoService::processar();
     igual('sem a chave: a conversa de fora e gravada', [1, 0], [$r['conversas'], $r['ignoradas']]);
+
+    // 7) caixa liberada depois no token: o cursor nao traz os e-mails antigos dela (regra do APMail); a reconciliacao diaria (listagem
+    //    do zero) traz, relendo so as conversas com e-mail desconhecido
+    $a4 = [$msg('b5', 'a4', 'inbound', '2026-11-12T18:13:00.000Z', 'novo@cliente.com', ['sistema@escritorio.com'])];
+    $a4[0]['mailbox'] = ['id' => PFX . 'f2', 'name' => 'Sistema', 'email' => 'sistema@escritorio.com'];
+    $threads = [];
+    ApmailApiService::usarTransporte(function (string $url) use ($conversas, $a4, $item, $ok200, &$threads) {
+        parse_str((string) parse_url($url, PHP_URL_QUERY), $q);
+        if (strpos($url, '/api/integrations/messages?') !== false)
+        {
+            if (($q['cursor'] ?? '') !== '') { return $ok200(['items' => [], 'nextCursor' => $q['cursor'], 'hasMore' => false]); } // cursor: nada novo
+            return $ok200(['items' => [$item($conversas['a1'][0]), $item($conversas['a1'][1]), $item($conversas['a3'][0]), $item($a4[0])], 'nextCursor' => 'R1', 'hasMore' => false]);
+        }
+        preg_match('#/threads/' . PFX . '([a-z0-9]+)\?#', $url, $m);
+        $threads[] = $m[1];
+        return $ok200(['items' => $m[1] === 'a4' ? $a4 : ($conversas[$m[1]] ?? []), 'nextCursor' => null, 'hasMore' => false]);
+    });
+    xs("UPDATE apmail_sincronizacao SET concluida_em = now() - interval '2 days' WHERE chave = '" . sha1(TOKEN_TESTE . '|integra@escritorio.com|all|reconciliacao') . "'");
+    $r = ApmailSincronizacaoService::processar();
+    ok('reconciliacao: a conversa da caixa liberada depois foi importada', (bool) qs("SELECT 1 FROM apmail_conversa WHERE thread_id = '" . PFX . "a4'"), json_encode($r));
+    igual('reconciliacao: so rele a conversa com e-mail desconhecido (as ja importadas nao)', ['a4'], $threads);
+    $threads = [];
+    $r = ApmailSincronizacaoService::processar();
+    igual('reconciliacao feita ha menos de 1 dia: nao refaz', [], $threads);
 }
 finally
 {

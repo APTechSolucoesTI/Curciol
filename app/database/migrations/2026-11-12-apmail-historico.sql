@@ -62,6 +62,8 @@ CREATE TABLE IF NOT EXISTS apmail_sincronizacao (
     ultimo_erro      text
 );
 COMMENT ON TABLE apmail_sincronizacao IS 'Cursor da sincronizacao por token + usuario de integracao + direcao (12/11/2026)';
+-- reconciliacao diaria (listagem do zero): caixa liberada depois no token nao aparece no cursor (regra do APMail)
+ALTER TABLE apmail_sincronizacao ADD COLUMN IF NOT EXISTS concluida_em timestamp;
 
 ALTER TABLE escritorio ADD COLUMN IF NOT EXISTS apmail_email_integracao varchar(255);
 COMMENT ON COLUMN escritorio.apmail_email_integracao IS 'Usuario do APMail que enxerga todas as caixas (historico dos clientes). Vazio = o do primeiro Admin ligado';

@@ -10,6 +10,8 @@
  * - homologacao: com 'historico_somente_emails' em app/config/apmail.php, so grava as conversas desses e-mails (as outras sao
  *   ignoradas e o cursor avanca igual); sem a chave (producao), todas;
  * - erro do APMail (fora do ar, 429, 401...): registra em apmail_sincronizacao.ultimo_erro e para; nada e apagado;
+ * - reconciliacao diaria (12/11/2026): uma vez por dia a listagem e refeita do zero, aos poucos (caixa liberada depois no token
+ *   nao aparece no cursor, regra do APMail); conversas com todos os e-mails ja importados nao sao relidas;
  * - trava de arquivo: duas rodadas nunca correm juntas. Anexos: so a quantidade.
  */
 class ApmailSincronizacaoService
@@ -87,23 +89,20 @@ class ApmailSincronizacaoService
             }
             $chave = sha1($token . '|' . $email . '|all');
             $somente = self::somenteEmails();
-            $cursor = self::cursor($chave);
             $vistas = [];
-            for ($pagina = 0; $pagina < self::MAX_PAGINAS; $pagina++)
+            // 1) incremental: o que entrou desde o ultimo cursor
+            self::percorrer($chave, self::cursor($chave), self::MAX_PAGINAS, $url, $token, $email, $somente, $vistas, $r);
+            // 2) reconciliacao diaria (listagem do zero, aos poucos): caixa liberada depois no token nao aparece no cursor (regra do
+            //    APMail); as conversas ja importadas nao sao relidas, entao custa so a listagem
+            $rec = sha1($token . '|' . $email . '|all|reconciliacao');
+            $inicio = self::reconciliacao($rec);
+            if ($inicio !== false)
             {
-                $p = ApmailApiService::mensagens($url, $token, $email, $cursor);
-                foreach ($p['itens'] as $item)
+                $chave = $rec;
+                if (self::percorrer($rec, $inicio, self::MAX_PAGINAS, $url, $token, $email, $somente, $vistas, $r))
                 {
-                    $thread = (string) ($item['threadId'] ?? '');
-                    if ($thread === '' || isset($vistas[$thread])) { continue; }
-                    $vistas[$thread] = true;
-                    $mensagens = ApmailApiService::conversa($url, $token, $email, $thread);
-                    $n = self::gravar($thread, $mensagens, $somente);
-                    if ($n === null) { $r['ignoradas']++; } else { $r['conversas']++; $r['mensagens'] += $n; }
+                    self::concluir($rec);
                 }
-                if ($p['proximo'] !== null) { $cursor = $p['proximo']; }
-                self::salvar($chave, $cursor, null);
-                if (!$p['mais']) { break; }
             }
         }
         catch (Throwable $e)
@@ -117,6 +116,90 @@ class ApmailSincronizacaoService
             fclose($h);
         }
         return $r;
+    }
+
+    /**
+     * Percorre a listagem a partir do cursor, pagina por pagina; grava as conversas com e-mail ainda nao importado; salva o cursor
+     * depois de cada pagina gravada. @return bool chegou ao fim (hasMore = false)
+     */
+    private static function percorrer(string $chave, ?string $cursor, int $maxPaginas, string $url, string $token, string $email, ?array $somente,
+                                      array &$vistas, array &$r): bool
+    {
+        for ($pagina = 0; $pagina < $maxPaginas; $pagina++)
+        {
+            $p = ApmailApiService::mensagens($url, $token, $email, $cursor);
+            $porConversa = [];
+            foreach ($p['itens'] as $item)
+            {
+                $thread = (string) ($item['threadId'] ?? '');
+                if ($thread !== '') { $porConversa[$thread][] = strtolower((string) ($item['id'] ?? '')); }
+            }
+            $conhecidas = self::conhecidas(array_merge([], ...array_values($porConversa ?: [[]])));
+            foreach ($porConversa as $thread => $ids)
+            {
+                if (isset($vistas[$thread])) { continue; }
+                $vistas[$thread] = true;
+                if (!array_diff($ids, $conhecidas)) { continue; } // todos os e-mails dela ja estao aqui
+                $n = self::gravar($thread, ApmailApiService::conversa($url, $token, $email, $thread), $somente);
+                if ($n === null) { $r['ignoradas']++; } else { $r['conversas']++; $r['mensagens'] += $n; }
+            }
+            if ($p['proximo'] !== null) { $cursor = $p['proximo']; }
+            self::salvar($chave, $cursor, null);
+            if (!$p['mais']) { return true; }
+        }
+        return false;
+    }
+
+    /** Dos ids do APMail, os que ja estao em apmail_mensagem. */
+    private static function conhecidas(array $ids): array
+    {
+        $ids = array_values(array_filter(array_unique($ids), function ($id) { return self::uuid($id) !== null; }));
+        if (!$ids) { return []; }
+        TTransaction::open('escritorio');
+        $st = TTransaction::get()->prepare('SELECT apmail_id::text FROM apmail_mensagem WHERE apmail_id = ANY (?::uuid[])');
+        $st->execute(['{' . implode(',', $ids) . '}']);
+        $r = $st->fetchAll(PDO::FETCH_COLUMN);
+        TTransaction::close();
+        return $r;
+    }
+
+    /**
+     * Reconciliacao: de onde continuar (null = do zero) ou false = feita ha menos de 1 dia. Vencida: recomeca do zero.
+     */
+    private static function reconciliacao(string $chave)
+    {
+        TTransaction::open('escritorio');
+        $c = TTransaction::get();
+        $st = $c->prepare("SELECT cursor, concluida_em IS NOT NULL AS concluida, concluida_em < now() - interval '1 day' AS vencida FROM apmail_sincronizacao WHERE chave = ?");
+        $st->execute([$chave]);
+        $l = $st->fetch(PDO::FETCH_ASSOC);
+        $sim = function ($v) { return in_array($v, [true, 't', 1, '1'], true); };
+        $r = null;
+        if (!$l)
+        {
+            $c->prepare('INSERT INTO apmail_sincronizacao (chave) VALUES (?)')->execute([$chave]);
+        }
+        elseif ($sim($l['concluida']) && !$sim($l['vencida']))
+        {
+            $r = false;
+        }
+        elseif ($sim($l['concluida']))
+        {
+            $c->prepare('UPDATE apmail_sincronizacao SET cursor = NULL, concluida_em = NULL WHERE chave = ?')->execute([$chave]);
+        }
+        else
+        {
+            $r = $l['cursor'] !== null && $l['cursor'] !== '' ? (string) $l['cursor'] : null;
+        }
+        TTransaction::close();
+        return $r;
+    }
+
+    private static function concluir(string $chave): void
+    {
+        TTransaction::open('escritorio');
+        TTransaction::get()->prepare('UPDATE apmail_sincronizacao SET cursor = NULL, concluida_em = now() WHERE chave = ?')->execute([$chave]);
+        TTransaction::close();
     }
 
     /** [url, token, email do usuario de integracao]. */
