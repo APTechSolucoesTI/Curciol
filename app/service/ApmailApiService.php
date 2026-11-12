@@ -10,6 +10,8 @@ class ApmailApiService
 {
     const URL_PADRAO = 'https://app.apmail.com.br';
     const ROTA = '/api/integrations/notifications';
+    const ROTA_MENSAGENS = '/api/integrations/messages';
+    const ROTA_CONVERSAS = '/api/integrations/threads/';
     const TIMEOUT_CONEXAO = 5;
     const TIMEOUT_TOTAL = 8;
 
@@ -102,7 +104,62 @@ class ApmailApiService
         return self::notificacoes($url, $token, $email);
     }
 
-    private static function motivo(array $r, array $json): string
+    /**
+     * Historico (12/11/2026): uma pagina da sincronizacao por cursor (recebidos e enviados), sem corpo.
+     *
+     * @return array {itens: array, proximo: ?string (nextCursor), mais: bool (hasMore)}
+     * @throws ApmailErro
+     */
+    public static function mensagens(string $url, string $token, string $email, ?string $cursor, int $limite = 100): array
+    {
+        $url = rtrim(trim($url), '/') ?: self::URL_PADRAO;
+        $q = 'email=' . rawurlencode(trim($email)) . '&direction=all&limit=' . max(1, min(100, $limite))
+           . ($cursor !== null && $cursor !== '' ? '&cursor=' . rawurlencode($cursor) : '');
+        $d = self::dados(self::chamar($url . self::ROTA_MENSAGENS . '?' . $q, trim($token)), 'messages:read');
+        return [
+            'itens'   => array_values((array) ($d['items'] ?? [])),
+            'proximo' => isset($d['nextCursor']) && $d['nextCursor'] !== '' ? (string) $d['nextCursor'] : null,
+            'mais'    => !empty($d['hasMore']),
+        ];
+    }
+
+    /**
+     * Historico (12/11/2026): a conversa inteira (recebidos e enviados, com corpo), juntando as paginas, em ordem.
+     *
+     * @throws ApmailErro
+     */
+    public static function conversa(string $url, string $token, string $email, string $threadId): array
+    {
+        if (!preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', $threadId))
+        {
+            throw new ApmailErro('Conversa do APMail inválida.', 400);
+        }
+        $url = rtrim(trim($url), '/') ?: self::URL_PADRAO;
+        $itens = [];
+        $cursor = null;
+        for ($pagina = 0; $pagina < 40; $pagina++)
+        {
+            $q = 'email=' . rawurlencode(trim($email)) . '&limit=50' . ($cursor !== null ? '&cursor=' . rawurlencode($cursor) : '');
+            $d = self::dados(self::chamar($url . self::ROTA_CONVERSAS . strtolower($threadId) . '?' . $q, trim($token)), 'messages:read');
+            foreach ((array) ($d['items'] ?? []) as $m) { $itens[] = $m; }
+            $cursor = isset($d['nextCursor']) && $d['nextCursor'] !== '' ? (string) $d['nextCursor'] : null;
+            if (empty($d['hasMore']) || $cursor === null) { break; }
+        }
+        return $itens;
+    }
+
+    /** data da resposta de sucesso; senao ApmailErro com o motivo. */
+    private static function dados(array $r, string $permissao): array
+    {
+        $json = json_decode((string) $r['corpo'], true);
+        if ($r['status'] !== 200 || !is_array($json) || empty($json['success']) || !is_array($json['data'] ?? null))
+        {
+            throw new ApmailErro(self::motivo($r, is_array($json) ? $json : [], $permissao), (int) $r['status'], $r['retry_after'] ?? null);
+        }
+        return $json['data'];
+    }
+
+    private static function motivo(array $r, array $json, string $permissao = 'notifications:read'): string
     {
         $msg = trim((string) ($json['error']['message'] ?? ''));
         switch ((int) $r['status'])
@@ -110,7 +167,7 @@ class ApmailApiService
             case 0:   return 'O APMail não respondeu' . ($r['erro'] ? ' (' . $r['erro'] . ')' : '') . '.';
             case 400: return 'O APMail recusou o e-mail informado (formato inválido).';
             case 401: return 'Token do APMail ausente, inválido, expirado ou revogado.';
-            case 403: return 'A rota de notificações não está autorizada para este token no APMail.';
+            case 403: return 'A rota não está autorizada para este token no APMail (permissão ' . $permissao . ').';
             case 404: return 'O e-mail não está liberado para esta integração no APMail.';
             case 429: return 'Limite de consultas do APMail atingido; tente de novo em instantes.';
         }
