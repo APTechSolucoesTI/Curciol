@@ -650,10 +650,34 @@ window.CurciolAbrirApp = function(link, nome) {
         window.removeEventListener('blur', marcar);
         document.removeEventListener('visibilitychange', oculto);
         if (!abriu && document.hasFocus()) {
-            var texto = 'O ' + nome + ' não abriu neste computador. Instale o app do ' + nome + ': abra o ' + nome + ' no Chrome, Edge ou Brave e clique no botão '
-                      + '"Instalar" da barra de endereço (o atalho criado pelo menu, em "Criar atalho" ou "Salvar página como app", não recebe os links da Curciol: '
-                      + 'se instalou assim, remova esse atalho e instale pelo botão). Depois clique de novo aqui. Se o navegador perguntar se pode abrir o ' + nome + ', escolha Abrir e marque para lembrar.';
-            if (typeof __adianti_warning === 'function') { __adianti_warning(nome, texto); } else { alert(texto); }
+            CurciolAvisoApp(nome);
         }
     }, 2500);
+};
+
+// Curciol (12/11/2026): aviso quando o app nao abriu - instalar pelo botao (o atalho do menu nao recebe os links) e as duas
+// perguntas do navegador na primeira vez (a da Curciol para abrir o app e a do app para abrir esse tipo de link).
+window.CurciolAvisoApp = function(nome) {
+    if (nome !== 'APChat' && nome !== 'APMail') { return; }
+    var html = '<div style="line-height:1.45">'
+        + '<p style="margin:0 0 8px"><b>O ' + nome + ' não abriu neste computador.</b> Pela Curciol, o ' + nome + ' abre só no <b>app instalado</b>. '
+        + 'Faça uma vez:</p>'
+        + '<ol style="margin:0 0 8px;padding-left:20px">'
+        + '<li style="margin-bottom:6px"><b>Instale o app do ' + nome + ':</b> abra o ' + nome + ' no Chrome, Edge ou Brave e clique em <b>Instalar</b> '
+        + 'na barra de endereço (ícone de um computador com uma seta, à direita).<br>'
+        + '<small style="color:#666">Não use <i>Criar atalho</i> nem <i>Salvar página como app</i> do menu: esse atalho não recebe os links da Curciol. '
+        + 'Se instalou assim, remova o atalho e instale pelo botão.</small></li>'
+        + '<li><b>Volte aqui e clique de novo.</b> Na primeira vez o navegador faz <b>duas perguntas</b> (a ordem pode variar). Aceite as duas para não perguntar mais:'
+        + '<ul style="margin:4px 0 0;padding-left:18px">'
+        + '<li><b>Abrir o ' + nome + '?</b> (a Curciol pedindo para abrir o app): marque <b>Sempre permitir</b> e clique em <b>Abrir</b>.</li>'
+        + '<li><b>Permitir que o ' + nome + ' abra este tipo de link?</b> (o app): marque <b>Lembrar</b> e clique em <b>Permitir</b>.</li>'
+        + '</ul></li></ol>'
+        + '<small style="color:#666">Se já clicou em <i>Cancelar</i> ou <i>Bloquear</i> numa dessas perguntas e o link não abre mais, apague o bloqueio no navegador '
+        + '(Configurações › Privacidade e segurança › Configurações do site › Gerenciadores de protocolo) e tente de novo.</small>'
+        + '</div>';
+    if (typeof __adianti_warning === 'function') {
+        __adianti_warning('Abrir no ' + nome, html);
+    } else {
+        alert('O ' + nome + ' não abriu. Instale o app do ' + nome + ' pelo botão Instalar da barra de endereço do navegador e clique de novo.');
+    }
 };
