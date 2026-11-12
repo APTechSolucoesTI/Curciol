@@ -19,6 +19,7 @@ $limpar = function () {
 $limpar();
 $semConfig = sys_get_temp_dir() . '/apmail-sem-config-' . getmypid() . '.php';
 ApmailSincronizacaoService::usarConfig($semConfig);
+ApmailHistoricoService::usarCaixas(['00000000-0000-4000-8000-00000000cca1']);
 LinkApp::forcar('apmail', true);
 TSession::setValue('userid', 1);
 
@@ -28,8 +29,8 @@ try
     $c = TTransaction::get();
     $a = (int) $c->query("INSERT INTO pessoa (nome, tipo_pessoa_id, email) VALUES ('" . MARCA_TELA . " A', 1, 'cliente.tela@teste.com') RETURNING id")->fetchColumn();
     $b = (int) $c->query("INSERT INTO pessoa (nome, tipo_pessoa_id, email) VALUES ('" . MARCA_TELA . " B', 1, 'outro.tela@teste.com') RETURNING id")->fetchColumn();
-    $conv = (int) $c->query("INSERT INTO apmail_conversa (thread_id, assunto, caixa_nome, inicio_em, fim_em, responsavel_nome, qtd_mensagens)
-                             VALUES ('" . PFT . "01', 'Pedido de <documento>', 'Suporte', '2026-11-10 09:00', '2026-11-10 10:30', 'Atendente Um', 2) RETURNING id")->fetchColumn();
+    $conv = (int) $c->query("INSERT INTO apmail_conversa (thread_id, assunto, caixa_id, caixa_nome, inicio_em, fim_em, responsavel_nome, qtd_mensagens)
+                             VALUES ('" . PFT . "01', 'Pedido de <documento>', '00000000-0000-4000-8000-00000000cca1', 'Suporte', '2026-11-10 09:00', '2026-11-10 10:30', 'Atendente Um', 2) RETURNING id")->fetchColumn();
     $c->exec("INSERT INTO apmail_conversa_email (conversa_id, email) VALUES ({$conv}, 'cliente.tela@teste.com')");
     $c->exec("INSERT INTO apmail_mensagem (apmail_id, conversa_id, direcao, assunto, de_nome, de_email, para, cc, mensagem_em, corpo_html, corpo_texto, qtd_anexos) VALUES
               ('" . PFT . "11', {$conv}, 'inbound', 'Pedido de <documento>', 'Cliente Tela', 'cliente.tela@teste.com', '[{\"nome\":\"Suporte\",\"email\":\"suporte@escritorio.com\"}]',
@@ -73,7 +74,13 @@ try
     ok('conversa: e-mail so texto com quebra de linha', strpos($v, 'Recebido,<br />') !== false);
     ok('conversa: botao Abrir no APMail pelo app, no ultimo e-mail', strpos($v, 'Abrir no APMail') !== false && strpos($v, 'web+apmail://mensagem/' . PFT . '12') !== false);
     ok('conversa: lista de e-mails ate o fim da tela', strpos($v, 'apm-lista') !== false && strpos($v, 'innerHeight') !== false);
-    ok('conversa: lista comeca no topo (mais antigo em cima, sem inverter)', preg_match('/.apm-lista{[^}]*flex-direction:column;/', $v) === 1 && preg_match('/.apm-lista{[^}]*column-reverse/', $v) === 0);
+    ok('conversa: lista comeca no topo, sem inverter', preg_match('/\.apm-lista\{[^}]*flex-direction:column;/', $v) === 1 && preg_match('/\.apm-lista\{[^}]*column-reverse/', $v) === 0);
+    ok('conversa: mais recente em cima (resposta antes do pedido)', strpos($v, 'Recebido,') !== false && strpos($v, 'Recebido,') < strpos($v, 'Segue'));
+    ApmailHistoricoService::usarCaixas([]);
+    $sem = saidat(function () use ($conv, $a) { $t = new ApmailConversaView(['key' => $conv, 'pessoa_id' => $a]); $t->onShow(['key' => $conv, 'pessoa_id' => $a]); $t->show(); });
+    ok('usuario sem acesso a caixa: nao ve a conversa', strpos($sem, 'acesso') !== false && strpos($sem, 'Segue') === false);
+    ok('usuario sem acesso a caixa: lista sem a linha APMail', strpos(saidat(function () use ($a) { (new HistoricosAtendimentoCliente(['key' => $a]))->show(); }), '>APMail<') === false);
+    ApmailHistoricoService::usarCaixas(['00000000-0000-4000-8000-00000000cca1']);
     ok('conversa: imagem da assinatura diferenciada (nao e anexo)', strpos($v, 'assinatura') !== false && strpos($v, '1 anexo') === false);
     ok('conversa: convite de agenda diferenciado', strpos($v, 'Convite de agenda') !== false);
     ok('conversa: sem traco', strpos($v, '—') === false);
@@ -84,6 +91,7 @@ finally
 {
     while (TTransaction::get()) { TTransaction::rollback(); }
     ApmailSincronizacaoService::usarConfig(null);
+    ApmailHistoricoService::usarCaixas(null);
     LinkApp::forcar('apmail', null);
     $limpar();
 }

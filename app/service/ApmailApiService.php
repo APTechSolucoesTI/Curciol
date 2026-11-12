@@ -80,6 +80,7 @@ class ApmailApiService
         foreach ((array) ($d['mailboxes'] ?? []) as $m)
         {
             $caixas[] = [
+                'id'        => strtolower(trim((string) ($m['id'] ?? ''))),
                 'nome'      => (string) ($m['name'] ?? $m['email'] ?? 'Caixa'),
                 'email'     => (string) ($m['email'] ?? ''),
                 'pendentes' => (int) ($m['pending'] ?? 0),

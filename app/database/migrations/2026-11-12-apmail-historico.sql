@@ -69,6 +69,9 @@ COMMENT ON COLUMN escritorio.apmail_email_integracao IS 'Usuario do APMail que e
 -- Usuarios das integracoes: situacao da ligacao com o APMail (S = reconhecido, N = nao reconhecido, nulo = nao conferido)
 ALTER TABLE apmail_usuario ADD COLUMN IF NOT EXISTS situacao char(1);
 ALTER TABLE apmail_usuario ADD COLUMN IF NOT EXISTS conferido_em timestamp;
+-- acesso ao historico (12/11/2026): caixas que o usuario acessa no APMail (notificacoes), guardadas 60 s; APMail fora = ultimo conhecido
+ALTER TABLE apmail_usuario ADD COLUMN IF NOT EXISTS caixas jsonb;
+ALTER TABLE apmail_usuario ADD COLUMN IF NOT EXISTS caixas_em timestamp;
 
 -- tela da conversa (ApmailConversaView): quem abre o cadastro do cliente (ClienteForm), por grupo ou permissao direta
 INSERT INTO system_program (id, name, controller)

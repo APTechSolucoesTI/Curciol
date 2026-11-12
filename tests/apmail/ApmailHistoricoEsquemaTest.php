@@ -23,7 +23,7 @@ ok('indice por e-mail na apmail_conversa_email', (bool) qe("SELECT 1 FROM pg_ind
 
 $cols = function (string $t) { return array_column(qe("SELECT column_name FROM information_schema.columns WHERE table_name = '{$t}'"), 'column_name'); };
 ok('escritorio.apmail_email_integracao', in_array('apmail_email_integracao', $cols('escritorio'), true));
-ok('apmail_usuario.situacao e conferido_em', !array_diff(['situacao', 'conferido_em'], $cols('apmail_usuario')));
+ok('apmail_usuario.situacao, conferido_em e caixas (acesso)', !array_diff(['situacao', 'conferido_em', 'caixas', 'caixas_em'], $cols('apmail_usuario')));
 ok('apmail_mensagem com corpo, participantes e quem enviou', !array_diff(['conversa_id', 'direcao', 'assunto', 'de_nome', 'de_email', 'para', 'cc', 'mensagem_em',
    'enviado_por_nome', 'enviado_por_email', 'corpo_html', 'corpo_texto', 'qtd_anexos', 'qtd_imagens_corpo', 'tem_convite'], $cols('apmail_mensagem')));
 ok('apmail_conversa com caixa, periodo e responsavel', !array_diff(['thread_id', 'assunto', 'caixa_id', 'caixa_nome', 'caixa_email', 'inicio_em', 'fim_em',
