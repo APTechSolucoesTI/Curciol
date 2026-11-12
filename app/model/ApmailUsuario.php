@@ -14,6 +14,8 @@ class ApmailUsuario extends TRecord
         parent::addAttribute('system_user_id');
         parent::addAttribute('email');
         parent::addAttribute('avisos');
+        parent::addAttribute('situacao');
+        parent::addAttribute('conferido_em');
         parent::addAttribute('atualizado_em');
     }
 }
