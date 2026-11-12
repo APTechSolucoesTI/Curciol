@@ -38,4 +38,26 @@ $perm = qe("SELECT (SELECT count(*) FROM system_program WHERE controller = 'Apma
                                         WHERE u2.system_user_id = u.system_user_id)) usuarios_sem")[0];
 ok('tela da conversa nas permissoes, com os mesmos grupos e usuarios do cadastro do cliente', (int) $perm['programa'] === 1 && (int) $perm['grupos_sem'] === 0 && (int) $perm['usuarios_sem'] === 0, json_encode($perm));
 
+// Escritorio: usuario de integracao (so Admin muda; minusculas; invalido recusado)
+$atual = (object) ['url_apchat' => 'u', 'token_apchat' => 't', 'url_tela_apchat' => null, 'url_apmail' => null, 'token_apmail' => null,
+                   'apchat_abrir_app' => 'N', 'apmail_abrir_app' => 'N', 'apmail_email_integracao' => 'velho@x.com'];
+$d = EscritorioForm::segredosAoSalvar((object) ['apmail_email_integracao' => ' Integra@Escritorio.COM '], $atual, true);
+igual('admin: usuario de integracao gravado em minusculas', 'integra@escritorio.com', $d->apmail_email_integracao);
+$d = EscritorioForm::segredosAoSalvar((object) ['apmail_email_integracao' => ''], $atual, true);
+igual('admin: vazio = usar o do primeiro Admin', null, $d->apmail_email_integracao);
+lanca('admin: e-mail invalido recusado', fn() => EscritorioForm::segredosAoSalvar((object) ['apmail_email_integracao' => 'nao-e-email'], $atual, true), 'usuário de integração');
+$d = EscritorioForm::segredosAoSalvar((object) ['apmail_email_integracao' => 'outro@x.com'], $atual, false);
+igual('nao admin: mantem o que estava', 'velho@x.com', $d->apmail_email_integracao);
+
+// usuario de integracao sem o campo: o e-mail APMail do primeiro Admin
+TTransaction::open('escritorio');
+$esperado = '';
+foreach (TTransaction::get()->query("SELECT u.id FROM system_users u JOIN system_user_group g ON g.system_user_id = u.id AND g.system_group_id = 1 WHERE u.active = 'Y' ORDER BY u.id")->fetchAll(PDO::FETCH_COLUMN) as $uid)
+{
+    if (($e = ApmailUsuarioService::email((int) $uid)) !== '') { $esperado = mb_strtolower($e); break; }
+}
+igual('usuario de integracao: vazio = o e-mail APMail do primeiro Admin', $esperado, ApmailSincronizacaoService::usuarioIntegracao(null));
+igual('usuario de integracao: o do escritorio quando preenchido', 'integra@x.com', ApmailSincronizacaoService::usuarioIntegracao((function () { $e = new Escritorio(); $e->apmail_email_integracao = 'Integra@X.com'; return $e; })()));
+TTransaction::close();
+
 fim();
