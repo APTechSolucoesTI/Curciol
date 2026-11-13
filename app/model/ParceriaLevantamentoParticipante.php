@@ -6,7 +6,7 @@ class ParceriaLevantamentoParticipante extends TRecord
     const PRIMARYKEY = 'id';
     const IDPOLICY   = 'serial';
 
-    const NIVEL_FIXO    = 'FIXO';
+    const NIVEL_FIXO    = 'FIXO';     // parceria fixa; na por tempo: percentual nao muda (entre e depois = antes)
     const NIVEL_MARCO1  = 'MARCO1';   // percentual muda so no 1o marco (entre = depois)
     const NIVEL_MARCO2  = 'MARCO2';   // percentual muda so no 2o marco (entre = antes)
     const NIVEL_MARCO12 = 'MARCO12';  // percentual muda nos dois marcos (entre informado)

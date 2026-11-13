@@ -8,8 +8,8 @@
  * fica dividido em 3 periodos e em cada um vale a divisao daquela coluna:
  *   percentual = a x antes + (p - a) x entre + (1 - p) x depois
  * a = fracao do tempo antes do 1o marco, p = fracao antes do 2o marco (meses completos), cada coluna soma 100%.
- * O nivel diz em qual marco o percentual da pessoa muda: nivel 1 (entre = depois), nivel 2 (entre = antes),
- * nivel 1 e 2 (entre informado).
+ * O nivel diz em qual marco o percentual da pessoa muda: fixo (nao muda: entre e depois = antes), nivel 1 (entre = depois),
+ * nivel 2 (entre = antes), nivel 1 e 2 (entre informado).
  * Sem banco: recebe e devolve arrays.
  */
 class ParceriaPercentualService
@@ -50,17 +50,25 @@ class ParceriaPercentualService
     /** Niveis da parceria por tempo. */
     public static function niveisTemporais(): array
     {
-        return [ParceriaLevantamentoParticipante::NIVEL_MARCO1, ParceriaLevantamentoParticipante::NIVEL_MARCO2, ParceriaLevantamentoParticipante::NIVEL_MARCO12];
+        return [ParceriaLevantamentoParticipante::NIVEL_FIXO, ParceriaLevantamentoParticipante::NIVEL_MARCO1,
+                ParceriaLevantamentoParticipante::NIVEL_MARCO2, ParceriaLevantamentoParticipante::NIVEL_MARCO12];
     }
 
-    /** Percentual "entre os marcos" pelo nivel: nivel 1 repete o depois, nivel 2 repete o antes, nivel 1 e 2 e o informado. */
+    /** Percentual "entre os marcos" pelo nivel: fixo e nivel 2 repetem o antes, nivel 1 repete o depois, nivel 1 e 2 e o informado. */
     public static function entre(array $p): float
     {
         switch ($p['nivel'] ?? '') {
-            case ParceriaLevantamentoParticipante::NIVEL_MARCO1: return (float) ($p['percentual_depois'] ?? 0);
-            case ParceriaLevantamentoParticipante::NIVEL_MARCO2: return (float) ($p['percentual_antes'] ?? 0);
+            case ParceriaLevantamentoParticipante::NIVEL_MARCO1: return self::depois($p);
+            case ParceriaLevantamentoParticipante::NIVEL_MARCO2:
+            case ParceriaLevantamentoParticipante::NIVEL_FIXO: return (float) ($p['percentual_antes'] ?? 0);
             default: return (float) ($p['percentual_entre'] ?? 0);
         }
+    }
+
+    /** Percentual "depois do 2o marco": no fixo repete o antes; nos outros niveis e o informado. */
+    public static function depois(array $p): float
+    {
+        return (float) ((($p['nivel'] ?? '') === ParceriaLevantamentoParticipante::NIVEL_FIXO) ? ($p['percentual_antes'] ?? 0) : ($p['percentual_depois'] ?? 0));
     }
 
     public static function validar(string $tipo, array $participantes): void
@@ -72,7 +80,7 @@ class ParceriaPercentualService
                 if (isset($p[$campo]) && (float) $p[$campo] < 0) { throw new Exception('Os percentuais não podem ser negativos.'); }
             }
             if ($tipo === ParceriaLevantamento::TIPO_TEMPORAL && !in_array($p['nivel'] ?? null, self::niveisTemporais(), true)) {
-                throw new Exception('Nível inválido na parceria por tempo (use nível 1, nível 2 ou nível 1 e 2).');
+                throw new Exception('Nível inválido na parceria por tempo (use fixo, nível 1, nível 2 ou nível 1 e 2).');
             }
         }
 
@@ -93,7 +101,7 @@ class ParceriaPercentualService
 
         $antes  = $soma(function ($p) { return (float) ($p['percentual_antes'] ?? 0); });
         $entre  = $soma(function ($p) { return self::entre($p); });
-        $depois = $soma(function ($p) { return (float) ($p['percentual_depois'] ?? 0); });
+        $depois = $soma(function ($p) { return self::depois($p); });
         if ($antes != 100.0 || $entre != 100.0 || $depois != 100.0) {
             $f = function ($v) { return rtrim(rtrim(number_format($v, 4, ',', '.'), '0'), ',') . '%'; };
             throw new Exception('Cada período deve somar 100%: antes do 1º marco ' . $f($antes) . ', entre os marcos ' . $f($entre)
@@ -135,7 +143,7 @@ class ParceriaPercentualService
 
         $saida = [];
         foreach (array_values($participantes) as $q) {
-            $pct = ($a * (float) $q['percentual_antes'] + ($p - $a) * self::entre($q) + (1 - $p) * (float) $q['percentual_depois']) / 100;
+            $pct = ($a * (float) $q['percentual_antes'] + ($p - $a) * self::entre($q) + (1 - $p) * self::depois($q)) / 100;
             $saida[] = ['pessoa_id' => (int) $q['pessoa_id'], 'percentual' => $pct, 'recebe_diferenca' => self::marcado($q['recebe_diferenca'] ?? false)];
         }
 

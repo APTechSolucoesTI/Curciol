@@ -69,6 +69,14 @@ igual('POUPANCA soma 100%', 1.0, round(array_sum($pp), 10));
 igual('POUPANCA Carlos = 50% x tempo ate 01/01/2019', round(0.5 * $rp['p'], 10), round($pp[8], 10));
 igual('POUPANCA Ivan = 50% x tempo depois de 01/01/2019', round(0.5 * (1 - $rp['p']), 10), round($pp[9], 10));
 
+// nivel fixo na parceria por tempo: so o "antes" vale; entre e depois repetem (o depois digitado e ignorado)
+$comFixo = $poupanca; $comFixo[2]['nivel'] = 'FIXO'; $comFixo[2]['percentual_depois'] = 999;
+igual('fixo: entre e depois = antes', [16.67, 16.67], [$S::entre($comFixo[2]), $S::depois($comFixo[2])]);
+$rf = array_column($S::percentuais('TEMPORAL', $comFixo, '2018-06-01', '2019-01-01', '2010-12-10', '2026-11-05')['participantes'], 'percentual', 'pessoa_id');
+igual('fixo: Kleber 16,67% em qualquer data', 0.1667, round($rf[3], 10));
+igual('fixo: soma 100%', 1.0, round(array_sum($rf), 10));
+lanca('parceria por tempo aceita o nivel fixo', function () use ($S, $comFixo) { $S::validar('TEMPORAL', $comFixo); throw new Exception('validou'); }, 'validou');
+
 $fixa = [['pessoa_id'=>1,'nivel'=>'FIXO','percentual'=>20,'recebe_diferenca'=>'S'], ['pessoa_id'=>2,'nivel'=>'FIXO','percentual'=>80,'recebe_diferenca'=>'N']];
 igual('fixa: percentual vira fracao', 0.8, $S::percentuais('FIXA', $fixa, null, null, null, null)['participantes'][1]['percentual']);
 
@@ -87,7 +95,7 @@ lanca('temporal sem marco1 (I2)', function () use ($S, $campos) { $S::percentuai
 lanca('temporal com marco1 depois de marco2 (I2)', function () use ($S, $campos) { $S::percentuais('TEMPORAL', $campos, '2018-06-01', '2016-11-01', '2010-01-01', '2026-09-27'); }, 'anterior');
 
 // M1: nivel desconhecido e percentual negativo
-lanca('temporal com nivel FIXO (M1)', function () use ($S, $campos) { $c = $campos; $c[] = ['pessoa_id'=>9, 'nivel'=>'FIXO', 'percentual_antes'=>0, 'percentual_depois'=>0, 'recebe_diferenca'=>'N']; $S::validar('TEMPORAL', $c); }, 'nível');
+lanca('temporal com nivel desconhecido (M1)', function () use ($S, $campos) { $c = $campos; $c[] = ['pessoa_id'=>9, 'nivel'=>'MARCO3', 'percentual_antes'=>0, 'percentual_depois'=>0, 'recebe_diferenca'=>'N']; $S::validar('TEMPORAL', $c); }, 'nível');
 lanca('fixa com percentual negativo (M1)', function () use ($S) { $S::validar('FIXA', [['pessoa_id'=>1,'nivel'=>'FIXO','percentual'=>-10,'recebe_diferenca'=>'S'], ['pessoa_id'=>2,'nivel'=>'FIXO','percentual'=>110,'recebe_diferenca'=>'N']]); }, 'negativ');
 lanca('temporal com percentual antes negativo (M1)', function () use ($S, $campos) { $c = $campos; $c[1]['percentual_antes'] = -1; $S::validar('TEMPORAL', $c); }, 'negativ');
 

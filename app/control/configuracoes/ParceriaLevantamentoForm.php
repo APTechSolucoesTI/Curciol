@@ -100,7 +100,7 @@ class ParceriaLevantamentoForm extends TPage
         $tipo->enableSearch();
 
         $participante_nivel->addItems([
-            ParceriaLevantamentoParticipante::NIVEL_FIXO   => 'Fixo',
+            ParceriaLevantamentoParticipante::NIVEL_FIXO   => 'Fixo (não muda)',
             ParceriaLevantamentoParticipante::NIVEL_MARCO1 => 'Nível 1',
             ParceriaLevantamentoParticipante::NIVEL_MARCO2 => 'Nível 2',
             ParceriaLevantamentoParticipante::NIVEL_MARCO12 => 'Nível 1 e 2',
@@ -164,7 +164,8 @@ class ParceriaLevantamentoForm extends TPage
         // legenda dos niveis (so na parceria por tempo)
         $legenda = new TElement('div');
         $legenda->id = 'pl_legenda';
-        $legenda->add("<span><span class='pl-bol pl-b1'></span><b class='pl-c1'>Nível 1</b>: muda só no 1º marco (o \"entre\" repete o \"depois\")</span>"
+        $legenda->add("<span><span class='pl-bol pl-b0'></span><b class='pl-c0'>Fixo</b>: não muda (o \"entre\" e o \"depois\" repetem o \"antes\")</span>"
+            . "<span><span class='pl-bol pl-b1'></span><b class='pl-c1'>Nível 1</b>: muda só no 1º marco (o \"entre\" repete o \"depois\")</span>"
             . "<span><span class='pl-bol pl-b2'></span><b class='pl-c2'>Nível 2</b>: muda só no 2º marco (o \"entre\" repete o \"antes\")</span>"
             . "<span><span class='pl-bol pl-b12'></span><b class='pl-c12'>Nível 1 e 2</b>: muda nos dois marcos (as 3 colunas livres)</span>");
         $row4 = $this->form->addFields([$ajuda, $legenda]);
@@ -214,8 +215,8 @@ class ParceriaLevantamentoForm extends TPage
                       "{$f}.pl-temporal {$t}:nth-child(6)", "{$f}.pl-fixa #pl_periodos", "{$f}.pl-fixa #pl_legenda"];
         $css = implode(', ', $seletores) . ' { display: none !important; }' . str_replace(['__F__', '__T__'], [$f, $t], <<<'CSS'
             __F__ .pl-bol { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 4px; vertical-align: middle; }
-            __F__ .pl-b1 { background: #1e6fd9; } __F__ .pl-b2 { background: #e07b00; } __F__ .pl-b12 { background: #7b4fc9; }
-            __F__ .pl-c1 { color: #1e6fd9; } __F__ .pl-c2 { color: #e07b00; } __F__ .pl-c12 { color: #7b4fc9; }
+            __F__ .pl-b0 { background: #8a919c; } __F__ .pl-b1 { background: #1e6fd9; } __F__ .pl-b2 { background: #e07b00; } __F__ .pl-b12 { background: #7b4fc9; }
+            __F__ .pl-c0 { color: #4a4f57; } __F__ .pl-c1 { color: #1e6fd9; } __F__ .pl-c2 { color: #e07b00; } __F__ .pl-c12 { color: #7b4fc9; }
             __F__ .pl-marco { border: 1px solid #d9dde3; border-left-width: 5px; border-radius: 4px; padding: 6px 8px; }
             __F__ .pl-marco.pl-m1 { background: #e8f1fd; border-color: #b9d3f7; border-left-color: #1e6fd9; }
             __F__ .pl-marco.pl-m2 { background: #fff3e3; border-color: #f5cf9c; border-left-color: #e07b00; }
@@ -227,17 +228,22 @@ class ParceriaLevantamentoForm extends TPage
             __F__ #pl_periodos .pl-barra div + div { background: #f7f8fa; border-left: 3px solid #1e6fd9; }
             __F__ #pl_periodos .pl-barra div + div + div { background: #eef0f3; border-left: 3px solid #e07b00; }
             __F__ #pl_legenda { display: flex; flex-wrap: wrap; gap: 14px; font-size: 12px; margin-bottom: 8px; }
-            __F__.pl-temporal __T__:nth-child(7) { border-right: 3px solid #1e6fd9 !important; }
-            __F__.pl-temporal __T__:nth-child(8) { border-right: 3px solid #e07b00 !important; }
+            __F__.pl-temporal __T__:nth-child(7) { border-right: 3px solid #1e6fd9 !important; padding-right: 8px !important; }
+            __F__.pl-temporal __T__:nth-child(8) { border-right: 3px solid #e07b00 !important; padding-left: 8px !important; padding-right: 8px !important; }
+            __F__.pl-temporal __T__:nth-child(9) { padding-left: 8px !important; }
             __F__ table.tfieldlist > thead small { display: block; color: #888; font-weight: normal; font-size: 11px; }
             __F__ .pl-h1 { color: #1e6fd9; font-weight: bold; } __F__ .pl-h2 { color: #e07b00; font-weight: bold; } __F__ .pl-h { font-weight: bold; }
-            __F__.pl-temporal tr.pl-n1 > td:nth-child(4) { box-shadow: inset 5px 0 0 #1e6fd9; }
-            __F__.pl-temporal tr.pl-n2 > td:nth-child(4) { box-shadow: inset 5px 0 0 #e07b00; }
-            __F__.pl-temporal tr.pl-n12 > td:nth-child(4) { box-shadow: inset 5px 0 0 #7b4fc9; }
+            __F__.pl-temporal table.tfieldlist > tbody > tr > td:nth-child(4) { border-left: 6px solid transparent !important; padding-left: 8px !important; }
+            __F__.pl-temporal tr.pl-n0 > td:nth-child(4) { border-left-color: #8a919c !important; }
+            __F__.pl-temporal tr.pl-n1 > td:nth-child(4) { border-left-color: #1e6fd9 !important; }
+            __F__.pl-temporal tr.pl-n2 > td:nth-child(4) { border-left-color: #e07b00 !important; }
+            __F__.pl-temporal tr.pl-n12 > td:nth-child(4) { border-left-color: #7b4fc9 !important; }
+            __F__.pl-temporal table.tfieldlist > thead > tr > :nth-child(4), __F__.pl-temporal tr.pl-total > td:nth-child(4) { padding-left: 14px !important; }
+            __F__ tr.pl-n0 select[name="participante_nivel[]"] { background: #eceef1; color: #4a4f57; font-weight: bold; border-color: #c9ced6; }
             __F__ tr.pl-n1 select[name="participante_nivel[]"] { background: #e8f1fd; color: #1e6fd9; font-weight: bold; border-color: #b9d3f7; }
             __F__ tr.pl-n2 select[name="participante_nivel[]"] { background: #fff3e3; color: #e07b00; font-weight: bold; border-color: #f5cf9c; }
             __F__ tr.pl-n12 select[name="participante_nivel[]"] { background: #f2ecfc; color: #7b4fc9; font-weight: bold; border-color: #d5c4f2; }
-            __F__ input.pl-espelho { background: #f1f2f4 !important; color: #888 !important; font-style: italic; }
+            __F__ input.pl-espelho { background: #d3d7dd !important; color: #3f444b !important; border-color: #b5bbc4 !important; font-style: italic; cursor: not-allowed; }
             __F__ input[name^="participante_percentual"] { text-align: right; }
             __F__ .pl-alca { cursor: grab; color: #8a919c; font-size: 16px; padding: 4px 6px; user-select: none; }
             __F__ .pl-alca:active { cursor: grabbing; }
@@ -303,9 +309,16 @@ class ParceriaLevantamentoForm extends TPage
                 t.find('> tbody > tr').each(function () {
                     var r = $(this), nivel = r.find('[name="participante_nivel[]"]').val() || '';
                     var antes = r.find('[name="participante_percentual_antes[]"]'), entre = r.find('[name="participante_percentual_entre[]"]'), depois = r.find('[name="participante_percentual_depois[]"]');
-                    r.removeClass('pl-n1 pl-n2 pl-n12').addClass(nivel === 'MARCO1' ? 'pl-n1' : (nivel === 'MARCO2' ? 'pl-n2' : (nivel === 'MARCO12' ? 'pl-n12' : '')));
+                    r.removeClass('pl-n0 pl-n1 pl-n2 pl-n12').addClass(nivel === 'FIXO' ? 'pl-n0' : (nivel === 'MARCO1' ? 'pl-n1' : (nivel === 'MARCO2' ? 'pl-n2' : (nivel === 'MARCO12' ? 'pl-n12' : ''))));
+                    if (temporal && nivel === 'FIXO') {
+                        depois.prop('readonly', true).addClass('pl-espelho').val(antes.val()).attr('title', 'Fixo: repete o "antes do 1º marco"');
+                    } else {
+                        depois.prop('readonly', false).removeClass('pl-espelho').attr('title', '');
+                    }
                     if (nivel === 'MARCO12') {
                         entre.prop('readonly', false).removeClass('pl-espelho').attr('title', '');
+                    } else if (nivel === 'FIXO') {
+                        entre.prop('readonly', true).addClass('pl-espelho').val(antes.val()).attr('title', 'Fixo: repete o "antes do 1º marco"');
                     } else {
                         entre.prop('readonly', true).addClass('pl-espelho');
                         entre.val(nivel === 'MARCO1' ? depois.val() : (nivel === 'MARCO2' ? antes.val() : ''));
@@ -315,9 +328,10 @@ class ParceriaLevantamentoForm extends TPage
                     tot[7] += plNum(antes.val()); tot[8] += plNum(entre.val()); tot[9] += plNum(depois.val());
                 });
                 t.find('> tfoot td.pl-tot').each(function () {
-                    var c = +$(this).attr('data-col'), v = tot[c] || 0, ok = Math.abs(v - 100) < 0.000001, falta = 100 - v;
-                    $(this).html('<span class="' + (ok ? 'pl-ok' : 'pl-erro') + '">' + plPct(v) + '</span><small class="' + (ok ? 'pl-ok' : 'pl-erro') + '">'
-                        + (ok ? 'fechou 100%' : (falta > 0 ? 'faltam ' : 'sobram ') + plPct(Math.abs(falta))) + '</small>');
+                    /* 100%: verde, sem aviso; 0% (coluna vazia): sem cor e sem aviso; o resto: vermelho com quanto falta ou sobra */
+                    var c = +$(this).attr('data-col'), v = tot[c] || 0, ok = Math.abs(v - 100) < 0.000001, zero = Math.abs(v) < 0.000001, falta = 100 - v;
+                    $(this).html('<span class="' + (ok ? 'pl-ok' : (zero ? '' : 'pl-erro')) + '">' + plPct(v) + '</span>'
+                        + ((ok || zero) ? '' : '<small class="pl-erro">' + (falta > 0 ? 'faltam ' : 'sobram ') + plPct(Math.abs(falta)) + '</small>'));
                 });
             };
             $(document).off('input.plpct').on('input.plpct', '__F__ table.tfieldlist input[name^="participante_percentual"]', function () { var v = this.value.replace(/[^0-9,.]/g, ''); if (v !== this.value) { this.value = v; } });
@@ -433,18 +447,25 @@ class ParceriaLevantamentoForm extends TPage
             {
                 throw new Exception("Escolha o nível de {$rotulo}.");
             }
-            if (!$fixa && ($antes === null || $depois === null))
+            $fixoNoTempo = (!$fixa && $nivel === ParceriaLevantamentoParticipante::NIVEL_FIXO);
+            if ($fixoNoTempo && $antes === null)
+            {
+                throw new Exception("Informe o percentual de {$rotulo} (nível fixo: vale nos 3 períodos; use 0 se não participa).");
+            }
+            if (!$fixa && !$fixoNoTempo && ($antes === null || $depois === null))
             {
                 throw new Exception("Informe os percentuais \"antes do 1º marco\" e \"depois do 2º marco\" de {$rotulo} (use 0 se não participa).");
             }
-            // nivel 1 e 2: o "entre" e informado; nivel 1 e nivel 2 repetem o depois / o antes (o campo da tela so espelha)
+            // nivel 1 e 2: o "entre" e informado; fixo, nivel 1 e nivel 2 copiam (o campo da tela so espelha)
             if (!$fixa && $nivel === ParceriaLevantamentoParticipante::NIVEL_MARCO12 && $entre === null)
             {
                 throw new Exception("Informe o percentual \"entre os marcos\" de {$rotulo} (use 0 se não participa).");
             }
             if (!$fixa)
             {
-                $entre = ParceriaPercentualService::entre(['nivel' => $nivel, 'percentual_antes' => $antes, 'percentual_entre' => $entre, 'percentual_depois' => $depois]);
+                $linha  = ['nivel' => $nivel, 'percentual_antes' => $antes, 'percentual_entre' => $entre, 'percentual_depois' => $depois];
+                $entre  = ParceriaPercentualService::entre($linha);
+                $depois = ParceriaPercentualService::depois($linha);
             }
 
             $saida[] = [

@@ -30,10 +30,11 @@ igual('model: Sucumbencia = somente honorarios', BeneficiarioCredito::REGRA_SOME
 
 // Parcerias: a homologacao e copia da producao desde 09/11/2026 (nomes trocados pelo escritorio, ex. SERVIDORES (CAMPOS)).
 // Confere a regra, nao os nomes da carga inicial: fixa soma 100%; por tempo (por periodos desde 13/11/2026) soma 100% em
-// cada periodo, so com niveis MARCO1/MARCO2/MARCO12, e o "entre" de nivel 1/2 espelha a coluna certa.
+// cada periodo, so com niveis FIXO/MARCO1/MARCO2/MARCO12, e o "entre" (e o "depois" do fixo) espelha a coluna certa.
 $parcerias = $c->query("select p.id, p.nome, p.tipo, count(*) n, coalesce(sum(pp.percentual),0) fixo,
         coalesce(sum(pp.percentual_antes),0) antes, coalesce(sum(pp.percentual_entre),0) entre, coalesce(sum(pp.percentual_depois),0) depois,
-        count(*) filter (where p.tipo = 'TEMPORAL' and (pp.nivel not in ('MARCO1','MARCO2','MARCO12')
+        count(*) filter (where p.tipo = 'TEMPORAL' and (pp.nivel not in ('FIXO','MARCO1','MARCO2','MARCO12')
+            or (pp.nivel = 'FIXO' and (pp.percentual_entre is distinct from pp.percentual_antes or pp.percentual_depois is distinct from pp.percentual_antes))
             or (pp.nivel = 'MARCO1' and pp.percentual_entre is distinct from pp.percentual_depois)
             or (pp.nivel = 'MARCO2' and pp.percentual_entre is distinct from pp.percentual_antes))) inconsistentes,
         count(*) filter (where pp.recebe_diferenca = 'S') dif

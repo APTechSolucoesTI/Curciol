@@ -3,7 +3,8 @@
 -- Antes (cascata, igual a planilha): o nivel 1 tirava a parte dele e o nivel 2 dividia o resto.
 -- Agora: 3 periodos - antes do 1o marco, entre os marcos, depois do 2o marco. Cada coluna soma 100% e
 --   percentual = a x antes + (p - a) x entre + (1 - p) x depois   (a e p: fracao do tempo antes de cada marco).
--- Nivel diz em qual marco o percentual muda: MARCO1 (entre = depois), MARCO2 (entre = antes), MARCO12 (entre livre).
+-- Nivel diz em qual marco o percentual muda: FIXO (nao muda: entre = depois = antes), MARCO1 (entre = depois),
+-- MARCO2 (entre = antes), MARCO12 (entre livre).
 --
 -- Conversao (so na primeira execucao, quando a coluna percentual_entre ainda nao existe):
 --   D_antes / D_depois = soma do nivel 1 nas colunas antes / depois;
@@ -63,7 +64,8 @@ BEGIN
          percentual_entre  = n.entre,
          percentual_depois = n.depois,
          nivel = CASE WHEN n.nivel = 'MARCO1' THEN 'MARCO1'
-                      WHEN n.antes = n.entre THEN 'MARCO2'   -- muda so no 2o marco (ou nao muda)
+                      WHEN n.antes = n.entre AND n.entre = n.depois THEN 'FIXO'   -- nao muda
+                      WHEN n.antes = n.entre THEN 'MARCO2'   -- muda so no 2o marco
                       WHEN n.entre = n.depois THEN 'MARCO1'  -- muda so no 1o marco
                       ELSE 'MARCO12' END
     FROM novo n
@@ -104,7 +106,8 @@ BEGIN
   END LOOP;
   IF EXISTS (SELECT 1 FROM parceria_levantamento_participante x JOIN parceria_levantamento p ON p.id = x.parceria_levantamento_id
               WHERE p.tipo = 'TEMPORAL'
-                AND (x.nivel NOT IN ('MARCO1', 'MARCO2', 'MARCO12') OR x.percentual_entre IS NULL
+                AND (x.nivel NOT IN ('FIXO', 'MARCO1', 'MARCO2', 'MARCO12') OR x.percentual_entre IS NULL
+                     OR (x.nivel = 'FIXO' AND (x.percentual_entre <> x.percentual_antes OR x.percentual_depois <> x.percentual_antes))
                      OR (x.nivel = 'MARCO1' AND x.percentual_entre <> x.percentual_depois)
                      OR (x.nivel = 'MARCO2' AND x.percentual_entre <> x.percentual_antes))) THEN
     RAISE EXCEPTION 'Participante de parceria por tempo com nivel ou "entre" inconsistente.';
