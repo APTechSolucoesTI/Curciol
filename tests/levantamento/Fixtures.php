@@ -237,15 +237,43 @@ class Fixtures
         if ($banco !== 'curciol_homologacao') { throw new Exception("Fixtures só rodam em curciol_homologacao (conectado em {$banco})."); }
     }
 
+    /**
+     * Id da "Parceria Juan" (fixa, Juan com 20%). A homologacao virou copia da producao em 09/11/2026 e la ela se chama
+     * "SERVIDORES ( JUAN)": procura pelo nome antigo e, sem ele, pelo conteudo. Usa a transacao aberta.
+     */
+    public static function parceriaJuan(): int
+    {
+        return self::parceriaFixa('Parceria Juan', 'JUAN WILLIAN%');
+    }
+
+    /** Id da "Parceria Ivan" (fixa, 5 x 20%; na copia da producao "SERVIDORES (IVAN)"). Usa a transacao aberta. */
+    public static function parceriaIvan(): int
+    {
+        return self::parceriaFixa('Parceria Ivan', 'IVAN PAULO%');
+    }
+
+    /** Parceria fixa pelo nome antigo ou, sem ele, a de 5 participantes em que $pessoa tem 20%. */
+    private static function parceriaFixa(string $nomeAntigo, string $pessoa): int
+    {
+        $st = TTransaction::get()->prepare("SELECT p.id FROM parceria_levantamento p
+            JOIN parceria_levantamento_participante pp ON pp.parceria_levantamento_id = p.id JOIN pessoa pe ON pe.id = pp.pessoa_id
+            WHERE p.tipo = 'FIXA' AND (p.nome = ? OR (pe.nome LIKE ? AND pp.percentual = 20
+                  AND (SELECT count(*) FROM parceria_levantamento_participante x WHERE x.parceria_levantamento_id = p.id) = 5))
+            ORDER BY (p.nome = ?) DESC, p.id LIMIT 1");
+        $st->execute([$nomeAntigo, $pessoa, $nomeAntigo]);
+        $id = $st->fetchColumn();
+        if (!$id) { throw new Exception("Fixtures: \"{$nomeAntigo}\" não encontrada."); }
+        return (int) $id;
+    }
+
     /** pessoa_id => percentual. $nomes null = participantes da "Parceria Juan" lidos do banco. */
     private static function resolverRepasse(PDO $c, ?array $nomes): array
     {
         $r = [];
         if ($nomes === null) {
-            $st = $c->prepare("SELECT pp.pessoa_id, pp.percentual FROM parceria_levantamento p
-                JOIN parceria_levantamento_participante pp ON pp.parceria_levantamento_id = p.id
-                WHERE p.nome = 'Parceria Juan' ORDER BY pp.ordem, pp.id");
-            $st->execute();
+            $st = $c->prepare("SELECT pp.pessoa_id, pp.percentual FROM parceria_levantamento_participante pp
+                WHERE pp.parceria_levantamento_id = ? ORDER BY pp.ordem, pp.id");
+            $st->execute([self::parceriaJuan()]);
             foreach ($st->fetchAll(PDO::FETCH_NUM) as $l) { $r[(int) $l[0]] = (float) $l[1]; }
             if (!$r) { throw new Exception('Fixtures: "Parceria Juan" não encontrada ou sem participantes.'); }
             return $r;

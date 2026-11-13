@@ -398,12 +398,14 @@ class ContaFormView extends TPage
             $this->form->addContent([$panelCliente]);
         }
 
-        // repasses aos colaboradores: so na conta a receber (as contas a pagar geradas), na ordem da planilha do escritorio;
-        // a conta de repasse mostra a origem nos vinculos do topo
+        // repasses aos colaboradores: so na conta a receber (as contas a pagar geradas), na ordem da parceria quando a conta foi
+        // gerada (levantamento/agendamento); conta antiga, de contrato ou manual: ordem da planilha do escritorio.
+        // A conta de repasse mostra a origem nos vinculos do topo
         $repassesDaConta = ((string) $conta->tipo_conta_id === (string) TipoConta::RECEBER)
-            ? RepasseColaboradorService::ordenarPorColaborador(
+            ? RepasseColaboradorService::ordenarPorMapa(
                 RepasseColaboradorService::listar(['conta_receber_id' => (int) $conta->id]),
                 function ($r) { return $r->pessoa_id; },
+                RepasseColaboradorService::ordemDaConta((int) $conta->id),
                 function ($r) { return $r->colaborador; })
             : [];
         if ($repassesDaConta) {

@@ -71,6 +71,41 @@ class RepasseColaboradorService
         return $itens;
     }
 
+    /**
+     * Ordena pela ordem gravada no financeiro ($ordem: pessoa_id => posicao, a ordem da parceria quando foi gerado).
+     * Sem ordem gravada (financeiro anterior a 13/11/2026, contrato, conta manual): ordem da planilha (ordenarPorColaborador).
+     * Quem nao esta no mapa vem depois, na ordem da planilha.
+     */
+    public static function ordenarPorMapa(array $itens, callable $pessoa, array $ordem, ?callable $nome = null): array
+    {
+        $itens = self::ordenarPorColaborador($itens, $pessoa, $nome);
+        if (!$ordem) { return $itens; }
+        $base = array_flip(array_keys($itens));
+        uksort($itens, function ($i, $j) use ($itens, $pessoa, $ordem, $base) {
+            $oi = $ordem[(int) $pessoa($itens[$i])] ?? PHP_INT_MAX;
+            $oj = $ordem[(int) $pessoa($itens[$j])] ?? PHP_INT_MAX;
+            return ($oi <=> $oj) ?: ($base[$i] <=> $base[$j]);
+        });
+        return array_values($itens);
+    }
+
+    /** pessoa_id => ordem dos colaboradores da conta (conta_profissional.ordem gravada na geracao; vazio se nao houver). */
+    public static function ordemDaConta(int $contaId): array
+    {
+        $propria = self::abrir();
+        try {
+            $st = TTransaction::get()->prepare('SELECT pessoa_id, MIN(ordem) AS ordem FROM conta_profissional WHERE conta_id = ? AND ordem IS NOT NULL GROUP BY pessoa_id');
+            $st->execute([$contaId]);
+            $r = [];
+            foreach ($st->fetchAll(PDO::FETCH_OBJ) as $x) { $r[(int) $x->pessoa_id] = (int) $x->ordem; }
+            if ($propria) { TTransaction::close(); }
+            return $r;
+        } catch (Throwable $e) {
+            if ($propria) { TTransaction::rollback(); }
+            throw $e;
+        }
+    }
+
     // ------------------------------------------------------------------ geracao
 
     /**

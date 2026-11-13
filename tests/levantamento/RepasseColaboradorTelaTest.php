@@ -29,7 +29,7 @@ TTransaction::open('escritorio');
 $pid = function (string $nome) { $st = TTransaction::get()->prepare('SELECT id FROM pessoa WHERE normalize(nome, NFC) = normalize(?, NFC) ORDER BY id LIMIT 1'); $st->execute([$nome]); return (int) $st->fetchColumn(); };
 $jac = $pid('JOSÉ ALMIR CURCIOL'); $juan = $pid('JUAN WILLIAN DE OLIVEIRA BARROS');
 $benef = BeneficiarioCredito::where('nome', '=', 'Cliente + Honorários Contratuais')->first()->id;
-$parcJuan = ParceriaLevantamento::where('nome', '=', 'Parceria Juan')->first()->id;
+$parcJuan = Fixtures::parceriaJuan();
 $cfgAntes = FinanceiroConfiguracao::find(FinanceiroConfiguracao::ID_UNICO)->toArray();
 TTransaction::close();
 

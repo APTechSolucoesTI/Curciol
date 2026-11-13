@@ -9,7 +9,7 @@ $S = 'LevantamentoFinanceiroService';
 $dados = function ($f, array $extra = []) {
     TTransaction::open('escritorio');
     $b = BeneficiarioCredito::where('nome', '=', 'Cliente + Honorários Contratuais')->first()->id;
-    $p = ParceriaLevantamento::where('nome', '=', 'Parceria Ivan')->first()->id;
+    $p = Fixtures::parceriaIvan();
     TTransaction::close();
     return $extra + ['contrato_id' => $f['contrato_id'], 'beneficiario_credito_id' => $b, 'data_levantamento' => '2026-08-03', 'valor_levantado' => 16842.59,
         'pct_honorarios' => 20, 'pct_nf' => 16, 'parceria_levantamento_id' => $p, 'data_distribuicao' => null, 'conta_caixa_id' => $f['conta_caixa_id'],

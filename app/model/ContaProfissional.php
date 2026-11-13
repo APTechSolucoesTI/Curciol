@@ -21,6 +21,7 @@ class ContaProfissional extends TRecord
         parent::addAttribute('pessoa_id');
         parent::addAttribute('percentual');
         parent::addAttribute('valor');
+        parent::addAttribute('ordem'); // posicao na parceria na geracao (NULL = gerada antes de 13/11/2026: ordem da planilha)
             
     }
 

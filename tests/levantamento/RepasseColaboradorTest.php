@@ -28,7 +28,7 @@ $pid = function (string $nome) { $st = TTransaction::get()->prepare('SELECT id F
 $jac = $pid('JOSÉ ALMIR CURCIOL'); $juan = $pid('JUAN WILLIAN DE OLIVEIRA BARROS'); $curciol = $pid('CURCIOL SOCIEDADE DE ADVOGADOS');
 $cfg = FinanceiroConfiguracao::repasse();
 $benef = BeneficiarioCredito::where('nome', '=', 'Cliente + Honorários Contratuais')->first()->id;
-$parcJuan = ParceriaLevantamento::where('nome', '=', 'Parceria Juan')->first()->id;
+$parcJuan = Fixtures::parceriaJuan();
 TTransaction::close();
 igual('a pessoa do escritorio e a CURCIOL SOCIEDADE', $curciol, $escritorio);
 

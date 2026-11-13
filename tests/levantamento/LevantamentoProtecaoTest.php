@@ -17,7 +17,7 @@ try {
 
     TTransaction::open('escritorio');
     $benef = BeneficiarioCredito::where('nome', '=', 'Cliente + Honorários Contratuais')->first()->id;
-    $juan  = ParceriaLevantamento::where('nome', '=', 'Parceria Juan')->first()->id;
+    $juan  = Fixtures::parceriaJuan();
     TTransaction::close();
     $d = ['contrato_id'=>$f['contrato_id'], 'beneficiario_credito_id'=>$benef, 'data_levantamento'=>'2026-02-10', 'valor_levantado'=>12019.57,
           'pct_honorarios'=>20, 'pct_nf'=>16, 'parceria_levantamento_id'=>$juan, 'data_distribuicao'=>null, 'conta_caixa_id'=>$f['conta_caixa_id'],

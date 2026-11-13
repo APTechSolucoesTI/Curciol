@@ -28,40 +28,32 @@ foreach ($benef as $nome => $regra) {
 $b = BeneficiarioCredito::where('nome', '=', 'Sucumbência')->first();
 igual('model: Sucumbencia = somente honorarios', BeneficiarioCredito::REGRA_SOMENTE_HONORARIOS, $b->regra ?? null);
 
-// Parcerias semeadas: [nome => [participantes, soma dos percentuais fixos, soma MARCO2 antes, soma MARCO2 depois]]
-$parcerias = ['Curciol' => [4, 100, 0, 0], 'Custas' => [1, 100, 0, 0], 'Parceria Ivan' => [5, 100, 0, 0],
-              'Parceria Juan' => [5, 100, 0, 0], 'Parceria Juan Estágio' => [5, 100, 0, 0],
-              'Parceria Kleber Andre Ferreira' => [7, 0, 100, 100], 'Parceria Campos' => [7, 0, 100, 100]];
-$total = 0;
-$q = $c->prepare("select count(*), coalesce(sum(pp.percentual),0),
-        coalesce(sum(case when pp.nivel = 'MARCO2' then pp.percentual_antes end),0),
-        coalesce(sum(case when pp.nivel = 'MARCO2' then pp.percentual_depois end),0)
+// Parcerias: a homologacao e copia da producao desde 09/11/2026 (nomes trocados pelo escritorio, ex. SERVIDORES (CAMPOS)).
+// Confere a regra, nao os nomes da carga inicial: fixa soma 100%; por tempo (por periodos desde 13/11/2026) soma 100% em
+// cada periodo, so com niveis MARCO1/MARCO2/MARCO12, e o "entre" de nivel 1/2 espelha a coluna certa.
+$parcerias = $c->query("select p.id, p.nome, p.tipo, count(*) n, coalesce(sum(pp.percentual),0) fixo,
+        coalesce(sum(pp.percentual_antes),0) antes, coalesce(sum(pp.percentual_entre),0) entre, coalesce(sum(pp.percentual_depois),0) depois,
+        count(*) filter (where p.tipo = 'TEMPORAL' and (pp.nivel not in ('MARCO1','MARCO2','MARCO12')
+            or (pp.nivel = 'MARCO1' and pp.percentual_entre is distinct from pp.percentual_depois)
+            or (pp.nivel = 'MARCO2' and pp.percentual_entre is distinct from pp.percentual_antes))) inconsistentes,
+        count(*) filter (where pp.recebe_diferenca = 'S') dif
     from parceria_levantamento p join parceria_levantamento_participante pp on pp.parceria_levantamento_id = p.id
-    where normalize(p.nome, NFC) = normalize(?, NFC)");
-foreach ($parcerias as $nome => $esp) {
-    $q->execute([$nome]);
-    $r = $q->fetch(PDO::FETCH_NUM);
-    igual("{$nome}: participantes", $esp[0], (int) $r[0]);
-    igual("{$nome}: soma percentual fixo", $esp[1], (float) $r[1]);
-    igual("{$nome}: soma marco2 antes", $esp[2], (float) $r[2]);
-    igual("{$nome}: soma marco2 depois", $esp[3], (float) $r[3]);
-    $total += (int) $r[0];
+    where p.ativo = 'S' group by p.id, p.nome, p.tipo order by p.id")->fetchAll(PDO::FETCH_OBJ);
+ok('ha parcerias ativas', count($parcerias) > 0);
+foreach ($parcerias as $p) {
+    if ($p->tipo === 'FIXA') {
+        igual("{$p->nome}: soma 100%", 100.0, (float) $p->fixo);
+    } else {
+        igual("{$p->nome}: 100% em cada periodo", [100.0, 100.0, 100.0], [(float) $p->antes, (float) $p->entre, (float) $p->depois]);
+        igual("{$p->nome}: niveis e entre consistentes", 0, (int) $p->inconsistentes);
+    }
+    igual("{$p->nome}: um so recebe a diferenca", 1, (int) $p->dif);
 }
-igual('34 participantes nos seeds', 34, $total);
-
-// Pessoa presente em cada parceria, por nome (NFC)
-$presente = $c->prepare("select count(*) from parceria_levantamento_participante pp join parceria_levantamento p on p.id = pp.parceria_levantamento_id
-    join pessoa pe on pe.id = pp.pessoa_id where normalize(p.nome, NFC) = normalize(?, NFC) and normalize(pe.nome, NFC) = normalize(?, NFC)");
-foreach (['Curciol', 'Parceria Ivan', 'Parceria Juan', 'Parceria Juan Estágio', 'Parceria Kleber Andre Ferreira', 'Parceria Campos'] as $p) {
-    $presente->execute([$p, 'JOSÉ ALMIR CURCIOL']);
-    igual("JOSE ALMIR em {$p}", 1, (int) $presente->fetchColumn());
-}
-$presente->execute(['Custas', 'JOSÉ ALMIR CURCIOL']);
-igual('JOSE ALMIR fora de Custas', 0, (int) $presente->fetchColumn());
-
-// So a Curciol recebe a diferenca na Parceria Juan
-$dif = $c->query("select pe.nome from parceria_levantamento_participante pp join parceria_levantamento p on p.id = pp.parceria_levantamento_id join pessoa pe on pe.id = pp.pessoa_id where p.nome = 'Parceria Juan' and pp.recebe_diferenca = 'S'")->fetchAll(PDO::FETCH_COLUMN);
-igual('so a Curciol recebe a diferenca na Parceria Juan', ['CURCIOL SOCIEDADE DE ADVOGADOS'], $dif);
+$temporais = array_filter($parcerias, function ($p) { return $p->tipo === 'TEMPORAL'; });
+ok('ha parceria por tempo (SERVIDORES)', count($temporais) >= 2);
+$curciolDif = $c->query("select count(*) from parceria_levantamento_participante pp join pessoa pe on pe.id = pp.pessoa_id
+    where pp.recebe_diferenca = 'S' and pe.nome = 'CURCIOL SOCIEDADE DE ADVOGADOS'")->fetchColumn();
+ok('a Curciol recebe a diferenca nas parcerias por tempo', (int) $curciolDif >= count($temporais));
 
 // Parceiros criados pela carga existem no grupo 6
 $g = $c->prepare('select count(*) from pessoa pe join pessoa_grupo g on g.pessoa_id = pe.id and g.grupo_id = 6 where normalize(pe.nome, NFC) = normalize(?, NFC)');

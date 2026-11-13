@@ -28,7 +28,8 @@ try {
             $q->store();
         }
     };
-    $participantes([[$curciol, 50, 'S'], [$kleber, 50, 'N']]);
+    // Kleber antes da Curciol: o contrario da ordem da planilha, para provar que vale a ordem da parceria
+    $participantes([[$kleber, 50, 'N'], [$curciol, 50, 'S']]);
     TTransaction::close();
 
     $d = function ($fx) use ($benef, $parceriaId) {
@@ -45,14 +46,23 @@ try {
     $antesFicha   = $valores((new LevantamentoFinanceiro($lf->id))->repasses());
     $antesParcela = $valores(LancamentoProfissional::where('lancamento_id', '=', $parcela->id)->load());
     igual('gerado com 50/50', [$curciol => 1160.51, $kleber => 1160.51], $antesFicha);
+    $ordemFicha = function ($id) {
+        $ficha = new LevantamentoFinanceiro($id); $o = [];
+        foreach ($ficha->repasses() as $x) { $o[(int) $x->pessoa_id] = (int) $x->ordem; }
+        return array_map('intval', array_column(RepasseColaboradorService::ordenarPorMapa($ficha->repasses(), function ($x) { return $x->pessoa_id; }, $o), 'pessoa_id'));
+    };
+    igual('ficha na ordem da parceria (Kleber, Curciol)', [$kleber, $curciol], $ordemFicha($lf->id));
+    igual('conta a receber guarda a ordem', [$kleber => 1, $curciol => 2], RepasseColaboradorService::ordemDaConta((int) $lf->conta_receber_id));
 
-    // altera a parceria: 70/30
+    // altera a parceria: 70/30 e a Curciol passa para cima
     $participantes([[$curciol, 70, 'S'], [$kleber, 30, 'N']]);
     TTransaction::close();
 
     TTransaction::open('escritorio');
     igual('ficha ja gerada continua 50/50', $antesFicha, $valores((new LevantamentoFinanceiro($lf->id))->repasses()));
     igual('repasses da parcela continuam 50/50', $antesParcela, $valores(LancamentoProfissional::where('lancamento_id', '=', $parcela->id)->load()));
+    igual('ficha ja gerada continua na ordem antiga', [$kleber, $curciol], $ordemFicha($lf->id));
+    igual('conta ja gerada continua na ordem antiga', [$kleber => 1, $curciol => 2], RepasseColaboradorService::ordemDaConta((int) $lf->conta_receber_id));
     TTransaction::close();
 
     // financeiro gerado depois usa a parceria nova
@@ -60,6 +70,9 @@ try {
     $sim = $S::simular($f2['etapa3_id'], $d($f2));
     $novos = []; foreach ($sim['resultado']['repasses'] as $r) { $novos[(int) $r['pessoa_id']] = $r['valor']; } ksort($novos);
     igual('financeiro novo sai 70/30', [$curciol => 1624.71, $kleber => 696.31], $novos);
+    igual('financeiro novo na ordem nova (Curciol, Kleber)', [$curciol, $kleber], array_map('intval', array_column($sim['resultado']['repasses'], 'pessoa_id')));
+    igual('sem ordem gravada: ordem da planilha', [$curciol, $kleber], array_map(function ($x) { return $x['p']; },
+        RepasseColaboradorService::ordenarPorMapa([['p' => $kleber], ['p' => $curciol]], function ($x) { return $x['p']; }, [])));
 } finally {
     Fixtures::limpar($f);
     if ($f2) { Fixtures::limpar($f2); }

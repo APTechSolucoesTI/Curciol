@@ -9,7 +9,7 @@ class LevantamentoFinanceiroRepasse extends TRecord
     public function __construct($id = NULL, $callObjectLoad = TRUE)
     {
         parent::__construct($id, $callObjectLoad);
-        foreach (['levantamento_financeiro_id', 'pessoa_id', 'percentual', 'valor', 'ajuste_centavos'] as $a) {
+        foreach (['levantamento_financeiro_id', 'pessoa_id', 'percentual', 'valor', 'ajuste_centavos', 'ordem'] as $a) {
             parent::addAttribute($a);
         }
     }

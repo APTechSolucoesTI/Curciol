@@ -3,11 +3,13 @@
 /**
  * Percentuais de cada participante de uma parceria de levantamento.
  *
- * Fixa: o percentual cadastrado. Por tempo (dois marcos): reexpressao
- * exata das formulas do arquivo "Fluxo e Regras de Calculo":
- *   D = soma(nivel 1: a x %antes + b x %depois)        (marco 1)
- *   nivel 2 = (1 - D) x (p x %antes + q x %depois)     (marco 2)
- * com fracoes complementares (b = 1 - a, q = 1 - p), limitadas a [0, 1].
+ * Fixa: o percentual cadastrado.
+ * Por tempo (dois marcos, por periodos - decisao de 13/11/2026): o tempo do processo (distribuicao -> levantamento)
+ * fica dividido em 3 periodos e em cada um vale a divisao daquela coluna:
+ *   percentual = a x antes + (p - a) x entre + (1 - p) x depois
+ * a = fracao do tempo antes do 1o marco, p = fracao antes do 2o marco (meses completos), cada coluna soma 100%.
+ * O nivel diz em qual marco o percentual da pessoa muda: nivel 1 (entre = depois), nivel 2 (entre = antes),
+ * nivel 1 e 2 (entre informado).
  * Sem banco: recebe e devolve arrays.
  */
 class ParceriaPercentualService
@@ -38,17 +40,39 @@ class ParceriaPercentualService
         return max(0.0, min(1.0, self::mesesCompletos($g, $marco) / $total));
     }
 
+    /** "peso dos períodos: antes do 1º marco X%, entre os marcos Y%, depois do 2º marco Z%" (a e p em fracao). */
+    public static function textoPesos(float $a, float $p): string
+    {
+        $f = function ($v) { return number_format($v * 100, 2, ',', '.') . '%'; };
+        return 'peso dos períodos: antes do 1º marco ' . $f($a) . ', entre os marcos ' . $f(max(0, $p - $a)) . ', depois do 2º marco ' . $f(1 - $p);
+    }
+
+    /** Niveis da parceria por tempo. */
+    public static function niveisTemporais(): array
+    {
+        return [ParceriaLevantamentoParticipante::NIVEL_MARCO1, ParceriaLevantamentoParticipante::NIVEL_MARCO2, ParceriaLevantamentoParticipante::NIVEL_MARCO12];
+    }
+
+    /** Percentual "entre os marcos" pelo nivel: nivel 1 repete o depois, nivel 2 repete o antes, nivel 1 e 2 e o informado. */
+    public static function entre(array $p): float
+    {
+        switch ($p['nivel'] ?? '') {
+            case ParceriaLevantamentoParticipante::NIVEL_MARCO1: return (float) ($p['percentual_depois'] ?? 0);
+            case ParceriaLevantamentoParticipante::NIVEL_MARCO2: return (float) ($p['percentual_antes'] ?? 0);
+            default: return (float) ($p['percentual_entre'] ?? 0);
+        }
+    }
+
     public static function validar(string $tipo, array $participantes): void
     {
         if (empty($participantes)) { throw new Exception('Informe ao menos um participante.'); }
 
         foreach ($participantes as $p) {
-            foreach (['percentual', 'percentual_antes', 'percentual_depois'] as $campo) {
+            foreach (['percentual', 'percentual_antes', 'percentual_entre', 'percentual_depois'] as $campo) {
                 if (isset($p[$campo]) && (float) $p[$campo] < 0) { throw new Exception('Os percentuais não podem ser negativos.'); }
             }
-            if ($tipo === ParceriaLevantamento::TIPO_TEMPORAL
-                && !in_array($p['nivel'], [ParceriaLevantamentoParticipante::NIVEL_MARCO1, ParceriaLevantamentoParticipante::NIVEL_MARCO2], true)) {
-                throw new Exception('Nível inválido na parceria por tempo (use nível 1 ou nível 2).');
+            if ($tipo === ParceriaLevantamento::TIPO_TEMPORAL && !in_array($p['nivel'] ?? null, self::niveisTemporais(), true)) {
+                throw new Exception('Nível inválido na parceria por tempo (use nível 1, nível 2 ou nível 1 e 2).');
             }
         }
 
@@ -58,26 +82,29 @@ class ParceriaPercentualService
         $difs = array_filter($participantes, function ($p) { return self::marcado($p['recebe_diferenca'] ?? false); });
         if (count($difs) !== 1) { throw new Exception('Marque exatamente um participante para receber a diferença de centavos.'); }
 
-        $soma = function (array $lista, string $campo) { return round(array_sum(array_map(function ($p) use ($campo) { return (float) ($p[$campo] ?? 0); }, $lista)), 6); };
+        $soma = function (callable $valor) use ($participantes) { return round(array_sum(array_map($valor, $participantes)), 6); };
 
         if ($tipo === ParceriaLevantamento::TIPO_FIXA) {
-            if ($soma($participantes, 'percentual') != 100.0) {
+            if ($soma(function ($p) { return (float) ($p['percentual'] ?? 0); }) != 100.0) {
                 throw new Exception('Os percentuais da parceria devem somar 100%.');
             }
             return;
         }
 
-        $nivel1 = array_filter($participantes, function ($p) { return $p['nivel'] === ParceriaLevantamentoParticipante::NIVEL_MARCO1; });
-        $nivel2 = array_filter($participantes, function ($p) { return $p['nivel'] === ParceriaLevantamentoParticipante::NIVEL_MARCO2; });
-        if (empty($nivel2)) { throw new Exception('A parceria por tempo precisa de participantes no nível 2.'); }
-        if ($soma($nivel2, 'percentual_antes') != 100.0 || $soma($nivel2, 'percentual_depois') != 100.0) {
-            throw new Exception('No nível 2, as colunas "antes" e "depois" devem somar 100% cada.');
-        }
-        if ($soma($nivel1, 'percentual_antes') > 100.0 || $soma($nivel1, 'percentual_depois') > 100.0) {
-            throw new Exception('O nível 1 não pode passar de 100%.');
+        $antes  = $soma(function ($p) { return (float) ($p['percentual_antes'] ?? 0); });
+        $entre  = $soma(function ($p) { return self::entre($p); });
+        $depois = $soma(function ($p) { return (float) ($p['percentual_depois'] ?? 0); });
+        if ($antes != 100.0 || $entre != 100.0 || $depois != 100.0) {
+            $f = function ($v) { return rtrim(rtrim(number_format($v, 4, ',', '.'), '0'), ',') . '%'; };
+            throw new Exception('Cada período deve somar 100%: antes do 1º marco ' . $f($antes) . ', entre os marcos ' . $f($entre)
+                . ', depois do 2º marco ' . $f($depois) . '.');
         }
     }
 
+    /**
+     * @return array ['a' => fracao antes do 1o marco, 'p' => fracao antes do 2o marco, 'd' => null (era o peso do nivel 1
+     *               da cascata; fichas antigas guardam), 'participantes' => [['pessoa_id', 'percentual' (0-1), 'recebe_diferenca'], ...]]
+     */
     public static function percentuais(string $tipo, array $participantes, ?string $marco1, ?string $marco2, ?string $g, ?string $x): array
     {
         self::validar($tipo, $participantes);
@@ -104,23 +131,14 @@ class ParceriaPercentualService
         }
 
         $a = self::fracaoAntes($g, $x, $m1);
-        $p = self::fracaoAntes($g, $x, $m2);
-
-        $d = 0.0;
-        foreach ($participantes as $q) {
-            if ($q['nivel'] === ParceriaLevantamentoParticipante::NIVEL_MARCO1) {
-                $d += ($a * (float) $q['percentual_antes'] + (1 - $a) * (float) $q['percentual_depois']) / 100;
-            }
-        }
+        $p = max($a, self::fracaoAntes($g, $x, $m2));
 
         $saida = [];
-        foreach ($participantes as $q) {
-            $pct = ($q['nivel'] === ParceriaLevantamentoParticipante::NIVEL_MARCO1)
-                ? ($a * (float) $q['percentual_antes'] + (1 - $a) * (float) $q['percentual_depois']) / 100
-                : (1 - $d) * ($p * (float) $q['percentual_antes'] + (1 - $p) * (float) $q['percentual_depois']) / 100;
+        foreach (array_values($participantes) as $q) {
+            $pct = ($a * (float) $q['percentual_antes'] + ($p - $a) * self::entre($q) + (1 - $p) * (float) $q['percentual_depois']) / 100;
             $saida[] = ['pessoa_id' => (int) $q['pessoa_id'], 'percentual' => $pct, 'recebe_diferenca' => self::marcado($q['recebe_diferenca'] ?? false)];
         }
 
-        return ['a' => $a, 'p' => $p, 'd' => $d, 'participantes' => $saida];
+        return ['a' => $a, 'p' => $p, 'd' => null, 'participantes' => $saida];
     }
 }

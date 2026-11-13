@@ -99,18 +99,15 @@ class AgendamentoFinanceiroService
     }
 
     /**
-     * Previa da divisao da parceria para o valor (mesma regra de RepasseColaboradorService::dividirParcela: a Curciol fica
-     * com a diferenca de centavos). @return array [['pessoa_id','nome','percentual','valor','escritorio'], ...]
+     * Previa da divisao da parceria para o valor, na ordem da parceria (mesma regra de RepasseColaboradorService::dividirParcela:
+     * a Curciol fica com a diferenca de centavos). @return array [['pessoa_id','nome','percentual','valor','escritorio'], ...]
      */
     public static function divisao(int $parceriaId, float $valor, int $escritorioId = 0): array
     {
         return self::comTransacao(function (PDO $c) use ($parceriaId, $valor, $escritorioId) {
             $parceria = ParceriaLevantamento::find($parceriaId);
             if (!$parceria || $parceria->tipo !== ParceriaLevantamento::TIPO_FIXA) { return []; }
-            $per = ParceriaPercentualService::percentuais($parceria->tipo, array_map(function ($p) {
-                return ['pessoa_id' => $p->pessoa_id, 'nivel' => $p->nivel, 'percentual' => $p->percentual,
-                        'percentual_antes' => $p->percentual_antes, 'percentual_depois' => $p->percentual_depois, 'recebe_diferenca' => $p->recebe_diferenca];
-            }, $parceria->participantes()), null, null, null, null);
+            $per = ParceriaPercentualService::percentuais($parceria->tipo, array_map(function ($p) { return $p->paraCalculo(); }, $parceria->participantes()), null, null, null, null);
             $linhas = array_values(array_filter($per['participantes'], function ($p) { return (float) $p['percentual'] > 0; }));
             if (!$linhas) { return []; }
             $base = (int) round($valor * 100);
@@ -126,12 +123,12 @@ class AgendamentoFinanceiroService
                 $r[] = ['pessoa_id' => (int) $p['pessoa_id'], 'nome' => $nome, 'percentual' => round((float) $p['percentual'] * 100, 4),
                         'valor' => $centavos[$i] / 100, 'escritorio' => ((int) $p['pessoa_id'] === $escritorioPessoa)];
             }
-            return RepasseColaboradorService::ordenarPorColaborador($r, function ($x) { return $x['pessoa_id']; }, function ($x) { return $x['nome']; });
+            return $r; // na ordem da parceria
         });
     }
 
     /**
-     * Participantes da parceria para a divisao na tela do agendamento, na ordem dos colaboradores:
+     * Participantes da parceria para a divisao na tela do agendamento, na ordem da parceria:
      * [['nome', 'percentual' (0-100), 'diferenca' (fica com a diferenca de centavos)], ...]. Parceria nao fixa: [].
      */
     public static function participantes(int $parceriaId): array
@@ -139,10 +136,7 @@ class AgendamentoFinanceiroService
         return self::comTransacao(function (PDO $c) use ($parceriaId) {
             $parceria = ParceriaLevantamento::find($parceriaId);
             if (!$parceria || $parceria->tipo !== ParceriaLevantamento::TIPO_FIXA) { return []; }
-            $per = ParceriaPercentualService::percentuais($parceria->tipo, array_map(function ($p) {
-                return ['pessoa_id' => $p->pessoa_id, 'nivel' => $p->nivel, 'percentual' => $p->percentual,
-                        'percentual_antes' => $p->percentual_antes, 'percentual_depois' => $p->percentual_depois, 'recebe_diferenca' => $p->recebe_diferenca];
-            }, $parceria->participantes()), null, null, null, null);
+            $per = ParceriaPercentualService::percentuais($parceria->tipo, array_map(function ($p) { return $p->paraCalculo(); }, $parceria->participantes()), null, null, null, null);
             $linhas = array_values(array_filter($per['participantes'], function ($p) { return (float) $p['percentual'] > 0; }));
             if (!$linhas) { return []; }
             $fechaCem = abs(array_sum(array_column($linhas, 'percentual')) - 1) < 0.0001;
@@ -152,7 +146,7 @@ class AgendamentoFinanceiroService
                 $r[] = ['pessoa_id' => (int) $p['pessoa_id'], 'nome' => Pessoa::find((int) $p['pessoa_id'])->nome ?? '',
                         'percentual' => round((float) $p['percentual'] * 100, 4), 'diferenca' => ($i === $receptor)];
             }
-            $r = RepasseColaboradorService::ordenarPorColaborador($r, function ($x) { return $x['pessoa_id']; }, function ($x) { return $x['nome']; });
+            // na ordem da parceria
             return array_map(function ($x) { unset($x['pessoa_id']); return $x; }, $r);
         });
     }
@@ -228,10 +222,7 @@ class AgendamentoFinanceiroService
             if ($escritorioId <= 0) { throw new Exception('A agenda deste agendamento não tem escritório.'); }
 
             // divisao da parceria (percentual fixo), base dos repasses na quitacao
-            $participantes = array_map(function ($p) {
-                return ['pessoa_id' => $p->pessoa_id, 'nivel' => $p->nivel, 'percentual' => $p->percentual,
-                        'percentual_antes' => $p->percentual_antes, 'percentual_depois' => $p->percentual_depois, 'recebe_diferenca' => $p->recebe_diferenca];
-            }, $parceria->participantes());
+            $participantes = array_map(function ($p) { return $p->paraCalculo(); }, $parceria->participantes());
             $per = ParceriaPercentualService::percentuais($parceria->tipo, $participantes, null, null, null, null);
             $divisao = array_map(function ($p) { return [(int) $p['pessoa_id'], round((float) $p['percentual'] * 100, 8)]; }, $per['participantes']);
 
@@ -279,12 +270,14 @@ class AgendamentoFinanceiroService
 
             // divisao na parcela (a Curciol fica com a diferenca de centavos) e a mesma na conta
             RepasseColaboradorService::dividirParcela((int) $parcela->id, $divisao);
-            foreach (LancamentoProfissional::where('lancamento_id', '=', $parcela->id)->orderBy('id')->load() as $lp) {
+            // na ordem da parceria (as telas mostram os colaboradores nela; alterar a parceria depois nao muda esta conta)
+            foreach (LancamentoProfissional::where('lancamento_id', '=', $parcela->id)->orderBy('id')->load() as $i => $lp) {
                 $cp = new ContaProfissional();
                 $cp->conta_id = $receber->id;
                 $cp->pessoa_id = (int) $lp->pessoa_id;
                 $cp->percentual = $lp->percentual;
                 $cp->valor = $lp->valor;
+                $cp->ordem = $i + 1;
                 $cp->store();
             }
 

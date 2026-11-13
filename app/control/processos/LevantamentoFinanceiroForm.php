@@ -585,9 +585,7 @@ JS;
 
         if (!empty($r['repasses'])) {
             $nomes = self::nomesDePessoas(array_column($r['repasses'], 'pessoa_id'));
-            // colaboradores na ordem da planilha do escritorio (so a exibicao; o calculo nao muda)
-            $r['repasses'] = RepasseColaboradorService::ordenarPorColaborador($r['repasses'],
-                function ($x) { return $x['pessoa_id']; }, function ($x) use ($nomes) { return $nomes[(int) $x['pessoa_id']] ?? ''; });
+            // colaboradores na ordem da parceria (e a ordem que o financeiro gerado guarda)
             $h .= '<table class="lf-tabela"><thead><tr><th>Parceiro</th><th class="lf-num">%</th><th class="lf-num">Repasse (R$)</th></tr></thead><tbody>';
             foreach ($r['repasses'] as $rp) {
                 $aj = ((float) $rp['ajuste_centavos'] != 0.0) ? ' <small>(inclui ' . self::moeda($rp['ajuste_centavos']) . ' de ajuste de centavos)</small>' : '';
@@ -597,8 +595,7 @@ JS;
             }
             $h .= '</tbody></table>';
             if ($per['a'] !== null) {
-                $h .= '<div class="lf-nota">Parceria por tempo: fração antes do 1º marco = ' . number_format($per['a'] * 100, 2, ',', '.') . '%; antes do 2º marco = '
-                    . number_format($per['p'] * 100, 2, ',', '.') . '%; peso do nível 1 = ' . number_format($per['d'] * 100, 2, ',', '.') . '%.</div>';
+                $h .= '<div class="lf-nota">Parceria por tempo: ' . ParceriaPercentualService::textoPesos((float) $per['a'], (float) $per['p']) . '.</div>';
             }
         } else {
             $h .= '<div class="lf-nota">Sem repasse a parceiros (não há honorários líquidos a dividir).</div>';

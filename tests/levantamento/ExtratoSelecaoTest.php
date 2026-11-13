@@ -39,7 +39,7 @@ TTransaction::open('escritorio');
 $unidade = (int) TTransaction::get()->query('SELECT system_unit_id FROM escritorio WHERE id = 1')->fetchColumn();
 TSession::setValue('userunitid', $unidade); TSession::setValue('userunitids', [$unidade]);
 $benef = BeneficiarioCredito::where('nome', '=', 'Cliente + Honorários Contratuais')->first()->id;
-$parcJuan = ParceriaLevantamento::where('nome', '=', 'Parceria Juan')->first()->id;
+$parcJuan = Fixtures::parceriaJuan();
 TTransaction::close();
 $hoje = date('Y-m-d');
 

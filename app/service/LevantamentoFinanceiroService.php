@@ -438,14 +438,16 @@ class LevantamentoFinanceiroService
             $parcela->extrato_id = $extrato->id;
             $parcela->store();
 
-            // repasses aos parceiros (conta e parcela)
-            foreach ($res['repasses'] as $r) {
+            // repasses aos parceiros (conta e parcela), na ordem da parceria: as telas mostram os colaboradores nela
+            // (alterar a parceria depois nao muda este financeiro)
+            foreach (array_values($res['repasses']) as $ordem => $r) {
                 $pct = round((float) $r['percentual'] * 100, 8);
                 $cp = new ContaProfissional();
                 $cp->conta_id = $receber->id;
                 $cp->pessoa_id = $r['pessoa_id'];
                 $cp->percentual = $pct;
                 $cp->valor = $r['valor'];
+                $cp->ordem = $ordem + 1;
                 $cp->store();
 
                 $lp = new LancamentoProfissional();
@@ -536,8 +538,9 @@ class LevantamentoFinanceiroService
                 self::registrarContaCliente($c, (int) $ficha->id, (int) $pagarId, (int) $parcelaPagar->id, (int) $receber->id, (int) $parcela->id, (int) $extrato->id, $z, $y, $x);
             }
 
-            foreach ($res['repasses'] as $r) {
+            foreach (array_values($res['repasses']) as $ordem => $r) {
                 $fr = new LevantamentoFinanceiroRepasse();
+                $fr->ordem = $ordem + 1;
                 $fr->levantamento_financeiro_id = $ficha->id;
                 $fr->pessoa_id = $r['pessoa_id'];
                 $fr->percentual = round((float) $r['percentual'] * 100, 8);
@@ -663,11 +666,7 @@ class LevantamentoFinanceiroService
             $parceria = ParceriaLevantamento::find((int) $d['parceria_levantamento_id']);
             if (!$parceria || $parceria->ativo !== 'S') { throw new Exception('Parceria inválida.'); }
             $parceriaId = (int) $parceria->id;
-            $participantes = array_map(function ($p) {
-                return ['pessoa_id' => $p->pessoa_id, 'nivel' => $p->nivel, 'percentual' => $p->percentual,
-                        'percentual_antes' => $p->percentual_antes, 'percentual_depois' => $p->percentual_depois,
-                        'recebe_diferenca' => $p->recebe_diferenca];
-            }, $parceria->participantes());
+            $participantes = array_map(function ($p) { return $p->paraCalculo(); }, $parceria->participantes());
             $g = !empty($d['data_distribuicao']) ? substr((string) $d['data_distribuicao'], 0, 10) : $ctx->data_distribuicao;
             $per = ParceriaPercentualService::percentuais($parceria->tipo, $participantes, $parceria->marco1, $parceria->marco2, $g, $x);
             if ($parceria->tipo === ParceriaLevantamento::TIPO_TEMPORAL) { $distribuicaoUsada = $g; }

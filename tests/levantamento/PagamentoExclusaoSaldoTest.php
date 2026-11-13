@@ -20,7 +20,7 @@ function exec_sql(string $sql, array $p = []): void { TTransaction::open('escrit
 $dados = function ($f, $compensado = 'N') {
     TTransaction::open('escritorio');
     $b = BeneficiarioCredito::where('nome', '=', 'Cliente + Honorários Contratuais')->first()->id;
-    $p = ParceriaLevantamento::where('nome', '=', 'Parceria Juan')->first()->id;
+    $p = Fixtures::parceriaJuan();
     TTransaction::close();
     return ['contrato_id' => $f['contrato_id'], 'beneficiario_credito_id' => $b, 'data_levantamento' => '2026-02-10', 'valor_levantado' => 12019.57,
             'pct_honorarios' => 20, 'pct_nf' => 16, 'parceria_levantamento_id' => $p, 'data_distribuicao' => null, 'conta_caixa_id' => $f['conta_caixa_id'],

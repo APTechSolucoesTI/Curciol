@@ -27,7 +27,7 @@ try {
     igual('repasse do contrato (5 pessoas)', 5, count($c->contratos[0]['repasse']));
     igual('escritorio do contrato sugerido', $f['escritorio_id'], $c->escritorio_id);
     TTransaction::open('escritorio');
-    $juan = ParceriaLevantamento::where('nome', '=', 'Parceria Juan')->first();
+    $juan = new ParceriaLevantamento(Fixtures::parceriaJuan());
     TTransaction::close();
     igual('parceria sugerida pelo repasse 5 x 20%', (int) $juan->id, $c->parceria_sugerida_id);
     ok('ainda nao gerado', $c->ja_gerado === false);
@@ -88,7 +88,7 @@ try {
 
 // parceriaPorRepasse direto: tolerancia de 0,01
 TTransaction::open('escritorio');
-$juanId = (int) ParceriaLevantamento::where('nome', '=', 'Parceria Juan')->first()->id;
+$juanId = (int) Fixtures::parceriaJuan();
 $pessoas = array_map(function ($p) { return (int) $p->pessoa_id; }, ParceriaLevantamento::find($juanId)->participantes());
 TTransaction::close();
 igual('parceriaPorRepasse: 20,005 aceito', $juanId, LevantamentoContextoService::parceriaPorRepasse(array_fill_keys($pessoas, 20.005)));

@@ -176,14 +176,16 @@ class LevantamentoFinanceiroView extends TWindow
                 }
             }
 
-            // colaboradores na ordem da planilha do escritorio
-            $r->repasses = RepasseColaboradorService::ordenarPorColaborador($r->repasses,
-                function ($x) { return $x->pessoa_id; }, function ($x) use ($r) { return $r->nomes[(int) $x->pessoa_id] ?? ''; });
+            // colaboradores na ordem da parceria quando o financeiro foi gerado (ficha anterior a 13/11/2026: ordem da planilha)
+            $ordem = [];
+            foreach ($r->repasses as $x) { if ($x->ordem !== null && $x->ordem !== '') { $ordem[(int) $x->pessoa_id] = (int) $x->ordem; } }
+            $r->repasses = RepasseColaboradorService::ordenarPorMapa($r->repasses,
+                function ($x) { return $x->pessoa_id; }, $ordem, function ($x) use ($r) { return $r->nomes[(int) $x->pessoa_id] ?? ''; });
 
             $r->receber = $ficha->conta_receber_id ? $c->query('SELECT id, total_conta, quitada FROM conta WHERE id = ' . (int) $ficha->conta_receber_id)->fetch(PDO::FETCH_OBJ) : null;
-            $r->repassesColaboradores = RepasseColaboradorService::ordenarPorColaborador(
+            $r->repassesColaboradores = RepasseColaboradorService::ordenarPorMapa(
                 RepasseColaboradorService::listar(['levantamento_ids' => [(int) $ficha->id]]),
-                function ($x) { return $x->pessoa_id; }, function ($x) { return $x->colaborador; });
+                function ($x) { return $x->pessoa_id; }, $ordem, function ($x) { return $x->colaborador; });
             $r->pagar = $ficha->conta_pagar_id ? $c->query('SELECT id, total_conta, quitada FROM conta WHERE id = ' . (int) $ficha->conta_pagar_id)->fetch(PDO::FETCH_OBJ) : null;
 
             // origem (so para exibir; se o pagamento mudou e o contexto nao carrega, a ficha continua valendo)
@@ -253,10 +255,17 @@ class LevantamentoFinanceiroView extends TWindow
             . $par('Custo de NF', $m($f->ac))
             . $par('Honorários líquidos', $m($f->ad))
             . $par('Valor ao cliente', $m($f->z));
-        if ($f->fracao_a !== null) {
+        if ($f->fracao_a !== null && $f->fator_d !== null && $f->fator_d !== '') {
+            // ficha anterior a 13/11/2026 (cascata: o nivel 1 tirava a parte dele e o nivel 2 dividia o resto)
             $o .= $par('a - fração antes do 1º marco', $p((float) $f->fracao_a * 100))
                 . $par('p - fração antes do 2º marco', $p((float) $f->fracao_p * 100))
                 . $par('D - peso do nível 1', $p((float) $f->fator_d * 100));
+        } elseif ($f->fracao_a !== null) {
+            // por periodos: peso de cada periodo no tempo do processo
+            $a = (float) $f->fracao_a; $pp = (float) $f->fracao_p;
+            $o .= $par('Peso antes do 1º marco', $p($a * 100))
+                . $par('Peso entre os marcos', $p(max(0, $pp - $a) * 100))
+                . $par('Peso depois do 2º marco', $p((1 - $pp) * 100));
         }
         $o .= '</div>';
 
