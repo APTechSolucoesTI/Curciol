@@ -243,7 +243,7 @@ class ParceriaLevantamentoForm extends TPage
             __F__ tr.pl-n1 select[name="participante_nivel[]"] { background: #e8f1fd; color: #1e6fd9; font-weight: bold; border-color: #b9d3f7; }
             __F__ tr.pl-n2 select[name="participante_nivel[]"] { background: #fff3e3; color: #e07b00; font-weight: bold; border-color: #f5cf9c; }
             __F__ tr.pl-n12 select[name="participante_nivel[]"] { background: #f2ecfc; color: #7b4fc9; font-weight: bold; border-color: #d5c4f2; }
-            __F__ input.pl-espelho { background: #d3d7dd !important; color: #3f444b !important; border-color: #b5bbc4 !important; font-style: italic; cursor: not-allowed; }
+            __F__ input.pl-espelho { background: #d3d7dd !important; color: #3f444b !important; border-color: #b5bbc4 !important; font-style: italic; }
             __F__ input[name^="participante_percentual"] { text-align: right; }
             __F__ .pl-alca { cursor: grab; color: #8a919c; font-size: 16px; padding: 4px 6px; user-select: none; }
             __F__ .pl-alca:active { cursor: grabbing; }
@@ -283,6 +283,11 @@ class ParceriaLevantamentoForm extends TPage
                     t.find('> tfoot').append(tr);
                 }
                 var tb = t.find('> tbody');
+                /* linha nova (+) ou excluida: atualiza na hora (a linha nova vem copiada da anterior, com a cor e as travas dela) */
+                if (!tb.data('pl-observada') && window.MutationObserver) {
+                    new MutationObserver(function () { if (!tb.children('.ui-sortable-placeholder, .ui-sortable-helper').length) { window.plIniciar(); } }).observe(tb[0], {childList: true});
+                    tb.data('pl-observada', 1);
+                }
                 if (!tb.data('pl-ordenavel') && tb.sortable) {
                     tb.sortable({
                         handle: '.pl-alca', axis: 'y', cursor: 'grabbing',
@@ -310,20 +315,14 @@ class ParceriaLevantamentoForm extends TPage
                     var r = $(this), nivel = r.find('[name="participante_nivel[]"]').val() || '';
                     var antes = r.find('[name="participante_percentual_antes[]"]'), entre = r.find('[name="participante_percentual_entre[]"]'), depois = r.find('[name="participante_percentual_depois[]"]');
                     r.removeClass('pl-n0 pl-n1 pl-n2 pl-n12').addClass(nivel === 'FIXO' ? 'pl-n0' : (nivel === 'MARCO1' ? 'pl-n1' : (nivel === 'MARCO2' ? 'pl-n2' : (nivel === 'MARCO12' ? 'pl-n12' : ''))));
-                    if (temporal && nivel === 'FIXO') {
-                        depois.prop('readonly', true).addClass('pl-espelho').val(antes.val()).attr('title', 'Fixo: repete o "antes do 1º marco"');
-                    } else {
-                        depois.prop('readonly', false).removeClass('pl-espelho').attr('title', '');
-                    }
-                    if (nivel === 'MARCO12') {
-                        entre.prop('readonly', false).removeClass('pl-espelho').attr('title', '');
-                    } else if (nivel === 'FIXO') {
-                        entre.prop('readonly', true).addClass('pl-espelho').val(antes.val()).attr('title', 'Fixo: repete o "antes do 1º marco"');
-                    } else {
-                        entre.prop('readonly', true).addClass('pl-espelho');
-                        entre.val(nivel === 'MARCO1' ? depois.val() : (nivel === 'MARCO2' ? antes.val() : ''));
-                        entre.attr('title', nivel === 'MARCO1' ? 'Nível 1: repete o "depois do 2º marco"' : (nivel === 'MARCO2' ? 'Nível 2: repete o "antes do 1º marco"' : 'Escolha o nível'));
-                    }
+                    /* travado = copia outra coluna: fixo (entre e depois = antes), nivel 1 (entre = depois), nivel 2 (entre = antes);
+                       nivel 1 e 2 ou linha sem nivel escolhido: tudo livre */
+                    var trava = function (campo, origem) {
+                        if (origem) { campo.prop('readonly', true).addClass('pl-espelho').val(origem.val()); }
+                        else { campo.prop('readonly', false).removeClass('pl-espelho'); }
+                    };
+                    trava(depois, (temporal && nivel === 'FIXO') ? antes : null);
+                    trava(entre, nivel === 'FIXO' || nivel === 'MARCO2' ? antes : (nivel === 'MARCO1' ? depois : null));
                     tot[6] += plNum(r.find('[name="participante_percentual[]"]').val());
                     tot[7] += plNum(antes.val()); tot[8] += plNum(entre.val()); tot[9] += plNum(depois.val());
                 });
