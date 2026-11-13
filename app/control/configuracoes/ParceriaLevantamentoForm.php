@@ -234,10 +234,10 @@ class ParceriaLevantamentoForm extends TPage
             __F__ table.tfieldlist > thead small { display: block; color: #888; font-weight: normal; font-size: 11px; }
             __F__ .pl-h1 { color: #1e6fd9; font-weight: bold; } __F__ .pl-h2 { color: #e07b00; font-weight: bold; } __F__ .pl-h { font-weight: bold; }
             __F__.pl-temporal table.tfieldlist > tbody > tr > td:nth-child(4) { border-left: 6px solid transparent !important; padding-left: 8px !important; }
-            __F__.pl-temporal tr.pl-n0 > td:nth-child(4) { border-left-color: #8a919c !important; }
-            __F__.pl-temporal tr.pl-n1 > td:nth-child(4) { border-left-color: #1e6fd9 !important; }
-            __F__.pl-temporal tr.pl-n2 > td:nth-child(4) { border-left-color: #e07b00 !important; }
-            __F__.pl-temporal tr.pl-n12 > td:nth-child(4) { border-left-color: #7b4fc9 !important; }
+            __F__.pl-temporal table.tfieldlist > tbody > tr.pl-n0 > td:nth-child(4) { border-left-color: #8a919c !important; }
+            __F__.pl-temporal table.tfieldlist > tbody > tr.pl-n1 > td:nth-child(4) { border-left-color: #1e6fd9 !important; }
+            __F__.pl-temporal table.tfieldlist > tbody > tr.pl-n2 > td:nth-child(4) { border-left-color: #e07b00 !important; }
+            __F__.pl-temporal table.tfieldlist > tbody > tr.pl-n12 > td:nth-child(4) { border-left-color: #7b4fc9 !important; }
             __F__.pl-temporal table.tfieldlist > thead > tr > :nth-child(4), __F__.pl-temporal tr.pl-total > td:nth-child(4) { padding-left: 14px !important; }
             __F__ tr.pl-n0 select[name="participante_nivel[]"] { background: #eceef1; color: #4a4f57; font-weight: bold; border-color: #c9ced6; }
             __F__ tr.pl-n1 select[name="participante_nivel[]"] { background: #e8f1fd; color: #1e6fd9; font-weight: bold; border-color: #b9d3f7; }
