@@ -13,6 +13,9 @@
  * os outros usam o que ja tem) confere a impressao digital dos abertos/pendentes (~1,5 ms) e a campainha do webhook; so se algo
  * mudou (pegar, transferir, encerrar, mensagem) rele a lista. Releitura completa a cada 60 s, de seguranca. Cache gravado de forma
  * atomica (arquivo novo + troca). Acessos de cada atendente: 60 s. APChat fora = vazio, nova tentativa depois de 60 s.
+ * 13/11/2026: Pendentes pela regra do APChat (ApchatVisibilidadeService: lista vazia de canais/filas = sem restricao, admin ve
+ * todos, sem atendente conforme a empresa, convite, carteira). Chat interno: a cada conferencia, UMA leitura das nao lidas de
+ * todos os atendentes ligados (com avisos); falha do chat nao derruba os tickets ("chat interno indisponivel").
  */
 class ApchatBalaoService
 {
@@ -29,6 +32,7 @@ class ApchatBalaoService
     public static function usarRelogio(?int $agora): void
     {
         self::$relogio = $agora;
+        ApchatAcessoService::usarRelogio($agora);
     }
 
     private static function agora(): int
@@ -38,7 +42,7 @@ class ApchatBalaoService
 
     public static function conversas(int $systemUserId): array
     {
-        $vazio = ['abertos' => [], 'pendentes' => [], 'total' => 0];
+        $vazio = ['abertos' => [], 'pendentes' => [], 'chat' => [], 'chat_situacao' => 'ok', 'total' => 0];
 
         $ligacao = ApchatUsuarioService::doUsuario($systemUserId);
         if (!$ligacao || !$ligacao->apchat_usuario_id)
@@ -64,7 +68,8 @@ class ApchatBalaoService
             }
             $estado = self::estado();
             $tickets = $estado['tickets'];
-            $acessos = self::acessos((int) $ligacao->apchat_usuario_id);
+            $acessos = ApchatAcessoService::acessos((int) $ligacao->apchat_usuario_id);
+            $config = ApchatAcessoService::configuracoes();
         }
         catch (Throwable $e)
         {
@@ -73,8 +78,7 @@ class ApchatBalaoService
         }
 
         $eu = (int) $ligacao->apchat_usuario_id;
-        $canais = array_flip($acessos['canais'] ?? []);
-        $filas = array_flip($acessos['filas'] ?? []);
+        $carteiras = $estado['carteiras'] ?? [];
         $aguardando = array_flip($estado['aguardando'] ?? []);
 
         $abertos = [];
@@ -87,8 +91,8 @@ class ApchatBalaoService
                 $item = self::item($t);
                 $abertos[] = $item;
             }
-            elseif ($t['status'] === 'pending' && isset($canais[(int) $t['whatsappId']]) && (empty($t['queueId']) || isset($filas[(int) $t['queueId']]))
-                    && !isset($aguardando[preg_replace('/\D/', '', (string) $t['numero'])]))
+            elseif ($t['status'] === 'pending' && !isset($aguardando[preg_replace('/\D/', '', (string) $t['numero'])])
+                    && ApchatVisibilidadeService::podeVer($t + ['carteira' => $carteiras[(int) ($t['contactId'] ?? 0)] ?? []], $acessos, $config))
             {
                 $item = self::item($t);
                 $pendentes[] = $item;
@@ -100,14 +104,55 @@ class ApchatBalaoService
             $total += $item['aguardando'] ? 1 : 0;
         }
 
-        return ['situacao' => 'ok', 'abertos' => array_slice($abertos, 0, self::MAXIMO), 'pendentes' => array_slice($pendentes, 0, self::MAXIMO), 'total' => $total];
+        // chat interno: as conversas com nao lidas deste atendente; o icone soma as mensagens nao lidas
+        $chat = [];
+        if (($estado['chat'] ?? null) === null)
+        {
+            $chatSituacao = 'indisponivel';
+        }
+        else
+        {
+            $chatSituacao = 'ok';
+            foreach ($estado['chat'] as $c)
+            {
+                if ((int) $c['usuario'] !== $eu) { continue; }
+                $chat[] = self::itemChat($c);
+                $total += (int) $c['qtd'];
+            }
+        }
+
+        return ['situacao' => 'ok', 'abertos' => array_slice($abertos, 0, self::MAXIMO), 'pendentes' => array_slice($pendentes, 0, self::MAXIMO),
+                'chat' => array_slice($chat, 0, self::MAXIMO), 'chat_situacao' => $chatSituacao, 'total' => $total];
+    }
+
+    private static function itemChat(array $c): array
+    {
+        $tipo = $c['tipo'] === 'equipe' ? 'equipe' : 'usuario';
+        $texto = trim(preg_replace('/\s+/u', ' ', (string) ($c['ultima'] ?? '')));
+        return [
+            'tipo'        => $tipo,
+            'conversa_id' => (int) $c['conversa_id'],
+            'nome'        => trim((string) ($c['nome'] ?? '')) !== '' ? (string) $c['nome'] : ($tipo === 'equipe' ? 'Equipe' : 'Usuário'),
+            'qtd'         => (int) $c['qtd'],
+            'ultima'      => $texto !== '' ? mb_substr($texto, 0, 80) : '[arquivo]',
+            'quando'      => $c['ultima_em'] ?? null,
+            'url'         => ApchatApiService::urlChat($tipo, (int) $c['conversa_id']),
+        ];
+    }
+
+    /** Atendentes do APChat ligados a usuarios da Curciol com avisos ligados (o chat e lido de uma vez para todos). */
+    private static function atendentesComAvisos(): array
+    {
+        $c = TTransaction::get();
+        if (!$c) { return []; }
+        return array_map('intval', $c->query("SELECT DISTINCT apchat_usuario_id FROM apchat_usuario WHERE apchat_usuario_id IS NOT NULL AND avisos = 'S'")->fetchAll(PDO::FETCH_COLUMN));
     }
 
     public static function limparCache(): void
     {
         @unlink(self::arquivoCache());
         @unlink(self::arquivoCache() . '.falha');
-        foreach (glob(self::arquivoCache() . '.acessos-*') ?: [] as $f) { @unlink($f); }
+        ApchatAcessoService::limpar();
     }
 
     /** Intervalo de atualizacao do balao no navegador (ms); desligado no application.ini continua desligado. */
@@ -115,19 +160,6 @@ class ApchatBalaoService
     {
         $v = $ini['general']['verify_messages_menu'] ?? false;
         return ($v === false || $v === '' || $v === 'false' || $v === '0') ? 'false' : (string) self::ATUALIZAR_MS;
-    }
-
-    private static function acessos(int $atendente): array
-    {
-        $arquivo = self::arquivoCache() . '.acessos-' . $atendente;
-        $cache = self::ler($arquivo);
-        if ($cache && ($cache['em'] ?? 0) > self::agora() - self::ACESSOS_SEGUNDOS)
-        {
-            return $cache['acessos'];
-        }
-        $acessos = ApchatBancoService::acessos($atendente);
-        self::gravar($arquivo, json_encode(['em' => self::agora(), 'acessos' => $acessos]));
-        return $acessos;
     }
 
     /**
@@ -169,13 +201,24 @@ class ApchatBalaoService
             $impressao = ApchatBancoService::impressaoTickets();
             $mudou = !$cache || $impressao !== ($cache['impressao'] ?? null) || $evento > (int) ($cache['evento'] ?? 0)
                   || ($cache['em'] ?? 0) <= $agora - self::RELER_SEGUNDOS;
+            $tickets = $mudou ? ApchatBancoService::ticketsAbertosComUltima() : $cache['tickets'];
+            try
+            {
+                $chat = ApchatBancoService::chatNaoLidas(self::atendentesComAvisos());
+            }
+            catch (Throwable $e)
+            {
+                $chat = null; // chat interno indisponivel (ex.: APChat sem a funcao): os tickets continuam
+            }
             $estado = [
                 'em'         => $mudou ? $agora : $cache['em'],
                 'checado_em' => $agora,
                 'evento'     => $evento,
                 'impressao'  => $impressao,
                 'aguardando' => ApchatRespostaService::numerosAguardando(),
-                'tickets'    => $mudou ? ApchatBancoService::ticketsAbertosComUltima() : $cache['tickets'],
+                'tickets'    => $tickets,
+                'carteiras'  => $mudou ? self::carteirasDe($tickets) : ($cache['carteiras'] ?? []),
+                'chat'       => $chat,
             ];
             self::gravar($arquivo, json_encode($estado));
             return $estado;
@@ -208,6 +251,20 @@ class ApchatBalaoService
         if (@file_put_contents($tmp, $conteudo) !== false && !@rename($tmp, $arquivo))
         {
             @unlink($tmp);
+        }
+    }
+
+    /** Donos das carteiras dos contatos dos tickets abertos (excecao da regra de fila). Falha = sem carteiras. */
+    private static function carteirasDe(array $tickets): array
+    {
+        try
+        {
+            $ids = array_values(array_unique(array_filter(array_map(function ($t) { return (int) ($t['contactId'] ?? 0); }, $tickets))));
+            return $ids ? ApchatBancoService::carteiras($ids) : [];
+        }
+        catch (Throwable $e)
+        {
+            return [];
         }
     }
 

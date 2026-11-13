@@ -12,7 +12,7 @@ function x(string $sql): void { TTransaction::open('escritorio'); TTransaction::
 function q(string $sql) { TTransaction::open('escritorio'); $r = TTransaction::get()->query($sql)->fetchAll(PDO::FETCH_ASSOC); TTransaction::close(); return $r; }
 function saida(callable $f): string { ob_start(); try { $f(); } finally { $s = ob_get_clean(); } return $s; }
 $limpar = function () {
-    x("DELETE FROM apchat_usuario WHERE apchat_usuario_id = 987650");
+    x("DELETE FROM apchat_usuario WHERE apchat_usuario_id IN (987650, 987651, 987652)");
     foreach (q("SELECT id FROM pessoa WHERE nome LIKE '" . MARCA_HIST . "%'") as $s)
     {
         x("DELETE FROM atendimento WHERE cliente_id = {$s['id']} OR profissional_id = {$s['id']}");
@@ -28,7 +28,9 @@ $tk = function (int $id, string $numero, string $status, string $fechado, ?int $
     return ['id' => $id, 'arquivado' => false, 'status' => $status, 'numero' => $numero, 'contato' => 'Contato ' . $id,
             'aberto_em' => date('Y-m-d H:i:s', strtotime($fechado . ' -2 hours')), 'fechado_em' => $status === 'closed' ? $fechado : null,
             'canal' => 'Curciol - Oficial', 'fila' => 'Fila Um', 'userId' => 987650, 'atendente' => 'Atendente Um',
-            'closedByUserId' => $fechou, 'fechou' => $nomeFechou, 'atendentes' => $atendentes, 'do_cliente' => $doCliente];
+            'closedByUserId' => $fechou, 'fechou' => $nomeFechou, 'atendentes' => $atendentes, 'do_cliente' => $doCliente,
+            // 13/11/2026: o que a regra de visibilidade usa
+            'contactId' => 5000 + $id, 'queueId' => 9101, 'whatsappId' => 112, 'isGroup' => false, 'shared' => false, 'userIdArray' => null, 'groupUserIdArray' => null, 'chatFlowId' => null];
 };
 $falso = new class([
     $tk(10, '5519982220001', 'closed', '2026-11-05 10:00:00', 9002, 'Atendente Dois', 'Atendente Um|Atendente Dois'),
@@ -44,6 +46,13 @@ $falso = new class([
 ]) {
     public $t; public function __construct($t) { $this->t = $t; }
     public function disponivel() { return true; }
+    // 13/11/2026: acessos dos atendentes de teste (987650: sem restricao; 987651: so o canal 113; 987652: so a fila 9999, carteira do 5010)
+    public function acessos(int $a): array {
+        $l = [987650 => ['canais' => [], 'filas' => []], 987651 => ['canais' => [113], 'filas' => []], 987652 => ['canais' => [], 'filas' => [9999]]];
+        return ($l[$a] ?? ['canais' => [], 'filas' => []]) + ['perfil' => 'user', 'configs' => [], 'ver_todos' => false, 'existe' => isset($l[$a])];
+    }
+    public function configuracoes(): array { return ['nullTickets' => 'enabled']; }
+    public function carteiras(array $contatos): array { return in_array(5010, $contatos, true) ? [5010 => [987652]] : []; }
     public function ticketsFechadosDosNumeros(array $numeros): array { return array_values(array_filter($this->t, function ($t) use ($numeros) { return in_array($t['numero'], $numeros, true); })); }
     public function mensagensDoTicket(int $ticketId, bool $arquivado): array {
         return [
@@ -85,6 +94,13 @@ try
                                AND NOT EXISTS (SELECT 1 FROM pessoa p WHERE p.system_users_id = u.id) ORDER BY u.id LIMIT 1')->fetchColumn();
     $c->exec("UPDATE pessoa SET system_users_id = {$livre} WHERE id = {$prof}");
     $c->exec("INSERT INTO apchat_usuario (system_user_id, apchat_usuario_id) VALUES ({$livre}, 987650)");
+    // 13/11/2026: o historico segue o acesso do usuario logado no APChat
+    $livres = array_map('intval', $c->query("SELECT u.id FROM system_users u WHERE NOT EXISTS (SELECT 1 FROM apchat_usuario a WHERE a.system_user_id = u.id)
+                                               ORDER BY u.id LIMIT 3")->fetchAll(PDO::FETCH_COLUMN));
+    [$soCanal, $carteira, $semLigacao] = $livres;
+    $c->exec("INSERT INTO apchat_usuario (system_user_id, apchat_usuario_id) VALUES ({$soCanal}, 987651), ({$carteira}, 987652)");
+    TSession::setValue('userid', $livre);
+    ApchatAcessoService::limpar();
     $esp = $c->query('SELECT id, descricao FROM especialidade ORDER BY descricao LIMIT 2')->fetchAll(PDO::FETCH_ASSOC);
     $c->exec("INSERT INTO pessoa_especialidade (pessoa_id, especialidade_id) VALUES ({$prof}, {$esp[1]['id']}), ({$prof}, {$esp[0]['id']})");
     $espTexto = $esp[0]['descricao'] . ', ' . $esp[1]['descricao'];
@@ -136,6 +152,13 @@ try
           array_map(function ($m) { return in_array($m['id'], ['e', 'f'], true) ? $m['id'] : $m['body']; }, $conv));
     lanca('conversa de ticket de outro cliente: recusa', fn() => ApchatHistoricoService::conversa(12, $a), 'não é deste cliente');
     lanca('ticket aberto nao aparece', fn() => ApchatHistoricoService::conversa(13, $a), 'não é deste cliente');
+
+    // 13/11/2026: so o que o usuario ve no APChat (regra do APChat), pelo atendente ligado a ele
+    igual('usuario sem atendente ligado: nenhum ticket', [], ApchatHistoricoService::tickets($a, $semLigacao));
+    igual('canal fora dos canais dele: nenhum ticket', [], ApchatHistoricoService::tickets($a, $soCanal));
+    lanca('ticket que ele nao ve: sem acesso', fn() => ApchatHistoricoService::ticket(10, $a, $soCanal), 'não tem acesso');
+    igual('fila fora das dele: so o ticket do contato da carteira dele', [10], array_column(ApchatHistoricoService::tickets($a, $carteira), 'id'));
+    igual('usuario logado sem restricao: todos', [16, 15, 11, 10], array_column(ApchatHistoricoService::tickets($a), 'id'));
     TTransaction::close();
 
     // telas

@@ -91,6 +91,14 @@ class ApchatApiService
         return ($base !== '' ? $base : self::URL_TELA_PADRAO) . '/atendimento?ticketId=' . $ticketId;
     }
 
+    /** Chat interno do APChat (13/11/2026): conversa com o usuario N ou a equipe N. */
+    public static function urlChat(string $tipo, int $id): string
+    {
+        $escritorio = self::escritorio();
+        $base = rtrim(trim((string) ($escritorio->url_tela_apchat ?? '')), '/');
+        return ($base !== '' ? $base : self::URL_TELA_PADRAO) . '/chat-privado?' . ($tipo === 'equipe' ? 'groupId=' : 'contactId=') . $id;
+    }
+
     public static function enviarMensagem(string $numero, string $texto, string $chave): string
     {
         $escritorio = self::escritorio();

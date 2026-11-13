@@ -25,6 +25,16 @@ $falso = new class([
     $t(7, 'open', 9001, 9101, true, '5519900000007'),
 ]) {
     public $tickets; public $leituras = 0; public $fora = false; public $tentativas = 0; public $acessosLidos = 0; public $impressoes = 0;
+    public $chatLidos = 0; public $chatFora = false;
+    // 13/11/2026: configuracao do app1 (ver sem atendente ligado) e chat interno
+    public function configuracoes(): array { return ['nullTickets' => 'enabled', 'showClosedForAll' => 'enabled', 'showGroupsForAll' => 'enabled', 'NotViewAssignedTickets' => 'disabled']; }
+    public function chatNaoLidas(array $atendentes): array {
+        if ($this->chatFora) { throw new Exception('funcao do chat ausente'); }
+        $this->chatLidos++;
+        $todas = [['usuario' => 9001, 'tipo' => 'usuario', 'conversa_id' => 9002, 'nome' => 'Atendente Dois', 'qtd' => 2, 'ultima' => 'Oi colega', 'ultima_tipo' => 'chat', 'ultima_em' => date('Y-m-d H:i:s', strtotime('-3 minutes'))],
+                  ['usuario' => 9001, 'tipo' => 'equipe', 'conversa_id' => 990, 'nome' => 'Equipe Civel', 'qtd' => 1, 'ultima' => '', 'ultima_tipo' => 'image', 'ultima_em' => date('Y-m-d H:i:s', strtotime('-9 minutes'))]];
+        return array_values(array_filter($todas, function ($c) use ($atendentes) { return in_array($c['usuario'], $atendentes, true); }));
+    }
     public function __construct($t) { $this->tickets = $t; }
     public function disponivel() { $this->tentativas++; return !$this->fora; }
     // impressao digital dos abertos/pendentes (situacao, atendente, fila, hora): muda quando pegam, transferem ou encerram
@@ -62,7 +72,11 @@ try
     $r1 = ApchatBalaoService::conversas($u1);
     igual('atendente 1: pendentes do canal/fila dele (inclusive o respondido; sem o do SIM/NAO)', [1, 2, 5], $ids($r1), json_encode($r1));
     igual('atendente 1: abertos com ele, respondidos ou nao', [4, 7], $ids($r1, 'abertos'));
-    igual('atendente 1: icone conta os TICKETS esperando resposta (1, 2 e 4)', 3, $r1['total'] ?? null);
+    igual('atendente 1: icone soma os TICKETS esperando resposta (1, 2 e 4) e as mensagens nao lidas do chat interno (2 + 1)', 6, $r1['total'] ?? null);
+    igual('chat interno: conversas com nao lidas do atendente 1 (direta e equipe)', [['usuario', 9002, 2, 'Oi colega'], ['equipe', 990, 1, '[arquivo]']],
+          array_map(function ($c) { return [$c['tipo'], $c['conversa_id'], $c['qtd'], $c['ultima']]; }, $r1['chat'] ?? []));
+    ok('chat interno: endereco da conversa no APChat', ($r1['chat'][0]['url'] ?? '') === ApchatApiService::urlChat('usuario', 9002)
+        && strpos($r1['chat'][1]['url'] ?? '', '/chat-privado?groupId=990') !== false, json_encode($r1['chat'] ?? null));
     $porId = [];
     foreach (array_merge($r1['pendentes'], $r1['abertos']) as $i) { $porId[$i['ticket_id']] = $i; }
     ok('esperando resposta: numero de mensagens do cliente sem resposta', $porId[1]['aguardando'] === true && $porId[1]['nao_lidas'] === 2 && $porId[4]['nao_lidas'] === 1, json_encode($porId[1]));
@@ -74,7 +88,9 @@ try
     igual('atendente 2: o aberto dele', [3], $ids($r2, 'abertos'));
     igual('atendente 2: total', 3, $r2['total']);
     $r3 = ApchatBalaoService::conversas($u3);
-    igual('atendente sem o canal: nada', [[], [], 0], [$ids($r3), $ids($r3, 'abertos'), $r3['total']]);
+    igual('atendente sem canal permitido = sem restricao de canal (regra do APChat, 13/11/2026)', [[1, 2, 5], [], 2], [$ids($r3), $ids($r3, 'abertos'), $r3['total']]);
+    igual('chat interno: atendente sem conversa nao lida', [], $r2['chat']);
+    igual('chat interno: uma leitura so para todos os atendentes', 1, $falso->chatLidos);
     igual('usuario sem atendente ligado', 'sem_ligacao', ApchatBalaoService::conversas($u4)['situacao'] ?? null);
     igual('APChat lido uma vez so para todos (cache compartilhado)', 1, $falso->leituras);
     igual('acessos de cada atendente lidos uma vez', 3, $falso->acessosLidos);
@@ -98,6 +114,12 @@ try
     ApchatBalaoService::usarRelogio($agora += 6);
     $rt = ApchatBalaoService::conversas($u1);
     igual('transferido: rele os tickets', 2, $falso->leituras);
+    $falso->chatFora = true;
+    ApchatBalaoService::usarRelogio($agora += 6);
+    $rc = ApchatBalaoService::conversas($u1);
+    ok('chat interno fora: os tickets continuam e o chat fica indisponivel', ($rc['situacao'] ?? '') === 'ok' && ($rc['chat_situacao'] ?? '') === 'indisponivel'
+        && $rc['chat'] === [] && $ids($rc) === [1, 2, 5], json_encode([$rc['situacao'] ?? null, $rc['chat_situacao'] ?? null, $ids($rc)]));
+    $falso->chatFora = false;
     igual('transferido: sai dos abertos do atendente 1', [7], $ids($rt, 'abertos'));
     igual('transferido: entra nos abertos do atendente 2', [3, 4], $ids(ApchatBalaoService::conversas($u2), 'abertos'));
 
@@ -190,6 +212,8 @@ $ag = (int) $c->query('SELECT id FROM agendamento ORDER BY id DESC LIMIT 1')->fe
 $msg = (int) $c->query("INSERT INTO mensagem (agendamento_id, template_escritorio_id, system_user_id, tipo_mensagem, destino, template, enviado_em) VALUES ({$ag}, {$tpl}, {$u1}, 'WHATSAPP', '19900000006', 'Confirma?', now()) RETURNING id")->fetchColumn();
 $unidade = (int) $c->query('SELECT system_unit_id FROM escritorio ORDER BY id LIMIT 1')->fetchColumn();
 $urlTicket1 = ApchatApiService::urlTicket(1);
+$urlChatUsuario = ApchatApiService::urlChat('usuario', 9002);
+$urlChatEquipe = ApchatApiService::urlChat('equipe', 990);
 TTransaction::close();
 try
 {
@@ -197,7 +221,11 @@ try
     TSession::setValue('userunitid', $unidade);
     ApchatBalaoService::limparCache();
     $html = saida(function () { (new MessageList(['theme' => 'theme-builder']))->show(); });
-    ok('balao: logo do APChat (icone do anexo) no topo e contador', strpos($html, 'apchat-logo') !== false && strpos($html, 'app/images/apchat-icone.png') !== false && strpos($html, 'data-count="3"') !== false, substr($html, 0, 400));
+    ok('balao: logo do APChat (icone do anexo) no topo e contador', strpos($html, 'apchat-logo') !== false && strpos($html, 'app/images/apchat-icone.png') !== false && strpos($html, 'data-count="6"') !== false, substr($html, 0, 400));
+    ok('balao: secao do chat interno com as conversas', strpos($html, '>Chat interno<') !== false && substr_count($html, 'apchat-balao-conversa"') === 2
+        && strpos($html, '>Atendente Dois<') !== false && strpos($html, '>Equipe Civel<') !== false && preg_match('/apchat-balao-chat-nao-lidas[^>]*>2</', $html) === 1, $html);
+    ok('balao: conversa abre o chat interno no APChat', strpos($html, LinkExterno::onclick($urlChatUsuario, 'apchat')) !== false
+        && strpos($html, LinkExterno::onclick($urlChatEquipe, 'apchat')) !== false, $html);
     ok('balao: sem texto ao parar o mouse no icone', strpos($html, 'Tickets do APChat esperando') === false && preg_match('/class="button-circle"[^>]*title=/', $html) === 0, substr($html, 0, 400));
     ok('balao: fica aberto ao atravessar ate a lista (classe do JS)', strpos($html, '.fast-drop.apchat-aberto > .fast-drop-open') !== false);
     ok('balao: logo do WhatsApp no ticket (sem fone de ouvido)', strpos($html, 'fab fa-whatsapp') !== false && strpos($html, 'fa-headset') === false);

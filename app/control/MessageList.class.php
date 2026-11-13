@@ -1,7 +1,8 @@
 <?php
 /**
  * Balao do APChat no topo (10/11/2026), atualizado a cada verify_messages_menu pelo BuilderTemplate.js: tickets Abertos e Pendentes
- * do atendente ligado ao usuario, como no APChat; o contador conta os tickets esperando resposta (ApchatBalaoService). O clique abre o ticket no APChat, sempre na mesma aba ("apchat").
+ * do atendente ligado ao usuario, como no APChat; o contador conta os tickets esperando resposta (ApchatBalaoService) e, desde
+ * 13/11/2026, as mensagens nao lidas do chat interno (secao "Chat interno"). O clique abre o ticket no APChat, sempre na mesma aba ("apchat").
  * (Antes: mensagens internas do framework, sem uso desde 05/2024.)
  */
 class MessageList extends TElement
@@ -56,6 +57,8 @@ class MessageList extends TElement
             $colunas->add(self::coluna('Abertos', $r['abertos'], 'Nenhum ticket aberto com você.', 'far fa-comment-alt', '#2563EB'));
             $colunas->add(self::coluna('Pendentes', $r['pendentes'], 'Nenhum ticket pendente.', 'far fa-clock', '#F59E0B'));
             $lista->add($colunas);
+            // chat interno do APChat (13/11/2026): conversas com mensagens nao lidas; o clique abre a conversa no APChat
+            $lista->add(self::chat($r['chat'] ?? [], (string) ($r['chat_situacao'] ?? 'ok')));
         }
 
         $this->add($lista);
@@ -63,6 +66,58 @@ class MessageList extends TElement
         $this->add('<style>#envelope_messages .fast-drop.apchat-aberto > .fast-drop-open{display:block;position:absolute;border:1px solid var(--template-border-color);'
                  . 'padding:14px;border-radius:0 0 6px 6px;background:var(--modal-background);overflow:auto;max-height:70vh;right:0;}</style>');
         TScript::create('BuilderTemplate.processFastDrop();');
+    }
+
+    private static function chat(array $itens, string $situacao): TElement
+    {
+        $cor = '#7C3AED';
+        $sec = new TElement('div');
+        $sec->{'class'} = 'apchat-balao-chat';
+        $sec->{'style'} = 'margin-top:14px;width:min(760px, 90vw);';
+        $cab = new TElement('div');
+        $cab->{'class'} = 'apchat-balao-aba';
+        $cab->{'style'} = 'display:flex;align-items:center;gap:8px;font-weight:700;font-size:15px;color:' . $cor . ';padding:0 0 6px;margin-bottom:8px;border-bottom:2px solid ' . $cor . ';';
+        $cab->add(TElement::tag('i', '', ['class' => 'far fa-comments', 'style' => 'width:auto;color:' . $cor . ';']));
+        $cab->add(TElement::tag('span', 'Chat interno'));
+        $cab->add(TElement::tag('span', (string) array_sum(array_column($itens, 'qtd')), ['style' => 'background:' . $cor . ';color:#fff;border-radius:10px;padding:0 8px;font-size:12px;line-height:18px;']));
+        $sec->add($cab);
+        if ($situacao !== 'ok')
+        {
+            $sec->add(TElement::tag('div', 'Chat interno indisponível no momento.', ['class' => 'apchat-balao-chat-indisponivel', 'style' => 'padding:6px 4px;color:#777;white-space:normal;']));
+            return $sec;
+        }
+        if (!$itens)
+        {
+            $sec->add(TElement::tag('div', 'Nenhuma mensagem nova no chat interno.', ['style' => 'padding:6px 4px;color:#777;white-space:normal;']));
+        }
+        $h = function ($v) { return htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8'); };
+        $grade = new TElement('div');
+        $grade->{'style'} = 'display:flex;flex-wrap:wrap;gap:6px 18px;';
+        foreach ($itens as $item)
+        {
+            $a = new TElement('a');
+            $a->class = 'apchat-balao-conversa';
+            $a->href = '#';
+            $a->title = 'Abrir a conversa no APChat';
+            $a->style = 'flex:1 1 300px;min-width:0;display:flex;gap:10px;align-items:flex-start;padding:8px;border-radius:8px;white-space:normal;color:inherit;border:1px solid rgba(124,58,237,.35);background:rgba(124,58,237,.05);';
+            $a->onclick = LinkApp::apchatChat((string) $item['tipo'], (int) $item['conversa_id'], (string) $item['url']);
+            $icone = $item['tipo'] === 'equipe' ? 'fas fa-users' : 'fas fa-user';
+            $a->add('<span style="flex:0 0 36px;width:36px;height:36px;border-radius:50%;background:' . $cor . ';display:flex;align-items:center;justify-content:center;">'
+                  . '<i class="' . $icone . '" style="color:#fff;font-size:16px;width:auto;"></i></span>'
+                  . '<span style="flex:1;min-width:0;display:block;">'
+                  . '<span style="display:flex;align-items:baseline;gap:8px;">'
+                  .   '<b style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:14px;color:#222;">' . $h($item['nome']) . '</b>'
+                  .   '<span class="apchat-balao-tempo" style="color:#888;font-size:12px;white-space:nowrap;">' . $h(self::tempo($item['quando'] ?? null)) . '</span>'
+                  . '</span>'
+                  . '<span style="display:flex;align-items:center;gap:8px;margin-top:2px;">'
+                  .   '<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#555;font-size:13px;">' . $h($item['ultima']) . '</span>'
+                  .   '<span class="apchat-balao-chat-nao-lidas" title="Mensagens não lidas" style="flex:0 0 auto;min-width:20px;height:20px;padding:0 6px;border-radius:10px;background:' . $cor . ';color:#fff;font-size:12px;font-weight:700;line-height:20px;text-align:center;">' . (int) $item['qtd'] . '</span>'
+                  . '</span>'
+                  . '</span>');
+            $grade->add($a);
+        }
+        $sec->add($grade);
+        return $sec;
     }
 
     private static function coluna(string $titulo, array $itens, string $vazio, string $icone, string $cor): TElement

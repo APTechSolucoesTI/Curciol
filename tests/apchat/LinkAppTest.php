@@ -14,6 +14,7 @@ try
     LinkApp::forcar('apchat', false);
     LinkApp::forcar('apmail', false);
     igual('apchat desligado: abre a tela do APChat numa aba (como antes)', LinkExterno::onclick($url, 'apchat'), LinkApp::apchatTicket(9, $url));
+    igual('apchat desligado: chat interno na aba do APChat', LinkExterno::onclick('https://x/chat-privado?contactId=5', 'apchat'), LinkApp::apchatChat('usuario', 5, 'https://x/chat-privado?contactId=5'));
     igual('apmail desligado: abre a caixa numa aba (como antes)', LinkExterno::onclick('https://app.apmail.com.br/mail/a2', 'apmail'),
           LinkApp::apmailCaixa('https://app.apmail.com.br/mail/a2', '/mail/a2'));
 
@@ -21,6 +22,10 @@ try
     LinkApp::forcar('apchat', true);
     LinkApp::forcar('apmail', true);
     igual('apchat ligado: ticket pelo app', $atr('CurciolAbrirApp("web+apchat://ticket/9", "APChat"); return false;'), LinkApp::apchatTicket(9, $url));
+    igual('apchat ligado: chat com usuario pelo app (13/11/2026)', $atr('CurciolAbrirApp("web+apchat://chat/usuario/5", "APChat"); return false;'), LinkApp::apchatChat('usuario', 5, 'https://x'));
+    igual('apchat ligado: chat da equipe pelo app', $atr('CurciolAbrirApp("web+apchat://chat/equipe/7", "APChat"); return false;'), LinkApp::apchatChat('equipe', 7, 'https://x'));
+    igual('apchat ligado: tipo desconhecido vira usuario', $atr('CurciolAbrirApp("web+apchat://chat/usuario/7", "APChat"); return false;'), LinkApp::apchatChat('x"y', 7, 'https://x'));
+    igual('chat sem id nao abre nada', '', LinkApp::apchatChat('usuario', 0, 'https://x'));
     igual('apchat ligado: tela inicial pelo app', $atr('CurciolAbrirApp("web+apchat://inicio", "APChat"); return false;'), LinkApp::apchatInicio('https://app1.apchat.com.br'));
     igual('apmail ligado: caixa pelo app (caminho da API codificado)', $atr('CurciolAbrirApp("web+apmail://abrir?caminho=%2Fmail%2Fa2%3Fassigned%3Dany", "APMail"); return false;'),
           LinkApp::apmailCaixa('https://app.apmail.com.br/mail/a2?assigned=any', '/mail/a2?assigned=any'));

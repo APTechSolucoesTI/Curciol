@@ -11,6 +11,8 @@
  * Ticket aberto so por um envio da Curciol (mensagem.apchat_ticket_id), sem mensagem do cliente, fica de fora: a mensagem da
  * Curciol ja aparece nos atendimentos, com a situacao de entrega.
  * Homologacao (11/11/2026): com 'historico_somente_numeros' no app/config/apchat.php, so esses numeros trazem historico.
+ * 13/11/2026: so os tickets que o usuario ve no APChat (a mesma regra do APChat: ApchatVisibilidadeService), pelo atendente
+ * ligado a ele; sem ligacao, nenhum. Acessos com 60 s de cache: mudou no APChat, vale para o historico inteiro.
  */
 class ApchatHistoricoService
 {
@@ -55,8 +57,22 @@ class ApchatHistoricoService
         return $liberados;
     }
 
-    /** [{id, arquivado, aberto_em, fechado_em, canal, fila, principal, atendentes[], numero, contato}] */
-    public static function tickets(int $pessoaId): array
+    /**
+     * Tickets do cliente que o usuario ve no APChat (null = o usuario logado).
+     * @return array [{id, arquivado, aberto_em, fechado_em, canal, fila, principal, atendentes[], numero, contato}]
+     */
+    public static function tickets(int $pessoaId, ?int $usuario = null): array
+    {
+        return self::mapear(ApchatAcessoService::filtrar(self::linhas($pessoaId), $usuario ?? self::usuarioLogado()));
+    }
+
+    private static function usuarioLogado(): int
+    {
+        return (int) TSession::getValue('userid');
+    }
+
+    /** Tickets fechados do cliente, como vem do APChat (sem a regra de visibilidade). */
+    private static function linhas(int $pessoaId): array
     {
         $numeros = self::numerosDoCliente($pessoaId);
         if (!$numeros) { return []; }
@@ -65,11 +81,17 @@ class ApchatHistoricoService
         $daCurciol = self::abertosPelaCurciol(array_map(function ($t) { return (int) $t['id']; }, array_filter($tickets, function ($t) {
             return !self::sim($t['do_cliente'] ?? true) && !self::sim($t['arquivado'] ?? false);
         })));
+        return array_values(array_filter($tickets, function ($t) use ($daCurciol) {
+            if (($t['status'] ?? '') !== 'closed') { return false; }
+            return !(isset($daCurciol[(int) $t['id']]) && !self::sim($t['do_cliente'] ?? true) && !self::sim($t['arquivado'] ?? false));
+        }));
+    }
+
+    private static function mapear(array $tickets): array
+    {
         $lista = [];
         foreach ($tickets as $t)
         {
-            if (($t['status'] ?? '') !== 'closed') { continue; }
-            if (isset($daCurciol[(int) $t['id']]) && !self::sim($t['do_cliente'] ?? true) && !self::sim($t['arquivado'] ?? false)) { continue; }
             $atendentes = array_values(array_filter(explode('|', (string) ($t['atendentes'] ?? '')), 'strlen'));
             $atribuido = trim((string) ($t['atendente'] ?? ''));
             $atribuidoId = isset($t['userId']) && $t['userId'] !== null ? (int) $t['userId'] : null;
@@ -130,12 +152,17 @@ class ApchatHistoricoService
         return $v === true || $v === 't' || $v === 1 || $v === '1' || $v === 'true';
     }
 
-    /** O ticket, se for do cliente (senao excecao). */
-    public static function ticket(int $ticketId, int $pessoaId): array
+    /** O ticket, se for do cliente e o usuario o ve no APChat (senao excecao). */
+    public static function ticket(int $ticketId, int $pessoaId, ?int $usuario = null): array
     {
-        foreach (self::tickets($pessoaId) as $t)
+        foreach (self::linhas($pessoaId) as $t)
         {
-            if ($t['id'] === $ticketId) { return $t; }
+            if ((int) $t['id'] !== $ticketId) { continue; }
+            if (!ApchatAcessoService::filtrar([$t], $usuario ?? self::usuarioLogado()))
+            {
+                throw new Exception('Você não tem acesso a este atendimento no APChat.');
+            }
+            return self::mapear([$t])[0];
         }
         throw new Exception('Este atendimento do WhatsApp não é deste cliente.');
     }

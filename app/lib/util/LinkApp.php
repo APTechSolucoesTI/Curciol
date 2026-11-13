@@ -6,7 +6,8 @@
  * (window.CurciolAbrirApp no BuilderTemplate.js). Desligada: como antes (LinkExterno, aba com nome, so http/https).
  *
  * Contratos: APChat (snippet do nginx /etc/nginx/snippets/curciol-apchat.conf no servidor do APChat):
- *   web+apchat://ticket/<numero>, web+apchat://inicio (qualquer outro vai para a tela inicial).
+ *   web+apchat://ticket/<numero>, web+apchat://chat/usuario/<numero>, web+apchat://chat/equipe/<numero> (13/11/2026),
+ *   web+apchat://inicio (qualquer outro vai para a tela inicial).
  * APMail (docs da tarefa do APMail): web+apmail://abrir?caminho=<mailboxes[].url da API>, web+apmail://mensagem/<uuid>.
  */
 class LinkApp
@@ -56,6 +57,14 @@ class LinkApp
     {
         if ($ticketId <= 0) { return ''; }
         return self::ligado('apchat') ? self::onclick('web+apchat://ticket/' . $ticketId, 'apchat') : LinkExterno::onclick($urlWeb, 'apchat');
+    }
+
+    /** onclick de uma conversa do chat interno do APChat (13/11/2026): $tipo usuario|equipe. */
+    public static function apchatChat(string $tipo, int $id, string $urlWeb): string
+    {
+        if ($id <= 0) { return ''; }
+        $tipo = $tipo === 'equipe' ? 'equipe' : 'usuario';
+        return self::ligado('apchat') ? self::onclick('web+apchat://chat/' . $tipo . '/' . $id, 'apchat') : LinkExterno::onclick($urlWeb, 'apchat');
     }
 
     /** onclick da tela inicial do APChat. */
