@@ -10,6 +10,8 @@ $limpar = function () use ($db) {
     $db->exec('DELETE FROM public."Tickets" WHERE id BETWEEN 990100 AND 990109');
     $db->exec('DELETE FROM curciol.log WHERE contato_id = 990100');
     $db->exec('DELETE FROM public."Contacts" WHERE id = 990100');
+    $db->exec('DELETE FROM public."ContactWallets" WHERE "contactId" = 990100');
+    $db->exec('DELETE FROM public."PrivateMessage" WHERE id = 990101');
 };
 $limpar();
 try
@@ -54,6 +56,34 @@ try
     $ac = ApchatBancoService::acessos(9001);
     ok('acessos do atendente', in_array(112, $ac['canais'], true) && in_array(9101, $ac['filas'], true), json_encode($ac));
     igual('conversa do ticket', ['Oi', 'Resposta'], array_column(ApchatBancoService::mensagensDoTicket(990100, false), 'body'));
+
+    // 13/11/2026: todas as leituras pelas funcoes (2026-11-13-curciol-funcoes.sql)
+    $db->exec('INSERT INTO public."ContactWallets" ("walletId", "contactId", "tenantId") VALUES (9003, 990100, 21)');
+    $db->exec("INSERT INTO public.\"PrivateMessage\" (id, text, read, \"mediaType\", \"senderId\", \"receiverId\", \"tenantId\", \"createdAt\", \"updatedAt\")
+               VALUES (990101, 'Bom dia, colega', false, 'chat', 9002, 9001, 21, now(), now())");
+    igual('contatos por numero', 'VISOES TESTE', ApchatBancoService::contatosPorNumeros(['5519900099100'])['5519900099100']['name'] ?? null);
+    igual('contato por id', 'VISOES TESTE', ApchatBancoService::contato(990100)['name'] ?? null);
+    ok('contato que nao e da Curciol', ApchatBancoService::contato(999999999) === null);
+    $conv = ApchatBancoService::conversa(990100);
+    igual('conversa do contato (todos os tickets, da mais antiga)', ['Oi', 'Resposta', 'Preciso de ajuda'], array_column($conv, 'body'));
+    ok('conversa do contato: fila e situacao do ticket', ($conv[0]['ticket_status'] ?? '') === 'closed' && ($conv[0]['fila'] ?? '') !== '', json_encode($conv[0] ?? null));
+    igual('enviadas para o numero no intervalo', ['vis-2'], array_column(ApchatBancoService::mensagensEnviadasPara(['5519900099100'], '2026-11-07 00:00:00', '2026-11-08 00:00:00'), 'id'));
+    igual('conversa depois de um momento (estritamente depois)', ['vis-2', 'vis-3'], array_column(ApchatBancoService::conversaDepois(['5519900099100'], '2026-11-07 14:00:00'), 'id'));
+    ok('contatos fora do espelho', in_array(990100, array_map('intval', array_column(ApchatBancoService::contatosForaDoEspelho(1000), 'id')), true));
+    [$linhas, $total] = ApchatBancoService::listar('SEM_VINCULO', ['ids' => [], 'numeros' => [], 'ignorados' => []], ['numero' => '5519900099100'], 0, 10);
+    ok('contatos sem vinculo: o contato com o ultimo ticket', $total === 1 && (int) ($linhas[0]['ticket_id'] ?? 0) === 990101, json_encode([$total, $linhas]));
+    $ac = ApchatBancoService::acessos(9001);
+    ok('acessos: perfil do atendente', ($ac['perfil'] ?? null) === 'admin' && $ac['existe'] === true && $ac['ver_todos'] === false && is_array($ac['configs']), json_encode($ac));
+    ok('acessos: atendente que nao existe', ApchatBancoService::acessos(999999)['existe'] === false);
+    ok('configuracoes da empresa', is_array(ApchatBancoService::configuracoes()));
+    igual('carteiras', [990100 => [9003]], ApchatBancoService::carteiras([990100]));
+    $chat = array_values(array_filter(ApchatBancoService::chatNaoLidas([9001]), function ($c) { return $c['tipo'] === 'usuario' && (int) $c['conversa_id'] === 9002; }));
+    ok('chat interno: nao lida de um colega', (int) ($chat[0]['qtd'] ?? 0) >= 1 && ($chat[0]['ultima'] ?? '') === 'Bom dia, colega', json_encode($chat));
+    $f = array_values(array_filter(ApchatBancoService::ticketsFechadosDosNumeros(['5519900099100']), function ($t) { return (int) $t['id'] === 990100; }));
+    ok('historico traz o que a visibilidade usa', (int) ($f[0]['queueId'] ?? 0) === 9101 && (int) ($f[0]['whatsappId'] ?? 0) === 112
+        && (int) ($f[0]['contactId'] ?? 0) === 990100 && array_key_exists('shared', $f[0]) && array_key_exists('userIdArray', $f[0]), json_encode($f[0] ?? null));
+    $ab = array_values(array_filter(ApchatBancoService::ticketsAbertosComUltima(), function ($t) { return (int) $t['id'] === 990101; }));
+    ok('balao traz o que a visibilidade usa', array_key_exists('userIdArray', $ab[0] ?? []) && array_key_exists('chatFlowId', $ab[0] ?? []), json_encode($ab[0] ?? null));
 }
 finally
 {
