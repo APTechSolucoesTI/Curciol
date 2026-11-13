@@ -396,10 +396,6 @@ input
     margin-bottom: 8px;
 }
 
-.topo-notificacoes-painel [aria-busy="true"] {
-    cursor: progress;
-}
-
 .apchat-abas {
     display: flex;
     gap: 4px;

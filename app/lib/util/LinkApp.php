@@ -2,8 +2,8 @@
 /**
  * Links da Curciol para o APChat e o APMail (12/11/2026). Com a chave do escritorio ligada (apchat_abrir_app /
  * apmail_abrir_app = 'S'), o clique abre SO no app instalado: o link vira web+apchat:// ou web+apmail://, o sistema
- * operacional entrega ao app (manifesto do app com protocol_handlers) e, sem app, nada abre e a Curciol avisa
- * (window.CurciolAbrirApp no BuilderTemplate.js). Desligada: como antes (LinkExterno, aba com nome, so http/https).
+ * operacional entrega ao app (manifesto com protocol_handlers). O navegador controla a abertura do protocolo.
+ * Com a chave desligada, o link abre numa aba com nome (LinkExterno, HTTP/HTTPS).
  *
  * Contratos: APChat (snippet do nginx /etc/nginx/snippets/curciol-apchat.conf no servidor do APChat):
  *   web+apchat://ticket/<numero>, web+apchat://chat/usuario/<numero>, web+apchat://chat/equipe/<numero> (13/11/2026),

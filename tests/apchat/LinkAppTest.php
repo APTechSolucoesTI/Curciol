@@ -58,9 +58,8 @@ try
     $d = EscritorioForm::segredosAoSalvar((object) ['apchat_abrir_app' => '', 'apmail_abrir_app' => 'S'], $atual, false);
     ok('nao admin: mantem o que estava', $d->apchat_abrir_app === 'S' && $d->apmail_abrir_app === 'N', json_encode($d));
 
-    // navegador: funcao global que abre o app e avisa se nada abriu
     $js = (string) file_get_contents('app/lib/include/builder/theme-builder/BuilderTemplate.js');
-    ok('JS: CurciolAbrirApp global, com aviso quando o app nao abre', strpos($js, 'window.CurciolAbrirApp') !== false && strpos($js, 'Instale o app') !== false);
+    ok('JS: abertura do app não infere falha pela perda de foco', strpos($js, 'window.CurciolAbrirApp') !== false && strpos($js, 'CurciolAvisoApp') === false);
 }
 finally
 {

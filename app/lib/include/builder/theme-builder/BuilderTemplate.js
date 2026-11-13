@@ -709,56 +709,15 @@ window.BuilderTemplate = ( function() {
 
 })();
 
-// Curciol (12/11/2026): links do APChat e do APMail so pelo app instalado (app/lib/util/LinkApp.php). O link web+apchat:// ou
-// web+apmail:// vai para o sistema operacional, que entrega ao app instalado (manifesto do app com protocol_handlers); sem app,
-// nada abre. Se a janela da Curciol nao perder o foco em 2,5 s, o app nao abriu: avisa para instalar.
-window.CurciolAbrirApp = function(link, nome) {
+// O navegador entrega o link ao app instalado. A página de origem não recebe confirmação do app.
+window.CurciolAbrirApp = function(link) {
     if (!/^web\+(apchat|apmail):\/\//.test(String(link))) { return; }
-    var abriu = false;
-    var marcar = function() { abriu = true; };
-    var oculto = function() { if (document.hidden) { abriu = true; } };
-    window.addEventListener('blur', marcar);
-    document.addEventListener('visibilitychange', oculto);
-    var a = document.createElement('a');
+    const a = document.createElement('a');
     a.href = link;
-    a.style.display = 'none';
+    a.hidden = true;
     document.body.appendChild(a);
     a.click();
-    document.body.removeChild(a);
-    setTimeout(function() {
-        window.removeEventListener('blur', marcar);
-        document.removeEventListener('visibilitychange', oculto);
-        if (!abriu && document.hasFocus()) {
-            CurciolAvisoApp(nome);
-        }
-    }, 2500);
-};
-
-// Curciol (12/11/2026): aviso quando o app nao abriu - instalar pelo botao (o atalho do menu nao recebe os links) e as duas
-// perguntas do navegador na primeira vez (a da Curciol para abrir o app e a do app para abrir esse tipo de link).
-window.CurciolAvisoApp = function(nome) {
-    if (nome !== 'APChat' && nome !== 'APMail') { return; }
-    var html = '<div style="line-height:1.45">'
-        + '<p style="margin:0 0 8px"><b>O ' + nome + ' não abriu neste computador.</b> Pela Curciol, o ' + nome + ' abre só no <b>app instalado</b>. '
-        + 'Faça uma vez:</p>'
-        + '<ol style="margin:0 0 8px;padding-left:20px">'
-        + '<li style="margin-bottom:6px"><b>Instale o app do ' + nome + ':</b> abra o ' + nome + ' no Chrome, Edge ou Brave e clique em <b>Instalar</b> '
-        + 'na barra de endereço (ícone de um computador com uma seta, à direita).<br>'
-        + '<small style="color:#666">Não use <i>Criar atalho</i> nem <i>Salvar página como app</i> do menu: esse atalho não recebe os links da Curciol. '
-        + 'Se instalou assim, remova o atalho e instale pelo botão.</small></li>'
-        + '<li><b>Volte aqui e clique de novo.</b> Na primeira vez o navegador faz <b>duas perguntas</b> (a ordem pode variar). Aceite as duas para não perguntar mais:'
-        + '<ul style="margin:4px 0 0;padding-left:18px">'
-        + '<li><b>Abrir o ' + nome + '?</b> (a Curciol pedindo para abrir o app): marque <b>Sempre permitir</b> e clique em <b>Abrir</b>.</li>'
-        + '<li><b>Permitir que o ' + nome + ' abra este tipo de link?</b> (o app): marque <b>Lembrar</b> e clique em <b>Permitir</b>.</li>'
-        + '</ul></li></ol>'
-        + '<small style="color:#666">Se já clicou em <i>Cancelar</i> ou <i>Bloquear</i> numa dessas perguntas e o link não abre mais, apague o bloqueio no navegador '
-        + '(Configurações › Privacidade e segurança › Configurações do site › Gerenciadores de protocolo) e tente de novo.</small>'
-        + '</div>';
-    if (typeof __adianti_warning === 'function') {
-        __adianti_warning('Abrir no ' + nome, html);
-    } else {
-        alert('O ' + nome + ' não abriu. Instale o app do ' + nome + ' pelo botão Instalar da barra de endereço do navegador e clique de novo.');
-    }
+    a.remove();
 };
 
 window.CurciolAbrirNotificacao = function(item, tipo, id) {
@@ -766,7 +725,7 @@ window.CurciolAbrirNotificacao = function(item, tipo, id) {
     const status = linha.closest('.topo-notificacoes-painel').children('.topo-notificacoes-status');
     if (linha.attr('aria-busy') === 'true') { return; }
     linha.attr({'aria-busy': 'true', 'aria-disabled': 'true'});
-    status.text('Conferindo acesso…');
+    status.empty();
     const falhou = 'Não foi possível conferir agora. Tente de novo em instantes.';
 
     $.ajax({
@@ -774,6 +733,7 @@ window.CurciolAbrirNotificacao = function(item, tipo, id) {
         data: {tipo, id},
         dataType: 'json',
         cache: false,
+        global: false,
         timeout: 12000,
     }).done(function(r) {
         if (r?.ok !== true) {
@@ -795,28 +755,20 @@ window.CurciolAbrirNotificacao = function(item, tipo, id) {
         const web = r.app !== true && r.janela === sistema && typeof r.url === 'string' && /^https?:\/\//i.test(r.url);
         if (!app && !web) { status.text(falhou); return; }
 
-        const abrir = function() {
+        if (navigator.userActivation?.isActive !== false) {
             if (app) {
-                window.CurciolAbrirApp(r.link, nome);
-                return true;
+                window.CurciolAbrirApp(r.link);
+                return;
             }
-            return Boolean(window.open(r.url, sistema));
-        };
-        if (navigator.userActivation?.isActive !== false && abrir()) {
-            status.empty();
-            return;
+            if (window.open(r.url, sistema)) { return; }
         }
-        const conferidoEm = Date.now();
-        status.empty().append($('<button>', {type: 'button', class: 'btn btn-default btn-sm', text: 'Abrir no ' + nome})
-            .one('click', function() {
-                linha.trigger('focus');
-                if (Date.now() - conferidoEm >= 10000) {
-                    window.CurciolAbrirNotificacao(item, tipo, id);
-                    return;
-                }
-                if (abrir()) { status.empty(); }
-                else { status.text('O navegador bloqueou a abertura. Permita pop-ups e tente novamente.'); }
-            }));
+
+        const tentar = $('<button>', {type: 'button', class: 'btn btn-default btn-sm', text: 'Tentar abrir no ' + nome});
+        tentar.one('click', function() {
+            item.focus();
+            window.CurciolAbrirNotificacao(item, tipo, id);
+        });
+        status.append(tentar);
     }).fail(function(xhr) {
         status.text(xhr.status === 401 ? 'Sessão encerrada. Entre de novo na Curciol.' : falhou);
     }).always(function() {

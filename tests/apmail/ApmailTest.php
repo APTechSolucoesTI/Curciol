@@ -175,6 +175,11 @@ try
     $d = TopoAbrir::decidir(['tipo' => 'caixa', 'id' => 'a2'], $u1);
     ok('clique: caixa liberada abre na caixa (aba do APMail)', ($d['ok'] ?? false) === true && ($d['url'] ?? '') === 'https://app.apmail.com.br/mail/a2?assigned=any' && ($d['janela'] ?? '') === 'apmail', json_encode($d));
     LinkApp::forcar('apmail', true);
+    $mailApp = saida(function () { (new MailList(['theme' => 'theme-builder']))->show(); });
+    ok('envelope com app instalado: ícone aponta para o início e a caixa só leva o id',
+       strpos($mailApp, 'web+apmail://abrir?caminho=%2F') !== false
+       && strpos($mailApp, LinkApp::notificacao('caixa', 'a2')) !== false
+       && strpos($mailApp, '/mail/a2') === false && strpos($mailApp, '%2Fmail%2Fa2') === false);
     igual('clique pelo app: a caixa', 'web+apmail://abrir?caminho=' . rawurlencode('/mail/a2?assigned=any'), TopoAbrir::decidir(['tipo' => 'caixa', 'id' => 'a2'], $u1)['link'] ?? null);
     LinkApp::forcar('apmail', false);
     $respostas['cadastro.um@teste.local'] = $ok('cadastro.um@teste.local', [['id' => 'a2', 'name' => 'Financeiro', 'url' => '//outro-site.invalid/mail/a2']]);
@@ -186,7 +191,9 @@ try
     ok('clique: confere no APMail na hora (sem cache)', count($chamadas) === $chamadasAntes + 1, (string) count($chamadas));
     // perdeu o acesso a caixa no APMail: o balao ainda mostra (cache), mas o clique nao abre nem redireciona
     $respostas['cadastro.um@teste.local'] = $ok('cadastro.um@teste.local', [['id' => 'b9', 'name' => 'Outra', 'email' => 'outra@x.com', 'unread' => 0, 'pending' => 1, 'url' => '/mail/b9']]);
+    LinkApp::forcar('apmail', true);
     $d = TopoAbrir::decidir(['tipo' => 'caixa', 'id' => 'a2'], $u1);
+    LinkApp::forcar('apmail', false);
     ok('clique: caixa que ele nao acessa mais nao abre, com aviso', ($d['ok'] ?? true) === false && !isset($d['url']) && !isset($d['link']) && strpos($d['mensagem'] ?? '', 'não tem mais acesso') !== false, json_encode($d));
     TTransaction::close();
     $mail2 = saida(function () { (new MailList(['theme' => 'theme-builder']))->show(); });
