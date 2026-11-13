@@ -157,21 +157,61 @@ window.BuilderTemplate = ( function() {
     
     // Curciol (10/11/2026): balao do APChat. Nao redesenha com o mouse em cima (a lista sumia antes do clique): guarda e
     // atualiza quando o mouse sai; e a lista fica aberta 400 ms depois que o mouse sai (atravessar ate um ticket nao fecha).
+    const seletorAvisos = '#envelope_messages .fast-drop, #envelope_mail .fast-drop';
+    let abaApchat = 'atendimentos';
+
+    const mostrarBalao = function(balao, aberto) {
+        const classe = balao.closest('#envelope_messages').length ? 'apchat-aberto' : 'apmail-aberto';
+        balao.toggleClass(classe, aberto);
+        balao.find('.topo-notificacoes-alternar').attr('aria-expanded', String(aberto));
+        if (!aberto) { balao.children('.topo-notificacoes-painel').find('.topo-notificacoes-status').empty(); }
+    };
+
+    window.CurciolApchatAba = function(botao) {
+        const aba = botao.dataset.aba;
+        if (aba !== 'atendimentos' && aba !== 'chat') { return; }
+        abaApchat = aba;
+        const painel = $(botao).closest('.topo-notificacoes-painel');
+        painel.find('[role="tab"]').each(function() {
+            const ativo = this === botao;
+            $(this).attr({'aria-selected': String(ativo), tabindex: ativo ? '0' : '-1'});
+        });
+        painel.children('[data-painel]').each(function() {
+            this.hidden = this.dataset.painel !== aba;
+        });
+    };
+
+    $(document).on('keydown', '#apchat-notificacoes [role="tab"]', function(e) {
+        const abas = $(this).siblings('[role="tab"]').addBack().get();
+        const atual = abas.indexOf(this);
+        let destino;
+        switch (e.key) {
+        case 'ArrowLeft': destino = (atual + abas.length - 1) % abas.length; break;
+        case 'ArrowRight': destino = (atual + 1) % abas.length; break;
+        case 'Home': destino = 0; break;
+        case 'End': destino = abas.length - 1; break;
+        default: return;
+        }
+        e.preventDefault();
+        window.CurciolApchatAba(abas[destino]);
+        abas[destino].focus();
+    });
+
     let balaoPendente = false;
     let balaoTimer = null;
     const balaoAberto = function() {
-        return $('#envelope_messages .fast-drop.apchat-aberto, #envelope_messages .fast-drop:hover').length > 0;
+        return $('#envelope_messages .fast-drop.apchat-aberto, #envelope_messages .fast-drop:hover, #envelope_messages:focus-within').length > 0;
     }
     $(document).on('mouseenter', '#envelope_messages .fast-drop', function() {
         clearTimeout(balaoTimer);
-        $(this).addClass('apchat-aberto');
+        mostrarBalao($(this).removeClass('topo-notificacoes-fechado'), true);
     });
     $(document).on('mouseleave', '#envelope_messages .fast-drop', function() {
         const balao = this;
         clearTimeout(balaoTimer);
         balaoTimer = setTimeout(function() {
-            $(balao).removeClass('apchat-aberto');
-            if (balaoPendente) { balaoPendente = false; updateMessagesMenu(); }
+            if ($(balao).data('fixo') || $(balao).has(document.activeElement).length) { return; }
+            fecharBalao();
         }, 400);
     });
 
@@ -180,7 +220,7 @@ window.BuilderTemplate = ( function() {
         if (document.hidden || balaoAberto()) { balaoPendente = true; return; }
         $.get('engine.php?class=MessageList&theme=theme-builder', function(data) {
             if (balaoAberto()) { balaoPendente = true; return; }
-            $('#envelope_messages').html(data);
+            inserirTopo('#envelope_messages', data);
         });
     }
     
@@ -190,11 +230,11 @@ window.BuilderTemplate = ( function() {
     let mailPendente = false;
     let mailTimer = null;
     const mailAberto = function() {
-        return $('#envelope_mail .fast-drop.apmail-aberto, #envelope_mail .fast-drop:hover').length > 0;
+        return $('#envelope_mail .fast-drop.apmail-aberto, #envelope_mail .fast-drop:hover, #envelope_mail:focus-within').length > 0;
     }
     $(document).on('mouseenter', '#envelope_mail .fast-drop', function() {
         clearTimeout(mailTimer);
-        $(this).addClass('apmail-aberto');
+        mostrarBalao($(this).removeClass('topo-notificacoes-fechado'), true);
     });
 
     // Curciol (11/11/2026): um balao por vez. Ao passar o mouse em qualquer icone do topo, o balao que ainda estava aberto
@@ -202,13 +242,13 @@ window.BuilderTemplate = ( function() {
     const fecharBalao = function() {
         clearTimeout(balaoTimer);
         if (! $('#envelope_messages .fast-drop.apchat-aberto').length) { return; }
-        $('#envelope_messages .fast-drop').removeClass('apchat-aberto');
+        mostrarBalao($('#envelope_messages .fast-drop').removeData('fixo'), false);
         if (balaoPendente) { balaoPendente = false; updateMessagesMenu(); }
     }
     const fecharMail = function() {
         clearTimeout(mailTimer);
         if (! $('#envelope_mail .fast-drop.apmail-aberto').length) { return; }
-        $('#envelope_mail .fast-drop').removeClass('apmail-aberto');
+        mostrarBalao($('#envelope_mail .fast-drop').removeData('fixo'), false);
         if (mailPendente) { mailPendente = false; updateMailMenu(); }
     }
     $(document).on('mouseenter', '.fast-drop', function() {
@@ -219,16 +259,54 @@ window.BuilderTemplate = ( function() {
         const envelope = this;
         clearTimeout(mailTimer);
         mailTimer = setTimeout(function() {
-            $(envelope).removeClass('apmail-aberto');
-            if (mailPendente) { mailPendente = false; updateMailMenu(); }
+            if ($(envelope).data('fixo') || $(envelope).has(document.activeElement).length) { return; }
+            fecharMail();
         }, 400);
     });
+
+    const fecharAvisos = function(balao) {
+        balao.addClass('topo-notificacoes-fechado');
+        if (balao.closest('#envelope_messages').length) { fecharBalao(); }
+        else { fecharMail(); }
+    };
+    $(document).on('click', '.topo-notificacoes-alternar', function() {
+        const balao = $(this).closest('.fast-drop');
+        if (balao.data('fixo')) { fecharAvisos(balao); return; }
+        if (balao.closest('#envelope_messages').length) { fecharMail(); }
+        else { fecharBalao(); }
+        balao.data('fixo', true).removeClass('topo-notificacoes-fechado');
+        mostrarBalao(balao, true);
+    });
+    $(document).on('keydown', seletorAvisos, function(e) {
+        if (e.key !== 'Escape' || $(this).find('.topo-notificacoes-alternar').attr('aria-expanded') !== 'true') { return; }
+        e.preventDefault();
+        this.querySelector('.topo-notificacoes-alternar').focus();
+        fecharAvisos($(this));
+    });
+    $(document).on('focusout', seletorAvisos, function(e) {
+        if (e.relatedTarget && this.contains(e.relatedTarget)) { return; }
+        if (!$(this).is(':hover')) { fecharAvisos($(this)); }
+        else { $(this).removeData('fixo'); }
+    });
+    $(document).on('click', function(e) {
+        if (!$(e.target).closest(seletorAvisos).length) {
+            $(seletorAvisos).filter('.apchat-aberto, .apmail-aberto').each(function() { fecharAvisos($(this)); });
+        }
+    });
+
+    const inserirTopo = function(seletor, html) {
+        $(seletor).html(html).removeData('assinatura');
+        if (seletor === '#envelope_messages') {
+            const aba = document.getElementById('apchat-aba-' + abaApchat);
+            if (aba) { window.CurciolApchatAba(aba); }
+        }
+    };
 
     const updateMailMenu = function(fresco) {
         if (document.hidden || mailAberto()) { mailPendente = true; return; }
         $.get('engine.php?class=MailList&theme=theme-builder' + (fresco === true ? '&fresco=1' : ''), function(data) {
             if (mailAberto()) { mailPendente = true; return; }
-            $('#envelope_mail').html(data);
+            inserirTopo('#envelope_mail', data);
         });
     }
 
@@ -249,7 +327,8 @@ window.BuilderTemplate = ( function() {
         if (!parte || typeof parte.html !== 'string') { return; }
         if ($(seletor).data('assinatura') === parte.assinatura) { return; }
         if (aberto()) { marcarPendente(); return; }
-        $(seletor).html(parte.html).data('assinatura', parte.assinatura);
+        inserirTopo(seletor, parte.html);
+        $(seletor).data('assinatura', parte.assinatura);
     }
     const updateTopo = function(fresco) {
         if (document.hidden) { topoPendente = true; return; }
@@ -680,4 +759,67 @@ window.CurciolAvisoApp = function(nome) {
     } else {
         alert('O ' + nome + ' não abriu. Instale o app do ' + nome + ' pelo botão Instalar da barra de endereço do navegador e clique de novo.');
     }
+};
+
+window.CurciolAbrirNotificacao = function(item, tipo, id) {
+    const linha = $(item);
+    const status = linha.closest('.topo-notificacoes-painel').children('.topo-notificacoes-status');
+    if (linha.attr('aria-busy') === 'true') { return; }
+    linha.attr({'aria-busy': 'true', 'aria-disabled': 'true'});
+    status.text('Conferindo acesso…');
+    const falhou = 'Não foi possível conferir agora. Tente de novo em instantes.';
+
+    $.ajax({
+        url: 'engine.php?class=TopoAbrir&method=onAbrir&static=1',
+        data: {tipo, id},
+        dataType: 'json',
+        cache: false,
+        timeout: 12000,
+    }).done(function(r) {
+        if (r?.ok !== true) {
+            status.text(r?.mensagem || falhou);
+            if (r?.desatualizado === true) {
+                if (document.activeElement === item) {
+                    const painel = item.closest('[role="tabpanel"]');
+                    (painel || status.closest('.fast-drop').find('.topo-notificacoes-alternar')[0]).focus();
+                }
+                linha.remove();
+                BuilderTemplate.updateTopo(true);
+            }
+            return;
+        }
+
+        const sistema = tipo === 'caixa' ? 'apmail' : 'apchat';
+        const nome = sistema === 'apmail' ? 'APMail' : 'APChat';
+        const app = r.app === true && typeof r.link === 'string' && r.link.startsWith('web+' + sistema + '://');
+        const web = r.app !== true && r.janela === sistema && typeof r.url === 'string' && /^https?:\/\//i.test(r.url);
+        if (!app && !web) { status.text(falhou); return; }
+
+        const abrir = function() {
+            if (app) {
+                window.CurciolAbrirApp(r.link, nome);
+                return true;
+            }
+            return Boolean(window.open(r.url, sistema));
+        };
+        if (navigator.userActivation?.isActive !== false && abrir()) {
+            status.empty();
+            return;
+        }
+        const conferidoEm = Date.now();
+        status.empty().append($('<button>', {type: 'button', class: 'btn btn-default btn-sm', text: 'Abrir no ' + nome})
+            .one('click', function() {
+                linha.trigger('focus');
+                if (Date.now() - conferidoEm >= 10000) {
+                    window.CurciolAbrirNotificacao(item, tipo, id);
+                    return;
+                }
+                if (abrir()) { status.empty(); }
+                else { status.text('O navegador bloqueou a abertura. Permita pop-ups e tente novamente.'); }
+            }));
+    }).fail(function(xhr) {
+        status.text(xhr.status === 401 ? 'Sessão encerrada. Entre de novo na Curciol.' : falhou);
+    }).always(function() {
+        linha.removeAttr('aria-busy aria-disabled');
+    });
 };

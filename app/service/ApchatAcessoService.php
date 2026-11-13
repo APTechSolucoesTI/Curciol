@@ -64,6 +64,16 @@ class ApchatAcessoService
         }));
     }
 
+    /**
+     * Esquece o que esta guardado do atendente e da empresa (13/11/2026): o clique num item do balao conferiu NA HORA e o item nao
+     * e mais dele - o balao seguinte ja relê (sem esperar os 5 min).
+     */
+    public static function esquecer(int $atendente): void
+    {
+        @unlink(self::arquivo('acessos-' . $atendente));
+        @unlink(self::arquivo('config'));
+    }
+
     public static function limpar(): void
     {
         foreach (glob(self::arquivo('*')) ?: [] as $f) { @unlink($f); }

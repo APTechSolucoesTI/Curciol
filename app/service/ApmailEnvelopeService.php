@@ -36,8 +36,10 @@ class ApmailEnvelopeService
     /**
      * @return array {situacao: ok|sem_integracao|desligado|sem_email|nao_liberado|indisponivel, pendentes, nao_lidas, caixas}
      */
-    public static function caixas(int $systemUserId, bool $fresco = false): array
+    public static function caixas(int $systemUserId, bool $fresco = false, bool $semCache = false): array
     {
+        // $semCache (13/11/2026, clique numa caixa do envelope): pergunta ao APMail agora, sem cache nem o minimo de 3 s; falha =
+        // "indisponivel" (nunca o que estava guardado: quem chama nao pode abrir o que nao conseguiu conferir)
         $vazio = ['pendentes' => 0, 'nao_lidas' => 0, 'caixas' => []];
         $escritorio = ApmailApiService::escritorio();
         $token = $escritorio ? trim((string) $escritorio->token_apmail) : '';
@@ -56,10 +58,11 @@ class ApmailEnvelopeService
         }
 
         $agora = self::agora();
-        $arquivo = self::arquivo('email-' . md5($email));
+        $url = ApmailApiService::url($escritorio);
+        $arquivo = self::arquivo('email-' . hash('sha256', $url . "\n" . $token . "\n" . $email));
         $cache = self::ler($arquivo);
         $recente = $cache && ($cache['em'] ?? 0) > $agora - self::FRESCO_MINIMO;
-        if ($cache && ($cache['ate'] ?? 0) > $agora && (!$fresco || $recente))
+        if (!$semCache && $cache && ($cache['ate'] ?? 0) > $agora && (!$fresco || $recente))
         {
             return $cache['resultado'];
         }
@@ -67,12 +70,12 @@ class ApmailEnvelopeService
         $pausa = self::ler(self::arquivo('pausa'));
         if ($pausa && ($pausa['ate'] ?? 0) > $agora)
         {
-            return $cache && !empty($pausa['usar_cache']) ? $cache['resultado'] : ['situacao' => $pausa['situacao']] + $vazio;
+            return !$semCache && $cache && !empty($pausa['usar_cache']) ? $cache['resultado'] : ['situacao' => $pausa['situacao']] + $vazio;
         }
 
         try
         {
-            $r = ApmailApiService::notificacoes(ApmailApiService::url($escritorio), $token, $email);
+            $r = ApmailApiService::notificacoes($url, $token, $email);
             $resultado = ['situacao' => 'ok'] + $r;
             self::gravar($arquivo, ['em' => $agora, 'ate' => $agora + self::CACHE_SEGUNDOS, 'resultado' => $resultado]);
             return $resultado;
@@ -89,12 +92,12 @@ class ApmailEnvelopeService
             $usarCache = !in_array($e->getCode(), [401, 403], true);
             $segundos = $e->getCode() === 429 ? max(1, (int) ($e->retryAfter ?: self::FALHA_SEGUNDOS)) : self::FALHA_SEGUNDOS;
             self::gravar(self::arquivo('pausa'), ['ate' => $agora + $segundos, 'situacao' => 'indisponivel', 'usar_cache' => $usarCache]);
-            return $cache && $usarCache ? $cache['resultado'] : ['situacao' => 'indisponivel'] + $vazio;
+            return !$semCache && $cache && $usarCache ? $cache['resultado'] : ['situacao' => 'indisponivel'] + $vazio;
         }
         catch (Throwable $e)
         {
             self::gravar(self::arquivo('pausa'), ['ate' => $agora + self::FALHA_SEGUNDOS, 'situacao' => 'indisponivel', 'usar_cache' => true]);
-            return $cache ? $cache['resultado'] : ['situacao' => 'indisponivel'] + $vazio;
+            return !$semCache && $cache ? $cache['resultado'] : ['situacao' => 'indisponivel'] + $vazio;
         }
     }
 

@@ -493,6 +493,36 @@ class ApchatBancoService
     }
 
     /**
+     * Clique num ticket do balao (13/11/2026): numa ida so ao banco do APChat, o ticket (nao arquivado, com o numero do contato), os
+     * acessos do atendente, as configuracoes da empresa e os donos da carteira do contato - tudo NA HORA, sem cache.
+     * @return array|null {ticket, acessos: {canais, filas, perfil, configs, ver_todos, existe}, config, carteira: int[]}; null = nao existe
+     */
+    public static function conferirTicket(int $ticket, int $atendente): ?array
+    {
+        if (self::$falso) { return method_exists(self::$falso, 'conferirTicket') ? self::$falso->conferirTicket($ticket, $atendente) : null; }
+        $st = self::conn()->prepare('SELECT t.id, t.status, t."contactId", t."userId", t."queueId", t."whatsappId", t."isGroup", t.shared,
+                                            t."userIdArray"::text AS "userIdArray", t."groupUserIdArray"::text AS "groupUserIdArray", t."chatFlowId",
+                                            (SELECT c.number FROM curciol.f_contatos(ARRAY[t."contactId"]) c) AS numero,
+                                            (SELECT coalesce(json_agg(x."whatsappId"), \'[]\') FROM curciol.f_canais_atendentes() x
+                                              WHERE x."userId" = ? AND coalesce(x."isActive", true))::text AS canais,
+                                            (SELECT coalesce(json_agg(x."queueId"), \'[]\') FROM curciol.f_filas_atendentes() x WHERE x."userId" = ?)::text AS filas,
+                                            (SELECT row_to_json(a) FROM curciol.f_atendentes() a WHERE a.id = ?)::text AS atendente,
+                                            curciol.f_configuracoes()::text AS config,
+                                            (SELECT coalesce(json_agg(w."walletId"), \'[]\') FROM curciol.f_carteiras(ARRAY[t."contactId"]) w)::text AS carteira
+                                       FROM curciol.f_tickets(ARRAY[?]::int[]) t WHERE NOT t.arquivado');
+        $st->execute([$atendente, $atendente, $atendente, $ticket]);
+        $l = $st->fetch();
+        if (!$l) { return null; }
+        $a = json_decode((string) $l['atendente'], true);
+        $acessos = ['canais' => array_map('intval', json_decode((string) $l['canais'], true) ?: []), 'filas' => array_map('intval', json_decode((string) $l['filas'], true) ?: []),
+                    'perfil' => $a['profile'] ?? null, 'configs' => is_array($a['configs'] ?? null) ? $a['configs'] : [], 'ver_todos' => !empty($a['ver_todos']), 'existe' => is_array($a)];
+        $config = json_decode((string) $l['config'], true);
+        $carteira = array_map('intval', json_decode((string) $l['carteira'], true) ?: []);
+        unset($l['canais'], $l['filas'], $l['atendente'], $l['config'], $l['carteira']);
+        return ['ticket' => $l, 'acessos' => $acessos, 'config' => is_array($config) ? $config : [], 'carteira' => $carteira];
+    }
+
+    /**
      * Chat interno (13/11/2026): conversas com mensagens nao lidas de cada atendente (direta = usuario que mandou; equipe = grupo).
      * @return array linhas {usuario, tipo (usuario|equipe), conversa_id, nome, qtd, ultima, ultima_tipo, ultima_em}
      */

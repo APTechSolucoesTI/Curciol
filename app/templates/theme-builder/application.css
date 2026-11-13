@@ -335,6 +335,129 @@ input
 {
 	color: var(--button-text-color-hover);
 }
+#envelope_messages,
+#envelope_mail {
+    width: auto;
+}
+
+.topo-notificacoes-alternar {
+    display: grid;
+    place-items: center;
+    min-width: 24px;
+    min-height: 32px;
+    padding: 0;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--button-text-color);
+}
+
+.topo-notificacoes-alternar:focus-visible,
+.apchat-abas button:focus-visible,
+.topo-notificacoes-painel :is(a, [role="tabpanel"]):focus-visible {
+    outline: 2px solid var(--button-text-color-hover);
+    outline-offset: -2px;
+}
+
+#envelope_messages .fast-drop.apchat-aberto > .topo-notificacoes-painel,
+#envelope_mail .fast-drop.apmail-aberto > .topo-notificacoes-painel {
+    display: block;
+    position: absolute;
+    padding: 12px;
+    border: 1px solid var(--template-border-color);
+    border-radius: 0 0 8px 8px;
+    background: var(--modal-background);
+    color: var(--text-color);
+    overflow: auto;
+    max-height: 70dvh;
+}
+
+#apchat-notificacoes {
+    width: min(760px, calc(100vw - 24px));
+}
+
+#apmail-notificacoes {
+    width: min(384px, calc(100vw - 24px));
+}
+
+#envelope_messages .fast-drop.topo-notificacoes-fechado > .topo-notificacoes-painel,
+#envelope_mail .fast-drop.topo-notificacoes-fechado > .topo-notificacoes-painel,
+.topo-notificacoes-painel > [hidden] {
+    display: none;
+}
+
+.topo-notificacoes-status {
+    color: var(--text-color);
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
+.topo-notificacoes-status:not(:empty) {
+    margin-bottom: 8px;
+}
+
+.topo-notificacoes-painel [aria-busy="true"] {
+    cursor: progress;
+}
+
+.apchat-abas {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 12px;
+    border-bottom: 1px solid var(--template-border-color);
+}
+
+.apchat-abas button {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 40px;
+    padding: 4px 8px;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    background: transparent;
+    color: var(--text-color);
+    font-size: 14px;
+}
+
+.apchat-abas button:hover,
+.apchat-abas [aria-selected="true"] {
+    border-bottom-color: var(--button-text-color-hover);
+}
+
+.apchat-abas [aria-selected="true"] {
+    font-weight: 600;
+}
+
+.apchat-aba-num {
+    min-width: 20px;
+    padding: 0 4px;
+    border-radius: 12px;
+    background: #b91c1c;
+    color: #fff;
+    text-align: center;
+    font-size: 12px;
+    line-height: 20px;
+}
+
+@media (max-width: 992px) {
+    .topo-notificacoes-alternar {
+        min-width: 44px;
+        min-height: 44px;
+    }
+    #envelope_messages .fast-drop.apchat-aberto > .topo-notificacoes-painel,
+    #envelope_mail .fast-drop.apmail-aberto > .topo-notificacoes-painel {
+        position: fixed;
+        inset-inline: 12px;
+        top: calc(var(--header-height) * 2);
+        bottom: auto;
+        width: auto;
+    }
+    .apchat-abas button {
+        min-height: 44px;
+    }
+}
+
 .fast-drop-open a
 {
     color: var(--button-text-color);

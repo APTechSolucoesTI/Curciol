@@ -42,7 +42,7 @@ class ApchatBalaoService
 
     public static function conversas(int $systemUserId): array
     {
-        $vazio = ['abertos' => [], 'pendentes' => [], 'chat' => [], 'chat_situacao' => 'ok', 'total' => 0];
+        $vazio = ['abertos' => [], 'pendentes' => [], 'chat' => [], 'chat_situacao' => 'ok', 'total_atendimentos' => 0, 'total_chat' => 0, 'total' => 0];
 
         $ligacao = ApchatUsuarioService::doUsuario($systemUserId);
         if (!$ligacao || !$ligacao->apchat_usuario_id)
@@ -83,7 +83,7 @@ class ApchatBalaoService
 
         $abertos = [];
         $pendentes = [];
-        $total = 0;
+        $totalAtendimentos = 0;
         foreach ($tickets as $t)
         {
             if ($t['status'] === 'open' && (int) $t['userId'] === $eu)
@@ -101,11 +101,12 @@ class ApchatBalaoService
             {
                 continue;
             }
-            $total += $item['aguardando'] ? 1 : 0;
+            $totalAtendimentos += $item['aguardando'] ? 1 : 0;
         }
 
         // chat interno: as conversas com nao lidas deste atendente; o icone soma as mensagens nao lidas
         $chat = [];
+        $totalChat = 0;
         if (($estado['chat'] ?? null) === null)
         {
             $chatSituacao = 'indisponivel';
@@ -117,12 +118,13 @@ class ApchatBalaoService
             {
                 if ((int) $c['usuario'] !== $eu) { continue; }
                 $chat[] = self::itemChat($c);
-                $total += (int) $c['qtd'];
+                $totalChat += (int) $c['qtd'];
             }
         }
 
         return ['situacao' => 'ok', 'abertos' => array_slice($abertos, 0, self::MAXIMO), 'pendentes' => array_slice($pendentes, 0, self::MAXIMO),
-                'chat' => array_slice($chat, 0, self::MAXIMO), 'chat_situacao' => $chatSituacao, 'total' => $total];
+                'chat' => array_slice($chat, 0, self::MAXIMO), 'chat_situacao' => $chatSituacao,
+                'total_atendimentos' => $totalAtendimentos, 'total_chat' => $totalChat, 'total' => $totalAtendimentos + $totalChat];
     }
 
     private static function itemChat(array $c): array
@@ -148,9 +150,14 @@ class ApchatBalaoService
         return array_map('intval', $c->query("SELECT DISTINCT apchat_usuario_id FROM apchat_usuario WHERE apchat_usuario_id IS NOT NULL AND avisos = 'S'")->fetchAll(PDO::FETCH_COLUMN));
     }
 
-    public static function limparCache(): void
+    public static function invalidarEstado(): void
     {
         @unlink(self::arquivoCache());
+    }
+
+    public static function limparCache(): void
+    {
+        self::invalidarEstado();
         @unlink(self::arquivoCache() . '.falha');
         ApchatAcessoService::limpar();
     }

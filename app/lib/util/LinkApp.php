@@ -73,13 +73,36 @@ class LinkApp
         return self::ligado('apchat') ? self::onclick('web+apchat://inicio', 'apchat') : LinkExterno::onclick($urlWeb, 'apchat');
     }
 
+    /** onclick da tela inicial do APMail. */
+    public static function apmailInicio(string $urlWeb): string
+    {
+        return self::apmailCaixa($urlWeb, '/');
+    }
+
     /** onclick da caixa do APMail: $caminho = mailboxes[].url da API (relativo); so caminho do proprio APMail, senao a tela inicial. */
     public static function apmailCaixa(string $urlWeb, string $caminho): string
     {
         if (!self::ligado('apmail')) { return LinkExterno::onclick($urlWeb, 'apmail'); }
+        return self::onclick(self::apmailCaixaLink($caminho), 'apmail');
+    }
+
+    /** Link do app do APMail para a caixa: so caminho do proprio APMail, senao a tela inicial. */
+    public static function apmailCaixaLink(string $caminho): string
+    {
         $caminho = trim($caminho);
         if ($caminho === '' || $caminho[0] !== '/' || strpos($caminho, '//') === 0 || preg_match('#[\s\\\\]#', $caminho)) { $caminho = '/'; }
-        return self::onclick('web+apmail://abrir?caminho=' . rawurlencode($caminho), 'apmail');
+        return 'web+apmail://abrir?caminho=' . rawurlencode($caminho);
+    }
+
+    /**
+     * onclick de um item do balao do topo (13/11/2026): ticket, conversa do chat interno ou caixa do APMail. O endereco nao vai na
+     * tela: o clique pergunta a Curciol (TopoAbrir), que confere NA HORA se o item ainda e do usuario e so entao devolve o
+     * endereco (app ou aba). Item velho (ja deveria ter sumido do balao) nao abre nem redireciona: aviso e o balao atualiza.
+     */
+    public static function notificacao(string $tipo, string $id): string
+    {
+        $f = JSON_UNESCAPED_SLASHES | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_TAG | JSON_HEX_AMP;
+        return htmlspecialchars('CurciolAbrirNotificacao(this, ' . json_encode($tipo, $f) . ', ' . json_encode($id, $f) . '); return false;', ENT_QUOTES, 'UTF-8');
     }
 
     /** onclick de um e-mail do APMail pelo UUID interno (data.id da API de mensagens). */

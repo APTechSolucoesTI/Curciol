@@ -91,6 +91,14 @@ class ApchatApiService
         return ($base !== '' ? $base : self::URL_TELA_PADRAO) . '/atendimento?ticketId=' . $ticketId;
     }
 
+    /** Tela inicial do APChat (icone do topo, 13/11/2026). */
+    public static function urlInicio(): string
+    {
+        $escritorio = self::escritorio();
+        $base = rtrim(trim((string) ($escritorio->url_tela_apchat ?? '')), '/');
+        return ($base !== '' ? $base : self::URL_TELA_PADRAO) . '/';
+    }
+
     /** Chat interno do APChat (13/11/2026): conversa com o usuario N ou a equipe N. */
     public static function urlChat(string $tipo, int $id): string
     {

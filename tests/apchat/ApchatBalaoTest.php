@@ -25,7 +25,13 @@ $falso = new class([
     $t(7, 'open', 9001, 9101, true, '5519900000007'),
 ]) {
     public $tickets; public $leituras = 0; public $fora = false; public $tentativas = 0; public $acessosLidos = 0; public $impressoes = 0;
-    public $chatLidos = 0; public $chatFora = false;
+    public $chatLidos = 0; public $chatFora = false; public $acessosTroca = [];
+    // 13/11/2026: conferencia do clique (TopoAbrir) - o ticket, os acessos e a configuracao, na hora
+    public function conferirTicket(int $ticket, int $atendente): ?array {
+        if ($this->fora) { throw new Exception('fora'); }
+        foreach ($this->tickets as $t) { if ((int) $t['id'] === $ticket) { return ['ticket' => $t, 'acessos' => $this->acessos($atendente), 'config' => $this->configuracoes(), 'carteira' => []]; } }
+        return null;
+    }
     // 13/11/2026: configuracao do app1 (ver sem atendente ligado) e chat interno
     public function configuracoes(): array { return ['nullTickets' => 'enabled', 'showClosedForAll' => 'enabled', 'showGroupsForAll' => 'enabled', 'NotViewAssignedTickets' => 'disabled']; }
     public function chatNaoLidas(array $atendentes): array {
@@ -44,7 +50,7 @@ $falso = new class([
     public function acessos(int $atendente): array {
         $this->acessosLidos++;
         $a = [9001 => ['canais' => [112], 'filas' => [9101, 9102]], 9002 => ['canais' => [112], 'filas' => [9101]], 9003 => ['canais' => [], 'filas' => [9101]]];
-        return $a[$atendente] ?? ['canais' => [], 'filas' => []];
+        return $this->acessosTroca[$atendente] ?? $a[$atendente] ?? ['canais' => [], 'filas' => []];
     }
 };
 ApchatBancoService::usarFalso($falso);
@@ -178,6 +184,43 @@ try
     $esc->store();
     igual('endereco da tela do APChat configuravel', 'https://chat.exemplo.com.br/atendimento?ticketId=9', ApchatApiService::urlTicket(9));
 
+    // 13/11/2026: o clique confere na hora se o item ainda e do usuario (item velho no balao nao abre nem redireciona)
+    LinkApp::forcar('apchat', false);
+    $d = TopoAbrir::decidir(['tipo' => 'ticket', 'id' => '4'], $u1);
+    ok('clique: ticket aberto com ele abre (aba do APChat)', ($d['ok'] ?? false) === true && ($d['url'] ?? '') === ApchatApiService::urlTicket(4) && ($d['janela'] ?? '') === 'apchat' && !isset($d['link']), json_encode($d));
+    ok('clique: pendente que ele ve abre', (TopoAbrir::decidir(['tipo' => 'ticket', 'id' => '1'], $u1)['ok'] ?? false) === true);
+    $d = TopoAbrir::decidir(['tipo' => 'ticket', 'id' => '3'], $u1);
+    ok('clique: ticket de outro atendente nao abre, com aviso', ($d['ok'] ?? true) === false && !isset($d['url']) && !isset($d['link']) && strpos($d['mensagem'] ?? '', 'não está mais') !== false, json_encode($d));
+    ok('clique: pendente aguardando o SIM/NAO da Curciol nao abre', (TopoAbrir::decidir(['tipo' => 'ticket', 'id' => '6'], $u1)['ok'] ?? true) === false);
+    ok('clique: id malformado nao vira ticket valido', (TopoAbrir::decidir(['tipo' => 'ticket', 'id' => '4abc'], $u1)['ok'] ?? true) === false);
+    ok('clique: id como array nao abre', (TopoAbrir::decidir(['tipo' => 'ticket', 'id' => ['4']], $u1)['ok'] ?? true) === false);
+    $falso->tickets[0]['status'] = 'closed';
+    $d = TopoAbrir::decidir(['tipo' => 'ticket', 'id' => '1'], $u1);
+    ok('clique: atendimento que encerrou apos o balao ser carregado nao abre', ($d['desatualizado'] ?? false) && !isset($d['url']) && !isset($d['link']));
+    $falso->tickets[0]['status'] = 'pending';
+    $d = TopoAbrir::decidir(['tipo' => 'ticket', 'id' => '999'], $u1);
+    ok('clique: ticket que nao existe mais', ($d['ok'] ?? true) === false && strpos($d['mensagem'] ?? '', 'não existe') !== false, json_encode($d));
+    ok('clique: usuario sem atendente ligado', strpos(TopoAbrir::decidir(['tipo' => 'ticket', 'id' => '1'], $u4)['mensagem'] ?? '', 'não está ligado') !== false);
+    ok('clique: tipo desconhecido nao abre', (TopoAbrir::decidir(['tipo' => 'xyz', 'id' => '1'], $u1)['ok'] ?? true) === false);
+    $d = TopoAbrir::decidir(['tipo' => 'chat', 'id' => 'usuario:9002'], $u1);
+    ok('clique: conversa com mensagem nova abre', ($d['ok'] ?? false) === true && ($d['url'] ?? '') === ApchatApiService::urlChat('usuario', 9002), json_encode($d));
+    $d = TopoAbrir::decidir(['tipo' => 'chat', 'id' => 'equipe:990'], $u1);
+    ok('clique: equipe com mensagem nova abre', ($d['ok'] ?? false) === true && ($d['url'] ?? '') === ApchatApiService::urlChat('equipe', 990), json_encode($d));
+    $d = TopoAbrir::decidir(['tipo' => 'chat', 'id' => 'usuario:9003'], $u1);
+    ok('clique: conversa ja lida nao abre', ($d['ok'] ?? true) === false && ($d['desatualizado'] ?? false) === true && !isset($d['url']) && !isset($d['link']), json_encode($d));
+    LinkApp::forcar('apchat', true);
+    igual('clique pelo app: ticket', ['ok' => true, 'app' => true, 'link' => 'web+apchat://ticket/4', 'nome' => 'APChat'], TopoAbrir::decidir(['tipo' => 'ticket', 'id' => '4'], $u1));
+    igual('clique pelo app: conversa', 'web+apchat://chat/equipe/990', TopoAbrir::decidir(['tipo' => 'chat', 'id' => 'equipe:990'], $u1)['link'] ?? null);
+    LinkApp::forcar('apchat', false);
+    // perdeu o canal no APChat: o clique recusa e o balao ja vem sem o ticket (o cache de 5 min dos acessos e jogado fora)
+    ApchatBalaoService::usarRelogio($agora += 6);
+    ok('antes: o pendente aparece', in_array(1, $ids(ApchatBalaoService::conversas($u1)), true));
+    $falso->acessosTroca[9001] = ['canais' => [999], 'filas' => [9101, 9102]];
+    ok('perdeu o canal: o clique recusa', (TopoAbrir::decidir(['tipo' => 'ticket', 'id' => '1'], $u1)['ok'] ?? true) === false);
+    ok('perdeu o canal: o balao some com o ticket na hora', !in_array(1, $ids(ApchatBalaoService::conversas($u1)), true));
+    $falso->acessosTroca = [];
+    ApchatAcessoService::limpar();
+
     // APChat fora: vazio, sem erro
     $falso->fora = true;
     ApchatBalaoService::limparCache();
@@ -188,6 +231,8 @@ try
     ApchatBalaoService::conversas($u1);
     ApchatBalaoService::conversas($u2);
     igual('APChat fora: nao tenta de novo logo em seguida', 0, $falso->tentativas);
+    $d = TopoAbrir::decidir(['tipo' => 'ticket', 'id' => '4'], $u1);
+    ok('APChat fora: o clique nao abre (nao da para conferir)', ($d['ok'] ?? true) === false && strpos($d['mensagem'] ?? '', 'conferir') !== false, json_encode($d));
 }
 finally
 {
@@ -214,6 +259,7 @@ $unidade = (int) $c->query('SELECT system_unit_id FROM escritorio ORDER BY id LI
 $urlTicket1 = ApchatApiService::urlTicket(1);
 $urlChatUsuario = ApchatApiService::urlChat('usuario', 9002);
 $urlChatEquipe = ApchatApiService::urlChat('equipe', 990);
+$urlInicio = ApchatApiService::urlInicio();
 TTransaction::close();
 try
 {
@@ -222,17 +268,24 @@ try
     ApchatBalaoService::limparCache();
     $html = saida(function () { (new MessageList(['theme' => 'theme-builder']))->show(); });
     ok('balao: logo do APChat (icone do anexo) no topo e contador', strpos($html, 'apchat-logo') !== false && strpos($html, 'app/images/apchat-icone.png') !== false && strpos($html, 'data-count="6"') !== false, substr($html, 0, 400));
-    ok('balao: secao do chat interno com as conversas', strpos($html, '>Chat interno<') !== false && substr_count($html, 'apchat-balao-conversa"') === 2
+    ok('balao: duas abas como no APChat, Atendimentos e Chat Privado', strpos($html, 'data-aba="atendimentos"') !== false && strpos($html, 'data-aba="chat"') !== false
+        && strpos($html, '>Atendimentos<') !== false && strpos($html, '>Chat Privado<') !== false && strpos($html, '>Atendimentos<') < strpos($html, '>Chat Privado<'), $html);
+    ok('balao: numero vermelho em cada aba (3 tickets esperando; 3 mensagens no chat)', preg_match('/data-aba="atendimentos".*?apchat-aba-num[^>]*>3</s', $html) === 1
+        && preg_match('/data-aba="chat".*?apchat-aba-num[^>]*>3</s', $html) === 1, $html);
+    ok('balao: apenas o painel ativo e visivel por padrao', preg_match('/<div[^>]*id="apchat-painel-chat"[^>]*hidden="hidden"/', $html) === 1);
+    ok('balao: a aba so alterna (sem abrir nada)', strpos($html, 'CurciolApchatAba(') !== false && strpos($html, 'data-painel="atendimentos"') !== false && strpos($html, 'data-painel="chat"') !== false);
+    ok('balao: icone abre a tela inicial do APChat', strpos($html, LinkExterno::onclick($urlInicio, 'apchat')) !== false, $html);
+    ok('balao: chat com as conversas', strpos($html, '>Chat Privado<') !== false && substr_count($html, 'apchat-balao-conversa"') === 2
         && strpos($html, '>Atendente Dois<') !== false && strpos($html, '>Equipe Civel<') !== false && preg_match('/apchat-balao-chat-nao-lidas[^>]*>2</', $html) === 1, $html);
-    ok('balao: conversa abre o chat interno no APChat', strpos($html, LinkExterno::onclick($urlChatUsuario, 'apchat')) !== false
-        && strpos($html, LinkExterno::onclick($urlChatEquipe, 'apchat')) !== false, $html);
+    ok('balao: conversa confere antes de abrir no APChat', strpos($html, LinkApp::notificacao('chat', 'usuario:9002')) !== false
+        && strpos($html, LinkApp::notificacao('chat', 'equipe:990')) !== false && strpos($html, $urlChatUsuario) === false, $html);
     ok('balao: sem texto ao parar o mouse no icone', strpos($html, 'Tickets do APChat esperando') === false && preg_match('/class="button-circle"[^>]*title=/', $html) === 0, substr($html, 0, 400));
-    ok('balao: fica aberto ao atravessar ate a lista (classe do JS)', strpos($html, '.fast-drop.apchat-aberto > .fast-drop-open') !== false);
+    ok('balao: fica aberto ao atravessar ate a lista (classe do JS)', strpos((string) file_get_contents('app/templates/theme-builder/application.css'), '.fast-drop.apchat-aberto > .topo-notificacoes-painel') !== false);
     ok('balao: logo do WhatsApp no ticket (sem fone de ouvido)', strpos($html, 'fab fa-whatsapp') !== false && strpos($html, 'fa-headset') === false);
-    ok('card: numero do ticket e tempo desde a ultima mensagem', strpos($html, '>#4<') !== false && preg_match('/apchat-balao-tempo[^>]*>1m</', $html) === 1, $html);
+    ok('card: numero do ticket e tempo desde a ultima mensagem', strpos($html, '>#4<') !== false && preg_match('/apchat-balao-tempo[^>]*>4m</', $html) === 1, $html);
     ok('card: fila, atendente e canal como no APChat', strpos($html, 'apchat-balao-fila') !== false && strpos($html, '>Fila 9101<') !== false
         && strpos($html, 'apchat-balao-atendente') !== false && strpos($html, '>Atendente 9001<') !== false && strpos($html, 'apchat-balao-canal') !== false && strpos($html, '>Oficial<') !== false, $html);
-    ok('balao: abre o ticket na aba do APChat', strpos($html, LinkExterno::onclick($urlTicket1, 'apchat')) !== false, $html);
+    ok('balao: ticket confere antes de abrir no APChat (o endereco nao vai na tela)', strpos($html, LinkApp::notificacao('ticket', '1')) !== false && strpos($html, $urlTicket1) === false, $html);
     ok('balao: nome do cliente', strpos($html, 'Cliente A') !== false);
     ok('balao: duas colunas lado a lado, Abertos e Pendentes', strpos($html, 'apchat-balao-colunas') !== false && substr_count($html, 'apchat-balao-coluna"') === 2
         && strpos($html, '>Abertos<') !== false && strpos($html, '>Pendentes<') !== false, $html);
@@ -268,6 +321,9 @@ finally
 $js = (string) file_get_contents('app/lib/include/builder/theme-builder/BuilderTemplate.js');
 ok('JS: balao nao e redesenhado com o mouse em cima', strpos($js, 'apchat-aberto') !== false && strpos($js, 'balaoPendente') !== false);
 ok('JS: balao pausa com a aba escondida e atualiza ao voltar', strpos($js, 'document.hidden') !== false && strpos($js, 'visibilitychange') !== false);
-ok('JS: versao nova do arquivo no layout (sem cache)', preg_match('/BuilderTemplate\.js\?appver=(\d+)/', (string) file_get_contents('app/templates/theme-builder/libraries_builder.html'), $v) && (int) $v[1] >= 523986);
+ok('JS: versao nova do arquivo no layout (sem cache)', preg_match('/BuilderTemplate\.js\?appver=(\d+)/', (string) file_get_contents('app/templates/theme-builder/libraries_builder.html'), $v) && (int) $v[1] >= 523991);
+ok('JS: abas do balao e clique que confere antes de abrir', strpos($js, 'window.CurciolApchatAba') !== false && strpos($js, 'window.CurciolAbrirNotificacao') !== false
+    && strpos($js, 'class=TopoAbrir&method=onAbrir') !== false);
+ok('engine: TopoAbrir liberado para quem esta logado', strpos((string) file_get_contents('engine.php'), "'TopoAbrir' => TRUE") !== false);
 
 fim();
