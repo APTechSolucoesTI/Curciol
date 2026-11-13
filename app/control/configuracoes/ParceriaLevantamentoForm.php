@@ -262,7 +262,8 @@ class ParceriaLevantamentoForm extends TPage
             window.plIniciar = function () {
                 var f = $('__F__'), t = f.find('table.tfieldlist').first();
                 if (!t.length) { return; }
-                t.find('> thead > tr, > tfoot > tr').not('.pl-total').each(function () { if (!$(this).children('.pl-alca-cel').length) { $(this).append('<td class="pl-alca-cel"></td>'); } });
+                t.find('> thead > tr').each(function () { if (!$(this).children('.pl-alca-cel').length) { $(this).append('<th class="pl-alca-cel"></th>'); } });
+                t.find('> tfoot > tr').not('.pl-total').each(function () { if (!$(this).children('.pl-alca-cel').length) { $(this).append('<td class="pl-alca-cel"></td>'); } });
                 t.find('> tbody > tr').each(function () { if (!$(this).children('.pl-alca-cel').length) { $(this).append('<td class="pl-alca-cel"><span class="pl-alca" title="Arraste para mudar a ordem">&#9776;</span></td>'); } });
                 if (!t.find('> tfoot > tr.pl-total').length) {
                     var n = t.find('> tbody > tr:first > td').length, tr = $('<tr class="pl-total"></tr>');
@@ -292,7 +293,7 @@ class ParceriaLevantamentoForm extends TPage
                 var f = $('__F__'), t = f.find('table.tfieldlist').first(), temporal = f.hasClass('pl-temporal');
                 if (!t.length) { return; }
                 var m1 = f.find('[name="marco1"]').val() || '', m2 = f.find('[name="marco2"]').val() || '';
-                var th = t.find('> thead > tr:first > td');
+                var th = t.find('> thead > tr:first').children();
                 th.eq(6).html('<span class="pl-h1">Antes do 1º marco (%)</span><small>' + (m1 ? 'até ' + plMenosUmDia(m1) : '&nbsp;') + '</small>');
                 th.eq(7).html('<span class="pl-h">Entre os marcos (%)</span><small>' + (m1 && m2 ? m1 + ' a ' + plMenosUmDia(m2) : '&nbsp;') + '</small>');
                 th.eq(8).html('<span class="pl-h2">Depois do 2º marco (%)</span><small>' + (m2 ? 'a partir de ' + m2 : '&nbsp;') + '</small>');
