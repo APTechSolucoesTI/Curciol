@@ -12,7 +12,7 @@
  * Curciol ja aparece nos atendimentos, com a situacao de entrega.
  * Homologacao (11/11/2026): com 'historico_somente_numeros' no app/config/apchat.php, so esses numeros trazem historico.
  * 13/11/2026: so os tickets que o usuario ve no APChat (a mesma regra do APChat: ApchatVisibilidadeService), pelo atendente
- * ligado a ele; sem ligacao, nenhum. Acessos com 60 s de cache: mudou no APChat, vale para o historico inteiro.
+ * ligado a ele; sem ligacao, nenhum. Acessos com 5 min de cache: mudou no APChat, vale para o historico inteiro.
  */
 class ApchatHistoricoService
 {

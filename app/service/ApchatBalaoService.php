@@ -12,7 +12,8 @@
  * (arquivo de cache): ate 5 s depois da ultima conferencia, nenhum pedido vai ao APChat (nem conecta). Depois, UM processo (trava;
  * os outros usam o que ja tem) confere a impressao digital dos abertos/pendentes (~1,5 ms) e a campainha do webhook; so se algo
  * mudou (pegar, transferir, encerrar, mensagem) rele a lista. Releitura completa a cada 60 s, de seguranca. Cache gravado de forma
- * atomica (arquivo novo + troca). Acessos de cada atendente: 60 s. APChat fora = vazio, nova tentativa depois de 60 s.
+ * atomica (arquivo novo + troca). Acessos de cada atendente: 5 min (ApchatAcessoService). APChat fora = vazio, nova tentativa
+ * depois de 60 s. Tickets e chat interno (aparecer/sumir) continuam conferidos a cada 5 s.
  * 13/11/2026: Pendentes pela regra do APChat (ApchatVisibilidadeService: lista vazia de canais/filas = sem restricao, admin ve
  * todos, sem atendente conforme a empresa, convite, carteira). Chat interno: a cada conferencia, UMA leitura das nao lidas de
  * todos os atendentes ligados (com avisos); falha do chat nao derruba os tickets ("chat interno indisponivel").
@@ -21,7 +22,6 @@ class ApchatBalaoService
 {
     const CONFERIR_SEGUNDOS = 5;
     const RELER_SEGUNDOS = 60;
-    const ACESSOS_SEGUNDOS = 60;
     const ATUALIZAR_MS = 5000;
     const MAXIMO = 20;
     const FALHA_SEGUNDOS = 60;

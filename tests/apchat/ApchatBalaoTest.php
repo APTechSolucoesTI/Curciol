@@ -98,7 +98,7 @@ try
     $impressoes = $falso->impressoes;
     ApchatBalaoService::conversas($u1);
     ApchatBalaoService::conversas($u2);
-    igual('acessos ficam em cache (60 s)', 3, $falso->acessosLidos);
+    igual('acessos ficam em cache (5 min)', 3, $falso->acessosLidos);
     ok('dentro de 5 s: nenhum pedido vai ao APChat (nem conecta)', $falso->tentativas === $tentativas && $falso->impressoes === $impressoes && $falso->leituras === 1,
         json_encode([$falso->tentativas, $tentativas, $falso->impressoes, $impressoes, $falso->leituras]));
 

@@ -22,10 +22,18 @@
 --   6. o papel da Curciol: EXECUTE nas funcoes e SELECT nas visoes. Funcoes fechadas para PUBLIC.
 -- Pode rodar mais de uma vez. Desfazer: rodar de novo os arquivos de 03/11 e 10/11 (visoes antigas) - nao recomendado.
 -- =====================================================================================================================
+-- sem os tres parametros: erro (com ON_ERROR_STOP o psql sai com codigo diferente de zero e nada e gravado)
 \if :{?tenant}
 \else
-    \echo 'informe -v tenant=N -v papel=NOME -v travas=0|1'
-    \quit
+    DO $$ BEGIN RAISE EXCEPTION 'informe -v tenant=N -v papel=NOME -v travas=0|1'; END $$;
+\endif
+\if :{?papel}
+\else
+    DO $$ BEGIN RAISE EXCEPTION 'informe -v papel=NOME'; END $$;
+\endif
+\if :{?travas}
+\else
+    DO $$ BEGIN RAISE EXCEPTION 'informe -v travas=0|1'; END $$;
 \endif
 
 CREATE SCHEMA IF NOT EXISTS curciol;
@@ -371,8 +379,7 @@ $$;
 \if :travas
 SELECT to_regprocedure('curciol.espelho_do_numero(text)') IS NULL AS sem_espelho \gset
 \if :sem_espelho
-    \echo 'travas=1 exige 2026-11-03-schema-curciol.sql e 2026-11-10-curciol-contato-novo-e-visoes.sql antes'
-    \quit
+    DO $$ BEGIN RAISE EXCEPTION 'travas=1 exige 2026-11-03-schema-curciol.sql e 2026-11-10-curciol-contato-novo-e-visoes.sql antes'; END $$;
 \endif
 
 CREATE OR REPLACE FUNCTION curciol.proteger_contato()

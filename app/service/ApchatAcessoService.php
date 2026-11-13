@@ -3,14 +3,15 @@
  * Acessos do APChat de cada usuario da Curciol (13/11/2026), para a regra de visibilidade (ApchatVisibilidadeService):
  * - usuario da Curciol sem atendente do APChat ligado ("Usuarios das integracoes") nao ve ticket nenhum (como no APMail);
  * - acessos do atendente (canais, filas, perfil, configuracoes) e as configuracoes da empresa sao lidos do banco do APChat
- *   e ficam 60 s em cache (como as caixas do APMail): mudou no APChat, a Curciol acompanha sozinha, para todos os tickets
+ *   e ficam 5 min em cache (o ciclo do historico do APMail; so as notificacoes precisam ser rapidas): mudou no APChat, a
+ *   Curciol acompanha sozinha, para todos os tickets
  *   desde o primeiro (nada e copiado; o historico e lido na hora);
  * - APChat fora: vale o ultimo acesso conhecido; se nunca houve leitura, a excecao sobe (quem chama nao mostra nada).
  * Usa a transacao aberta ('escritorio') para achar a ligacao do usuario.
  */
 class ApchatAcessoService
 {
-    const SEGUNDOS = 60;
+    const SEGUNDOS = 300;
 
     /** @var int|null testes: relogio fixo */
     private static $relogio = null;
