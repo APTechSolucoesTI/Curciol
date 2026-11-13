@@ -322,9 +322,9 @@ class ParceriaLevantamentoForm extends TPage
             };
             $(document).off('input.plpct').on('input.plpct', '__F__ table.tfieldlist input[name^="participante_percentual"]', function () { var v = this.value.replace(/[^0-9,.]/g, ''); if (v !== this.value) { this.value = v; } });
             $(document).off('input.plsoma change.plsoma keyup.plsoma').on('input.plsoma change.plsoma keyup.plsoma', '__F__ table.tfieldlist :input, __F__ [name="marco1"], __F__ [name="marco2"]', function () { window.plAtualizar(); });
-            // excluir ou adicionar linha: a lista muda depois do clique
+            /* excluir ou adicionar linha: a lista muda depois do clique */
             $(document).off('click.plsoma').on('click.plsoma', '__F__ table.tfieldlist .btn', function () { setTimeout(window.plIniciar, 400); });
-            // mesma pessoa duas vezes: limpa o campo na hora (cada pessoa fica numa linha so)
+            /* mesma pessoa duas vezes: limpa o campo na hora (cada pessoa fica numa linha so) */
             $(document).off('change.pldup').on('change.pldup', '__F__ select[name="participante_pessoa_id[]"]', function () {
                 var eu = this, v = $(eu).val(), repetida = false;
                 if (!v) { return; }
