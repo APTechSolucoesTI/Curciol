@@ -53,14 +53,24 @@ class EnviarMensagemForm extends TPage
 
         if (!$producao)
         {
+            // homologacao com numero de teste (16/11/2026): o WhatsApp vai sempre para ele, sem digitar
+            $teste = $ehEmail ? '' : AmbienteService::whatsappTeste();
+
             $destino = new TEntry('destino');
             $destino->setSize('100%');
             $destino->placeholder = $ehEmail ? 'e-mail' : '(19) 99999-9999';
+            if ($teste !== '')
+            {
+                $destino->setValue(PessoaContatoService::formatarTelefone($teste));
+                $destino->setEditable(false);
+            }
 
             $aviso = new TElement('div');
             $aviso->class = 'alert alert-warning';
             $aviso->style = 'margin:0;padding:8px 12px;';
-            $aviso->add('<i class="fas fa-flask"></i> <b>Ambiente de teste:</b> a mensagem vai só para ' . ($ehEmail ? 'o e-mail digitado' : 'o número digitado')
+            $aviso->add($teste !== ''
+                ? '<i class="fas fa-flask"></i> <b>Ambiente de teste:</b> todo WhatsApp da homologação vai só para o número de teste. O cliente não recebe.'
+                : '<i class="fas fa-flask"></i> <b>Ambiente de teste:</b> a mensagem vai só para ' . ($ehEmail ? 'o e-mail digitado' : 'o número digitado')
                 . '. ' . ($ehEmail ? 'O e-mail' : 'O número') . ' do cliente é bloqueado.');
 
             $row = $this->form->addFields([new TLabel($ehEmail ? 'Enviar para (e-mail de teste):' : 'Enviar para (número de teste):', '#ff0000', '14px', null, '100%'), $destino], [$aviso]);

@@ -268,11 +268,20 @@ class MensagemService
     
     /**
      * Numero que vai receber o WhatsApp (55 + DDD + numero).
-     * Producao: um numero do proprio cliente ou, vazio, o telefone dele. Teste: so o digitado, nunca um numero do cliente.
+     * Producao: um numero do proprio cliente ou, vazio, o telefone dele. Teste: com numero de teste configurado
+     * (AmbienteService::whatsappTeste), sempre ele; sem, so o digitado, nunca um numero do cliente.
      */
     public static function destinoWhatsapp(Agendamento $agendamento, ?string $digitado): string
     {
         $digitado = trim((string) $digitado);
+
+        // homologacao com numero de teste (16/11/2026): todo WhatsApp vai so para ele, mesmo que seja de um cliente
+        $teste = AmbienteService::whatsappTeste();
+        if ($teste !== '')
+        {
+            return $teste;
+        }
+
         $doCliente = self::numerosDoCliente((int) $agendamento->cliente_id);
 
         if (!AmbienteService::producao())

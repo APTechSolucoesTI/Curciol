@@ -17,6 +17,9 @@ class AmbienteService
      */
     const MSG_SEM_SAIDA = 'Ambiente de homologação: a Curciol não envia WhatsApp nem e-mails do sistema e não sincroniza contatos com o APChat. Só a produção envia.';
 
+    /** Homologacao com numero de teste: outro numero nao recebe WhatsApp daqui. */
+    const MSG_SO_NUMERO_TESTE = 'Ambiente de homologação: o WhatsApp só sai para o número de teste %s.';
+
     /**
      * E-mail do escritorio fora da producao (usuario, 09/11/2026: liberado para testar, com o SMTP de teste dele): sai, mas
      * nunca para um e-mail cadastrado na Curciol (pessoa ou contato), que na homologacao sao os clientes reais.
@@ -79,6 +82,51 @@ class AmbienteService
         {
             throw new Exception(sprintf(self::MSG_EMAIL_CADASTRADO, $cadastrado));
         }
+    }
+
+    /**
+     * Numero de WhatsApp de teste (16/11/2026, usuario: testar com agendamentos reais da homologacao, sempre para o mesmo
+     * numero). Fora da producao, com 'whatsapp_teste' no app/config/ambiente.php do servidor, todo WhatsApp do agendamento
+     * vai para este numero e so para ele; qualquer outro numero continua sem sair. Na producao nao vale. Vazio = sem numero
+     * de teste (nenhum WhatsApp sai). Com o ambiente forcado (testes), vale so o forcado por forcarWhatsappTeste().
+     */
+    public static function whatsappTeste(): string
+    {
+        if (self::producao())
+        {
+            return '';
+        }
+
+        if (self::$forcado !== null)
+        {
+            $numero = (string) self::$testeForcado;
+        }
+        else
+        {
+            $config = is_file(self::ARQUIVO) ? include self::ARQUIVO : null;
+            $numero = is_array($config) ? (string) ($config['whatsapp_teste'] ?? '') : '';
+        }
+
+        $numero = APChatContactService::normalizarTelefone($numero);
+
+        return $numero === '' ? '' : APChatContactService::numeroCanonico($numero);
+    }
+
+    /** O numero e o de teste (com ou sem o 9, com ou sem 55)? Sempre falso na producao ou sem numero de teste. */
+    public static function ehWhatsappTeste(?string $numero): bool
+    {
+        $teste = self::whatsappTeste();
+        $numero = APChatContactService::normalizarTelefone((string) $numero);
+
+        return $teste !== '' && $numero !== '' && array_intersect(APChatContactService::variantes($numero), APChatContactService::variantes($teste)) !== [];
+    }
+
+    /** Testes: numero de teste usado enquanto o ambiente esta forcado. */
+    private static $testeForcado = null;
+
+    public static function forcarWhatsappTeste(?string $numero): void
+    {
+        self::$testeForcado = $numero;
     }
 
     /** Lanca excecao fora da producao: chamar antes de qualquer envio que nao pode sair da homologacao (WhatsApp, e-mail do sistema, contato no APChat). */

@@ -134,7 +134,7 @@ class ApchatApiService
             'body'        => $texto,
             'externalKey' => $chave,
             'isClosed'    => true,
-        ], trim($token));
+        ], trim($token), true);
 
         if ($resposta['status'] < 200 || $resposta['status'] >= 300)
         {
@@ -192,17 +192,23 @@ class ApchatApiService
         return "HTTP {$status}" . ($erro !== '' ? " - {$erro}" : '') . '.';
     }
 
-    private static function chamar(string $url, array $corpo, string $token): array
+    /**
+     * $envio: envio de mensagem. Fora da producao sai so a consulta e, com numero de teste configurado (16/11/2026), o envio
+     * para ele; qualquer outro numero ou rota que altere o APChat nao sai.
+     */
+    private static function chamar(string $url, array $corpo, string $token, bool $envio = false): array
     {
         if (self::$transporte)
         {
             return call_user_func(self::$transporte, $url, $corpo, $token);
         }
 
-        // homologacao: envio de mensagem (POST na propria URL) e qualquer rota que altere o APChat nao saem
-        if (!self::chamadaPermitida($url))
+        if (!self::chamadaPermitida($url) && !($envio && AmbienteService::ehWhatsappTeste((string) ($corpo['number'] ?? ''))))
         {
-            throw new Exception(AmbienteService::MSG_SEM_SAIDA);
+            $teste = AmbienteService::whatsappTeste();
+            throw new Exception($envio && $teste !== ''
+                ? sprintf(AmbienteService::MSG_SO_NUMERO_TESTE, PessoaContatoService::formatarTelefone($teste))
+                : AmbienteService::MSG_SEM_SAIDA);
         }
 
         $ch = curl_init($url);
