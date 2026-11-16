@@ -308,8 +308,9 @@ finally
     {
         if ($linha)
         {
-            $c->prepare('INSERT INTO apchat_usuario (system_user_id, apchat_usuario_id, avisos, mostrar_abertos) VALUES (?, ?, ?, ?)')
-              ->execute([$linha['system_user_id'], $linha['apchat_usuario_id'], $linha['avisos'], $linha['mostrar_abertos']]);
+            // devolve a linha inteira (16/11/2026: com o servidor do APChat; sem ele o vinculo valeria em qualquer servidor)
+            $c->prepare('INSERT INTO apchat_usuario (' . implode(', ', array_keys($linha)) . ') VALUES (' . implode(', ', array_fill(0, count($linha), '?')) . ')')
+              ->execute(array_values($linha));
         }
     }
     TTransaction::close();

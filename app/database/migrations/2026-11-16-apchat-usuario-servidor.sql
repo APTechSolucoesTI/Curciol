@@ -10,7 +10,7 @@ COMMENT ON COLUMN apchat_usuario.apchat_servidor IS 'Servidor do APChat (host da
 -- os vinculos e desligamentos que ja existem sao do servidor da URL de hoje (producao: sempre o oficial)
 UPDATE apchat_usuario
    SET apchat_servidor = (SELECT lower(substring(btrim(e.url_apchat) FROM '^[A-Za-z][A-Za-z0-9+.-]*://([^/:?#]+)'))
-                            FROM escritorio e WHERE COALESCE(btrim(e.url_apchat), '') <> '' AND COALESCE(btrim(e.token_apchat), '') <> ''
+                            FROM escritorio e WHERE COALESCE(btrim(e.url_apchat), '') <> ''   -- a URL basta: a producao esta sem token desde 03/11
                            ORDER BY e.id LIMIT 1)
  WHERE apchat_servidor IS NULL;
 
