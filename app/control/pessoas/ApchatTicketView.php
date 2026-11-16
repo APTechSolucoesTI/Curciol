@@ -67,9 +67,19 @@ class ApchatTicketView extends TPage
         }
     }
 
-    /** Botao que abre o ticket no APChat: pelo app instalado (LinkApp, chave do escritorio) ou na mesma aba ("apchat"). */
+    /**
+     * Botao que abre o ticket no APChat: pelo app instalado (LinkApp, chave do escritorio) ou na mesma aba ("apchat"). 16/11/2026:
+     * integracao sem configurar, fora do ar ou usuario sem vinculo = botao desabilitado com o motivo (IntegracaoAcessoService).
+     */
     public static function botaoAbrir(int $ticketId, string $url): TElement
     {
+        $usuario = (int) TSession::getValue('userid');
+        $motivo = IntegracaoAcessoService::naTransacao(function () use ($usuario) { return IntegracaoAcessoService::bloqueioApchat($usuario); },
+                                                       IntegracaoAcessoService::APCHAT['erro']);
+        if ($motivo !== null)
+        {
+            return self::botaoBloqueado('<i class="fab fa-whatsapp"></i> Abrir no APChat', $motivo, 'btn btn-sm btn-success');
+        }
         $b = new TElement('a');
         $b->class = 'btn btn-sm btn-success';
         $b->style = 'margin-right:6px;';
@@ -77,5 +87,17 @@ class ApchatTicketView extends TPage
         $b->onclick = LinkApp::apchatTicket($ticketId, $url);
         $b->add('<i class="fab fa-whatsapp"></i> Abrir no APChat');
         return $b;
+    }
+
+    /** Botao de abrir bloqueado (APChat ou APMail): desabilitado, sem endereco, com o motivo ao lado. */
+    public static function botaoBloqueado(string $rotulo, string $motivo, string $classe, string $estilo = ''): TElement
+    {
+        $h = htmlspecialchars($motivo, ENT_QUOTES, 'UTF-8');
+        $w = new TElement('span');
+        $w->class = 'integracao-bloqueada';
+        $w->style = 'display:inline-flex;align-items:center;gap:8px;margin-right:6px;';
+        $w->add('<button type="button" class="' . $classe . '" disabled aria-disabled="true" title="' . $h . '" style="opacity:.55;cursor:not-allowed;' . $estilo . '">' . $rotulo . '</button>'
+              . '<small style="color:#b45309;white-space:normal;max-width:420px;line-height:1.3;">' . $h . '</small>');
+        return $w;
     }
 }

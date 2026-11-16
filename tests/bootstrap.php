@@ -16,6 +16,8 @@ ApchatApiService::usarTransporte(function () { throw new LogicException('Teste s
 EmailClient::usarTransporte(function () { throw new LogicException('Teste sem transporte falso de e-mail.'); });
 // APMail (10/11/2026): so le, mas teste nunca consulta o APMail real
 ApmailApiService::usarTransporte(function () { throw new LogicException('Teste sem transporte falso do APMail.'); });
+// conferencia da API do APChat (16/11/2026, bloqueio do topo): nos testes a API esta no ar sem chamar nada; IntegracaoAcessoTest confere de verdade
+ApchatApiService::forcarSaude(true);
 
 $GLOBALS['__falhas'] = 0;
 

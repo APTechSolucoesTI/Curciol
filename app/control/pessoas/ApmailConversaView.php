@@ -49,7 +49,15 @@ class ApmailConversaView extends TPage
             $c = $d['conversa'];
             $h = function ($v) { return htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8'); };
             $onclick = LinkApp::apmailMensagem((string) ($c['ultima_mensagem_apmail_id'] ?? ''), $urlApmail);
-            if ($onclick !== '')
+            // 16/11/2026: APMail sem token, fora do ar, sem responder ou usuario sem vinculo = botao desabilitado com o motivo
+            $motivo = $onclick !== '' ? IntegracaoAcessoService::naTransacao(function () { return IntegracaoAcessoService::bloqueioApmail((int) TSession::getValue('userid')); },
+                                                                               IntegracaoAcessoService::APMAIL['indisponivel']) : null;
+            if ($motivo !== null)
+            {
+                $this->form->addHeaderWidget(ApchatTicketView::botaoBloqueado('<i class="far fa-envelope"></i> Abrir no APMail', $motivo, 'btn btn-sm',
+                                                                              'background:' . LogoSistemaService::COR_APMAIL . ';color:#fff;'));
+            }
+            elseif ($onclick !== '')
             {
                 $b = new TElement('a');
                 $b->class = 'btn btn-sm';

@@ -200,7 +200,7 @@ try
     $falso->tickets[0]['status'] = 'pending';
     $d = TopoAbrir::decidir(['tipo' => 'ticket', 'id' => '999'], $u1);
     ok('clique: ticket que nao existe mais', ($d['ok'] ?? true) === false && strpos($d['mensagem'] ?? '', 'não existe') !== false, json_encode($d));
-    ok('clique: usuario sem atendente ligado', strpos(TopoAbrir::decidir(['tipo' => 'ticket', 'id' => '1'], $u4)['mensagem'] ?? '', 'não está ligado') !== false);
+    ok('clique: usuario sem atendente ligado', strpos(TopoAbrir::decidir(['tipo' => 'ticket', 'id' => '1'], $u4)['mensagem'] ?? '', 'não está vinculado') !== false);
     ok('clique: tipo desconhecido nao abre', (TopoAbrir::decidir(['tipo' => 'xyz', 'id' => '1'], $u1)['ok'] ?? true) === false);
     $d = TopoAbrir::decidir(['tipo' => 'chat', 'id' => 'usuario:9002'], $u1);
     ok('clique: conversa com mensagem nova abre', ($d['ok'] ?? false) === true && ($d['url'] ?? '') === ApchatApiService::urlChat('usuario', 9002), json_encode($d));

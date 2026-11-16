@@ -32,6 +32,13 @@ class MailList extends TElement
         {
             return; // notificacoes do APMail desligadas para o usuario
         }
+        // 16/11/2026: integracao sem token, fora do ar, sem responder ou usuario sem vinculo - icone limpo, sem levar a lugar nenhum
+        $motivo = IntegracaoAcessoService::motivoApmail((string) $r['situacao']);
+        if ($motivo !== null)
+        {
+            MessageList::bloqueado($this, LogoSistemaService::apmail(22), 'APMail', 'apmail-notificacoes', $motivo);
+            return;
+        }
 
         $this->class = 'fast-drop';
         $total = (int) $r['pendentes'];
@@ -66,17 +73,7 @@ class MailList extends TElement
         $caixa->add('<div style="font-size:11px;color:var(--button-text-color);margin:-4px 0 8px;line-height:1.35;white-space:normal;">Pendentes = conversas de e-mail em A Responder + Em Atendimento.'
                   . '<br>Não lidos = e-mails não lidos (cada e-mail conta: uma conversa com 3 e-mails não lidos conta 3).</div>');
 
-        $avisos = [
-            'sem_integracao' => 'Integração com o APMail não configurada (Escritório › Configurações › APMail).',
-            'sem_email'      => 'Seu usuário não tem e-mail de usuário do APMail (Administração › Usuários das integrações).',
-            'nao_liberado'   => 'Seu e-mail não está liberado no APMail para esta integração.',
-            'indisponivel'   => 'O APMail não respondeu agora; tentamos de novo em instantes.',
-        ];
-        if (isset($avisos[$r['situacao']]))
-        {
-            $caixa->add(TElement::tag('div', $avisos[$r['situacao']], ['style' => 'padding:6px 4px;color:var(--button-text-color);white-space:normal;']));
-        }
-        elseif (!$r['caixas'])
+        if (!$r['caixas'])
         {
             $caixa->add(TElement::tag('div', 'Nenhuma caixa de e-mail liberada para você.', ['style' => 'padding:6px 4px;color:var(--button-text-color);white-space:normal;']));
         }

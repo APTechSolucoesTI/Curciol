@@ -22,6 +22,12 @@ ApmailSincronizacaoService::usarConfig($semConfig);
 ApmailHistoricoService::usarCaixas(['00000000-0000-4000-8000-00000000cca1']);
 LinkApp::forcar('apmail', true);
 TSession::setValue('userid', 1);
+// 16/11/2026: o botao "Abrir no APMail" confere o APMail (IntegracaoAcessoService) - APMail falso respondendo, token garantido
+$apmailResposta = ['status' => 200, 'retry_after' => null, 'erro' => '', 'corpo' => json_encode(['success' => true, 'data' => ['unread' => 0, 'pending' => 0, 'mailboxes' => []]])];
+ApmailApiService::usarTransporte(function () use (&$apmailResposta) { return $apmailResposta; });
+$tokensApmail = qt('SELECT id, token_apmail FROM escritorio');
+xt("UPDATE escritorio SET token_apmail = 'token-tela-teste' WHERE COALESCE(btrim(token_apmail), '') = ''");
+ApmailEnvelopeService::limparCache();
 
 try
 {
@@ -73,6 +79,12 @@ try
         && strpos($v, 'srcdoc=') !== false && strpos($v, 'default-src') !== false && strpos($v, 'alert(1)') === false && strpos($v, '[imagem do e-mail]') !== false);
     ok('conversa: e-mail so texto com quebra de linha', strpos($v, 'Recebido,<br />') !== false);
     ok('conversa: botao Abrir no APMail pelo app, no ultimo e-mail', strpos($v, 'Abrir no APMail') !== false && strpos($v, 'web+apmail://mensagem/' . PFT . '12') !== false);
+    // APMail fora do ar: o botao fica desabilitado com o motivo, sem o link do app
+    $apmailResposta = ['status' => 503, 'corpo' => '', 'erro' => '', 'retry_after' => null];
+    ApmailEnvelopeService::limparCache();
+    $vFora = saidat(function () use ($conv, $a) { $t = new ApmailConversaView(['key' => $conv, 'pessoa_id' => $a]); $t->onShow(['key' => $conv, 'pessoa_id' => $a]); $t->show(); });
+    ok('conversa: APMail fora, botao desabilitado com o motivo', strpos($vFora, 'disabled') !== false && strpos($vFora, 'web+apmail://') === false
+        && strpos($vFora, htmlspecialchars(IntegracaoAcessoService::APMAIL['indisponivel'], ENT_QUOTES, 'UTF-8')) !== false && strpos($vFora, 'Segue') !== false);
     ok('conversa: lista de e-mails ate o fim da tela', strpos($v, 'apm-lista') !== false && strpos($v, 'innerHeight') !== false);
     ok('conversa: lista comeca no topo, sem inverter', preg_match('/\.apm-lista\{[^}]*flex-direction:column;/', $v) === 1 && preg_match('/\.apm-lista\{[^}]*column-reverse/', $v) === 0);
     ok('conversa: mais recente em cima (resposta antes do pedido)', strpos($v, 'Recebido,') !== false && strpos($v, 'Recebido,') < strpos($v, 'Segue'));
@@ -93,6 +105,9 @@ finally
     ApmailSincronizacaoService::usarConfig(null);
     ApmailHistoricoService::usarCaixas(null);
     LinkApp::forcar('apmail', null);
+    foreach ($tokensApmail as $e) { TTransaction::open('escritorio'); TTransaction::get()->prepare('UPDATE escritorio SET token_apmail = ? WHERE id = ?')->execute([$e['token_apmail'], $e['id']]); TTransaction::close(); }
+    ApmailApiService::usarTransporte(function () { throw new LogicException('Teste sem transporte falso do APMail.'); });
+    ApmailEnvelopeService::limparCache();
     $limpar();
 }
 

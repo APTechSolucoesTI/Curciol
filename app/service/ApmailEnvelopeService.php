@@ -10,7 +10,8 @@
  *  - 404 (e-mail fora da integracao): "nao liberado", guardado por 5 min;
  *  - 429: mostra o que ja tinha e so tenta de novo depois do Retry-After;
  *  - 401/403 (token ou rota): "indisponivel" e 60 s sem tentar;
- *  - 5xx/sem resposta: mostra o que ja tinha (senao "indisponivel") e 60 s sem tentar.
+ *  - 5xx/sem resposta: "indisponivel" e 60 s sem tentar (16/11/2026: fora do ar nunca mostra contagem velha - o icone fica limpo e
+ *    bloqueado, IntegracaoAcessoService); so o 429 (o APMail respondeu, so pediu para esperar) continua com o que ja tinha.
  */
 class ApmailEnvelopeService
 {
@@ -36,7 +37,7 @@ class ApmailEnvelopeService
     /**
      * @return array {situacao: ok|sem_integracao|desligado|sem_email|nao_liberado|indisponivel, pendentes, nao_lidas, caixas}
      */
-    public static function caixas(int $systemUserId, bool $fresco = false, bool $semCache = false): array
+    public static function caixas(int $systemUserId, bool $fresco = false, bool $semCache = false, bool $ignorarAvisos = false): array
     {
         // $semCache (13/11/2026, clique numa caixa do envelope): pergunta ao APMail agora, sem cache nem o minimo de 3 s; falha =
         // "indisponivel" (nunca o que estava guardado: quem chama nao pode abrir o que nao conseguiu conferir)
@@ -47,7 +48,8 @@ class ApmailEnvelopeService
         {
             return ['situacao' => 'sem_integracao'] + $vazio;
         }
-        if (!ApmailUsuarioService::avisos($systemUserId))
+        // $ignorarAvisos: botoes "Abrir no APMail" do historico - notificacoes desligadas nao bloqueiam o acesso
+        if (!$ignorarAvisos && !ApmailUsuarioService::avisos($systemUserId))
         {
             return ['situacao' => 'desligado'] + $vazio;
         }
@@ -88,16 +90,17 @@ class ApmailEnvelopeService
                 self::gravar($arquivo, ['em' => $agora, 'ate' => $agora + self::NAO_LIBERADO_SEGUNDOS, 'resultado' => $resultado]);
                 return $resultado;
             }
-            // 401/403: configuracao (token ou rota) - nao mostra contagem velha; 429 e 5xx: passageiro - mostra o que ja tinha
-            $usarCache = !in_array($e->getCode(), [401, 403], true);
+            // so o 429 mostra o que ja tinha; 401/403 (token ou rota) e 5xx (fora do ar): indisponivel, sem contagem velha
+            $usarCache = $e->getCode() === 429;
             $segundos = $e->getCode() === 429 ? max(1, (int) ($e->retryAfter ?: self::FALHA_SEGUNDOS)) : self::FALHA_SEGUNDOS;
             self::gravar(self::arquivo('pausa'), ['ate' => $agora + $segundos, 'situacao' => 'indisponivel', 'usar_cache' => $usarCache]);
             return !$semCache && $cache && $usarCache ? $cache['resultado'] : ['situacao' => 'indisponivel'] + $vazio;
         }
         catch (Throwable $e)
         {
-            self::gravar(self::arquivo('pausa'), ['ate' => $agora + self::FALHA_SEGUNDOS, 'situacao' => 'indisponivel', 'usar_cache' => true]);
-            return !$semCache && $cache ? $cache['resultado'] : ['situacao' => 'indisponivel'] + $vazio;
+            // sem resposta (fora do ar, tempo esgotado): indisponivel, sem contagem velha
+            self::gravar(self::arquivo('pausa'), ['ate' => $agora + self::FALHA_SEGUNDOS, 'situacao' => 'indisponivel', 'usar_cache' => false]);
+            return ['situacao' => 'indisponivel'] + $vazio;
         }
     }
 

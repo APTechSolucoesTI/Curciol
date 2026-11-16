@@ -204,7 +204,7 @@ try
     $respostas['cadastro.um@teste.local'] = ['status' => 500, 'corpo' => '', 'erro' => 'fora', 'retry_after' => null];
     ApmailEnvelopeService::limparCache();
     $d = TopoAbrir::decidir(['tipo' => 'caixa', 'id' => 'b9'], $u1);
-    ok('clique: APMail fora nao abre (nao da para conferir)', ($d['ok'] ?? true) === false && strpos($d['mensagem'] ?? '', 'conferir') !== false, json_encode($d));
+    ok('clique: APMail fora nao abre (nao esta respondendo)', ($d['ok'] ?? true) === false && strpos($d['mensagem'] ?? '', 'não está respondendo') !== false, json_encode($d));
     TTransaction::close();
     ApmailEnvelopeService::limparCache();
     $respostas['cadastro.um@teste.local'] = $ok('cadastro.um@teste.local', [['id' => 'a2', 'name' => 'Financeiro', 'email' => 'financeiro@x.com', 'unread' => 3, 'pending' => 2, 'url' => '/mail/a2?assigned=any']]);

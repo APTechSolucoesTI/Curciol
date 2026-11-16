@@ -4,7 +4,8 @@
  * O balao nao leva o endereco: o navegador pergunta aqui, que confere NA HORA (sem cache) se o item ainda deveria estar no
  * balao do usuario e so entao devolve para onde ir. Item desatualizado (ticket encerrado, transferido ou fora dos acessos,
  * conversa lida ou caixa sem acesso) volta um aviso e é removido do balão.
- * Nao conseguiu conferir (APChat/APMail fora): tambem nao abre.
+ * Nao conseguiu conferir (APChat/APMail fora): tambem nao abre. 16/11/2026: integracao sem URL/token no escritorio, fora do ar,
+ * sem responder ou com token recusado, ou usuario sem vinculo: nao abre, com o motivo (IntegracaoAcessoService), e o item sai do balao.
  *   engine.php?class=TopoAbrir&method=onAbrir&static=1&tipo=ticket|chat|caixa&id=...
  *   -> {ok: true, app: true, link, nome} (app instalado) | {ok: true, url, janela} (aba) | {ok: false, mensagem}
  */
@@ -47,12 +48,17 @@ class TopoAbrir
         if ($tipo === 'caixa') { return self::caixa($id, $usuario); }
         if ($tipo !== 'ticket' && $tipo !== 'chat') { return self::nao('Item desconhecido.'); }
 
+        if (!ApchatApiService::configurada() || !ApchatBancoService::configurado())
+        {
+            return self::nao(IntegracaoAcessoService::APCHAT['sem_integracao'], true);
+        }
         $ligacao = ApchatUsuarioService::doUsuario($usuario);
         if (!$ligacao || !$ligacao->apchat_usuario_id)
         {
-            return self::nao('Seu usuário não está ligado a um usuário do APChat (Administração › Usuários das integrações).', true);
+            return self::nao(IntegracaoAcessoService::APCHAT['sem_ligacao'], true);
         }
         if ($ligacao->avisos !== 'S') { return self::nao('As notificações do APChat estão desligadas para você.', true); }
+        if (!ApchatApiService::noAr()) { return self::nao(IntegracaoAcessoService::APCHAT['erro'], true); }
         $eu = (int) $ligacao->apchat_usuario_id;
         return $tipo === 'chat' ? self::chat($id, $eu) : self::ticket($id, $eu);
     }
@@ -122,10 +128,9 @@ class TopoAbrir
         $r = ApmailEnvelopeService::caixas($usuario, true, true);
         if (($r['situacao'] ?? '') !== 'ok')
         {
-            $motivo = ['nao_liberado' => 'Seu e-mail não está liberado no APMail para esta integração.', 'sem_email' => 'Seu usuário não tem e-mail de usuário do APMail.',
-                       'desligado' => 'As notificações do APMail estão desligadas para você.', 'sem_integracao' => 'Integração com o APMail não configurada.'];
-            $situacao = $r['situacao'] ?? '';
-            return self::nao($motivo[$situacao] ?? 'Não foi possível conferir a caixa no APMail agora. Tente de novo em instantes.', isset($motivo[$situacao]));
+            $situacao = (string) ($r['situacao'] ?? '');
+            if ($situacao === 'desligado') { return self::nao('As notificações do APMail estão desligadas para você.', true); }
+            return self::nao((string) IntegracaoAcessoService::motivoApmail($situacao), true);
         }
         foreach ($r['caixas'] as $c)
         {

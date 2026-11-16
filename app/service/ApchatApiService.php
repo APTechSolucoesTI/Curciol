@@ -70,6 +70,85 @@ class ApchatApiService
         return $escritorio ?: null;
     }
 
+    /** URL e token no escritorio (16/11/2026): sem um dos dois a integracao fica desligada e nada do APChat abre na Curciol. */
+    public static function configurada(?Escritorio $escritorio = null): bool
+    {
+        $escritorio = $escritorio ?? self::escritorio();
+        return $escritorio !== null && trim((string) $escritorio->token_apchat) !== '' && self::url($escritorio) !== '';
+    }
+
+    const SAUDE_SEGUNDOS = 60;   // resultado da conferencia vale 1 min para todos os usuarios
+    const SAUDE_TIMEOUT = 3;     // a conferencia nunca segura o topo mais que isso
+
+    /** @var bool|null testes: API no ar (true), fora (false) ou conferir de verdade (null) */
+    private static $saudeForcada = null;
+
+    public static function forcarSaude(?bool $noAr): void
+    {
+        self::$saudeForcada = $noAr;
+    }
+
+    /** Esquece a ultima conferencia da API (testes; e ao salvar URL/token no escritorio a chave do arquivo ja muda sozinha). */
+    public static function limparSaude(): void
+    {
+        foreach (glob(sys_get_temp_dir() . '/curciol-apchat-saude-' . md5(__DIR__) . '-*') ?: [] as $f) { @unlink($f); }
+    }
+
+    /**
+     * A API do APChat responde com a URL e o token do escritorio? (16/11/2026: integracao fora do ar, sem responder ou token
+     * recusado = acessos e notificacoes bloqueados.) Consulta que nao altera nada (showcontact de numero inexistente), no maximo
+     * uma vez por minuto para todos (arquivo com a resposta, por URL e token); outro processo conferindo = usa a ultima resposta.
+     */
+    public static function noAr(?Escritorio $escritorio = null): bool
+    {
+        if (self::$saudeForcada !== null)
+        {
+            return self::$saudeForcada;
+        }
+        $escritorio = $escritorio ?? self::escritorio();
+        if (!self::configurada($escritorio))
+        {
+            return false;
+        }
+        $url = self::url($escritorio);
+        $token = trim((string) $escritorio->token_apchat);
+        $arquivo = sys_get_temp_dir() . '/curciol-apchat-saude-' . md5(__DIR__) . '-' . hash('sha256', $url . "\n" . $token) . '.json';
+        $ler = function () use ($arquivo) { $d = is_file($arquivo) ? json_decode((string) @file_get_contents($arquivo), true) : null; return is_array($d) ? $d : null; };
+        $cache = $ler();
+        if ($cache && ($cache['ate'] ?? 0) > time())
+        {
+            return !empty($cache['ok']);
+        }
+        $trava = @fopen($arquivo . '.trava', 'c');
+        if ($trava && !flock($trava, LOCK_EX | LOCK_NB))
+        {
+            fclose($trava);
+            return $cache ? !empty($cache['ok']) : true; // outro processo esta conferindo
+        }
+        try
+        {
+            try
+            {
+                self::testarConexao($url, $token, self::SAUDE_TIMEOUT);
+                $ok = true;
+            }
+            catch (Throwable $e)
+            {
+                $ok = false;
+            }
+            $tmp = $arquivo . '.tmp' . getmypid() . '-' . mt_rand();
+            if (@file_put_contents($tmp, json_encode(['ok' => $ok, 'ate' => time() + self::SAUDE_SEGUNDOS])) !== false && !@rename($tmp, $arquivo))
+            {
+                @unlink($tmp);
+            }
+            return $ok;
+        }
+        finally
+        {
+            if ($trava) { flock($trava, LOCK_UN); fclose($trava); }
+        }
+    }
+
     /** Endereco da API sem a barra final; vazio = nao configurado. */
     public static function url(?Escritorio $escritorio): string
     {
@@ -147,7 +226,7 @@ class ApchatApiService
     /**
      * Confere endereco e token sem enviar nada. Lanca excecao com o motivo quando nao funciona.
      */
-    public static function testarConexao(string $url, string $token): void
+    public static function testarConexao(string $url, string $token, ?int $timeout = null): void
     {
         $url = rtrim(trim($url), '/');
         $token = trim($token);
@@ -157,7 +236,7 @@ class ApchatApiService
             throw new Exception('Informe a URL e o token da API do APChat.');
         }
 
-        $resposta = self::chamar($url . '/showcontact', ['number' => self::NUMERO_TESTE_CONEXAO], $token);
+        $resposta = self::chamar($url . '/showcontact', ['number' => self::NUMERO_TESTE_CONEXAO], $token, false, $timeout);
         $json = json_decode($resposta['corpo'], true);
 
         if ($resposta['status'] === 200 || ($resposta['status'] === 404 && is_array($json)
@@ -196,7 +275,7 @@ class ApchatApiService
      * $envio: envio de mensagem. Fora da producao sai so a consulta e, com numero de teste configurado (16/11/2026), o envio
      * para ele; qualquer outro numero ou rota que altere o APChat nao sai.
      */
-    private static function chamar(string $url, array $corpo, string $token, bool $envio = false): array
+    private static function chamar(string $url, array $corpo, string $token, bool $envio = false, ?int $timeout = null): array
     {
         if (self::$transporte)
         {
@@ -224,8 +303,8 @@ class ApchatApiService
                 'Authorization: Bearer ' . $token,
             ],
             CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_CONNECTTIMEOUT => self::TIMEOUT_CONEXAO,
-            CURLOPT_TIMEOUT        => self::TIMEOUT_TOTAL,
+            CURLOPT_CONNECTTIMEOUT => min(self::TIMEOUT_CONEXAO, $timeout ?? self::TIMEOUT_CONEXAO),
+            CURLOPT_TIMEOUT        => $timeout ?? self::TIMEOUT_TOTAL,
         ]);
 
         $texto = curl_exec($ch);

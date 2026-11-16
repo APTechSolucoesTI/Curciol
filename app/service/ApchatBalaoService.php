@@ -44,6 +44,11 @@ class ApchatBalaoService
     {
         $vazio = ['abertos' => [], 'pendentes' => [], 'chat' => [], 'chat_situacao' => 'ok', 'total_atendimentos' => 0, 'total_chat' => 0, 'total' => 0];
 
+        // 16/11/2026: sem URL/token no escritorio (ou sem o banco configurado) nao conecta em nada
+        if (!ApchatApiService::configurada() || !ApchatBancoService::configurado())
+        {
+            return ['situacao' => 'sem_integracao'] + $vazio;
+        }
         $ligacao = ApchatUsuarioService::doUsuario($systemUserId);
         if (!$ligacao || !$ligacao->apchat_usuario_id)
         {
@@ -60,12 +65,13 @@ class ApchatBalaoService
         {
             return ['situacao' => 'erro'] + $vazio;
         }
+        // API sem responder ou token recusado (conferida no maximo 1 vez por minuto): nada aparece
+        if (!ApchatApiService::noAr())
+        {
+            return ['situacao' => 'erro'] + $vazio;
+        }
         try
         {
-            if (!ApchatBancoService::configurado())
-            {
-                throw new Exception('APChat nao configurado');
-            }
             $estado = self::estado();
             $tickets = $estado['tickets'];
             $acessos = ApchatAcessoService::acessos((int) $ligacao->apchat_usuario_id);
@@ -75,6 +81,11 @@ class ApchatBalaoService
         {
             self::gravar($falha, (string) self::agora());
             return ['situacao' => 'erro'] + $vazio;
+        }
+        // o atendente vinculado nao existe mais no APChat
+        if (array_key_exists('existe', $acessos) && !$acessos['existe'])
+        {
+            return ['situacao' => 'sem_atendente'] + $vazio;
         }
 
         $eu = (int) $ligacao->apchat_usuario_id;

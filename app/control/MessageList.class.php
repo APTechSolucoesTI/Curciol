@@ -24,9 +24,16 @@ class MessageList extends TElement
             $r = ['situacao' => 'erro', 'itens' => [], 'abertos' => [], 'total' => 0];
         }
 
-        if (in_array($r['situacao'], ['desligado', 'erro'], true))
+        if ($r['situacao'] === 'desligado')
         {
-            return; // sem balao (avisos desligados pelo usuario, ou APChat fora)
+            return; // avisos desligados pelo proprio usuario: sem balao
+        }
+        // 16/11/2026: integracao sem configurar, fora do ar ou usuario sem vinculo - icone limpo, sem levar a lugar nenhum, so o motivo
+        $motivo = IntegracaoAcessoService::motivoApchat((string) $r['situacao']);
+        if ($motivo !== null)
+        {
+            self::bloqueado($this, LogoSistemaService::apchat(22), 'APChat', 'apchat-notificacoes', $motivo);
+            return;
         }
 
         $this->class = 'fast-drop';
@@ -52,12 +59,6 @@ class MessageList extends TElement
         $lista->id = 'apchat-notificacoes';
         $lista->add(TElement::tag('div', '', ['class' => 'topo-notificacoes-status', 'role' => 'status']));
 
-        if ($r['situacao'] === 'sem_ligacao')
-        {
-            $lista->add(TElement::tag('div', 'Seu usuário não está ligado a um usuário do APChat (Administração › Usuários das integrações).',
-                                      ['style' => 'padding:6px 4px;color:var(--button-text-color);white-space:normal;width:min(340px, 90vw);']));
-        }
-        else
         {
             $abas = TElement::tag('div', self::aba('atendimentos', 'Atendimentos', 'far fa-comment-alt', $r['total_atendimentos'], true),
                                   ['class' => 'apchat-abas', 'role' => 'tablist', 'aria-label' => 'Notificações do APChat']);
@@ -84,6 +85,37 @@ class MessageList extends TElement
         }
 
         $this->add($lista);
+        TScript::create('BuilderTemplate.processFastDrop();');
+    }
+
+    /**
+     * Icone do topo bloqueado (16/11/2026; APChat e APMail): logo apagado, sem contador, sem endereco e sem lista - o clique so
+     * abre o balao com o motivo.
+     */
+    public static function bloqueado(TElement $alvo, string $logo, string $nome, string $painel, string $motivo): void
+    {
+        $alvo->class = 'fast-drop topo-integracao-bloqueada';
+        $a = new TElement('a');
+        $a->{'class'} = 'button-circle';
+        $a->{'href'} = '#';
+        $a->{'role'} = 'button';
+        $a->{'aria-label'} = $nome . ' indisponível: ' . $motivo;
+        $a->onclick = "var b=this.closest('.fast-drop').querySelector('.topo-notificacoes-alternar');if(b){b.click();}return false;";
+        $a->add(TElement::tag('span', $logo, ['style' => 'display:inline-flex;filter:grayscale(1);opacity:.45;']));
+        $rotulo = TElement::tag('div', $a, ['class' => 'fast-drop-label']);
+        $rotulo->add(TElement::tag('button', '<i class="fas fa-chevron-down" aria-hidden="true"></i>', [
+            'type' => 'button', 'class' => 'topo-notificacoes-alternar', 'aria-label' => 'Notificações do ' . $nome,
+            'aria-expanded' => 'false', 'aria-controls' => $painel,
+        ]));
+        $alvo->add($rotulo);
+        $lista = new TElement('div');
+        $lista->{'class'} = 'fast-drop-open topo-notificacoes-painel';
+        $lista->id = $painel;
+        $lista->add(TElement::tag('div', '', ['class' => 'topo-notificacoes-status', 'role' => 'status']));
+        $lista->add(TElement::tag('div', '<i class="fas fa-plug" aria-hidden="true" style="width:auto;margin-right:6px;color:#b45309;"></i>'
+            . htmlspecialchars($motivo, ENT_QUOTES, 'UTF-8'), ['class' => 'topo-integracao-motivo',
+            'style' => 'padding:8px 6px;color:var(--text-color);white-space:normal;width:min(340px, 90vw);line-height:1.4;']));
+        $alvo->add($lista);
         TScript::create('BuilderTemplate.processFastDrop();');
     }
 
