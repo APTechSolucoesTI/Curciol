@@ -78,7 +78,7 @@ class ApchatApiService
     }
 
     const SAUDE_SEGUNDOS = 60;   // resultado da conferencia vale 1 min para todos os usuarios
-    const SAUDE_TIMEOUT = 3;     // a conferencia nunca segura o topo mais que isso
+    const SAUDE_TIMEOUT = 8;     // showcontact leva ~3 s no APChat (medido 16/11/2026); so 1 processo por minuto espera, o topo e em segundo plano
 
     /** @var bool|null testes: API no ar (true), fora (false) ou conferir de verdade (null) */
     private static $saudeForcada = null;
