@@ -57,9 +57,14 @@ $escritorio = function (?string $tokenApchat, ?string $tokenApmail) {
 };
 $balao = function (int $u) { TSession::setValue('userid', $u); return saida(function () { (new MessageList(['theme' => 'theme-builder']))->show(); }); };
 $envelope = function (int $u) { TSession::setValue('userid', $u); return saida(function () { (new MailList(['theme' => 'theme-builder']))->show(); }); };
-// icone bloqueado: sem contador, sem lista, sem endereco do sistema, com o motivo
+// icone bloqueado: sem contador, sem lista, sem endereco do sistema, com o motivo; balao no padrao do sino - titulo com o nome da
+// integracao e, no lugar do "Ver todos", "Fora de servico" (configurado, mas sem comunicacao) ou "Indisponivel" (o resto)
 $bloqueado = function (string $html, string $motivo) {
-    return strpos($html, 'topo-integracao-bloqueada') !== false && strpos($html, 'ball-notice') === false && strpos($html, 'data-count') === false
+    $nome = in_array($motivo, IntegracaoAcessoService::APCHAT, true) ? 'APChat' : 'APMail';
+    $rotulo = in_array($motivo, [IntegracaoAcessoService::APCHAT['erro'], IntegracaoAcessoService::APMAIL['indisponivel']], true)
+            ? IntegracaoAcessoService::FORA_DE_SERVICO : IntegracaoAcessoService::INDISPONIVEL;
+    return preg_match('/class="header"[^>]*>' . $nome . '</', $html) === 1 && strpos($html, '>' . $rotulo . '</a>') !== false
+        && strpos($html, '>Ver todos<') === false && strpos($html, 'topo-integracao-bloqueada') !== false && strpos($html, 'ball-notice') === false && strpos($html, 'data-count') === false
         && strpos($html, 'LinkExterno') === false && strpos($html, 'CurciolAbrirNotificacao') === false && strpos($html, '.invalid') === false
         && strpos($html, 'web+ap') === false && strpos($html, 'apchat.com.br') === false && strpos($html, 'apmail.com.br') === false && strpos($html, htmlspecialchars($motivo, ENT_QUOTES, 'UTF-8')) !== false;
 };

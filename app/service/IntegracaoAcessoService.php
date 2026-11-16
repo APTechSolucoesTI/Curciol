@@ -24,6 +24,23 @@ class IntegracaoAcessoService
         'nao_liberado'   => 'Seu e-mail de usuário do APMail não está liberado no APMail para esta integração.',
     ];
 
+    /**
+     * Rotulo do icone bloqueado (16/11/2026, no lugar do "Ver todos" do sino): "Fora de servico" quando esta tudo configurado e
+     * vinculado mas nao houve comunicacao (fora do ar, sem responder, token recusado); "Indisponivel" nos outros casos.
+     */
+    const FORA_DE_SERVICO = 'Fora de serviço';
+    const INDISPONIVEL = 'Indisponível';
+
+    public static function rotuloApchat(string $situacao): string
+    {
+        return $situacao === 'erro' ? self::FORA_DE_SERVICO : self::INDISPONIVEL;
+    }
+
+    public static function rotuloApmail(string $situacao): string
+    {
+        return $situacao === 'indisponivel' ? self::FORA_DE_SERVICO : self::INDISPONIVEL;
+    }
+
     /** Motivo do bloqueio do APChat para a situacao do balao; null = liberado. */
     public static function motivoApchat(string $situacao): ?string
     {

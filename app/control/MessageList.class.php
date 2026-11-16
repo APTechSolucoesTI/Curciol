@@ -32,7 +32,7 @@ class MessageList extends TElement
         $motivo = IntegracaoAcessoService::motivoApchat((string) $r['situacao']);
         if ($motivo !== null)
         {
-            self::bloqueado($this, LogoSistemaService::apchat(22), 'APChat', 'apchat-notificacoes', $motivo);
+            self::bloqueado($this, LogoSistemaService::apchat(22), 'APChat', 'apchat-indisponivel', $motivo, IntegracaoAcessoService::rotuloApchat((string) $r['situacao']));
             return;
         }
 
@@ -90,9 +90,10 @@ class MessageList extends TElement
 
     /**
      * Icone do topo bloqueado (16/11/2026; APChat e APMail): logo apagado, sem contador, sem endereco e sem lista - o clique so
-     * abre o balao com o motivo.
+     * abre o balao, no padrao do sino (titulo, divisor e, no lugar do "Ver todos", "Indisponivel" ou "Fora de servico"); o motivo
+     * fica no texto ao passar o mouse.
      */
-    public static function bloqueado(TElement $alvo, string $logo, string $nome, string $painel, string $motivo): void
+    public static function bloqueado(TElement $alvo, string $logo, string $nome, string $painel, string $motivo, string $rotulo): void
     {
         $alvo->class = 'fast-drop topo-integracao-bloqueada';
         $a = new TElement('a');
@@ -102,19 +103,21 @@ class MessageList extends TElement
         $a->{'aria-label'} = $nome . ' indisponível: ' . $motivo;
         $a->onclick = "var b=this.closest('.fast-drop').querySelector('.topo-notificacoes-alternar');if(b){b.click();}return false;";
         $a->add(TElement::tag('span', $logo, ['style' => 'display:inline-flex;filter:grayscale(1);opacity:.45;']));
-        $rotulo = TElement::tag('div', $a, ['class' => 'fast-drop-label']);
-        $rotulo->add(TElement::tag('button', '<i class="fas fa-chevron-down" aria-hidden="true"></i>', [
+        $etiqueta = TElement::tag('div', $a, ['class' => 'fast-drop-label']);
+        $etiqueta->add(TElement::tag('button', '<i class="fas fa-chevron-down" aria-hidden="true"></i>', [
             'type' => 'button', 'class' => 'topo-notificacoes-alternar', 'aria-label' => 'Notificações do ' . $nome,
             'aria-expanded' => 'false', 'aria-controls' => $painel,
         ]));
-        $alvo->add($rotulo);
+        $alvo->add($etiqueta);
+        // mesmo balao do sino (NotificationList): titulo e o "link" do rodape; a classe do painel deixa o clique (celular) abrir,
+        // e o id proprio nao herda a largura do balao completo
         $lista = new TElement('div');
         $lista->{'class'} = 'fast-drop-open topo-notificacoes-painel';
+        $lista->{'style'} = 'min-width:170px;';
         $lista->id = $painel;
-        $lista->add(TElement::tag('div', '', ['class' => 'topo-notificacoes-status', 'role' => 'status']));
-        $lista->add(TElement::tag('div', '<i class="fas fa-plug" aria-hidden="true" style="width:auto;margin-right:6px;color:#b45309;"></i>'
-            . htmlspecialchars($motivo, ENT_QUOTES, 'UTF-8'), ['class' => 'topo-integracao-motivo',
-            'style' => 'padding:8px 6px;color:var(--text-color);white-space:normal;width:min(340px, 90vw);line-height:1.4;']));
+        $lista->add(TElement::tag('div', $nome, ['class' => 'header']));
+        $lista->add(TElement::tag('a', $rotulo, ['class' => 'topo-integracao-rotulo', 'title' => $motivo, 'aria-label' => $rotulo . ': ' . $motivo,
+                                                'role' => 'status', 'style' => 'cursor:default;', 'onclick' => 'return false;']));
         $alvo->add($lista);
         TScript::create('BuilderTemplate.processFastDrop();');
     }

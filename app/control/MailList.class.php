@@ -36,7 +36,7 @@ class MailList extends TElement
         $motivo = IntegracaoAcessoService::motivoApmail((string) $r['situacao']);
         if ($motivo !== null)
         {
-            MessageList::bloqueado($this, LogoSistemaService::apmail(22), 'APMail', 'apmail-notificacoes', $motivo);
+            MessageList::bloqueado($this, LogoSistemaService::apmail(22), 'APMail', 'apmail-indisponivel', $motivo, IntegracaoAcessoService::rotuloApmail((string) $r['situacao']));
             return;
         }
 
