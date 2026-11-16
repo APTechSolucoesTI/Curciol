@@ -6,7 +6,8 @@
  * Para cada confirmacao enviada que ainda espera resposta, le no banco do APChat a conversa do numero depois do envio.
  * As respostas sao do template de confirmacao (Configuracoes > Template, 04/11/2026): a que confirma e a que cancela,
  * ignorando maiusculas, minusculas e acentos ou nao, e a mensagem de cada caso. Contam ate 3 mensagens SEGUIDAS do cliente e todas
- * tem de ser a mesma decisao; espaco, pontuacao e emoji em volta da resposta nao importam.
+ * tem de ser a mesma decisao; espaco, pontuacao e emoji em volta da resposta nao importam. Botao de resposta rapida (WABA,
+ * 16/11/2026) vale pelo texto do botao, sempre ignorando maiusculas e acentos.
  *   - resposta que confirma: agendamento Confirmado (com o atendimento, como o Confirmar da equipe) e a mensagem do fluxo;
  *   - resposta que cancela: agendamento Cancelado e a mensagem do fluxo;
  *   - frase, saudacao (ate automatica) ou mistura, mesmo com SIM/NAO depois: nada automatico, o agendamento fica em
@@ -61,6 +62,16 @@ class ApchatRespostaService
         $t = preg_replace('/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/u', '', $t);
 
         return $ignorarMaiusculas ? mb_strtolower(TratamentosService::removerAcentos($t)) : $t;
+    }
+
+    /**
+     * Resposta por botao de resposta rapida (16/11/2026). No WABA o toque no botao chega como mensagem do cliente com
+     * mediaType "button" (template) ou "interactive" (botoes interativos) e body = texto do botao (conferido no app1:
+     * button | Confirmar). Vale como se o cliente tivesse digitado o texto do botao.
+     */
+    public static function ehBotao(array $mensagem): bool
+    {
+        return in_array(strtolower((string) ($mensagem['mediaType'] ?? '')), ['button', 'interactive'], true);
     }
 
     /** A resposta para mostrar: sem a assinatura "*Nome*:" de quem responde por um sistema de atendimento. */
@@ -259,9 +270,11 @@ class ApchatRespostaService
             TSession::setValue('userid', (int) $p['system_user_id']);
             TSession::setValue('userunitid', (int) $agendamento->agenda->escritorio->system_unit_id);
 
-            // todas as mensagens seguidas tem de ser so a mesma palavra
+            // todas as mensagens seguidas tem de ser so a mesma palavra; o botao vale pelo texto dele, sempre ignorando
+            // maiusculas e acentos (o cliente nao digita o rotulo: "Sim" do botao e o "sim" da lista sao a mesma resposta)
             $tipos = array_unique(array_map(function ($r) use ($p) {
-                return self::classificar($r['body'] ?? '', (string) $p['respostas_confirmar'], (string) $p['respostas_cancelar'], $p['ignorar_maiusculas'] !== 'F');
+                return self::classificar($r['body'] ?? '', (string) $p['respostas_confirmar'], (string) $p['respostas_cancelar'],
+                    self::ehBotao($r) || $p['ignorar_maiusculas'] !== 'F');
             }, $respostas));
             $tipo = count($tipos) === 1 ? reset($tipos) : self::OUTRA;
             $mensagem->resposta = $tipo;

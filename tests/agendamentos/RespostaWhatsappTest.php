@@ -46,6 +46,10 @@ ApchatBancoService::usarFalso($banco);
 $responde = function (string $numero, string $texto) use ($banco) {
     $banco->respostas[$numero][] = ['id' => 1, 'body' => $texto, 'mediaType' => 'chat', 'fromMe' => false, 'createdAt' => date('Y-m-d H:i:s')];
 };
+// toque no botao de resposta rapida (WABA): o APChat grava mediaType "button" e o texto do botao no body (app1, 16/11/2026)
+$botao = function (string $numero, string $texto, string $tipo = 'button') use ($banco) {
+    $banco->respostas[$numero][] = ['id' => 3, 'body' => $texto, 'mediaType' => $tipo, 'fromMe' => false, 'createdAt' => date('Y-m-d H:i:s')];
+};
 // mensagem nossa na conversa: atendente pelo APChat ou a copia, no canal oficial, do texto enviado pela Curciol
 $nossa = function (string $numero, string $texto) use ($banco) {
     $banco->respostas[$numero][] = ['id' => 2, 'body' => $texto, 'mediaType' => 'chat', 'fromMe' => true, 'createdAt' => date('Y-m-d H:i:s')];
@@ -137,6 +141,19 @@ try {
     igual('NAO: resposta registrada', 'NAO', $resposta($mNao)['resposta']);
     igual('NAO: mensagem de agradecimento', 1, count($enviadas));
     ok('NAO: texto do agradecimento', strpos($enviadas[0]['body'] ?? '', 'Obrigado por avisar') !== false, $enviadas[0]['body'] ?? '');
+
+    // ---------- botoes de resposta rapida (WABA): o texto do botao vale como a resposta ----------
+    ok('botao: button e interactive sao botao', ApchatRespostaService::ehBotao(['mediaType' => 'button']) && ApchatRespostaService::ehBotao(['mediaType' => 'interactive']));
+    ok('botao: texto digitado nao e botao', !ApchatRespostaService::ehBotao(['mediaType' => 'chat']) && !ApchatRespostaService::ehBotao([]));
+    [$agBotaoSim, $mBotaoSim] = $novo('BOTAO SIM', '5519912340060');
+    [$agBotaoNao, $mBotaoNao] = $novo('BOTAO NAO', '5519912340061');
+    $botao('5519912340060', 'Sim');
+    $botao('5519912340061', 'Não', 'interactive');
+    $enviadas = [];
+    $rodar();
+    igual('botao Sim: confirmado', [EstadoAgenda::CONFIRMADO, 'SIM', 'Sim'], [$estado($agBotaoSim), $resposta($mBotaoSim)['resposta'], $resposta($mBotaoSim)['resposta_texto']]);
+    igual('botao Não: cancelado', [EstadoAgenda::CANCELADO, 'NAO'], [$estado($agBotaoNao), $resposta($mBotaoNao)['resposta']]);
+    igual('botao: as duas mensagens automaticas', 2, count($enviadas));
 
     // ---------- frase, saudacao ou mistura, mesmo com SIM/NAO depois: nao confirma nem cancela (usuario, 04/11/2026) ----------
     $semDecisao = [
@@ -448,6 +465,17 @@ try {
         $responde('5519912340041', 'confirmo');
         $rodar();
         igual('fluxo: sem ignorar maiusculas, minuscula nao confirma', EstadoAgenda::AGENDADO, $estado($agFluxo2));
+        // botao: o rotulo vale sempre ignorando maiusculas e acentos, mesmo com o fluxo sem ignorar
+        [$agFluxoBotao, $mFluxoBotao] = $novo('FLUXO BOTAO', '5519912340043');
+        x("UPDATE mensagem SET template_escritorio_id = {$tFluxo} WHERE id = {$mFluxoBotao}");
+        $botao('5519912340043', 'CONFIRMO');
+        $rodar();
+        igual('fluxo: botao confirma mesmo sem ignorar maiusculas', EstadoAgenda::CONFIRMADO, $estado($agFluxoBotao));
+        [$agFluxoBotao2, $mFluxoBotao2] = $novo('FLUXO BOTAO 2', '5519912340044');
+        x("UPDATE mensagem SET template_escritorio_id = {$tFluxo} WHERE id = {$mFluxoBotao2}");
+        $botao('5519912340044', 'Sim');
+        $rodar();
+        igual('fluxo: botao com texto fora da lista nao decide', [EstadoAgenda::AGENDADO, 'OUTRA'], [$estado($agFluxoBotao2), $resposta($mFluxoBotao2)['resposta']]);
         x("UPDATE template_escritorio SET template = '   ' WHERE id = {$tOk}");
         [$agVazio, $mVazio] = $novo('FLUXO VAZIO', '5519912340042');
         x("UPDATE mensagem SET template_escritorio_id = {$tFluxo} WHERE id = {$mVazio}");
