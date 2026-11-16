@@ -160,7 +160,11 @@ class ApchatBalaoService
     {
         $c = TTransaction::get();
         if (!$c) { return []; }
-        return array_map('intval', $c->query("SELECT DISTINCT apchat_usuario_id FROM apchat_usuario WHERE apchat_usuario_id IS NOT NULL AND avisos = 'S'")->fetchAll(PDO::FETCH_COLUMN));
+        // 16/11/2026: so os atendentes ligados no servidor do APChat em uso
+        $st = $c->prepare("SELECT DISTINCT apchat_usuario_id FROM apchat_usuario WHERE apchat_usuario_id IS NOT NULL AND avisos = 'S'
+                              AND (COALESCE(btrim(apchat_servidor), '') = '' OR lower(apchat_servidor) = ?)");
+        $st->execute([ApchatUsuarioService::servidor()]);
+        return array_map('intval', $st->fetchAll(PDO::FETCH_COLUMN));
     }
 
     public static function invalidarEstado(): void

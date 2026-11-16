@@ -13,6 +13,7 @@ class ApchatUsuario extends TRecord
         parent::__construct($id, $callObjectLoad);
         parent::addAttribute('system_user_id');
         parent::addAttribute('apchat_usuario_id');
+        parent::addAttribute('apchat_servidor'); // 16/11/2026: de qual APChat e o atendente (host da URL da API)
         parent::addAttribute('avisos');
         parent::addAttribute('mostrar_abertos');
         parent::addAttribute('atualizado_em');

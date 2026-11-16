@@ -61,7 +61,8 @@ class ApchatUsuarioList extends TPage
         TTransaction::open('escritorio');
         $usuarios = TTransaction::get()->query("SELECT id, name, email FROM system_users WHERE active = 'Y' ORDER BY name")->fetchAll(PDO::FETCH_ASSOC);
         $ligacoes = [];
-        foreach (ApchatUsuario::where('id', '>', 0)->load() ?: [] as $l) { $ligacoes[(int) $l->system_user_id] = $l; }
+        // 16/11/2026: vinculo de outro servidor do APChat aparece sem atendente (doUsuario)
+        foreach (ApchatUsuario::where('id', '>', 0)->load() ?: [] as $l) { $ligacoes[(int) $l->system_user_id] = ApchatUsuarioService::doUsuario((int) $l->system_user_id); }
         $apmail = [];
         foreach (ApmailUsuario::where('id', '>', 0)->load() ?: [] as $l) { $apmail[(int) $l->system_user_id] = $l; }
         $conferir = !empty($param['conferir']) ? self::conferirApmail($usuarios) : [];

@@ -60,10 +60,11 @@ class ApchatUsuarioService
         $atendentes = ApchatBancoService::atendentes();
         $usuarios = TTransaction::get()->query("SELECT id, name, email, active FROM system_users ORDER BY id")->fetchAll(PDO::FETCH_ASSOC);
         // quem ja tem registro (ligado ou desligado a mao) nao muda; so os nunca configurados entram no automatico
+        // 16/11/2026: so conta o que foi decidido NESTE servidor do APChat (vinculo de outro servidor = nunca configurado aqui)
         $jaLigados = [];
         foreach (ApchatUsuario::where('id', '>', 0)->load() ?: [] as $l)
         {
-            $jaLigados[(int) $l->system_user_id] = (int) $l->apchat_usuario_id;
+            if (self::doServidorAtual($l)) { $jaLigados[(int) $l->system_user_id] = (int) $l->apchat_usuario_id; }
         }
         $novos = self::casar($atendentes, $usuarios, $jaLigados);
         foreach ($novos as $usuario => $atendente)
@@ -78,7 +79,11 @@ class ApchatUsuarioService
     {
         if ($apchatUsuarioId)
         {
-            $outro = ApchatUsuario::where('apchat_usuario_id', '=', $apchatUsuarioId)->where('system_user_id', '<>', $systemUserId)->first();
+            $outro = null;
+            foreach (ApchatUsuario::where('apchat_usuario_id', '=', $apchatUsuarioId)->where('system_user_id', '<>', $systemUserId)->load() ?: [] as $o)
+            {
+                if (self::doServidorAtual($o)) { $outro = $o; break; }
+            }
             if ($outro)
             {
                 $dono = SystemUsers::find((int) $outro->system_user_id);
@@ -87,8 +92,22 @@ class ApchatUsuarioService
         }
         $l = self::registro($systemUserId);
         $l->apchat_usuario_id = $apchatUsuarioId ?: null;
+        $l->apchat_servidor = self::servidor() ?: null;
         $l->atualizado_em = date('Y-m-d H:i:s');
         $l->store();
+    }
+
+    /** Servidor do APChat em uso (host da URL da API do Escritorio; 16/11/2026). */
+    public static function servidor(): string
+    {
+        return ApchatBancoService::servidorDaIntegracao();
+    }
+
+    /** O vinculo e do servidor em uso? (NULL = vinculo antigo, vale para o atual) */
+    private static function doServidorAtual(ApchatUsuario $l): bool
+    {
+        $s = trim((string) $l->apchat_servidor);
+        return $s === '' || strtolower($s) === self::servidor();
     }
 
     public static function preferencias(int $systemUserId, bool $avisos, bool $mostrarAbertos): void
@@ -100,14 +119,29 @@ class ApchatUsuarioService
         $l->store();
     }
 
+    /**
+     * Vinculo do usuario PARA LER (balao, cliques, historico, telas): atendente de outro servidor do APChat vem sem atendente
+     * (16/11/2026: no outro servidor o mesmo numero e outra pessoa). Copia: nunca gravar o que esta funcao devolve.
+     */
     public static function doUsuario(int $systemUserId): ?ApchatUsuario
+    {
+        $l = self::registroGravado($systemUserId);
+        if ($l && !self::doServidorAtual($l))
+        {
+            $l = clone $l;
+            $l->apchat_usuario_id = null;
+        }
+        return $l;
+    }
+
+    private static function registroGravado(int $systemUserId): ?ApchatUsuario
     {
         return ApchatUsuario::where('system_user_id', '=', $systemUserId)->first() ?: null;
     }
 
     private static function registro(int $systemUserId): ApchatUsuario
     {
-        $l = self::doUsuario($systemUserId);
+        $l = self::registroGravado($systemUserId);
         if (!$l)
         {
             $l = new ApchatUsuario();
