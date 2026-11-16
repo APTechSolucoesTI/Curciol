@@ -48,9 +48,10 @@ class TopoAbrir
         if ($tipo === 'caixa') { return self::caixa($id, $usuario); }
         if ($tipo !== 'ticket' && $tipo !== 'chat') { return self::nao('Item desconhecido.'); }
 
-        if (!ApchatApiService::configurada() || !ApchatBancoService::configurado())
+        $config = IntegracaoAcessoService::configuracaoApchat();
+        if ($config !== 'ok')
         {
-            return self::nao(IntegracaoAcessoService::APCHAT['sem_integracao'], true);
+            return self::nao((string) IntegracaoAcessoService::motivoApchat($config), true);
         }
         $ligacao = ApchatUsuarioService::doUsuario($usuario);
         if (!$ligacao || !$ligacao->apchat_usuario_id)

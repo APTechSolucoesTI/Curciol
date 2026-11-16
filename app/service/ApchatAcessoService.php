@@ -76,7 +76,7 @@ class ApchatAcessoService
 
     public static function limpar(): void
     {
-        foreach (glob(self::arquivo('*')) ?: [] as $f) { @unlink($f); }
+        foreach (glob(sys_get_temp_dir() . '/curciol-apchat-acesso-' . md5(__DIR__) . '-*') ?: [] as $f) { @unlink($f); }
     }
 
     private static function cache(string $chave, callable $ler): array
@@ -103,6 +103,7 @@ class ApchatAcessoService
 
     private static function arquivo(string $chave): string
     {
-        return sys_get_temp_dir() . '/curciol-apchat-acesso-' . md5(__DIR__) . '-' . $chave . '.json';
+        // 16/11/2026: por banco do APChat - trocar de banco/empresa nao reaproveita os acessos do anterior
+        return sys_get_temp_dir() . '/curciol-apchat-acesso-' . md5(__DIR__) . '-' . ApchatBancoService::assinatura() . '-' . $chave . '.json';
     }
 }

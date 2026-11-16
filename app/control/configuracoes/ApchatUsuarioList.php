@@ -22,9 +22,11 @@ class ApchatUsuarioList extends TPage
         $this->form = new BootstrapFormBuilder(self::$formName);
         $this->form->setFormTitle('Usuários das integrações');
 
+        // 16/11/2026: so com a integracao do Escritorio e o banco do APChat da mesma empresa (senao ligaria aos atendentes de outra)
+        $configApchat = IntegracaoAcessoService::naTransacao(function () { return IntegracaoAcessoService::configuracaoApchat(); }, 'erro');
         try
         {
-            $atendentes = ApchatBancoService::configurado() && ApchatBancoService::disponivel() ? ApchatBancoService::atendentes() : null;
+            $atendentes = $configApchat === 'ok' && ApchatBancoService::disponivel() ? ApchatBancoService::atendentes() : null;
         }
         catch (Throwable $e)
         {
@@ -42,7 +44,9 @@ class ApchatUsuarioList extends TPage
         {
             $aviso = new TElement('div');
             $aviso->class = 'alert alert-warning';
-            $aviso->add('O banco do APChat não respondeu: os usuários do APChat não podem ser trocados agora (o APMail pode). ' . htmlspecialchars(ApchatBancoService::erro(), ENT_QUOTES, 'UTF-8'));
+            $aviso->add($configApchat !== 'ok' && $configApchat !== 'erro'
+                ? htmlspecialchars((string) IntegracaoAcessoService::motivoApchat($configApchat), ENT_QUOTES, 'UTF-8') . ' Os usuários do APChat não podem ser trocados agora (o APMail pode).'
+                : 'O banco do APChat não respondeu: os usuários do APChat não podem ser trocados agora (o APMail pode). ' . htmlspecialchars(ApchatBancoService::erro(), ENT_QUOTES, 'UTF-8'));
             $this->form->addContent([$aviso]);
         }
         $opcoes = [];
@@ -223,8 +227,13 @@ class ApchatUsuarioList extends TPage
         try
         {
             $partes = [];
-            // APChat: so com o banco do APChat respondendo
-            if (ApchatBancoService::configurado() && ApchatBancoService::disponivel())
+            // APChat: so com o banco do APChat respondendo e da mesma empresa da integracao do Escritorio (16/11/2026)
+            $configApchat = IntegracaoAcessoService::naTransacao(function () { return IntegracaoAcessoService::configuracaoApchat(); }, 'erro');
+            if ($configApchat !== 'ok' && $configApchat !== 'erro')
+            {
+                $partes[] = 'APChat: ' . IntegracaoAcessoService::motivoApchat($configApchat);
+            }
+            elseif ($configApchat === 'ok' && ApchatBancoService::disponivel())
             {
                 TTransaction::open('escritorio');
                 $n = ApchatUsuarioService::ligarAutomatico();

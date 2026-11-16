@@ -44,10 +44,12 @@ class ApchatBalaoService
     {
         $vazio = ['abertos' => [], 'pendentes' => [], 'chat' => [], 'chat_situacao' => 'ok', 'total_atendimentos' => 0, 'total_chat' => 0, 'total' => 0];
 
-        // 16/11/2026: sem URL/token no escritorio (ou sem o banco configurado) nao conecta em nada
-        if (!ApchatApiService::configurada() || !ApchatBancoService::configurado())
+        // 16/11/2026: sem URL/token no escritorio (ou sem o banco) nao conecta em nada; integracao de outra empresa que a do banco
+        // (trocaram URL/token) nao mostra nada do banco
+        $config = IntegracaoAcessoService::configuracaoApchat();
+        if ($config !== 'ok')
         {
-            return ['situacao' => 'sem_integracao'] + $vazio;
+            return ['situacao' => $config] + $vazio;
         }
         $ligacao = ApchatUsuarioService::doUsuario($systemUserId);
         if (!$ligacao || !$ligacao->apchat_usuario_id)
@@ -288,7 +290,8 @@ class ApchatBalaoService
 
     private static function arquivoCache(): string
     {
-        return sys_get_temp_dir() . '/curciol-apchat-balao-' . md5(__DIR__) . '.json';
+        // 16/11/2026: por banco do APChat - trocar de banco/empresa nunca mostra o estado do anterior
+        return sys_get_temp_dir() . '/curciol-apchat-balao-' . md5(__DIR__) . '-' . ApchatBancoService::assinatura() . '.json';
     }
 
     private static function item(array $t): array

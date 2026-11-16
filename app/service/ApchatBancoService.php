@@ -96,6 +96,24 @@ class ApchatBancoService
         return is_array($lista) ? array_values($lista) : null;
     }
 
+    /**
+     * Assinatura do banco do APChat configurado (servidor, porta, banco e usuario; nunca a senha) para os caches (16/11/2026):
+     * trocar de banco/empresa nunca reaproveita o que foi lido do anterior. Banco falso dos testes: "falso".
+     */
+    public static function assinatura(): string
+    {
+        if (self::$falso) { return 'falso-' . spl_object_id(self::$falso); }
+        if (!is_file(self::$config)) { return 'sem-banco'; }
+        $c = include self::$config;
+        return is_array($c) ? substr(hash('sha256', implode("\n", [$c['host'] ?? '', $c['port'] ?? '', $c['name'] ?? '', $c['user'] ?? ''])), 0, 16) : 'sem-banco';
+    }
+
+    /** Testes estao usando o banco falso? (nada de guardar em arquivo o que o falso respondeu) */
+    public static function emTeste(): bool
+    {
+        return self::$falso !== null;
+    }
+
     private static function conn(): PDO
     {
         if (self::$conn) { return self::$conn; }
@@ -469,6 +487,20 @@ class ApchatBancoService
         $configs = $u ? json_decode((string) $u['configs'], true) : null;
         return ['canais' => $canais, 'filas' => $filas, 'perfil' => $u ? $u['profile'] : null, 'configs' => is_array($configs) ? $configs : [],
                 'ver_todos' => $u ? ($u['ver_todos'] === true || $u['ver_todos'] === 't') : false, 'existe' => $u !== null];
+    }
+
+    /**
+     * A integracao da API externa (o codigo no fim de .../v2/api/external/<id>, URL do Escritorio) e da empresa deste banco e esta
+     * ativa? (16/11/2026: trocar URL/token para outra empresa nao pode mostrar o APChat da antiga.) Lanca excecao se nao der para
+     * conferir (banco fora, funcao ainda nao instalada). Banco falso dos testes: sim, salvo se o falso disser outra coisa.
+     */
+    public static function integracaoDaEmpresa(string $id): bool
+    {
+        if (self::$falso) { return method_exists(self::$falso, 'integracaoDaEmpresa') ? (bool) self::$falso->integracaoDaEmpresa($id) : true; }
+        $st = self::conn()->prepare('SELECT curciol.f_integracao(?)');
+        $st->execute([$id]);
+        $v = $st->fetchColumn();
+        return $v === true || $v === 't' || $v === 1 || $v === '1';
     }
 
     /** Configuracoes da empresa no APChat que mudam quem ve o que (texto como o APChat guarda: enabled/disabled). */

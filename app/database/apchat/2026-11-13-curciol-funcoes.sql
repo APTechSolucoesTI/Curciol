@@ -320,6 +320,24 @@ AS $$
 $$;
 
 -- tudo o que a Curciol le, testado agora: vazio = OK; cada linha = o que falhou
+-- integracao (16/11/2026): a integracao da API externa do Escritorio da Curciol (o codigo no fim de .../v2/api/external/<id>) e
+-- desta empresa e esta ativa? A Curciol confere antes de mostrar o APChat: URL/token de outra empresa = nada aparece.
+-- So responde sim/nao (o token nunca sai daqui).
+CREATE OR REPLACE FUNCTION curciol.f_integracao(p_id text) RETURNS boolean
+    LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp
+AS $$
+DECLARE
+    v_ok boolean;
+BEGIN
+    IF p_id IS NULL OR p_id !~ '^[0-9a-fA-F-]{36}$' OR to_regclass('public."ApiConfigs"') IS NULL THEN
+        RETURN false;
+    END IF;
+    EXECUTE format('SELECT EXISTS (SELECT 1 FROM public."ApiConfigs" x WHERE x.id::text = %L AND x."tenantId" = %s
+                                     AND COALESCE((to_jsonb(x) ->> ''isActive'')::boolean, true))', lower(p_id), curciol.tenant()) INTO v_ok;
+    RETURN v_ok;
+END
+$$;
+
 CREATE OR REPLACE FUNCTION curciol.conferir()
 RETURNS TABLE (item text, erro text)
     LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = pg_catalog, pg_temp
@@ -342,7 +360,7 @@ BEGIN
             END IF;
         END LOOP;
     END LOOP;
-    FOREACH v_tab IN ARRAY ARRAY['Settings', 'Tenants', 'PrivateMessage', 'GroupMessages', 'UsersPrivateGroups', 'ReadPrivateMessageGroups'] LOOP
+    FOREACH v_tab IN ARRAY ARRAY['ApiConfigs', 'Settings', 'Tenants', 'PrivateMessage', 'GroupMessages', 'UsersPrivateGroups', 'ReadPrivateMessageGroups'] LOOP
         IF to_regclass(format('public.%I', v_tab)) IS NULL THEN
             item := 'tabela'; erro := format('public."%s" nao existe', v_tab); RETURN NEXT;
         END IF;
@@ -361,7 +379,8 @@ BEGIN
         'SELECT count(*) FROM curciol.f_canais_atendentes()',
         'SELECT count(*) FROM curciol.f_carteiras(ARRAY[0])',
         'SELECT count(*) FROM (SELECT curciol.f_configuracoes()) x',
-        'SELECT count(*) FROM curciol.f_chat_nao_lidas(ARRAY[0])'] LOOP
+        'SELECT count(*) FROM curciol.f_chat_nao_lidas(ARRAY[0])',
+        'SELECT count(*) FROM (SELECT curciol.f_integracao(''00000000-0000-0000-0000-000000000000'')) x'] LOOP
         BEGIN
             EXECUTE v_sql INTO v_n;
         EXCEPTION WHEN OTHERS THEN
@@ -541,7 +560,7 @@ REVOKE ALL ON FUNCTION curciol.tenant(), curciol._defs(text), curciol._sel(text,
     curciol.f_contatos(integer[], varchar[]), curciol.f_tickets(integer[], integer[], boolean),
     curciol.f_mensagens(integer[], integer[], timestamptz, timestamptz), curciol.f_filas(), curciol.f_canais(), curciol.f_atendentes(),
     curciol.f_filas_atendentes(), curciol.f_canais_atendentes(), curciol.f_carteiras(integer[]), curciol.f_configuracoes(),
-    curciol.f_chat_nao_lidas(integer[]), curciol.dependencias(), curciol.conferir() FROM PUBLIC;
+    curciol.f_chat_nao_lidas(integer[]), curciol.f_integracao(text), curciol.dependencias(), curciol.conferir() FROM PUBLIC;
 -- de 10/11: espelho_do_numero le o espelho (nomes, numeros, CPF) como dono; so as travas usam
 SELECT format('REVOKE ALL ON FUNCTION %s FROM PUBLIC', f) FROM unnest(ARRAY['curciol.espelho_do_numero(text)', 'curciol.variantes_numero(text)']) f
  WHERE to_regprocedure(f) IS NOT NULL \gexec
@@ -550,6 +569,6 @@ SELECT format('GRANT EXECUTE ON FUNCTION curciol.tenant(), curciol._defs(text), 
     curciol.f_contatos(integer[], varchar[]), curciol.f_tickets(integer[], integer[], boolean),
     curciol.f_mensagens(integer[], integer[], timestamptz, timestamptz), curciol.f_filas(), curciol.f_canais(), curciol.f_atendentes(),
     curciol.f_filas_atendentes(), curciol.f_canais_atendentes(), curciol.f_carteiras(integer[]), curciol.f_configuracoes(),
-    curciol.f_chat_nao_lidas(integer[]), curciol.dependencias(), curciol.conferir() TO %I', :'papel') \gexec
+    curciol.f_chat_nao_lidas(integer[]), curciol.f_integracao(text), curciol.dependencias(), curciol.conferir() TO %I', :'papel') \gexec
 SELECT format('GRANT SELECT ON curciol.contatos, curciol.tickets, curciol.mensagens, curciol.filas, curciol.atendentes, curciol.canais,
     curciol.filas_atendentes, curciol.canais_atendentes TO %I', :'papel') \gexec

@@ -13,8 +13,13 @@ function q1(string $sql) { TTransaction::open('escritorio'); $r = TTransaction::
 function x1(string $sql, array $p = []): void { TTransaction::open('escritorio'); TTransaction::get()->prepare($sql)->execute($p); TTransaction::close(); }
 
 // ---------- APChat falso: um ticket pendente e um aberto com o atendente 9001; o 9003 nao existe mais ----------
+const INTEGRACAO_TESTE = '00000000-0000-4000-8000-00000000c0de';
 $falso = new class {
-    public $tentativas = 0; public $fora = false;
+    public $tentativas = 0; public $fora = false; public $empresa = true; // true/false ou 'sem funcao'
+    public function integracaoDaEmpresa(string $id) {
+        if ($this->empresa === 'sem funcao') { throw new Exception('SQLSTATE[42883]: function curciol.f_integracao(unknown) does not exist'); }
+        return $this->empresa && $id === INTEGRACAO_TESTE;
+    }
     private function t(int $id, string $status, ?int $user): array {
         return ['id' => $id, 'status' => $status, 'contactId' => $id + 1000, 'userId' => $user, 'queueId' => null, 'whatsappId' => 112, 'contato' => "Cliente {$id}",
                 'atendente' => null, 'numero' => '551990000000' . $id, 'canal' => 'Oficial', 'fila' => null, 'ultima_nossa' => false, 'nao_respondidas' => 1,
@@ -51,7 +56,7 @@ $sufixo = bin2hex(random_bytes(4));
 
 $escritorio = function (?string $tokenApchat, ?string $tokenApmail) {
     x1('UPDATE escritorio SET url_apchat = ?, token_apchat = ?, url_apmail = ?, token_apmail = ?',
-       [$tokenApchat === null ? null : 'https://apchat.teste.invalid/v2/api/external/x', $tokenApchat, 'https://apmail.teste.invalid', $tokenApmail]);
+       [$tokenApchat === null ? null : 'https://apchat.teste.invalid/v2/api/external/' . INTEGRACAO_TESTE, $tokenApchat, 'https://apmail.teste.invalid', $tokenApmail]);
     ApchatBalaoService::limparCache();
     ApmailEnvelopeService::limparCache();
 };
@@ -119,6 +124,38 @@ try
     $falso->fora = false;
     ApchatBalaoService::limparCache();
     ok('APChat de volta: balao normal de novo', preg_match('/data-count="[1-9]/', $balao($u1)) === 1);
+
+    // integracao do Escritorio de outra empresa que o banco (trocaram URL/token): nada do banco aparece, nem para quem esta vinculado
+    $falso->empresa = false;
+    ok('outra empresa: icone limpo, Indisponivel, com o motivo', $bloqueado($balao($u1), IntegracaoAcessoService::APCHAT['outra_empresa']), $balao($u1));
+    igual('outra empresa: clique recusa', IntegracaoAcessoService::APCHAT['outra_empresa'], $decidir(['tipo' => 'ticket', 'id' => '2'], $u1)['mensagem'] ?? null);
+    TSession::setValue('userid', $u1);
+    $botao = saida(function () { ApchatTicketView::botaoAbrir(2, 'https://apchat.teste.invalid/atendimento?ticketId=2')->show(); });
+    ok('outra empresa: botao do historico desabilitado', strpos($botao, 'disabled') !== false && strpos($botao, 'teste.invalid') === false, $botao);
+    $tela = saida(function () { (new ApchatUsuarioList([]))->show(); });
+    ok('outra empresa: Usuarios das integracoes nao lista os atendentes do banco', strpos($tela, htmlspecialchars(IntegracaoAcessoService::APCHAT['outra_empresa'], ENT_QUOTES, 'UTF-8')) !== false
+        && preg_match('/name="apchat_disponivel"[^>]*value="0"|value="0"[^>]*name="apchat_disponivel"/', $tela) === 1, substr(strip_tags($tela), 0, 400));
+    $falso->empresa = 'sem funcao';
+    ok('banco sem a funcao nova: Indisponivel, pedindo atualizar as funcoes', $bloqueado($balao($u1), IntegracaoAcessoService::APCHAT['sem_conferencia']), $balao($u1));
+    $falso->empresa = true;
+    x1('UPDATE escritorio SET url_apchat = ?', ['https://apchat.teste.invalid/v2/api/external/sem-codigo']);
+    ok('URL sem o codigo da integracao: Indisponivel', $bloqueado($balao($u1), IntegracaoAcessoService::APCHAT['outra_empresa']), $balao($u1));
+    $escritorio('tk-' . $sufixo, null);
+    ok('mesma empresa de novo: balao normal', preg_match('/data-count="[1-9]/', $balao($u1)) === 1);
+
+    // outro banco do APChat: nada do estado guardado do anterior aparece
+    $vazio = new class {
+        public function disponivel() { return true; }
+        public function impressaoTickets(): string { return 'vazio'; }
+        public function ticketsAbertosComUltima(): array { return []; }
+        public function acessos(int $a): array { return ['canais' => [], 'filas' => [], 'perfil' => 'user', 'configs' => [], 'ver_todos' => false, 'existe' => true]; }
+        public function configuracoes(): array { return []; }
+        public function chatNaoLidas(array $atendentes): array { return []; }
+    };
+    ApchatBancoService::usarFalso($vazio);
+    $outroBanco = $balao($u1);
+    ok('outro banco: nao mostra os tickets guardados do banco anterior', strpos($outroBanco, 'Cliente 2') === false && strpos($outroBanco, 'data-count="0"') !== false, substr($outroBanco, 0, 300));
+    ApchatBancoService::usarFalso($falso);
 
     // conferencia de verdade da API (com transporte falso): consulta que nao altera nada, uma vez por minuto para todos
     ApchatApiService::forcarSaude(null);
