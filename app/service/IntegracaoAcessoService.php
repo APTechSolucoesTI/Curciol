@@ -15,6 +15,7 @@ class IntegracaoAcessoService
         'erro'           => 'O APChat não está respondendo. Notificações e acessos ficam bloqueados até a conexão voltar.',
         'sem_ligacao'    => 'Seu usuário não está vinculado a um usuário do APChat (Administração › Usuários das integrações).',
         'sem_atendente'  => 'O usuário do APChat vinculado a você não existe mais no APChat (Administração › Usuários das integrações).',
+        'sem_servidor'   => 'O servidor do APChat da URL do Escritório não tem banco cadastrado na Curciol (app/config/apchat.php, no servidor). Notificações e acessos bloqueados.',
         'outra_empresa'  => 'A integração do Escritório (URL e token) não é da mesma empresa do banco do APChat ligado à Curciol. Notificações e acessos bloqueados até as duas configurações serem da mesma empresa.',
         'sem_conferencia' => 'Não foi possível conferir se a integração do Escritório é da mesma empresa do banco do APChat (as funções da Curciol no APChat precisam ser atualizadas). Notificações e acessos bloqueados.',
     ];
@@ -59,14 +60,23 @@ class IntegracaoAcessoService
 
     /**
      * Configuracao do APChat, que nao depende do usuario nem da API estar no ar: ok | sem_integracao (sem URL/token no Escritorio ou
-     * sem o banco) | outra_empresa (a integracao da URL nao e da empresa do banco: 16/11/2026, trocar URL/token para outra empresa
+     * sem o banco) | sem_servidor (banco escolhido pela URL: o servidor dela nao esta no app/config/apchat.php) | outra_empresa (a integracao da URL nao e da empresa do banco: 16/11/2026, trocar URL/token para outra empresa
      * nao pode mostrar o APChat da anterior) | sem_conferencia (o banco nao tem a funcao) | erro (banco fora, nao deu para conferir).
      * A conferencia da empresa fica guardada 1 min por URL e banco.
      */
     public static function configuracaoApchat(): string
     {
         $escritorio = ApchatApiService::escritorio();
-        if (!ApchatApiService::configurada($escritorio) || !ApchatBancoService::configurado())
+        if (!ApchatApiService::configurada($escritorio))
+        {
+            return 'sem_integracao';
+        }
+        // 16/11/2026: o banco e escolhido pelo servidor da URL (app/config/apchat.php, 'servidores')
+        if (ApchatBancoService::semServidor())
+        {
+            return 'sem_servidor';
+        }
+        if (!ApchatBancoService::configurado())
         {
             return 'sem_integracao';
         }

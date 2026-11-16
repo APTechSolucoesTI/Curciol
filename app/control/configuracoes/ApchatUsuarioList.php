@@ -38,6 +38,9 @@ class ApchatUsuarioList extends TPage
         $explica->add('<b>APChat:</b> cada usuário vê no balão do topo os tickets do usuário do APChat ligado a ele (um usuário do APChat só pode estar ligado a um usuário da Curciol). '
                     . '<b>APMail:</b> o envelope do topo mostra as caixas do e-mail de usuário do APMail (começa com o e-mail do cadastro do usuário). '
                     . 'Endereço e token das integrações ficam em Escritório › Configurações.');
+        // 16/11/2026: o banco do APChat e o do servidor da URL do Escritorio (app1, oficial...)
+        $servidor = ApchatBancoService::servidorDaIntegracao();
+        $explica->add('<br><b>APChat em uso:</b> ' . ($servidor !== '' ? htmlspecialchars($servidor, ENT_QUOTES, 'UTF-8') : 'nenhum (sem URL no Escritório)'));
         $this->form->addContent([$explica]);
 
         if ($atendentes === null)

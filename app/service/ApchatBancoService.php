@@ -13,6 +13,13 @@
  *
  * Sem o arquivo de configuracao (ou com o banco do APChat fora), disponivel() e false: o envio usa so a API (como
  * antes) e a troca de numero vai para a fila.
+ *
+ * Banco pela integracao do Escritorio (16/11/2026): app/config/apchat.php pode ter
+ *   'servidores' => ['api.apchat.com.br' => [host, port, name, user, pass], 'api1.apchat.com.br' => [...]]
+ * e a Curciol usa o banco do servidor da URL da API cadastrada no Escritorio (trocou a URL, trocou o banco). Servidor sem banco
+ * no arquivo = APChat Indisponivel. Cada banco so tem as funcoes da Curciol presas a tenancia dela (curciol.tenant()) e
+ * IntegracaoAcessoService confere (curciol.f_integracao) se a integracao da URL e dessa tenancia. Formato antigo (host/port/
+ * name/user/pass no topo do arquivo): um banco so, para qualquer URL (como antes). Senhas so neste arquivo, nunca no Escritorio.
  */
 class ApchatBancoService
 {
@@ -55,10 +62,42 @@ class ApchatBancoService
         self::$disponivel = null;
     }
 
-    /** Instalacao com o banco do APChat configurado (sem ele, o envio e so pela API, como antes). */
+    /** Instalacao com o banco do APChat configurado para a integracao do Escritorio (sem ele, o envio e so pela API, como antes). */
     public static function configurado(): bool
     {
-        return self::$falso !== null || (!self::$desligado && is_file(self::$config));
+        return self::$falso !== null || (!self::$desligado && self::dadosConexao() !== null);
+    }
+
+    /** O arquivo lista servidores, mas nao o da URL do Escritorio (16/11/2026). */
+    public static function semServidor(): bool
+    {
+        if (self::$falso !== null || self::$desligado || !is_file(self::$config)) { return false; }
+        $c = include self::$config;
+        return is_array($c) && isset($c['servidores']) && self::dadosConexao() === null;
+    }
+
+    /** Servidor (host) da URL da API do APChat cadastrada no Escritorio, minusculo; vazio sem URL. */
+    public static function servidorDaIntegracao(): string
+    {
+        $url = (string) IntegracaoAcessoService::naTransacao(function () { return ApchatApiService::url(ApchatApiService::escritorio()); }, '');
+        return strtolower((string) parse_url($url, PHP_URL_HOST));
+    }
+
+    /**
+     * Conexao do banco para a integracao do Escritorio: {host, port, name, user, pass} ou null. Lista 'servidores' = o do host
+     * da URL; formato antigo = o unico banco.
+     */
+    private static function dadosConexao(): ?array
+    {
+        if (!is_file(self::$config)) { return null; }
+        $c = include self::$config;
+        if (!is_array($c)) { return null; }
+        if (!isset($c['servidores']))
+        {
+            return isset($c['host']) ? $c : null;
+        }
+        $s = is_array($c['servidores']) ? ($c['servidores'][self::servidorDaIntegracao()] ?? null) : null;
+        return is_array($s) && isset($s['host']) ? $s : null;
     }
 
     /** O banco do APChat responde? (lembra a resposta ate o fim do pedido) */
@@ -103,9 +142,8 @@ class ApchatBancoService
     public static function assinatura(): string
     {
         if (self::$falso) { return 'falso-' . spl_object_id(self::$falso); }
-        if (!is_file(self::$config)) { return 'sem-banco'; }
-        $c = include self::$config;
-        return is_array($c) ? substr(hash('sha256', implode("\n", [$c['host'] ?? '', $c['port'] ?? '', $c['name'] ?? '', $c['user'] ?? ''])), 0, 16) : 'sem-banco';
+        $c = self::dadosConexao();
+        return $c ? substr(hash('sha256', implode("\n", [$c['host'] ?? '', $c['port'] ?? '', $c['name'] ?? '', $c['user'] ?? ''])), 0, 16) : 'sem-banco';
     }
 
     /** Testes estao usando o banco falso? (nada de guardar em arquivo o que o falso respondeu) */
@@ -117,11 +155,11 @@ class ApchatBancoService
     private static function conn(): PDO
     {
         if (self::$conn) { return self::$conn; }
-        if (!is_file(self::$config))
+        $c = self::dadosConexao();
+        if (!$c)
         {
-            throw new Exception('Conexão com o banco do APChat não configurada (' . self::$config . ').');
+            throw new Exception('Conexão com o banco do APChat não configurada para a integração do Escritório (' . self::$config . ').');
         }
-        $c = include self::$config;
         $dsn = sprintf('pgsql:host=%s;port=%s;dbname=%s;connect_timeout=5', $c['host'], $c['port'] ?? '5432', $c['name']);
         $pdo = new PDO($dsn, $c['user'], $c['pass'], [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC]);
         $pdo->exec("SET TIME ZONE 'America/Sao_Paulo'");
