@@ -7,7 +7,10 @@
  * Por tempo (dois marcos, por periodos - decisao de 13/11/2026): o tempo do processo (distribuicao -> levantamento)
  * fica dividido em 3 periodos e em cada um vale a divisao daquela coluna:
  *   percentual = a x antes + (p - a) x entre + (1 - p) x depois
- * a = fracao do tempo antes do 1o marco, p = fracao antes do 2o marco (meses completos), cada coluna soma 100%.
+ * a = fracao do tempo antes do 1o marco, p = fracao antes do 2o marco, cada coluna soma 100%.
+ * Tempo em dias corridos (decisao de 16/11/2026, "a forma mais justa"): cada dia do processo vale o mesmo; o dia da
+ * distribuicao conta, o do levantamento nao, e o dia do marco ja e do periodo seguinte. Antes era em meses completos
+ * (descartava o mes incompleto; a planilha ainda somava 30 dias ao levantamento).
  * O nivel diz em qual marco o percentual da pessoa muda: fixo (nao muda: entre e depois = antes), nivel 1 (entre = depois),
  * nivel 2 (entre = antes), nivel 1 e 2 (entre informado).
  * Sem banco: recebe e devolve arrays.
@@ -20,6 +23,7 @@ class ParceriaPercentualService
         return in_array($valor, [true, 1, 'S', 't'], true);
     }
 
+    /** Meses completos de $de ate $ate (regra ate 16/11/2026; hoje so informativo). */
     public static function mesesCompletos(string $de, string $ate): int
     {
         $d1 = new DateTime(substr($de, 0, 10));
@@ -30,14 +34,24 @@ class ParceriaPercentualService
         return max(0, $meses);
     }
 
+    /** Dias corridos de $de ate $ate (o dia de $de conta, o de $ate nao); 0 se $ate nao for depois. */
+    public static function diasCorridos(string $de, string $ate): int
+    {
+        $utc = new DateTimeZone('UTC');
+        $d1 = new DateTime(substr($de, 0, 10), $utc);
+        $d2 = new DateTime(substr($ate, 0, 10), $utc);
+        return ($d2 <= $d1) ? 0 : (int) $d1->diff($d2)->days;
+    }
+
+    /** Fracao do tempo do processo (distribuicao $g -> levantamento $x) antes do $marco, em dias corridos. */
     public static function fracaoAntes(string $g, string $x, string $marco): float
     {
         $g = substr($g, 0, 10); $x = substr($x, 0, 10); $marco = substr($marco, 0, 10);
         if ($g >= $marco) { return 0.0; }
         if ($x <= $marco) { return 1.0; }
-        $total = self::mesesCompletos($g, $x);
-        if ($total === 0) { return ($x < $marco) ? 1.0 : 0.0; }
-        return max(0.0, min(1.0, self::mesesCompletos($g, $marco) / $total));
+        $total = self::diasCorridos($g, $x);
+        if ($total === 0) { return 1.0; } // g < marco < x: nunca acontece, so por seguranca
+        return max(0.0, min(1.0, self::diasCorridos($g, $marco) / $total));
     }
 
     /** "peso dos períodos: antes do 1º marco X%, entre os marcos Y%, depois do 2º marco Z%" (a e p em fracao). */

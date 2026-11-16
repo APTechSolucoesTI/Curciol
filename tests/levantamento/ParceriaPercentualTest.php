@@ -8,13 +8,19 @@ igual('meses no mesmo mes', 0, $S::mesesCompletos('2026-09-02', '2026-09-27'));
 igual('meses dia ainda nao completo', 0, $S::mesesCompletos('2026-08-28', '2026-09-27'));
 igual('meses invertido vira 0', 0, $S::mesesCompletos('2026-10-01', '2026-09-01'));
 
-// Exemplo ID 13 do arquivo: G 01/01/2010, X 27/09/2026
-igual('a (ate 01/11/2016)', 82/200, $S::fracaoAntes('2010-01-01', '2026-09-27', '2016-11-01'));
-igual('p (ate 01/06/2018)', 101/200, $S::fracaoAntes('2010-01-01', '2026-09-27', '2018-06-01'));
+// dias corridos (16/11/2026): o dia da distribuicao conta, o do levantamento nao; ano bissexto com 366
+igual('dias 01/01/2010 a 27/09/2026', 6113, $S::diasCorridos('2010-01-01', '2026-09-27'));
+igual('dias no ano bissexto de 2016', 366, $S::diasCorridos('2016-01-01', '2017-01-01'));
+igual('dias invertido vira 0', 0, $S::diasCorridos('2026-10-01', '2026-09-01'));
+// Exemplo ID 13 do arquivo: G 01/01/2010, X 27/09/2026 (6.113 dias)
+igual('a (ate 01/11/2016) = 2.496 / 6.113 dias', 2496/6113, $S::fracaoAntes('2010-01-01', '2026-09-27', '2016-11-01'));
+igual('p (ate 01/06/2018) = 3.073 / 6.113 dias', 3073/6113, $S::fracaoAntes('2010-01-01', '2026-09-27', '2018-06-01'));
+igual('meio do mes conta (antes descartava): 10 dias de 20', 0.5, $S::fracaoAntes('2016-10-22', '2016-11-11', '2016-11-01'));
 igual('G depois do marco -> 0', 0.0, $S::fracaoAntes('2019-01-01', '2026-09-27', '2018-06-01'));
 igual('X antes do marco -> 1', 1.0, $S::fracaoAntes('2010-01-01', '2016-01-01', '2016-11-01'));
 igual('mesmo mes antes do marco -> 1', 1.0, $S::fracaoAntes('2016-10-02', '2016-10-20', '2016-11-01'));
 igual('mesmo mes depois do marco -> 0', 0.0, $S::fracaoAntes('2018-07-02', '2018-07-20', '2018-06-01'));
+igual('levantamento no dia do marco -> 1', 1.0, $S::fracaoAntes('2016-10-02', '2016-11-01', '2016-11-01'));
 
 // SERVIDORES (CAMPOS) convertida para periodos (13/11/2026): antes do 1o marco / entre os marcos / depois do 2o marco
 $campos = [
@@ -30,25 +36,25 @@ igual('nivel 1: entre = depois', 18.75, $S::entre($campos[2]));
 igual('nivel 2: entre = antes', 50.0, $S::entre(['nivel'=>'MARCO2', 'percentual_antes'=>50, 'percentual_entre'=>7, 'percentual_depois'=>0]));
 igual('nivel 1 e 2: entre informado', 25.05, $S::entre($campos[1]));
 
-// Exemplo ID 13 do arquivo: G 01/01/2010, X 27/09/2026 -> pesos 41% / 9,5% / 49,5%
+// Exemplo ID 13 do arquivo: G 01/01/2010, X 27/09/2026 -> pesos 2.496 / 577 / 3.040 dias
 $r = $S::percentuais('TEMPORAL', $campos, '2016-11-01', '2018-06-01', '2010-01-01', '2026-09-27');
 $pct = []; foreach ($r['participantes'] as $q) { $pct[$q['pessoa_id']] = $q['percentual']; }
-igual('ID13 Dani 35,25%', 0.3525, round($pct[4], 6));
-igual('ID13 Curciol 15,5575%', 0.155575, round($pct[1], 6));
-igual('ID13 Jac 18,508%', 0.18508, round($pct[2], 6));
-igual('ID13 Kcur 16,1875%', 0.161875, round($pct[3], 6));
-igual('ID13 Campos 12,95%', 0.1295, round($pct[5], 6));
-igual('ID13 Alliance 0,7735%', 0.007735, round($pct[6], 6));
+igual('ID13 Dani 35,2078%', 0.352078, round($pct[4], 6));
+igual('ID13 Curciol 15,5884%', 0.155884, round($pct[1], 6));
+igual('ID13 Jac 18,5076%', 0.185076, round($pct[2], 6));
+igual('ID13 Kcur 16,1981%', 0.161981, round($pct[3], 6));
+igual('ID13 Campos 12,9584%', 0.129584, round($pct[5], 6));
+igual('ID13 Alliance 0,7699%', 0.007699, round($pct[6], 6));
 igual('soma 100%', 1.0, round(array_sum($pct), 10));
 igual('sem fator D (cascata acabou)', null, $r['d']);
 
-// Elisete (linha 63 da planilha, ficha 26 de producao): G 10/12/2010, X 05/11/2026 (190 meses: 70 / 19 / 101)
+// Elisete (linha 63 da planilha, ficha 26 de producao): G 10/12/2010, X 05/11/2026 (5.809 dias: 2.153 / 577 / 3.079)
 $r = $S::percentuais('TEMPORAL', $campos, '2016-11-01', '2018-06-01', '2010-12-10', '2026-11-05');
 $pct = []; foreach ($r['participantes'] as $q) { $pct[$q['pessoa_id']] = $q['percentual']; }
-igual('Elisete Curciol 16,1079%', 0.161079, round($pct[1], 6));
-igual('Elisete Jac 18,6247%', 0.186247, round($pct[2], 6));
-igual('Elisete Dani 34,2105%', 0.342105, round($pct[4], 6));
-igual('Elisete Alliance 0,7258%', 0.007258, round($pct[6], 6));
+igual('Elisete Curciol 16,0829%', 0.160829, round($pct[1], 6));
+igual('Elisete Jac 18,616%', 0.18616, round($pct[2], 6));
+igual('Elisete Dani 34,2658%', 0.342658, round($pct[4], 6));
+igual('Elisete Alliance 0,7275%', 0.007275, round($pct[6], 6));
 igual('Elisete soma 100%', 1.0, round(array_sum($pct), 10));
 
 // datas que na planilha davam #NUM!/99,55%: sempre 100%
@@ -109,5 +115,5 @@ $um = [['pessoa_id'=>1,'nivel'=>'FIXO','percentual'=>50,'recebe_diferenca'=>1], 
 igual('recebe_diferenca 1 = verdadeiro (M2)', true, array_column($S::percentuais('FIXA', $um, null, null, null, null)['participantes'], 'recebe_diferenca', 'pessoa_id')[1]);
 
 // M4: datas com hora sao normalizadas
-igual('datas com hora (M4)', 82/200, $S::fracaoAntes('2010-01-01 00:00:00', '2026-09-27 12:00:00', '2016-11-01'));
+igual('datas com hora (M4)', 2496/6113, $S::fracaoAntes('2010-01-01 00:00:00', '2026-09-27 12:00:00', '2016-11-01'));
 fim();
