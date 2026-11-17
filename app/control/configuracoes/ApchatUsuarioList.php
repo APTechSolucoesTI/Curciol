@@ -226,41 +226,64 @@ class ApchatUsuarioList extends TPage
         }
     }
 
+    /**
+     * Ligar automaticamente (17/11/2026): APChat e APMail independentes - liga os usuarios da integracao que estiver funcionando
+     * e so informa o motivo da outra (sem token, fora do ar...), sem bloquear nem desfazer o que a primeira ligou.
+     */
     public static function onLigarAutomatico($param = null)
     {
+        $partes = [];
+        $algumaLigou = false;
+
+        // APChat: so com o banco do APChat respondendo e da mesma empresa da integracao do Escritorio (16/11/2026)
         try
         {
-            $partes = [];
-            // APChat: so com o banco do APChat respondendo e da mesma empresa da integracao do Escritorio (16/11/2026)
             $configApchat = IntegracaoAcessoService::naTransacao(function () { return IntegracaoAcessoService::configuracaoApchat(); }, 'erro');
-            if ($configApchat !== 'ok' && $configApchat !== 'erro')
-            {
-                $partes[] = 'APChat: ' . IntegracaoAcessoService::motivoApchat($configApchat);
-            }
-            elseif ($configApchat === 'ok' && ApchatBancoService::disponivel())
+            if ($configApchat === 'ok' && ApchatBancoService::disponivel())
             {
                 TTransaction::open('escritorio');
                 $n = ApchatUsuarioService::ligarAutomatico();
                 TTransaction::close();
-                $partes[] = 'APChat: ' . ($n ? "{$n} usuário(s) ligado(s) pelo e-mail ou pelo nome" : 'nenhum novo');
+                $algumaLigou = true;
+                $partes[] = '<b>APChat:</b> ' . ($n ? "{$n} usuário(s) ligado(s) pelo e-mail ou pelo nome" : 'nenhum novo');
             }
             else
             {
-                $partes[] = 'APChat: banco do APChat não respondeu';
+                $partes[] = '<b>APChat:</b> não ligado - ' . htmlspecialchars((string) ($configApchat !== 'ok' ? IntegracaoAcessoService::motivoApchat($configApchat) : IntegracaoAcessoService::APCHAT['erro']), ENT_QUOTES, 'UTF-8');
             }
-            // APMail: testa o e-mail escolhido, o do cadastro e o login de cada usuario
-            TTransaction::open('escritorio');
-            $m = ApmailUsuarioService::ligarAutomatico();
-            TTransaction::close();
-            ApmailEnvelopeService::limparCache();
-            $partes[] = "APMail: {$m['ligados']} reconhecido(s), {$m['nao_reconhecidos']} não reconhecido(s)";
-            TToast::show('success', implode('<br>', $partes), 'topRight', 'fas:magic');
-            AdiantiCoreApplication::loadPage(__CLASS__, 'onReload');
         }
-        catch (Exception $e)
+        catch (Throwable $e)
         {
             TTransaction::rollback();
-            new TMessage('error', $e->getMessage());
+            $partes[] = '<b>APChat:</b> não ligado - ' . htmlspecialchars($e->getMessage(), ENT_QUOTES, 'UTF-8');
         }
+
+        // APMail: testa o e-mail escolhido, o do cadastro e o login de cada usuario (so com token no Escritorio)
+        try
+        {
+            TTransaction::open('escritorio');
+            $escritorio = ApmailApiService::escritorio();
+            $temToken = $escritorio && trim((string) $escritorio->token_apmail) !== '';
+            $m = $temToken ? ApmailUsuarioService::ligarAutomatico() : null;
+            TTransaction::close();
+            if ($m === null)
+            {
+                $partes[] = '<b>APMail:</b> não ligado - ' . htmlspecialchars(IntegracaoAcessoService::APMAIL['sem_integracao'], ENT_QUOTES, 'UTF-8');
+            }
+            else
+            {
+                ApmailEnvelopeService::limparCache();
+                $algumaLigou = true;
+                $partes[] = "<b>APMail:</b> {$m['ligados']} reconhecido(s), {$m['nao_reconhecidos']} não reconhecido(s)";
+            }
+        }
+        catch (Throwable $e)
+        {
+            TTransaction::rollback();
+            $partes[] = '<b>APMail:</b> não ligado - ' . htmlspecialchars($e->getMessage(), ENT_QUOTES, 'UTF-8');
+        }
+
+        TToast::show($algumaLigou ? 'success' : 'warning', implode('<br>', $partes), 'topRight', $algumaLigou ? 'fas:magic' : 'fas:exclamation-triangle');
+        AdiantiCoreApplication::loadPage(__CLASS__, 'onReload');
     }
 }
