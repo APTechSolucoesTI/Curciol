@@ -5,8 +5,6 @@
 // motivo; clique de item (TopoAbrir) e botoes "Abrir no" do historico recusam. Usuario a usuario. NUNCA fala com o APChat/APMail de
 // verdade: banco e APIs falsos. Grava de verdade (as telas abrem a propria transacao) e devolve tudo no fim.
 require __DIR__ . '/../bootstrap.php';
-LinkApp::forcar('apchat', false);
-LinkApp::forcar('apmail', false);
 if (!class_exists('TApplication')) { class TApplication extends AdiantiCoreApplication {} }
 function saida(callable $f): string { ob_start(); try { $f(); } finally { $s = ob_get_clean(); } return $s; }
 function q1(string $sql) { TTransaction::open('escritorio'); $r = TTransaction::get()->query($sql)->fetchAll(PDO::FETCH_ASSOC); TTransaction::close(); return $r; }

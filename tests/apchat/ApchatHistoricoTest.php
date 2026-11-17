@@ -4,7 +4,6 @@
 // cliente tiver o numero como principal); so tickets fechados, ordem pelo encerramento; atribuido = atendente do ticket; profissionais = ele e quem respondeu; ticket sem especialidade; o
 // atendente do ticket; conversa so com texto e so do proprio cliente; botao "Abrir no APChat". APChat falso.
 require __DIR__ . '/../bootstrap.php';
-LinkApp::forcar('apchat', false); // links pelo app instalado tem teste proprio (LinkAppTest)
 if (!class_exists('TApplication')) { class TApplication extends AdiantiCoreApplication {} }
 
 const MARCA_HIST = 'TESTE HISTORICO WHATSAPP';
@@ -167,7 +166,7 @@ try
         && strpos($v, '#10 · 5519982220001') !== false, substr($v, 0, 500));
     ok('ticket: Profissional com todos os atendentes no mesmo campo', strpos($v, 'Atendente Um, Atendente Dois') !== false && strpos($v, 'Atenderam') === false);
     ok('ticket: sem traco no campo vazio', strpos($v, '—') === false);
-    ok('ticket: botao Abrir no APChat', strpos($v, 'Abrir no APChat') !== false && strpos($v, 'atendimento?ticketId=10&quot;, &quot;apchat&quot;') !== false, $v);
+    ok('ticket: botao Abrir no APChat', strpos($v, 'Abrir no APChat') !== false && strpos($v, 'web+apchat://ticket/10') !== false && strpos($v, 'ticketId=10') === false, $v);
     ok('ticket: conversa sem a imagem', strpos($v, 'foto.jpg') === false);
     ok('ticket: formatacao do WhatsApp (negrito e italico)', strpos($v, '<b>Atendente Um</b>:<br>Claro, <i>pode</i> falar') !== false);
     ok('ticket: lista do robo desenhada, nao o JSON', strpos($v, 'Escolha <b>uma</b> opção:') !== false && strpos($v, 'Ver opções') !== false && strpos($v, 'Opção B') !== false
@@ -223,7 +222,7 @@ try
     ok('conversa do ticket cadastrada nas permissoes, com os mesmos grupos e usuarios do cadastro do cliente', (int) $perm['programa'] === 1 && (int) $perm['grupos_sem'] === 0 && (int) $perm['usuarios_sem'] === 0, json_encode($perm));
 
     $sv = saida(function () { $t = new ApchatContatoConversaView(['key' => 77]); $t->onShow(['key' => 77]); $t->show(); });
-    ok('contatos sem vinculo: Abrir no APChat (ticket mais recente)', strpos($sv, 'Abrir no APChat') !== false && strpos($sv, 'atendimento?ticketId=55&quot;, &quot;apchat&quot;') !== false, substr($sv, 0, 300));
+    ok('contatos sem vinculo: Abrir no APChat (ticket mais recente)', strpos($sv, 'Abrir no APChat') !== false && strpos($sv, 'web+apchat://ticket/55') !== false && strpos($sv, 'ticketId=55') === false, substr($sv, 0, 300));
 }
 finally
 {

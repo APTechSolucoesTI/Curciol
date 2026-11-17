@@ -176,6 +176,25 @@ try
     sort($naLista);
     igual('lista de templates: so os que existem na Meta', ['com_cifrao', 'lembrete_agendamento', 'posicional'], $naLista);
     igual('historico: a mensagem continua com o template', (int) $t->id, (int) $c->query("SELECT template_escritorio_id FROM mensagem WHERE id = {$m->id}")->fetchColumn());
+
+    // regra de 17/11/2026: sem integracao (ou com outra conta da Meta) o template da Meta fica na lista como Excluido da Meta e nao envia
+    $l = new TemplateEscritorio($l->id);
+    ApchatWabaService::esquecerConta();
+    igual('situacao: integracao com a conta do template = a gravada', 'APPROVED', ApchatWabaService::situacaoAtual($l));
+    $falso->canal = ['canal_id' => 113, 'canal' => 'Coexistência', 'tipo' => 'whatsapp', 'waba_id' => null, 'token' => null, 'versao' => ''];
+    ApchatWabaService::esquecerConta();
+    igual('situacao: canal que nao e o oficial = Excluido da Meta', ApchatWabaService::REMOVIDO, ApchatWabaService::situacaoAtual($l));
+    $falso->canal = ['waba_id' => '999'] + $canal;
+    ApchatWabaService::esquecerConta();
+    igual('situacao: outra conta da Meta = Excluido da Meta', ApchatWabaService::REMOVIDO, ApchatWabaService::situacaoAtual($l));
+    lanca('outra conta da Meta: nao envia', fn() => ApchatWabaService::exigirEnvio($l), 'outra conta da Meta');
+    $falso->canal = $canal;
+    $c->exec("UPDATE escritorio SET token_apchat = NULL");
+    ApchatWabaService::esquecerConta();
+    igual('situacao: sem token no Escritorio = Excluido da Meta', ApchatWabaService::REMOVIDO, ApchatWabaService::situacaoAtual($l));
+    igual('rotulo da lista: Excluido da Meta', true, strpos(TemplateEscritorioHeaderList::rotuloOrigem($l), 'Excluído da Meta') !== false);
+    lanca('sem token: nao envia', fn() => ApchatWabaService::exigirEnvio($l), 'não configurado');
+    ApchatWabaService::esquecerConta();
 }
 finally
 {

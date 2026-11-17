@@ -4,7 +4,6 @@
 // (quem tem acesso ao canal e, se houver, a fila). Ticket cuja ultima mensagem e do cliente ganha o numero de mensagens sem
 // resposta; o icone conta TICKETS esperando resposta. Pendente aguardando o SIM/NAO da Curciol fica de fora (ela mesma responde). Cache curto; APChat fora = balao vazio. Envelope do APMail reservado.
 require __DIR__ . '/../bootstrap.php';
-LinkApp::forcar('apchat', false); // links pelo app instalado tem teste proprio (LinkAppTest)
 if (!class_exists('TApplication')) { class TApplication extends AdiantiCoreApplication {} }
 function saida(callable $f): string { ob_start(); try { $f(); } finally { $s = ob_get_clean(); } return $s; }
 
@@ -185,9 +184,9 @@ try
     igual('endereco da tela do APChat configuravel', 'https://chat.exemplo.com.br/atendimento?ticketId=9', ApchatApiService::urlTicket(9));
 
     // 13/11/2026: o clique confere na hora se o item ainda e do usuario (item velho no balao nao abre nem redireciona)
-    LinkApp::forcar('apchat', false);
+    // 17/11/2026: so pelo app instalado, nunca aba
     $d = TopoAbrir::decidir(['tipo' => 'ticket', 'id' => '4'], $u1);
-    ok('clique: ticket aberto com ele abre (aba do APChat)', ($d['ok'] ?? false) === true && ($d['url'] ?? '') === ApchatApiService::urlTicket(4) && ($d['janela'] ?? '') === 'apchat' && !isset($d['link']), json_encode($d));
+    igual('clique: ticket aberto com ele abre pelo app (nunca aba)', ['ok' => true, 'app' => true, 'link' => 'web+apchat://ticket/4', 'nome' => 'APChat'], $d);
     ok('clique: pendente que ele ve abre', (TopoAbrir::decidir(['tipo' => 'ticket', 'id' => '1'], $u1)['ok'] ?? false) === true);
     $d = TopoAbrir::decidir(['tipo' => 'ticket', 'id' => '3'], $u1);
     ok('clique: ticket de outro atendente nao abre, com aviso', ($d['ok'] ?? true) === false && !isset($d['url']) && !isset($d['link']) && strpos($d['mensagem'] ?? '', 'não está mais') !== false, json_encode($d));
@@ -203,15 +202,13 @@ try
     ok('clique: usuario sem atendente ligado', strpos(TopoAbrir::decidir(['tipo' => 'ticket', 'id' => '1'], $u4)['mensagem'] ?? '', 'não está vinculado') !== false);
     ok('clique: tipo desconhecido nao abre', (TopoAbrir::decidir(['tipo' => 'xyz', 'id' => '1'], $u1)['ok'] ?? true) === false);
     $d = TopoAbrir::decidir(['tipo' => 'chat', 'id' => 'usuario:9002'], $u1);
-    ok('clique: conversa com mensagem nova abre', ($d['ok'] ?? false) === true && ($d['url'] ?? '') === ApchatApiService::urlChat('usuario', 9002), json_encode($d));
+    ok('clique: conversa com mensagem nova abre pelo app', ($d['ok'] ?? false) === true && ($d['link'] ?? '') === 'web+apchat://chat/usuario/9002' && !isset($d['url']), json_encode($d));
     $d = TopoAbrir::decidir(['tipo' => 'chat', 'id' => 'equipe:990'], $u1);
-    ok('clique: equipe com mensagem nova abre', ($d['ok'] ?? false) === true && ($d['url'] ?? '') === ApchatApiService::urlChat('equipe', 990), json_encode($d));
+    ok('clique: equipe com mensagem nova abre pelo app', ($d['ok'] ?? false) === true && ($d['link'] ?? '') === 'web+apchat://chat/equipe/990' && !isset($d['url']), json_encode($d));
     $d = TopoAbrir::decidir(['tipo' => 'chat', 'id' => 'usuario:9003'], $u1);
     ok('clique: conversa ja lida nao abre', ($d['ok'] ?? true) === false && ($d['desatualizado'] ?? false) === true && !isset($d['url']) && !isset($d['link']), json_encode($d));
-    LinkApp::forcar('apchat', true);
     igual('clique pelo app: ticket', ['ok' => true, 'app' => true, 'link' => 'web+apchat://ticket/4', 'nome' => 'APChat'], TopoAbrir::decidir(['tipo' => 'ticket', 'id' => '4'], $u1));
     igual('clique pelo app: conversa', 'web+apchat://chat/equipe/990', TopoAbrir::decidir(['tipo' => 'chat', 'id' => 'equipe:990'], $u1)['link'] ?? null);
-    LinkApp::forcar('apchat', false);
     // perdeu o canal no APChat: o clique recusa e o balao ja vem sem o ticket (o cache de 5 min dos acessos e jogado fora)
     ApchatBalaoService::usarRelogio($agora += 6);
     ok('antes: o pendente aparece', in_array(1, $ids(ApchatBalaoService::conversas($u1)), true));
@@ -274,7 +271,7 @@ try
         && preg_match('/data-aba="chat".*?apchat-aba-num[^>]*>3</s', $html) === 1, $html);
     ok('balao: apenas o painel ativo e visivel por padrao', preg_match('/<div[^>]*id="apchat-painel-chat"[^>]*hidden="hidden"/', $html) === 1);
     ok('balao: a aba so alterna (sem abrir nada)', strpos($html, 'CurciolApchatAba(') !== false && strpos($html, 'data-painel="atendimentos"') !== false && strpos($html, 'data-painel="chat"') !== false);
-    ok('balao: icone abre a tela inicial do APChat', strpos($html, LinkExterno::onclick($urlInicio, 'apchat')) !== false, $html);
+    ok('balao: icone abre a tela inicial do APChat', strpos($html, LinkApp::apchatInicio()) !== false && strpos($html, 'LinkExterno') === false, $html);
     ok('balao: chat com as conversas', strpos($html, '>Chat Privado<') !== false && substr_count($html, 'apchat-balao-conversa"') === 2
         && strpos($html, '>Atendente Dois<') !== false && strpos($html, '>Equipe Civel<') !== false && preg_match('/apchat-balao-chat-nao-lidas[^>]*>2</', $html) === 1, $html);
     ok('balao: conversa confere antes de abrir no APChat', strpos($html, LinkApp::notificacao('chat', 'usuario:9002')) !== false

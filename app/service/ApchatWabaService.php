@@ -30,7 +30,7 @@ class ApchatWabaService
         'PENDING_DELETION' => 'Sendo excluído',
         'DELETED'          => 'Excluído',
         'LIMIT_EXCEEDED'   => 'Limite excedido',
-        self::REMOVIDO     => 'Não existe mais na Meta',
+        self::REMOVIDO     => 'Excluído da Meta',
     ];
 
     /** @var callable|null testes: (url, token) => ['status' => int, 'corpo' => string, 'erro' => string] */
@@ -62,6 +62,48 @@ class ApchatWabaService
      * Canal oficial da integracao do Escritorio, com a conta e o token da Meta. Lanca excecao com o motivo legivel.
      * @return array {canal_id, canal, tipo, waba_id, token, versao}
      */
+    /** @var string|null|false conta da Meta da integracao do Escritorio, lida uma vez por pedido (false = ainda nao lida) */
+    private static $contaAtual = false;
+
+    /**
+     * Conta da Meta (wabaId) da integracao do Escritorio agora: '' = sem integracao (sem URL/token, outra empresa, sem canal ou
+     * canal que nao e o oficial); null = nao deu para conferir (APChat fora): vale a situacao gravada.
+     */
+    public static function contaAtual(): ?string
+    {
+        if (self::$contaAtual !== false) { return self::$contaAtual; }
+        if (!ApchatApiService::configurada()) { return self::$contaAtual = ''; }
+        $config = IntegracaoAcessoService::configuracaoApchat();
+        if (in_array($config, ['sem_integracao', 'sem_servidor', 'outra_empresa'], true)) { return self::$contaAtual = ''; }
+        if ($config !== 'ok') { return self::$contaAtual = null; }
+        try
+        {
+            $canal = ApchatBancoService::wabaDaIntegracao(self::idDaIntegracao());
+        }
+        catch (Throwable $e)
+        {
+            return self::$contaAtual = null;
+        }
+        return self::$contaAtual = ($canal && ($canal['tipo'] ?? '') === 'waba') ? trim((string) ($canal['waba_id'] ?? '')) : '';
+    }
+
+    /**
+     * Situacao do template da Meta para mostrar (regra de 17/11/2026): sem integracao, ou integracao com outra conta da Meta, = Excluido
+     * da Meta (fica na lista e nao envia); senao a situacao gravada na ultima importacao.
+     */
+    public static function situacaoAtual(TemplateEscritorio $t): string
+    {
+        $conta = self::contaAtual();
+        if ($conta !== null && $conta !== (string) $t->meta_waba_id) { return self::REMOVIDO; }
+        return (string) $t->meta_status;
+    }
+
+    /** Testes: le a integracao de novo. */
+    public static function esquecerConta(): void
+    {
+        self::$contaAtual = false;
+    }
+
     public static function canal(): array
     {
         if (!ApchatApiService::configurada())

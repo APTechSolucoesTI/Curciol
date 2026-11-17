@@ -68,16 +68,9 @@ class EscritorioForm extends TPage
         $url_apmail = new TEntry('url_apmail');
         $token_apmail = new TPassword('token_apmail');
         $button_testar_apmail = new TButton('button_testar_apmail');
-        // links da Curciol so pelo app instalado (12/11/2026): ligar so quando o lado do sistema estiver pronto
-        $apchat_abrir_app = new TCheckButton('apchat_abrir_app');
-        $apchat_abrir_app->setIndexValue('S');
-        $apchat_abrir_app->setUseSwitch(true, 'blue');
         $apmail_email_integracao = new TEntry('apmail_email_integracao');
         $apmail_email_integracao->setSize('100%');
         $apmail_email_integracao->placeholder = 'integracao@escritorio.com.br';
-        $apmail_abrir_app = new TCheckButton('apmail_abrir_app');
-        $apmail_abrir_app->setIndexValue('S');
-        $apmail_abrir_app->setUseSwitch(true, 'blue');
         $host = new TEntry('host');
         $email_config_id = new THidden('email_config_id');
         $smtp_auth = new TCombo('smtp_auth');
@@ -292,9 +285,9 @@ class EscritorioForm extends TPage
         $row15b = $apchat_container->addFields([new TLabel("URL da API:", null, '14px', null, '100%'), $url_apchat],[new TLabel("Token da API:", null, '14px', null, '100%'), $token_apchat]);
         $row15b->layout = [' col-sm-7',' col-sm-5'];
 
-        $row15c = $apchat_container->addFields([new TLabel("Endereço da tela do APChat (para abrir os atendimentos; vazio = https://app.apchat.com.br):", null, '14px', null, '100%'), $url_tela_apchat],
-                                               [new TLabel("Abrir só pelo app instalado:", null, '14px', null, '100%'), $apchat_abrir_app,
-                                                new TLabel("<small>Os links da Curciol abrem o APChat só no app do computador (sem app, não abrem). Ligue só depois de configurar o servidor do APChat.</small>", '#777', '12px', null, '100%')]);
+        // 17/11/2026: os links da Curciol abrem o APChat e o APMail SO no app instalado (nunca em aba); sem app, nao abrem
+        $row15c = $apchat_container->addFields([new TLabel("Endereço da tela do APChat (vazio = https://app.apchat.com.br):", null, '14px', null, '100%'), $url_tela_apchat],
+                                               [new TLabel("<small>Os links da Curciol abrem o APChat só no app instalado no computador (nunca em aba do navegador; sem o app, não abrem).</small>", '#777', '12px', null, '100%')]);
         $row15c->layout = [' col-sm-7', ' col-sm-5'];
 
         $row15d = $apchat_container->addFields([$button_testar_apchat, $button_enviar_teste_apchat]);
@@ -318,8 +311,7 @@ class EscritorioForm extends TPage
                                                [new TLabel("Token da API (Painel Administrativo › Integrações › Tokens de API):", null, '14px', null, '100%'), $token_apmail]);
         $row15e->layout = [' col-sm-5', ' col-sm-7'];
         $row15f = $apmail_container->addFields([$button_testar_apmail],
-                                               [new TLabel("Abrir só pelo app instalado:", null, '14px', null, '100%'), $apmail_abrir_app,
-                                                new TLabel("<small>Os links da Curciol abrem o APMail só no app do computador (sem app, não abrem). Ligue só quando o APMail tiver o app (web+apmail).</small>", '#777', '12px', null, '100%')]);
+                                               [new TLabel("<small>Os links da Curciol abrem o APMail só no app instalado no computador (nunca em aba do navegador; sem o app, não abrem).</small>", '#777', '12px', null, '100%')]);
         $row15f->layout = [' col-sm-7', ' col-sm-5'];
         $row15h = $apmail_container->addFields([new TLabel("E-mail do usuário de integração (histórico dos clientes):", null, '14px', null, '100%'), $apmail_email_integracao,
                                                new TLabel("<small>Usuário do APMail que enxerga todas as caixas: as conversas de e-mail dos clientes vêm pela visão dele. Vazio = o do primeiro Admin ligado em Usuários das integrações. O token precisa da permissão messages:read.</small>", '#777', '12px', null, '100%')]);
@@ -420,11 +412,10 @@ class EscritorioForm extends TPage
      */
     public static function segredosAoSalvar($data, $atual, bool $admin)
     {
-        $campos = ['url_apchat', 'token_apchat', 'url_tela_apchat', 'url_apmail', 'token_apmail', 'apchat_abrir_app', 'apmail_abrir_app', 'apmail_email_integracao'];
+        $campos = ['url_apchat', 'token_apchat', 'url_tela_apchat', 'url_apmail', 'token_apmail', 'apmail_email_integracao'];
         if (!$admin)
         {
             foreach ($campos as $c) { $data->$c = $atual ? ($atual->$c ?? null) : null; }
-            foreach (['apchat_abrir_app', 'apmail_abrir_app'] as $c) { $data->$c = ($data->$c ?? '') === 'S' ? 'S' : 'N'; }
             return $data;
         }
         // historico do APMail (12/11/2026): usuario de integracao em minusculas; vazio = o e-mail APMail do primeiro Admin
@@ -434,8 +425,9 @@ class EscritorioForm extends TPage
             throw new Exception('E-mail do usuário de integração do APMail inválido.');
         }
         $data->apmail_email_integracao = $integracao !== '' ? $integracao : null;
-        // links so pelo app (12/11/2026): marcado = S; desmarcado o formulario nao envia o campo = N
-        foreach (['apchat_abrir_app', 'apmail_abrir_app'] as $c) { $data->$c = ($data->$c ?? '') === 'S' ? 'S' : 'N'; }
+        // links so pelo app (17/11/2026: sempre; a chave nao e mais lida)
+        $data->apchat_abrir_app = 'S';
+        $data->apmail_abrir_app = 'S';
         $data->url_apchat = rtrim(trim((string) ($data->url_apchat ?? '')), '/');
         $data->url_tela_apchat = rtrim(trim((string) ($data->url_tela_apchat ?? '')), '/') ?: null;
         $data->url_apmail = rtrim(trim((string) ($data->url_apmail ?? '')), '/') ?: null;

@@ -298,7 +298,8 @@ class TemplateEscritorioHeaderList extends TPage
         {
             return '<span class="label label-default" title="Criado na Curciol: vale para qualquer canal">Curciol</span>';
         }
-        $status = (string) $object->meta_status;
+        // 17/11/2026: sem integracao (ou com outra conta da Meta) = Excluido da Meta; fica na lista e nao envia
+        $status = ApchatWabaService::situacaoAtual($object);
         $cor = $status === ApchatWabaService::APROVADO ? 'success' : (in_array($status, ['PENDING', 'IN_APPEAL'], true) ? 'warning' : 'danger');
         $titulo = htmlspecialchars('Meta: ' . $object->meta_nome . ' (' . $object->meta_idioma . ')', ENT_QUOTES, 'UTF-8');
         return "<span class=\"label label-info\" title=\"{$titulo}\"><i class=\"fab fa-whatsapp\"></i> Meta</span> "

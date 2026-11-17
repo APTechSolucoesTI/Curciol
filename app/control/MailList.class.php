@@ -18,14 +18,14 @@ class MailList extends TElement
         {
             TTransaction::open('escritorio');
             $r = ApmailEnvelopeService::caixas((int) TSession::getValue('userid'), !empty($param['fresco']));
-            $inicio = LinkApp::apmailInicio(ApmailApiService::url(ApmailApiService::escritorio()));
+            $inicio = LinkApp::apmailInicio();
             TTransaction::close();
         }
         catch (Throwable $e)
         {
             TTransaction::rollback();
             $r = ['situacao' => 'indisponivel', 'pendentes' => 0, 'nao_lidas' => 0, 'caixas' => []];
-            $inicio = LinkApp::apmailInicio(ApmailApiService::URL_PADRAO);
+            $inicio = LinkApp::apmailInicio();
         }
 
         if ($r['situacao'] === 'desligado')

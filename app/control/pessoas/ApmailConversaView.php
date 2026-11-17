@@ -48,7 +48,7 @@ class ApmailConversaView extends TPage
 
             $c = $d['conversa'];
             $h = function ($v) { return htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8'); };
-            $onclick = LinkApp::apmailMensagem((string) ($c['ultima_mensagem_apmail_id'] ?? ''), $urlApmail);
+            $onclick = LinkApp::apmailMensagem((string) ($c['ultima_mensagem_apmail_id'] ?? ''));
             // 16/11/2026: APMail sem token, fora do ar, sem responder ou usuario sem vinculo = botao desabilitado com o motivo
             $motivo = $onclick !== '' ? IntegracaoAcessoService::naTransacao(function () { return IntegracaoAcessoService::bloqueioApmail((int) TSession::getValue('userid')); },
                                                                                IntegracaoAcessoService::APMAIL['indisponivel']) : null;

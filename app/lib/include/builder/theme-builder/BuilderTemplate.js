@@ -751,16 +751,13 @@ window.CurciolAbrirNotificacao = function(item, tipo, id) {
 
         const sistema = tipo === 'caixa' ? 'apmail' : 'apchat';
         const nome = sistema === 'apmail' ? 'APMail' : 'APChat';
+        // so pelo app instalado (regra de 17/11/2026): nunca aba ou janela do navegador
         const app = r.app === true && typeof r.link === 'string' && r.link.startsWith('web+' + sistema + '://');
-        const web = r.app !== true && r.janela === sistema && typeof r.url === 'string' && /^https?:\/\//i.test(r.url);
-        if (!app && !web) { status.text(falhou); return; }
+        if (!app) { status.text(falhou); return; }
 
         if (navigator.userActivation?.isActive !== false) {
-            if (app) {
-                window.CurciolAbrirApp(r.link);
-                return;
-            }
-            if (window.open(r.url, sistema)) { return; }
+            window.CurciolAbrirApp(r.link);
+            return;
         }
 
         const tentar = $('<button>', {type: 'button', class: 'btn btn-default btn-sm', text: 'Tentar abrir no ' + nome});

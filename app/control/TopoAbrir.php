@@ -7,7 +7,7 @@
  * Nao conseguiu conferir (APChat/APMail fora): tambem nao abre. 16/11/2026: integracao sem URL/token no escritorio, fora do ar,
  * sem responder ou com token recusado, ou usuario sem vinculo: nao abre, com o motivo (IntegracaoAcessoService), e o item sai do balao.
  *   engine.php?class=TopoAbrir&method=onAbrir&static=1&tipo=ticket|chat|caixa&id=...
- *   -> {ok: true, app: true, link, nome} (app instalado) | {ok: true, url, janela} (aba) | {ok: false, mensagem}
+ *   -> {ok: true, app: true, link, nome} (so pelo app instalado, regra de 17/11/2026: nunca aba) | {ok: false, mensagem}
  */
 class TopoAbrir
 {
@@ -93,7 +93,7 @@ class TopoAbrir
             ApchatBalaoService::invalidarEstado();
             return self::nao('Este atendimento não está mais nas suas notificações do APChat (foi encerrado, transferido ou você não tem mais acesso a ele).', true);
         }
-        return LinkApp::ligado('apchat') ? self::app('web+apchat://ticket/' . $ticket, 'APChat') : self::aba(ApchatApiService::urlTicket($ticket), 'apchat');
+        return self::app('web+apchat://ticket/' . $ticket, 'APChat');
     }
 
     /** $id = "usuario:N" (conversa com o usuario N) ou "equipe:N". */
@@ -113,8 +113,7 @@ class TopoAbrir
         {
             if ((int) $l['usuario'] === $eu && $l['tipo'] === $tipo && (int) $l['conversa_id'] === $conversa && (int) $l['qtd'] > 0)
             {
-                return LinkApp::ligado('apchat') ? self::app('web+apchat://chat/' . $tipo . '/' . $conversa, 'APChat')
-                                                 : self::aba(ApchatApiService::urlChat($tipo, $conversa), 'apchat');
+                return self::app('web+apchat://chat/' . $tipo . '/' . $conversa, 'APChat');
             }
         }
         ApchatBalaoService::invalidarEstado();
@@ -138,7 +137,7 @@ class TopoAbrir
             if ((string) $c['id'] !== $id) { continue; }
             $caminho = (string) ($c['caminho'] ?? '/');
             if ($caminho === '/') { return self::nao('O APMail não informou o endereço desta caixa.'); }
-            return LinkApp::ligado('apmail') ? self::app(LinkApp::apmailCaixaLink($caminho), 'APMail') : self::aba((string) $c['url'], 'apmail');
+            return self::app(LinkApp::apmailCaixaLink($caminho), 'APMail');
         }
         return self::nao('Você não tem mais acesso a esta caixa no APMail.', true);
     }
@@ -146,12 +145,6 @@ class TopoAbrir
     private static function app(string $link, string $nome): array
     {
         return ['ok' => true, 'app' => true, 'link' => $link, 'nome' => $nome];
-    }
-
-    private static function aba(string $url, string $janela): array
-    {
-        if (!preg_match('#^https?://#i', $url)) { return self::nao('Endereço inválido.'); }
-        return ['ok' => true, 'url' => $url, 'janela' => $janela];
     }
 
     private static function nao(string $mensagem, bool $desatualizado = false): array

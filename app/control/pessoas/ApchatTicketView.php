@@ -68,7 +68,7 @@ class ApchatTicketView extends TPage
     }
 
     /**
-     * Botao que abre o ticket no APChat: pelo app instalado (LinkApp, chave do escritorio) ou na mesma aba ("apchat"). 16/11/2026:
+     * Botao que abre o ticket no APChat SO pelo app instalado (LinkApp; nunca aba, 17/11/2026; $url nao e mais usado). 16/11/2026:
      * integracao sem configurar, fora do ar ou usuario sem vinculo = botao desabilitado com o motivo (IntegracaoAcessoService).
      */
     public static function botaoAbrir(int $ticketId, string $url): TElement
@@ -84,7 +84,7 @@ class ApchatTicketView extends TPage
         $b->class = 'btn btn-sm btn-success';
         $b->style = 'margin-right:6px;';
         $b->href = '#';
-        $b->onclick = LinkApp::apchatTicket($ticketId, $url);
+        $b->onclick = LinkApp::apchatTicket($ticketId);
         $b->add('<i class="fab fa-whatsapp"></i> Abrir no APChat');
         return $b;
     }

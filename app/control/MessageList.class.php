@@ -15,7 +15,7 @@ class MessageList extends TElement
         {
             TTransaction::open('escritorio');
             $r = ApchatBalaoService::conversas((int) TSession::getValue('userid'));
-            $inicio = LinkApp::apchatInicio(ApchatApiService::urlInicio());
+            $inicio = LinkApp::apchatInicio();
             TTransaction::close();
         }
         catch (Throwable $e)
