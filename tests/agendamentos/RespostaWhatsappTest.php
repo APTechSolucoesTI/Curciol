@@ -17,6 +17,7 @@ function limparResposta(): void
     $lista = $ags ? implode(',', array_map('intval', $ags)) : '0';
     x("DELETE FROM mensagem_acao WHERE mensagem_id IN (SELECT id FROM mensagem WHERE agendamento_id IN ({$lista}))");
     x("DELETE FROM mensagem WHERE agendamento_id IN ({$lista})");
+    x("DELETE FROM template_escritorio WHERE chave LIKE 'TESTE_RESP_META_%'");
     x("DELETE FROM estado_agendamento WHERE agendamento_id IN ({$lista})");
     x("DELETE FROM atendimento_historico WHERE atendimento_id IN (SELECT id FROM atendimento WHERE agendamento_id IN ({$lista}))");
     x("DELETE FROM atendimento_procedimento WHERE atendimento_id IN (SELECT id FROM atendimento WHERE agendamento_id IN ({$lista}))");
@@ -194,6 +195,48 @@ try {
     $responde('5519912340003', 'sim');
     $rodar();
     igual('copia do texto enviado: SIM confirma', EstadoAgenda::CONFIRMADO, $estado($agCopia));
+
+    // ---------- confirmacao por template da Meta (teste real no app1, 17/11/2026): o APChat grava o template na conversa
+    // com mediaType "templates" e os componentes em JSON com as variaveis em branco; isso e nosso, nao de atendente ----------
+    TTransaction::open('escritorio');
+    $meta = new TemplateEscritorio($confirmacaoId);
+    $metaDados = $meta->toArray();
+    unset($metaDados['id']);
+    $meta = new TemplateEscritorio();
+    $meta->fromArray($metaDados);
+    $meta->chave = 'TESTE_RESP_META_' . uniqid();
+    $meta->origem = TemplateEscritorio::ORIGEM_META;
+    $meta->meta_nome = 'agendamento_confirmacao';
+    $meta->meta_idioma = 'pt_BR';
+    $meta->meta_status = 'APPROVED';
+    $meta->meta_componentes = json_encode([['type' => 'BODY', 'text' => "Olá *{{cliente}}* !\n\nTemos agendado para o dia *{{data_inicial}}*.\n\nResponda *SIM* ou *NÃO*."],
+                                           ['type' => 'BUTTONS', 'buttons' => [['type' => 'QUICK_REPLY', 'text' => 'Sim'], ['type' => 'QUICK_REPLY', 'text' => 'Não']]]], JSON_UNESCAPED_UNICODE);
+    $meta->store();
+    $metaId = (int) $meta->id;
+    TTransaction::close();
+    $comoApchat = json_encode([['type' => 'HEADER', 'format' => 'TEXT', 'text' => 'Confirmação'], ['type' => 'BODY', 'text' => "Olá ** !\n\nTemos agendado para o dia **.\n\nResponda *SIM* ou *NÃO*."],
+                               ['type' => 'BUTTONS', 'buttons' => [['type' => 'QUICK_REPLY', 'index' => 0, 'parameters' => []]]]], JSON_UNESCAPED_UNICODE);
+    $template = function (string $numero, string $corpo) use ($banco) {
+        $banco->respostas[$numero][] = ['id' => 4, 'body' => $corpo, 'mediaType' => 'templates', 'fromMe' => true, 'createdAt' => date('Y-m-d H:i:s')];
+    };
+
+    [$agMeta, $mMeta] = $novo('META', '5519912340013');
+    x("UPDATE mensagem SET template_escritorio_id = {$metaId} WHERE id = {$mMeta}");
+    $template('5519912340013', $comoApchat);
+    $botao('5519912340013', 'Sim');
+    $enviadas = [];
+    $rodar();
+    igual('template da Meta na conversa + botao Sim: confirmado', ['resposta' => 'SIM', 'resposta_texto' => 'Sim'], $resposta($mMeta));
+    igual('template da Meta: agendamento confirmado e a mensagem do fluxo', [EstadoAgenda::CONFIRMADO, 1], [$estado($agMeta), count($enviadas)]);
+
+    [$agOutro, $mOutro] = $novo('META OUTRO', '5519912340014');
+    x("UPDATE mensagem SET template_escritorio_id = {$metaId} WHERE id = {$mOutro}");
+    $template('5519912340014', json_encode([['type' => 'BODY', 'text' => 'Outro template mandado pelo APChat']]));
+    $botao('5519912340014', 'Sim');
+    $rodar();
+    igual('outro template mandado pelo APChat: e de atendente', 'ATENDENTE', $resposta($mOutro)['resposta']);
+    x("UPDATE mensagem SET template_escritorio_id = {$confirmacaoId} WHERE id IN ({$mMeta}, {$mOutro})");
+    x("DELETE FROM template_escritorio WHERE id = {$metaId}");
 
     // ---------- atendente escreveu: para a contagem ----------
     [$agAtend, $mAtend] = $novo('ATENDENTE', '5519912340009');

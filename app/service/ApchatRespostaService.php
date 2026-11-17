@@ -240,7 +240,7 @@ class ApchatRespostaService
             {
                 if ($m['fromMe'] === true || $m['fromMe'] === 't')
                 {
-                    if (!in_array(self::textoComparavel($m['body'] ?? ''), $daCurciol, true)) { $atendente = true; break; }
+                    if (!in_array(self::textoNosso($m), $daCurciol, true)) { $atendente = true; break; }
                     continue;
                 }
                 $respostas[] = $m;
@@ -323,10 +323,43 @@ class ApchatRespostaService
     /** Textos que a Curciol mandou para este numero desde o envio (a API e a copia no canal oficial trazem o mesmo texto). */
     private static function textosDaCurciol(string $destino, string $desde): array
     {
-        $st = TTransaction::get()->prepare("SELECT template FROM mensagem WHERE destino = ? AND tipo_mensagem = 'WHATSAPP' AND enviado_em >= ?");
+        $st = TTransaction::get()->prepare("SELECT m.template, t.origem, t.meta_componentes FROM mensagem m LEFT JOIN template_escritorio t ON t.id = m.template_escritorio_id
+                                             WHERE m.destino = ? AND m.tipo_mensagem = 'WHATSAPP' AND m.enviado_em >= ?");
         $st->execute([$destino, $desde]);
 
-        return array_map([self::class, 'textoComparavel'], $st->fetchAll(PDO::FETCH_COLUMN));
+        $textos = [];
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $l)
+        {
+            $textos[] = self::textoComparavel($l['template']);
+            if (($l['origem'] ?? '') === TemplateEscritorio::ORIGEM_META)
+            {
+                $corpo = self::corpoDoTemplate((string) $l['meta_componentes']);
+                if ($corpo !== null) { $textos[] = $corpo; }
+            }
+        }
+        return $textos;
+    }
+
+    /**
+     * Mensagem nossa na conversa, para comparar com o que a Curciol enviou. Template da Meta (17/11/2026): o APChat grava
+     * mediaType "templates" e no body os componentes em JSON, com as variaveis em branco ("Olá ** !"); vale o corpo (BODY).
+     */
+    private static function textoNosso(array $m): string
+    {
+        return ($m['mediaType'] ?? '') === 'templates' ? (self::corpoDoTemplate((string) ($m['body'] ?? '')) ?? 'TEMPLATE-SEM-CORPO') : self::textoComparavel($m['body'] ?? '');
+    }
+
+    /** Corpo (BODY) dos componentes de um template da Meta, sem as variaveis: igual no que a Curciol guardou e no que o APChat grava. */
+    private static function corpoDoTemplate(string $componentes): ?string
+    {
+        foreach ((array) json_decode($componentes, true) as $c)
+        {
+            if (is_array($c) && strtoupper((string) ($c['type'] ?? '')) === 'BODY')
+            {
+                return 'TEMPLATE:' . self::textoComparavel(preg_replace('/\{\{[^}]*\}\}/u', '', (string) ($c['text'] ?? '')));
+            }
+        }
+        return null;
     }
 
     private static function textoComparavel(?string $texto): string

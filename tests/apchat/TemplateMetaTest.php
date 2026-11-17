@@ -72,7 +72,7 @@ try
     $eid = (int) $escritorio['id'];
     TSession::setValue('userunitid', (int) $escritorio['system_unit_id']);
     $c->exec("UPDATE escritorio SET token_apchat = 'TOKEN-FALSO-DE-TESTE', url_apchat = 'https://api.apchat.falso/v2/api/external/" . INTEGRACAO . "' WHERE id = {$eid}");
-    $c->exec("DELETE FROM template_escritorio WHERE escritorio_id = {$eid} AND origem = 'META'");
+    $c->exec("DELETE FROM template_escritorio WHERE escritorio_id = {$eid} AND origem = 'META' AND meta_waba_id = '1234567890'");
 
     // ---------- importacao ----------
     $r = ApchatWabaService::importar($eid);
@@ -113,7 +113,7 @@ try
     $l = new TemplateEscritorio($l->id);
     igual('reimportar: aprovado agora = habilitado', ['APPROVED', 'T'], [$l->meta_status, $l->habilitado]);
     igual('reimportar: excluido na Meta e sem uso = sai da Curciol', 0, (int) $c->query("SELECT count(*) FROM template_escritorio WHERE id = " . (int) $desc->id)->fetchColumn());
-    igual('reimportar: um registro por template', 4, (int) $c->query("SELECT count(*) FROM template_escritorio WHERE escritorio_id = {$eid} AND origem = 'META'")->fetchColumn());
+    igual('reimportar: um registro por template', 4, (int) $c->query("SELECT count(*) FROM template_escritorio WHERE escritorio_id = {$eid} AND origem = 'META' AND meta_waba_id = '1234567890'")->fetchColumn());
 
     // canal que nao e oficial / Meta recusa
     $falso->canal = ['canal_id' => 113, 'canal' => 'Coexistência', 'tipo' => 'whatsapp', 'waba_id' => null, 'token' => null, 'versao' => ''];
@@ -171,7 +171,7 @@ try
     igual('excluido na Meta e ja usado: conta como retirado', [0, 3, 1], [$r['novos'], $r['atualizados'], $r['removidos']]);
     $t = new TemplateEscritorio($t->id);
     igual('excluido na Meta e ja usado: guardado desabilitado', [ApchatWabaService::REMOVIDO, 'F'], [$t->meta_status, $t->habilitado]);
-    $crit = new TCriteria; $crit->add(new TFilter('escritorio_id', '=', $eid)); $crit->add(new TFilter('origem', '=', 'META')); $crit->add(ApchatWabaService::filtroSemRemovidos());
+    $crit = new TCriteria; $crit->add(new TFilter('escritorio_id', '=', $eid)); $crit->add(new TFilter('origem', '=', 'META')); $crit->add(new TFilter('meta_waba_id', '=', '1234567890')); $crit->add(ApchatWabaService::filtroSemRemovidos());
     $naLista = array_map(fn($o) => $o->meta_nome, TemplateEscritorio::getObjects($crit) ?: []);
     sort($naLista);
     igual('lista de templates: so os que existem na Meta', ['com_cifrao', 'lembrete_agendamento', 'posicional'], $naLista);
