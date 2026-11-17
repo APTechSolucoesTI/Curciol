@@ -825,7 +825,7 @@ class ParceiroForm extends TPage
             $sincronizacao_apchat = APChatContactService::sincronizarPessoa($object->id, [$telefone_anterior_apchat]);
             if (in_array($sincronizacao_apchat->situacao, [ApchatContatoLog::SITUACAO_ERRO, ApchatContatoLog::SITUACAO_PENDENTE]))
             {
-                TToast::show('warning', 'Registro salvo. APChat: ' . $sincronizacao_apchat->mensagem, 'topRight', 'fas:exclamation-triangle');
+                TToast::show('warning', APChatContactService::avisoDaTela($sincronizacao_apchat, 'Registro salvo'), 'topRight', 'fas:exclamation-triangle');
             }
 
             //</messageAutoCode> //</blockLine>

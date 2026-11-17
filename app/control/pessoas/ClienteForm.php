@@ -1222,7 +1222,7 @@ class ClienteForm extends TPage
 
             if (in_array($sincronizacao_apchat->situacao, [ApchatContatoLog::SITUACAO_ERRO, ApchatContatoLog::SITUACAO_PENDENTE]))
             {
-                TToast::show('warning', 'Cliente salvo. APChat: ' . $sincronizacao_apchat->mensagem, 'topRight', 'fas:exclamation-triangle');
+                TToast::show('warning', APChatContactService::avisoDaTela($sincronizacao_apchat, 'Cliente salvo'), 'topRight', 'fas:exclamation-triangle');
             }
 
             // o cadastro completo tira o aviso de todos os agendamentos do cliente na agenda aberta, de onde quer que tenha sido salvo

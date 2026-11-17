@@ -1253,6 +1253,40 @@ class APChatContactService
         return true;
     }
 
+    /**
+     * Aviso para a tela depois de salvar a pessoa (17/11/2026): texto simples, sem detalhe tecnico (SQLSTATE, servidor, porta);
+     * o detalhe fica no log (apchat_contato_log) e na fila. null = nada a avisar. $salvo: "Cliente salvo", "Registro salvo".
+     */
+    public static function avisoDaTela(object $r, string $salvo = 'Registro salvo'): ?string
+    {
+        if (!in_array($r->situacao ?? '', [ApchatContatoLog::SITUACAO_ERRO, ApchatContatoLog::SITUACAO_PENDENTE], true))
+        {
+            return null;
+        }
+        $m = mb_strtolower((string) ($r->mensagem ?? ''));
+        if (strpos($m, 'mesma empresa') !== false || strpos($m, 'outra empresa') !== false)
+        {
+            $motivo = 'a integração do APChat cadastrada no Escritório não é da empresa do banco do APChat (confira URL e token em Escritório › Configurações › APChat)';
+        }
+        elseif (strpos($m, 'token recusado') !== false || strpos($m, 'token') !== false && strpos($m, 'recus') !== false)
+        {
+            $motivo = 'o APChat recusou a integração cadastrada no Escritório (confira URL e token em Escritório › Configurações › APChat)';
+        }
+        elseif (strpos($m, 'servidor do apchat da url') !== false || strpos($m, 'não configurad') !== false)
+        {
+            $motivo = 'a integração com o APChat não está configurada por completo';
+        }
+        elseif (strpos($m, 'funções da curciol') !== false || strpos($m, 'conferir se a integração') !== false)
+        {
+            $motivo = 'o APChat precisa ser atualizado para conferir a integração';
+        }
+        else
+        {
+            $motivo = 'sem conexão com o APChat no momento';
+        }
+        return $salvo . ', mas o contato ainda não foi atualizado no APChat: ' . $motivo . '. A atualização ficou na fila e será feita sozinha.';
+    }
+
     /** Envio que falhou entra na fila (reenvio sozinho); o que deu certo sai dela. */
     private static function filaDoEnvio(string $numero, ?int $pessoa_id, object $r): void
     {

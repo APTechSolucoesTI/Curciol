@@ -42,6 +42,7 @@ class ApchatBancoService
 
     public static function usarFalso(?object $falso): void
     {
+        self::$empresaOk = false;
         self::$falso = $falso;
         self::$conn = null;
         self::$disponivel = null;
@@ -50,6 +51,7 @@ class ApchatBancoService
     /** Testes: outro arquivo de conexao (null = o padrao). */
     public static function usarConfig(?string $arquivo): void
     {
+        self::$empresaOk = false;
         self::$config = $arquivo ?? self::CONFIG;
         self::$conn = null;
         self::$disponivel = null;
@@ -57,6 +59,7 @@ class ApchatBancoService
 
     public static function desligar(bool $desligado = true): void
     {
+        self::$empresaOk = false;
         self::$desligado = $desligado;
         self::$conn = null;
         self::$disponivel = null;
@@ -105,17 +108,66 @@ class ApchatBancoService
     {
         if (self::$falso) { return method_exists(self::$falso, 'disponivel') ? (bool) self::$falso->disponivel() : true; }
         if (self::$disponivel !== null) { return self::$disponivel; }
+        // 17/11/2026: banco que nao respondeu ha menos de 1 min nao e tentado de novo (cada tentativa esperava ate 5 s, a cada salvar)
+        $falha = self::arquivoFalha();
+        if ($falha !== '' && is_file($falha))
+        {
+            $f = json_decode((string) @file_get_contents($falha), true);
+            if (is_array($f) && ($f['ate'] ?? 0) > time())
+            {
+                self::$erro = (string) ($f['erro'] ?? 'O banco do APChat não respondeu.');
+                return self::$disponivel = false;
+            }
+        }
         try
         {
             self::conn();
             self::$disponivel = true;
+            if ($falha !== '') { @unlink($falha); }
         }
         catch (Throwable $e)
         {
             self::$erro = $e->getMessage();
             self::$disponivel = false;
+            if ($falha !== '')
+            {
+                $tmp = $falha . '.tmp' . getmypid();
+                if (@file_put_contents($tmp, json_encode(['ate' => time() + self::FALHA_SEGUNDOS, 'erro' => self::$erro])) !== false && !@rename($tmp, $falha)) { @unlink($tmp); }
+            }
         }
         return self::$disponivel;
+    }
+
+    const FALHA_SEGUNDOS = 60;
+
+    /** Arquivo da ultima falha do banco em uso (so com o arquivo de configuracao da instalacao; testes com outro arquivo: sem). */
+    /** @var bool testes: lembrar a falha tambem com outro arquivo de configuracao */
+    private static $lembrarFalhaSempre = false;
+
+    public static function lembrarFalhaSempre(bool $sim): void
+    {
+        self::$lembrarFalhaSempre = $sim;
+    }
+
+    private static function arquivoFalha(): string
+    {
+        if (self::$config !== self::CONFIG && !self::$lembrarFalhaSempre) { return ''; }
+        return sys_get_temp_dir() . '/curciol-apchat-banco-falha-' . md5(__DIR__) . '-' . self::assinatura() . '.json';
+    }
+
+    /** Esquece a ultima falha (o banco volta a ser tentado na hora). */
+    public static function esquecerFalha(): void
+    {
+        $falha = self::arquivoFalha();
+        if ($falha !== '') { @unlink($falha); }
+        self::$disponivel = null;
+    }
+
+    /** O banco responde, sem conferir a empresa da integracao (usado pela propria conferencia). */
+    public static function conectaBruto(): bool
+    {
+        if (self::$falso) { return true; }
+        try { self::connBruta(); return true; } catch (Throwable $e) { return false; }
     }
 
     public static function erro(): string
@@ -152,7 +204,41 @@ class ApchatBancoService
         return self::$falso !== null;
     }
 
+    /** @var bool conferindo a empresa (a conferencia usa a conexao sem a regra) */
+    private static $conferindo = false;
+    /** @var bool a empresa da integracao ja foi conferida neste processo */
+    private static $empresaOk = false;
+
+    /**
+     * Conexao com a regra de acesso (17/11/2026): so abre se a integracao da URL do Escritorio for da empresa deste banco
+     * (IntegracaoAcessoService::configuracaoApchat - curciol.f_integracao, guardada 1 min). Vale para TUDO que le ou grava no
+     * banco do APChat: salvar pessoa, fila, respostas SIM/NAO, historico, contatos sem vinculo, conciliacao, topo. Testes com
+     * outro arquivo de configuracao (APChat de teste) nao conferem.
+     */
     private static function conn(): PDO
+    {
+        $pdo = self::connBruta();
+        if (!self::$conferindo && !self::$empresaOk && self::$config === self::CONFIG)
+        {
+            self::$conferindo = true;
+            try
+            {
+                $r = IntegracaoAcessoService::naTransacao(function () { return IntegracaoAcessoService::configuracaoApchat(); }, 'erro');
+            }
+            finally
+            {
+                self::$conferindo = false;
+            }
+            if ($r !== 'ok')
+            {
+                throw new Exception((string) IntegracaoAcessoService::motivoApchat($r));
+            }
+            self::$empresaOk = true;
+        }
+        return $pdo;
+    }
+
+    private static function connBruta(): PDO
     {
         if (self::$conn) { return self::$conn; }
         $c = self::dadosConexao();
@@ -535,7 +621,7 @@ class ApchatBancoService
     public static function integracaoDaEmpresa(string $id): bool
     {
         if (self::$falso) { return method_exists(self::$falso, 'integracaoDaEmpresa') ? (bool) self::$falso->integracaoDaEmpresa($id) : true; }
-        $st = self::conn()->prepare('SELECT curciol.f_integracao(?)');
+        $st = self::connBruta()->prepare('SELECT curciol.f_integracao(?)');
         $st->execute([$id]);
         $v = $st->fetchColumn();
         return $v === true || $v === 't' || $v === 1 || $v === '1';

@@ -99,7 +99,7 @@ class IntegracaoAcessoService
         catch (Throwable $e)
         {
             // banco fora = fora de servico; banco no ar sem a funcao = falta atualizar as funcoes no APChat
-            $r = (ApchatBancoService::emTeste() || ApchatBancoService::disponivel()) && stripos($e->getMessage(), 'f_integracao') !== false ? 'sem_conferencia' : 'erro';
+            $r = (ApchatBancoService::emTeste() || ApchatBancoService::conectaBruto()) && stripos($e->getMessage(), 'f_integracao') !== false ? 'sem_conferencia' : 'erro';
         }
         if (!ApchatBancoService::emTeste())
         {
