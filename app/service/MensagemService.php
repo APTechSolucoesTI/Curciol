@@ -61,20 +61,20 @@ class MensagemService
     public static function variaveis(): array
     {
         return [
-            '{$cliente}'                 => 'Nome do cliente',
-            '{$data_inicial}'            => 'Data do agendamento',
-            '{$profissional}'            => 'Nome do profissional',
-            '{$agenda_nome}'             => 'Nome da agenda',
-            '{$estado}'                  => 'Estado atual do agendamento',
-            '{$id}'                      => 'Código do agendamento',
-            '{$observacao}'              => 'Observação',
-            '{$escritorio}'              => 'Nome do escritório',
-            '{$endereco_escritorio}'     => 'Endereço do escritório',
-            '{$telefone_escritorio}'     => 'Telefone do escritório',
-            '{$email_escritorio}'        => 'E-mail do escritório',
-            '{$link_confirmacao}'        => 'Botão de confirmar (na confirmação por e-mail; nos outros, o link)',
-            '{$link_cancelamento}'       => 'Botão de cancelar (na confirmação por e-mail; nos outros, o link)',
-            '{$botoes}'                  => 'Os dois botões, confirmar e cancelar (confirmação por e-mail)',
+            '{{cliente}}'                => 'Nome do cliente',
+            '{{data_inicial}}'           => 'Data do agendamento',
+            '{{profissional}}'           => 'Nome do profissional',
+            '{{agenda_nome}}'            => 'Nome da agenda',
+            '{{estado}}'                 => 'Estado atual do agendamento',
+            '{{id}}'                     => 'Código do agendamento',
+            '{{observacao}}'             => 'Observação',
+            '{{escritorio}}'             => 'Nome do escritório',
+            '{{endereco_escritorio}}'    => 'Endereço do escritório',
+            '{{telefone_escritorio}}'    => 'Telefone do escritório',
+            '{{email_escritorio}}'       => 'E-mail do escritório',
+            '{{link_confirmacao}}'       => 'Botão de confirmar (na confirmação por e-mail; nos outros, o link)',
+            '{{link_cancelamento}}'      => 'Botão de cancelar (na confirmação por e-mail; nos outros, o link)',
+            '{{botoes}}'                 => 'Os dois botões, confirmar e cancelar (confirmação por e-mail)',
         ];
     }
 
@@ -104,7 +104,8 @@ class MensagemService
         $lista = [];
         foreach ($templates ?: [] as $t)
         {
-            $lista[$t->id] = (TemplateEscritorio::CATEGORIAS[$t->categoria] ?? 'Outros') . ' - ' . $t->descricao;
+            // origem na lista (17/11/2026): o template da Meta so sai pelo canal oficial
+            $lista[$t->id] = (TemplateEscritorio::CATEGORIAS[$t->categoria] ?? 'Outros') . ' - ' . $t->descricao . ($t->ehMeta() ? ' (Meta)' : '');
         }
 
         return $lista;
@@ -138,6 +139,11 @@ class MensagemService
         if (!$template || $template->categoria !== $categoria)
         {
             throw new Exception('Escolha um template de ' . TemplateEscritorio::CATEGORIAS[$categoria] . '.');
+        }
+        // template da Meta (17/11/2026): o texto e o aprovado na Meta, nao da para mudar no envio
+        if ($manual && $template->ehMeta())
+        {
+            throw new Exception('Template da Meta não pode ser alterado no envio (sai o texto aprovado na Meta). Desmarque Manual ou escolha um template da Curciol.');
         }
         if ($manual && $categoria === TemplateEscritorio::CONFIRMACAO && self::templateRegistrado($template, true, $texto) === null)
         {
@@ -263,7 +269,16 @@ class MensagemService
      */
     public static function textoDoTemplate(TemplateEscritorio $template): array
     {
-        return ['titulo' => (string) $template->titulo, 'texto' => (string) $template->template];
+        $titulo = TemplateEscritorio::normalizarVariaveis((string) $template->titulo);
+        if ($template->ehMeta())
+        {
+            // como sai na Meta: cabecalho, corpo, rodape e botoes (ainda com as variaveis)
+            $p = ApchatWabaService::partes($template);
+            $texto = trim(($p['cabecalho'] !== '' ? '*' . $p['cabecalho'] . "*\n\n" : '') . $p['texto']
+                        . ($p['botoes'] ? "\n\n" . implode('  ', array_map(function ($b) { return "[{$b}]"; }, $p['botoes'])) : ''));
+            return ['titulo' => $titulo, 'texto' => $texto];
+        }
+        return ['titulo' => $titulo, 'texto' => TemplateEscritorio::normalizarVariaveis((string) $template->template)];
     }
     
     /**
@@ -413,6 +428,14 @@ class MensagemService
         self::exigirAutorizacao($agendamento);
 
         $numero = self::destinoWhatsapp($agendamento, $digitado);
+
+        // template da Meta (17/11/2026): sai o template aprovado, pelo canal oficial; o texto recebido aqui nao vale
+        $template = $template_escritorio_id ? TemplateEscritorio::find((int) $template_escritorio_id) : null;
+        if ($template && $template->ehMeta())
+        {
+            return self::enviarTemplateMeta($agendamento, $template, $numero);
+        }
+
         $texto = trim(TemplateEscritorio::replace($agendamento, $texto));
 
         if ($texto === '')
@@ -432,6 +455,28 @@ class MensagemService
         return $mensagem;
     }
         
+    /** Template aprovado na Meta pelo canal oficial do APChat; o historico guarda o texto como o cliente recebe. */
+    private static function enviarTemplateMeta(Agendamento $agendamento, TemplateEscritorio $template, string $numero): Mensagem
+    {
+        if ($template->tipo_template !== TemplateEscritorio::WHATSAPP)
+        {
+            throw new Exception('Template da Meta só é enviado por WhatsApp.');
+        }
+        ApchatWabaService::exigirEnvio($template);
+        $dados = ApchatWabaService::montar($template, $agendamento);
+        $titulo = TemplateEscritorio::replace($agendamento, (string) $template->titulo);
+
+        $mensagem = self::registrar($agendamento, TemplateEscritorio::WHATSAPP, $titulo, ApchatWabaService::textoEnviado($template, $agendamento), $template->id, $numero);
+
+        $mensagem->retorno = ApchatApiService::enviarTemplate($numero, $dados, 'curciol-mensagem-' . $mensagem->id);
+        $mensagem->entrega = 'A';
+        $mensagem->apchat_mensagem_id = MensagemEntregaService::idDaResposta((string) $mensagem->retorno);
+        $mensagem->apchat_ticket_id = MensagemEntregaService::ticketDaResposta((string) $mensagem->retorno);
+        $mensagem->store();
+
+        return $mensagem;
+    }
+
     /**
      * E-mail pelo SMTP do escritorio (um so para o escritorio todo). $titulo e $texto ainda com as variaveis.
      */

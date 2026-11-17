@@ -627,6 +627,21 @@ class ApchatBancoService
         return $v === true || $v === 't' || $v === 1 || $v === '1';
     }
 
+    /**
+     * Templates da Meta (17/11/2026): canal da integracao (id da URL do Escritorio) com a conta WhatsApp Business e o token da Meta
+     * do canal (curciol.f_waba; so para canal oficial). Passa pela regra de acesso (conn: integracao desta empresa). O token so e
+     * usado para ler a lista de templates na Meta, nunca e gravado.
+     * @return array|null {canal_id, canal, tipo, waba_id, token, versao}; null = integracao sem canal
+     */
+    public static function wabaDaIntegracao(string $id): ?array
+    {
+        if (self::$falso) { return method_exists(self::$falso, 'wabaDaIntegracao') ? self::$falso->wabaDaIntegracao($id) : null; }
+        $st = self::conn()->prepare('SELECT canal_id, canal, tipo, waba_id, token, versao FROM curciol.f_waba(?)');
+        $st->execute([$id]);
+        $l = $st->fetch();
+        return $l ?: null;
+    }
+
     /** Configuracoes da empresa no APChat que mudam quem ve o que (texto como o APChat guarda: enabled/disabled). */
     public static function configuracoes(): array
     {

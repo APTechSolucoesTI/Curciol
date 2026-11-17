@@ -9,7 +9,7 @@ class EscritorioService
         $templateEscritorio->descricao = 'Confirmação de agendamento';
         $templateEscritorio->escritorio_id = $escritorio_id;
         $templateEscritorio->habilitado = 'T';
-        $templateEscritorio->template = '<p>Olá <b>{$cliente}</b>,</p><p>Temos um agendamento marcado com você em: {$data_inicial}, com<span style="color: var(--text-color); font-family: var(--font-family); font-size: var(--font-size);"> {$profissional}.</span></p><p style="line-height: 1;"><br></p><p style="line-height: 1;">Você deseja:</p><p style="line-height: 1;">{$link_confirmacao} {$link_cancelamento}</p><p style="line-height: 1;"><br></p><p style="line-height: 1;"><span style="font-size: 11px; font-family: Arial;">{$escritorio} - </span><span style="color: var(--text-color); font-family: Arial; font-size: 11px;">{$email_escritorio} - </span><span style="font-family: Arial; font-size: 11px; color: var(--text-color);">{$telefone_escritorio}</span></p>';
+        $templateEscritorio->template = '<p>Olá <b>{{cliente}}</b>,</p><p>Temos um agendamento marcado com você em: {{data_inicial}}, com<span style="color: var(--text-color); font-family: var(--font-family); font-size: var(--font-size);"> {{profissional}}.</span></p><p style="line-height: 1;"><br></p><p style="line-height: 1;">Você deseja:</p><p style="line-height: 1;">{{link_confirmacao}} {{link_cancelamento}}</p><p style="line-height: 1;"><br></p><p style="line-height: 1;"><span style="font-size: 11px; font-family: Arial;">{{escritorio}} - </span><span style="color: var(--text-color); font-family: Arial; font-size: 11px;">{{email_escritorio}} - </span><span style="font-family: Arial; font-size: 11px; color: var(--text-color);">{{telefone_escritorio}}</span></p>';
         $templateEscritorio->titulo = 'Confirmação de agendamento';
         $templateEscritorio->tipo_template = 'EMAIL';
         // botoes do cliente (09/11/2026): mesmo texto e cor dos links que o template tinha
@@ -21,13 +21,13 @@ class EscritorioService
         $templateEscritorio->store();
         
         $templateAcao = new TemplateAcao();
-        $templateAcao->url = '{$link_confirmacao}';
+        $templateAcao->url = '{{link_confirmacao}}';
         $templateAcao->label = 'Confirmar';
         $templateAcao->template_escritorio_id = $templateEscritorio->id;
         $templateAcao->store();
         
         $templateAcao = new TemplateAcao();
-        $templateAcao->url = '{$link_cancelamento}';
+        $templateAcao->url = '{{link_cancelamento}}';
         $templateAcao->label = 'Cancelar';
         $templateAcao->template_escritorio_id = $templateEscritorio->id;
         $templateAcao->store();
@@ -37,7 +37,7 @@ class EscritorioService
         $templateEscritorio->descricao = 'Aviso de proximidade de consulta';
         $templateEscritorio->escritorio_id = $escritorio_id;
         $templateEscritorio->habilitado = 'T';
-        $templateEscritorio->template = '<p>Olá <b>{$cliente}</b>,</p><p>Lembramos que você tem um agendamento marcado em: {$data_inicial}, com<span style="color: var(--text-color); font-family: var(--font-family); font-size: var(--font-size);"> {$profissional}.</span></p><p style="line-height: 1;"><br></p><p style="line-height: 1;"><br></p><p style="line-height: 1;"><span style="font-size: 11px; font-family: Arial;">{$escritorio} - </span><span style="color: var(--text-color); font-family: Arial; font-size: 11px;">{$email_escritorio} - </span><span style="font-family: Arial; font-size: 11px; color: var(--text-color);">{$telefone_escritorio}</span></p>';
+        $templateEscritorio->template = '<p>Olá <b>{{cliente}}</b>,</p><p>Lembramos que você tem um agendamento marcado em: {{data_inicial}}, com<span style="color: var(--text-color); font-family: var(--font-family); font-size: var(--font-size);"> {{profissional}}.</span></p><p style="line-height: 1;"><br></p><p style="line-height: 1;"><br></p><p style="line-height: 1;"><span style="font-size: 11px; font-family: Arial;">{{escritorio}} - </span><span style="color: var(--text-color); font-family: Arial; font-size: 11px;">{{email_escritorio}} - </span><span style="font-family: Arial; font-size: 11px; color: var(--text-color);">{{telefone_escritorio}}</span></p>';
         $templateEscritorio->titulo = 'Lembrete de consulta';
         $templateEscritorio->tipo_template = 'EMAIL';
         $templateEscritorio->readonly = 'T';
@@ -49,7 +49,7 @@ class EscritorioService
         $templateEscritorio->descricao = 'Aviso de proximidade de consulta';
         $templateEscritorio->escritorio_id = $escritorio_id;
         $templateEscritorio->habilitado = 'T';
-        $templateEscritorio->template = 'Olá {$cliente}. Lembramos que seu agendamento está confirmado para {$data_inicial}';
+        $templateEscritorio->template = 'Olá {{cliente}}. Lembramos que seu agendamento está confirmado para {{data_inicial}}';
         $templateEscritorio->titulo = 'Lembrete de consulta';
         $templateEscritorio->tipo_template = 'WHATSAPP';
         $templateEscritorio->readonly = 'T';
@@ -62,7 +62,7 @@ class EscritorioService
         $templateEscritorio->escritorio_id = $escritorio_id;
         $templateEscritorio->habilitado = 'T';
         // sem links: o cliente responde SIM ou NAO na conversa do WhatsApp (03/11/2026)
-        $templateEscritorio->template = "Olá {\$cliente}. Temos agendado para {\$data_inicial}, com {\$profissional}.\n\nResponda *SIM* para confirmar ou *NÃO* para cancelar.";
+        $templateEscritorio->template = "Olá {{cliente}}. Temos agendado para {{data_inicial}}, com {{profissional}}.\n\nResponda *SIM* para confirmar ou *NÃO* para cancelar.";
         $templateEscritorio->titulo = 'Confirmação de agendamento';
         $templateEscritorio->tipo_template = 'WHATSAPP';
         $templateEscritorio->readonly = 'T';
@@ -71,9 +71,9 @@ class EscritorioService
         // mensagens automaticas depois da resposta SIM/NAO (ApchatRespostaService)
         $respostas = [
             ['WHATSAPP_RESPOSTA_SIM', 'Resposta SIM: confirmação recebida', 'Confirmação recebida',
-             'Obrigado, {$cliente}! Seu agendamento para {$data_inicial}, com {$profissional}, está confirmado.'],
+             'Obrigado, {{cliente}}! Seu agendamento para {{data_inicial}}, com {{profissional}}, está confirmado.'],
             ['WHATSAPP_RESPOSTA_NAO', 'Resposta NÃO: agradecimento', 'Agendamento cancelado',
-             'Obrigado por avisar, {$cliente}. Seu agendamento de {$data_inicial} foi cancelado.'],
+             'Obrigado por avisar, {{cliente}}. Seu agendamento de {{data_inicial}} foi cancelado.'],
         ];
         foreach ($respostas as [$chave, $descricao, $titulo, $texto])
         {

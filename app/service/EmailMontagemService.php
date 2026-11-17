@@ -3,28 +3,29 @@
  * Montagem do e-mail (09/11/2026): botoes de confirmar e cancelar do template de confirmacao, corpo com a assinatura no fim
  * e a previa fiel usada no template, no envio, no Visualizar e no historico.
  *
- * Botoes (2a rodada, 09/11/2026): so entram onde o usuario pos {$botoes} (os dois) ou {$link_confirmacao} /
- * {$link_cancelamento} (um por um), no texto ou como destino de um link do editor. Nada entra sozinho no fim. O texto e a
+ * Botoes (2a rodada, 09/11/2026): so entram onde o usuario pos {{botoes}} (os dois) ou {{link_confirmacao}} /
+ * {{link_cancelamento}} (um por um), no texto ou como destino de um link do editor. Nada entra sozinho no fim. O texto e a
  * cor de cada botao vem do template; o destino continua a variavel, trocada depois pelo TemplateEscritorio::replace.
- * Fora da confirmacao por e-mail os links continuam sendo o endereco e {$botoes} some.
+ * Fora da confirmacao por e-mail os links continuam sendo o endereco e {{botoes}} some.
  *
  * Botao "a prova de Outlook": a cor vai no bgcolor da celula e o espaco interno no mso-padding-alt (o Outlook ignora padding
  * em link); nos demais leitores o link tem o mesmo espaco e o botao inteiro e clicavel.
  */
 class EmailMontagemService
 {
-    const VARIAVEL  = '{$botoes}';
-    const CONFIRMAR = '{$link_confirmacao}';
-    const CANCELAR  = '{$link_cancelamento}';
+    // variaveis no padrao da Meta, {{nome}}, desde 17/11/2026 (as formas antigas, cifrao entre chaves simples, sao convertidas antes)
+    const VARIAVEL  = '{{botoes}}';
+    const CONFIRMAR = '{{link_confirmacao}}';
+    const CANCELAR  = '{{link_cancelamento}}';
 
     const CONFIRMAR_TEXTO = 'Confirmar presença';
     const CONFIRMAR_COR   = '#2e7d32';
     const CANCELAR_TEXTO  = 'Cancelar agendamento';
     const CANCELAR_COR    = '#c62828';
 
-    private const TOKENS = '\{\$(?:botoes|link_confirmacao|link_cancelamento)\}';
+    private const TOKENS = '\{\{(?:botoes|link_confirmacao|link_cancelamento)\}\}';
 
-    /** Template de confirmacao por e-mail que usa {$botoes}, {$link_confirmacao} ou {$link_cancelamento}. */
+    /** Template de confirmacao por e-mail que usa {{botoes}}, {{link_confirmacao}} ou {{link_cancelamento}}. */
     public static function temBotoes(?TemplateEscritorio $template): bool
     {
         return self::ehConfirmacaoPorEmail($template) && self::textoTemBotoes((string) $template->template);
@@ -33,6 +34,7 @@ class EmailMontagemService
     /** O texto tem alguma das tres variaveis dos botoes (o formulario so mostra "Botoes do cliente" assim). */
     public static function textoTemBotoes(string $texto): bool
     {
+        $texto = TemplateEscritorio::normalizarVariaveis($texto);
         return strpos($texto, self::VARIAVEL) !== false || strpos($texto, self::CONFIRMAR) !== false || strpos($texto, self::CANCELAR) !== false;
     }
 
@@ -48,9 +50,10 @@ class EmailMontagemService
         return self::tabela([self::CONFIRMAR, self::CANCELAR], $template);
     }
 
-    /** Texto com os botoes do template onde o usuario os pos. Fora da confirmacao por e-mail, so {$botoes} some. */
+    /** Texto com os botoes do template onde o usuario os pos. Fora da confirmacao por e-mail, so {{botoes}} some. */
     public static function comBotoes(string $texto, ?TemplateEscritorio $template): string
     {
+        $texto = TemplateEscritorio::normalizarVariaveis($texto);
         if (!self::ehConfirmacaoPorEmail($template))
         {
             return str_replace(self::VARIAVEL, '', $texto);
@@ -64,7 +67,7 @@ class EmailMontagemService
         };
 
         // link do editor (ou de template antigo) com destino numa das variaveis: vira so a variavel
-        $texto = preg_replace('#<a\b[^>]*?\bhref\s*=\s*(["\'])\s*(\{\$link_(?:confirmacao|cancelamento)\})\s*\1[^>]*>.*?</a>#is', '$2', $texto);
+        $texto = preg_replace('#<a\b[^>]*?\bhref\s*=\s*(["\'])\s*(\{\{link_(?:confirmacao|cancelamento)\}\})\s*\1[^>]*>.*?</a>#is', '$2', $texto);
 
         // paragrafo so com as variaveis (espacos, &nbsp; e <br> em volta): uma tabela no lugar do paragrafo inteiro
         $texto = preg_replace_callback('#<p\b[^>]*>((?:\s|&nbsp;|\xc2\xa0|<br\s*/?>|' . self::TOKENS . ')*)</p>#i', function ($m) use ($guardar) {
@@ -117,7 +120,7 @@ class EmailMontagemService
             && $template->categoria === TemplateEscritorio::CONFIRMACAO;
     }
 
-    /** Variaveis achadas, na ordem do texto, com {$botoes} aberto nos dois links. */
+    /** Variaveis achadas, na ordem do texto, com {{botoes}} aberto nos dois links. */
     private static function quais(array $variaveis): array
     {
         $links = [];

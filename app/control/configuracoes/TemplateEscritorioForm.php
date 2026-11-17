@@ -9,6 +9,7 @@ class TemplateEscritorioForm extends TPage
     private static $primaryKey = 'id';
     private static $formName = 'form_TemplateClinicaForm';
     private $usadoEm;
+    private $metaInfo;
     private $assinaturaAtual;
 
     use BuilderMasterDetailFieldListTrait;
@@ -100,7 +101,7 @@ class TemplateEscritorioForm extends TPage
         $categoria->setDefaultOption(false);
         $categoria->setValue(TemplateEscritorio::CONFIRMACAO);
         $categoria->setSize('100%');
-        // o titulo e o assunto do e-mail (09/11/2026): sem maiusculas forcadas, que estragavam as variaveis ({$cliente})
+        // o titulo e o assunto do e-mail (09/11/2026): sem maiusculas forcadas, que estragavam as variaveis ({{cliente}})
         $descricao->forceUpperCase();
 
         $data_criacao->setEditable(false);
@@ -129,6 +130,10 @@ class TemplateEscritorioForm extends TPage
         $row1 = $this->form->addFields([new TLabel("Categoria:", '#ff0000', '14px', null, '100%'),$escritorio_id,$id,$chave,$categoria],[new TLabel("Descrição (nome do template na lista):", '#ff0000', '14px', null, '100%'),$descricao],[new TLabel("Tipo:", '#FF0000', '14px', null),$tipo_template]);
         $row1->layout = [' col-sm-3','col-sm-6',' col-sm-3'];
 
+        // template da Meta (17/11/2026): de onde veio e a situacao (preenchido no onEdit)
+        $this->metaInfo = new TElement('div');
+        $this->form->addFields([$this->metaInfo])->layout = ['col-sm-12'];
+
         // de que confirmacao este template e a resposta automatica (preenchido no onEdit)
         $this->usadoEm = new TElement('div');
         $this->form->addFields([$this->usadoEm])->layout = ['col-sm-12'];
@@ -139,10 +144,10 @@ class TemplateEscritorioForm extends TPage
         $bcontainer_62e034c1eb8f6->setTitle("Variávies", '#333', '13px', '', '#fff');
         $bcontainer_62e034c1eb8f6->setBorderColor('#c0c0c0');
 
-        $row2 = $bcontainer_62e034c1eb8f6->addFields([new TLabel("<b>{\$id}</b> Código do agendamento", null, '14px', null, '100%'),new TLabel("<b>{\$endereco_escritorio}</b> Endereço do escritório", null, '14px', null, '100%'),new TLabel("<b>{\$escritorio}</b> Nome do escritório", null, '14px', null, '100%'),new TLabel("<b>{\$estado}</b> Estado atual do agendamento", null, '14px', null, '100%')],[new TLabel("<b>{\$profissional}</b> Nome do profissional", null, '14px', null, '100%'),new TLabel("<b>{\$data_inicial}</b> Data do agendamento", null, '14px', null, '100%'),new TLabel("<b>{\$cliente}</b> Nome do cliente", null, '14px', null, '100%'),new TLabel("<b>{\$profissional_foto}</b> Foto do profissional", null, '14px', null, '100%')],[new TLabel("<b>{\$link_confirmacao}</b> Botão de confirmar (na confirmação por e-mail; nos outros, o link)", null, '14px', null, '100%'),new TLabel("<b>{\$link_cancelamento}</b> Botão de cancelar (na confirmação por e-mail; nos outros, o link)", null, '14px', null, '100%')]);
+        $row2 = $bcontainer_62e034c1eb8f6->addFields([new TLabel("<b>{{id}}</b> Código do agendamento", null, '14px', null, '100%'),new TLabel("<b>{{endereco_escritorio}}</b> Endereço do escritório", null, '14px', null, '100%'),new TLabel("<b>{{escritorio}}</b> Nome do escritório", null, '14px', null, '100%'),new TLabel("<b>{{estado}}</b> Estado atual do agendamento", null, '14px', null, '100%')],[new TLabel("<b>{{profissional}}</b> Nome do profissional", null, '14px', null, '100%'),new TLabel("<b>{{data_inicial}}</b> Data do agendamento", null, '14px', null, '100%'),new TLabel("<b>{{cliente}}</b> Nome do cliente", null, '14px', null, '100%'),new TLabel("<b>{{profissional_foto}}</b> Foto do profissional", null, '14px', null, '100%')],[new TLabel("<b>{{link_confirmacao}}</b> Botão de confirmar (na confirmação por e-mail; nos outros, o link)", null, '14px', null, '100%'),new TLabel("<b>{{link_cancelamento}}</b> Botão de cancelar (na confirmação por e-mail; nos outros, o link)", null, '14px', null, '100%')]);
         $row2->layout = [' col-sm-4',' col-sm-4',' col-sm-4'];
 
-        $row3 = $bcontainer_62e034c1eb8f6->addFields([new TLabel("<b>{\$telefone_escritorio}</b> Telefone do escritório", null, '14px', null, '100%'),new TLabel("<b>{\$email_escritorio}</b> E-mail do escritório", null, '14px', null, '100%')],[new TLabel("<b>{\$observacao}</b> Observação", null, '14px', null, '100%')],[new TLabel("<b>{\$botoes}</b> Botões de confirmar e cancelar (confirmação por e-mail)", null, '14px', null, '100%')]);
+        $row3 = $bcontainer_62e034c1eb8f6->addFields([new TLabel("<b>{{telefone_escritorio}}</b> Telefone do escritório", null, '14px', null, '100%'),new TLabel("<b>{{email_escritorio}}</b> E-mail do escritório", null, '14px', null, '100%')],[new TLabel("<b>{{observacao}}</b> Observação", null, '14px', null, '100%')],[new TLabel("<b>{{botoes}}</b> Botões de confirmar e cancelar (confirmação por e-mail)", null, '14px', null, '100%')]);
         $row3->layout = [' col-sm-4',' col-sm-4',' col-sm-4'];
 
         $row4 = $this->form->addFields([$bcontainer_62e034c1eb8f6]);
@@ -312,6 +317,30 @@ class TemplateEscritorioForm extends TPage
                 $object->template = $data->template_whatsapp;
             }
 
+            if ($gravado && $gravado->ehMeta())
+            {
+                // template da Meta (17/11/2026): texto, titulo e canal sao os da Meta; aqui so categoria, descricao, habilitar e respostas
+                $object->origem = TemplateEscritorio::ORIGEM_META;
+                $object->tipo_template = TemplateEscritorio::WHATSAPP;
+                $object->template = $gravado->template;
+                $object->titulo = $gravado->titulo;
+                if ($object->habilitado === 'T' && $gravado->meta_status !== ApchatWabaService::APROVADO)
+                {
+                    throw new Exception('Este template ainda não está aprovado na Meta (' . ApchatWabaService::situacao($gravado->meta_status) . '): só dá para habilitar depois da aprovação. Use Importar da Meta para atualizar a situação.');
+                }
+                if ($object->habilitado === 'T' && ($problema = ApchatWabaService::problemaDoTemplate($gravado)) !== null)
+                {
+                    throw new Exception('Este template da Meta não pode ser habilitado: ' . $problema);
+                }
+            }
+            else
+            {
+                // variaveis no padrao da Meta, {{nome}} (17/11/2026)
+                $object->origem = TemplateEscritorio::ORIGEM_CURCIOL;
+                $object->template = TemplateEscritorio::normalizarVariaveis((string) $object->template);
+                $object->titulo = TemplateEscritorio::normalizarVariaveis((string) $object->titulo);
+            }
+
             TemplateRespostaService::validar($object);
 
             if ($gravado)
@@ -388,6 +417,12 @@ class TemplateEscritorioForm extends TPage
                 TTransaction::open(self::$database); // open a transaction
 
                 $object = new TemplateEscritorio($key); // instantiates the Active Record 
+                $object->template = TemplateEscritorio::normalizarVariaveis((string) $object->template);
+                $object->titulo = TemplateEscritorio::normalizarVariaveis((string) $object->titulo);
+                if ($object->ehMeta())
+                {
+                    $this->mostrarMeta($object);
+                }
 
                 if ($object->readonly == 'T')
                 {
@@ -473,7 +508,7 @@ class TemplateEscritorioForm extends TPage
         $tituloBotoes = new TElement('div');
         $tituloBotoes->id = 'botoes_titulo';
         $tituloBotoes->style = 'border-top:1px solid #ddd;padding-top:10px;';
-        $tituloBotoes->add('<b style="font-size:15px">Botões do cliente</b><br>Aparecem onde estiver {$botoes} (os dois juntos) ou {$link_confirmacao} e {$link_cancelamento} (um por um) '
+        $tituloBotoes->add('<b style="font-size:15px">Botões do cliente</b><br>Aparecem onde estiver {{botoes}} (os dois juntos) ou {{link_confirmacao}} e {{link_cancelamento}} (um por um) '
                          . 'e abrem as páginas de sempre para confirmar ou cancelar. O texto e a cor abaixo valem para os dois jeitos.');
         $this->form->addFields([$tituloBotoes])->layout = ['col-sm-12'];
 
@@ -539,10 +574,11 @@ class TemplateEscritorioForm extends TPage
         $this->form->addFields([new TLabel('Prévia do e-mail (como o cliente vê):', null, '14px', null, '100%'), $botoesPrevia, $previa])->layout = ['col-sm-12'];
 
         // sempre pelo form: os filtros da listagem, atras da cortina, tem os mesmos nomes de campo
-        // "Botoes do cliente" so com {$botoes}, {$link_confirmacao} ou {$link_cancelamento} no texto (mesma regra do
+        // "Botoes do cliente" so com {{botoes}}, {{link_confirmacao}} ou {{link_cancelamento}} no texto (mesma regra do
         // EmailMontagemService::textoTemBotoes). Previa: abrir atualiza; aberta, acompanha o que e digitado
         $form = 'form[name=' . self::$formName . ']';
-        $regexBotoes = '/\{\$(?:botoes|link_confirmacao|link_cancelamento)\}/';
+        // {{nome}} (padrao da Meta, 17/11/2026) e as formas antigas ainda nao salvas no padrao novo
+        $regexBotoes = '/(?:\{\{\s*\$?|\{\$)(?:botoes|link_confirmacao|link_cancelamento)(?:\s*\}\}|\})/';
         TScript::create("
             window.curciolTextoTemplate = function (f) {
                 var t = f.find('textarea[name=template]');
@@ -624,6 +660,28 @@ class TemplateEscritorioForm extends TPage
             TTransaction::rollback();
             echo '<div class="alert alert-danger" style="margin:0">' . htmlspecialchars($e->getMessage(), ENT_QUOTES, 'UTF-8') . '</div>';
         }
+    }
+
+    /** Template da Meta: de onde veio, a situacao, os botoes e o texto so para leitura (o envio e o template aprovado). */
+    private function mostrarMeta(TemplateEscritorio $t): void
+    {
+        $e = function ($v) { return htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8'); };
+        $partes = ApchatWabaService::partes($t);
+        $problema = ApchatWabaService::problemaDoTemplate($t);
+        $aprovado = $t->meta_status === ApchatWabaService::APROVADO;
+
+        $this->metaInfo->style = 'background:#eefaf1;border-left:3px solid #25D366;padding:8px 10px;font-size:13px;margin-bottom:6px;';
+        $this->metaInfo->add('<b><i class="fab fa-whatsapp" style="color:#25D366"></i> Template da Meta</b> (importado da conta do canal oficial; o texto é o aprovado na Meta e só é enviado pelo canal oficial)<br>'
+            . 'Nome na Meta: <b>' . $e($t->meta_nome) . '</b> &middot; Idioma: ' . $e($t->meta_idioma) . ' &middot; Categoria na Meta: ' . $e($t->meta_categoria)
+            . ' &middot; Situação: <b style="color:' . ($aprovado ? '#2e7d32' : '#c62828') . '">' . $e(ApchatWabaService::situacao($t->meta_status)) . '</b>'
+            . ($t->meta_sincronizado_em ? ' &middot; Importado em ' . $e(date('d/m/Y H:i', strtotime($t->meta_sincronizado_em))) : '')
+            . ($partes['botoes'] ? '<br>Botões: ' . implode(' ', array_map(function ($b) use ($e) { return '<span class="label label-default">' . $e($b) . '</span>'; }, $partes['botoes'])) : '')
+            . ($problema !== null ? '<br><b style="color:#c62828">Não pode ser enviado:</b> ' . $e($problema) : '')
+            . '<br>Para mudar o texto, edite o template na Meta (ou na tela de templates do APChat) e use <b>Importar da Meta</b>.');
+
+        TCombo::disableField(self::$formName, 'tipo_template');
+        TEntry::disableField(self::$formName, 'titulo');
+        TScript::create("$('form[name=" . self::$formName . "] [name=template_whatsapp]').prop('readonly', true).css('background', '#f5f5f5');");
     }
 
     /** Linhas dizendo de que confirmacao este template e a resposta (HTML ja escapado). */

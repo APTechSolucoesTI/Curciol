@@ -132,12 +132,12 @@ class TemplateEmailService
         if ($template->categoria === TemplateEscritorio::CONFIRMACAO && !EmailMontagemService::temBotoes($template))
         {
             $avisos[] = 'Este template de confirmação não tem os botões: o cliente não consegue confirmar nem cancelar pelo e-mail. '
-                      . 'Escreva {$botoes} onde os dois devem aparecer, ou {$link_confirmacao} e {$link_cancelamento} um por um.';
+                      . 'Escreva {{botoes}} onde os dois devem aparecer, ou {{link_confirmacao}} e {{link_cancelamento}} um por um.';
         }
 
-        $texto = self::destacarVariaveis((string) $template->template);
+        $texto = self::destacarVariaveis(TemplateEscritorio::normalizarVariaveis((string) $template->template));
         $texto = EmailMontagemService::comBotoes($texto, $template);
-        $texto = str_replace(['href="{$link_confirmacao}"', 'href="{$link_cancelamento}"'], 'href="#"', $texto);
+        $texto = str_replace(['href="{{link_confirmacao}}"', 'href="{{link_cancelamento}}"'], 'href="#"', $texto);
 
         // assinatura que vale agora
         $modo = in_array($param['assinatura_modo'] ?? '', self::MODOS, true) ? $param['assinatura_modo'] : TemplateEscritorio::ASSINATURA_PADRAO;
@@ -190,7 +190,7 @@ class TemplateEmailService
         return $aviso . $html;
     }
 
-    /** Destaca {$variavel} so no texto (nunca dentro de uma tag ou atributo). */
+    /** Destaca {{variavel}} so no texto (nunca dentro de uma tag ou atributo). */
     private static function destacarVariaveis(string $html): string
     {
         $partes = preg_split('/(<[^>]*>)/', $html, -1, PREG_SPLIT_DELIM_CAPTURE);
@@ -201,7 +201,7 @@ class TemplateEmailService
             {
                 continue;
             }
-            $partes[$i] = preg_replace('/\{\$(?!(?:botoes|link_confirmacao|link_cancelamento)\})[a-z_]+\}/i', '<span style="background:#fff3cd;border-radius:3px;padding:0 2px;">$0</span>', $parte);
+            $partes[$i] = preg_replace('/\{\{(?!(?:botoes|link_confirmacao|link_cancelamento)\}\})[a-z0-9_]+\}\}/i', '<span style="background:#fff3cd;border-radius:3px;padding:0 2px;">$0</span>', $parte);
         }
 
         return implode('', $partes);

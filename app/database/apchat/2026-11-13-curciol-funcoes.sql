@@ -338,6 +338,31 @@ BEGIN
 END
 $$;
 
+-- templates da Meta (17/11/2026): o canal da integracao do Escritorio (ApiConfigs.sessionId -> Whatsapps) com o id da conta
+-- WhatsApp Business (wabaId) e o token da Meta do canal (bmToken; sem ele, tokenAPI), so se o canal for oficial (waba) e a
+-- integracao for desta empresa e estiver ativa. A Curciol so le a lista de templates na Meta com eles (nada gravado).
+-- Le as linhas inteiras por to_jsonb (nenhuma coluna citada no SQL: coluna renomeada = valor vazio, nunca trava a atualizacao).
+CREATE OR REPLACE FUNCTION curciol.f_waba(p_id text)
+RETURNS TABLE (canal_id integer, canal text, tipo text, waba_id text, token text, versao text)
+    LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp ROWS 1
+AS $$
+BEGIN
+    IF p_id IS NULL OR p_id !~ '^[0-9a-fA-F-]{36}$' OR to_regclass('public."ApiConfigs"') IS NULL OR to_regclass('public."Whatsapps"') IS NULL THEN
+        RETURN;
+    END IF;
+    RETURN QUERY EXECUTE format($q$
+        SELECT (w ->> 'id')::integer, w ->> 'name', w ->> 'type',
+               CASE WHEN w ->> 'type' = 'waba' THEN nullif(w ->> 'wabaId', '') END,
+               CASE WHEN w ->> 'type' = 'waba' THEN coalesce(nullif(w ->> 'bmToken', ''), nullif(w ->> 'tokenAPI', '')) END,
+               coalesce(nullif(w ->> 'wabaVersion', ''), '')
+          FROM (SELECT to_jsonb(x) AS a FROM public."ApiConfigs" x WHERE x.id::text = %L AND x."tenantId" = %s) c
+          JOIN LATERAL (SELECT to_jsonb(y) AS w FROM public."Whatsapps" y
+                         WHERE y.id::text = c.a ->> 'sessionId' AND y."tenantId" = %s) z ON true
+         WHERE coalesce((c.a ->> 'isActive')::boolean, true) AND NOT coalesce((z.w ->> 'isDeleted')::boolean, false)
+    $q$, lower(p_id), curciol.tenant(), curciol.tenant());
+END
+$$;
+
 CREATE OR REPLACE FUNCTION curciol.conferir()
 RETURNS TABLE (item text, erro text)
     LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = pg_catalog, pg_temp
@@ -380,7 +405,8 @@ BEGIN
         'SELECT count(*) FROM curciol.f_carteiras(ARRAY[0])',
         'SELECT count(*) FROM (SELECT curciol.f_configuracoes()) x',
         'SELECT count(*) FROM curciol.f_chat_nao_lidas(ARRAY[0])',
-        'SELECT count(*) FROM (SELECT curciol.f_integracao(''00000000-0000-0000-0000-000000000000'')) x'] LOOP
+        'SELECT count(*) FROM (SELECT curciol.f_integracao(''00000000-0000-0000-0000-000000000000'')) x',
+        'SELECT count(*) FROM curciol.f_waba(''00000000-0000-0000-0000-000000000000'')'] LOOP
         BEGIN
             EXECUTE v_sql INTO v_n;
         EXCEPTION WHEN OTHERS THEN
@@ -560,7 +586,7 @@ REVOKE ALL ON FUNCTION curciol.tenant(), curciol._defs(text), curciol._sel(text,
     curciol.f_contatos(integer[], varchar[]), curciol.f_tickets(integer[], integer[], boolean),
     curciol.f_mensagens(integer[], integer[], timestamptz, timestamptz), curciol.f_filas(), curciol.f_canais(), curciol.f_atendentes(),
     curciol.f_filas_atendentes(), curciol.f_canais_atendentes(), curciol.f_carteiras(integer[]), curciol.f_configuracoes(),
-    curciol.f_chat_nao_lidas(integer[]), curciol.f_integracao(text), curciol.dependencias(), curciol.conferir() FROM PUBLIC;
+    curciol.f_chat_nao_lidas(integer[]), curciol.f_integracao(text), curciol.f_waba(text), curciol.dependencias(), curciol.conferir() FROM PUBLIC;
 -- de 10/11: espelho_do_numero le o espelho (nomes, numeros, CPF) como dono; so as travas usam
 SELECT format('REVOKE ALL ON FUNCTION %s FROM PUBLIC', f) FROM unnest(ARRAY['curciol.espelho_do_numero(text)', 'curciol.variantes_numero(text)']) f
  WHERE to_regprocedure(f) IS NOT NULL \gexec
@@ -569,6 +595,6 @@ SELECT format('GRANT EXECUTE ON FUNCTION curciol.tenant(), curciol._defs(text), 
     curciol.f_contatos(integer[], varchar[]), curciol.f_tickets(integer[], integer[], boolean),
     curciol.f_mensagens(integer[], integer[], timestamptz, timestamptz), curciol.f_filas(), curciol.f_canais(), curciol.f_atendentes(),
     curciol.f_filas_atendentes(), curciol.f_canais_atendentes(), curciol.f_carteiras(integer[]), curciol.f_configuracoes(),
-    curciol.f_chat_nao_lidas(integer[]), curciol.f_integracao(text), curciol.dependencias(), curciol.conferir() TO %I', :'papel') \gexec
+    curciol.f_chat_nao_lidas(integer[]), curciol.f_integracao(text), curciol.f_waba(text), curciol.dependencias(), curciol.conferir() TO %I', :'papel') \gexec
 SELECT format('GRANT SELECT ON curciol.contatos, curciol.tickets, curciol.mensagens, curciol.filas, curciol.atendentes, curciol.canais,
     curciol.filas_atendentes, curciol.canais_atendentes TO %I', :'papel') \gexec

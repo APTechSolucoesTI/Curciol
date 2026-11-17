@@ -224,6 +224,57 @@ class ApchatApiService
     }
 
     /**
+     * Template aprovado na Meta pelo canal oficial (17/11/2026): POST .../templateBody (com variaveis) ou .../template (sem), corpo
+     * {number, isClosed, externalKey, templateData} no formato da Meta. O canal e o da integracao do Escritorio. Fora da producao, so
+     * para o numero de teste (mesma regra do envio de texto).
+     *
+     * @return string resposta do APChat (fica registrada na mensagem)
+     */
+    public static function enviarTemplate(string $numero, array $template, string $chave): string
+    {
+        $escritorio = self::escritorio();
+        $token = $escritorio ? trim((string) $escritorio->token_apchat) : '';
+        $url = self::url($escritorio);
+
+        if ($token === '' || $url === '')
+        {
+            throw new Exception('APChat não configurado: informe a URL e o token em Configurações do escritório.');
+        }
+
+        $rota = !empty($template['components']) ? '/templateBody' : '/template';
+        $resposta = self::chamar($url . $rota, [
+            'number'       => $numero,
+            'isClosed'     => true,
+            'externalKey'  => $chave,
+            'templateData' => [
+                'messaging_product' => 'whatsapp',
+                'to'                => $numero,
+                'type'              => 'template',
+                'template'          => $template,
+            ],
+        ], $token, true);
+
+        if ($resposta['status'] < 200 || $resposta['status'] >= 300)
+        {
+            throw new Exception('O APChat não enviou o template: ' . self::motivoTemplate($resposta));
+        }
+
+        return $resposta['corpo'];
+    }
+
+    /** Motivo da recusa do template: a mensagem da Meta quando vier (ERR_WABA_SEND_FAILED com metaCode). */
+    public static function motivoTemplate(array $resposta): string
+    {
+        $json = json_decode((string) $resposta['corpo'], true);
+        if (is_array($json) && !empty($json['metaCode']))
+        {
+            $msg = trim((string) ($json['message'] ?? ''));
+            return 'a Meta recusou (código ' . $json['metaCode'] . ($msg !== '' ? ': ' . $msg : '') . ').';
+        }
+        return self::motivo($resposta);
+    }
+
+    /**
      * Confere endereco e token sem enviar nada. Lanca excecao com o motivo quando nao funciona.
      */
     public static function testarConexao(string $url, string $token, ?int $timeout = null): void

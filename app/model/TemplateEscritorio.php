@@ -34,7 +34,46 @@ class TemplateEscritorio extends TRecord
         self::LEMBRETE     => 'Lembrete',
         self::OUTROS       => 'Outros',
     ];
-                                        
+
+    // origem (17/11/2026): criado na Curciol (qualquer canal, texto editavel) ou importado da Meta (texto aprovado, so canal oficial)
+    const ORIGEM_CURCIOL = 'CURCIOL';
+    const ORIGEM_META    = 'META';
+
+    const ORIGENS = [
+        self::ORIGEM_CURCIOL => 'Curciol',
+        self::ORIGEM_META    => 'Meta',
+    ];
+
+    /** Template importado da Meta (envio pelo template aprovado no canal oficial). */
+    public function ehMeta(): bool
+    {
+        return $this->origem === self::ORIGEM_META;
+    }
+
+    /**
+     * Variaveis no padrao da Meta (17/11/2026): {{nome}}. Aceita as formas antigas e as que aparecem ao copiar de um lado para
+     * o outro - {$nome}, {{$nome}}, {{ nome }} - e a forma codificada no link do editor (%7B%24nome%7D, %7B%7Bnome%7D%7D).
+     */
+    public static function normalizarVariaveis(?string $texto): string
+    {
+        $texto = (string) $texto;
+        if ($texto === '' || (strpos($texto, '{') === false && stripos($texto, '%7B') === false))
+        {
+            return $texto;
+        }
+        $texto = preg_replace('/%7B%7B(?:%20)*(?:%24)?([a-z0-9_]+)(?:%20)*%7D%7D/i', '{{$1}}', $texto);
+        $texto = preg_replace('/%7B%24([a-z0-9_]+)%7D/i', '{{$1}}', $texto);
+        $texto = preg_replace('/\{\{\s*\$?([a-z0-9_]+)\s*\}\}/i', '{{$1}}', $texto);
+        return preg_replace('/\{\$([a-z0-9_]+)\}/i', '{{$1}}', $texto);
+    }
+
+    /** Nomes das variaveis {{nome}} do texto, na ordem, sem repetir. */
+    public static function variaveisDoTexto(?string $texto): array
+    {
+        preg_match_all('/\{\{([a-z0-9_]+)\}\}/i', self::normalizarVariaveis($texto), $m);
+        return array_values(array_unique($m[1]));
+    }
+
 
     /**
      * Constructor method
@@ -66,7 +105,17 @@ class TemplateEscritorio extends TRecord
         parent::addAttribute('botao_confirmar_cor');
         parent::addAttribute('botao_cancelar_texto');
         parent::addAttribute('botao_cancelar_cor');
-    
+        parent::addAttribute('origem');
+        parent::addAttribute('meta_nome');
+        parent::addAttribute('meta_idioma');
+        parent::addAttribute('meta_id');
+        parent::addAttribute('meta_waba_id');
+        parent::addAttribute('meta_status');
+        parent::addAttribute('meta_categoria');
+        parent::addAttribute('meta_formato');
+        parent::addAttribute('meta_componentes');
+        parent::addAttribute('meta_sincronizado_em');
+
     }
 
     /**
@@ -298,57 +347,76 @@ class TemplateEscritorio extends TRecord
         return self::replacePessoa($object, $content, $escritorio);
     }
 
+    /** Troca as {{variaveis}} (e as formas antigas) pelos valores [nome => valor]; variavel sem valor fica como esta. */
+    public static function trocar(string $content, array $valores): string
+    {
+        $content = self::normalizarVariaveis($content);
+        $pares = [];
+        foreach ($valores as $nome => $valor)
+        {
+            $pares['{{' . $nome . '}}'] = (string) $valor;
+        }
+        return strtr($content, $pares);
+    }
+
     public static function replacePessoa($pessoa, $content, $escritorio)
     {
-        $content = str_replace('{$nome}', $pessoa->nome, $content);
-        $content = str_replace('{$escritorio}', $escritorio->nome, $content);
-        $content = str_replace('{$endereco_escritorio}', $escritorio->endereco_formatado, $content);
-        $content = str_replace('{$telefone_escritorio}', $escritorio->telefone, $content);
-        $content = str_replace('{$email_escritorio}', $escritorio->email, $content);
-        $content = str_replace('{$usuario}', $pessoa->usuario , $content);
-        $content = str_replace('{$senha}', $pessoa->senha , $content);
-    
-        return $content;
+        return self::trocar((string) $content, [
+            'nome'                => $pessoa->nome,
+            'escritorio'          => $escritorio->nome,
+            'endereco_escritorio' => $escritorio->endereco_formatado,
+            'telefone_escritorio' => $escritorio->telefone,
+            'email_escritorio'    => $escritorio->email,
+            'usuario'             => $pessoa->usuario,
+            'senha'               => $pessoa->senha,
+        ]);
+    }
+
+    /**
+     * Valor de cada variavel do agendamento [nome => valor] (17/11/2026: o mesmo para o texto da Curciol e para os parametros do
+     * template da Meta).
+     */
+    public static function valoresAgendamento($agendamento): array
+    {
+        $token = AgendamentoService::getToken($agendamento->id);
+        $escritorio = $agendamento->agenda->escritorio;
+        $data = date('d/m/Y H:i', strtotime($agendamento->dt_inicial));
+
+        return [
+            'id'                      => $agendamento->id,
+            'estado'                  => $agendamento->estado_agenda->nome,
+            'observacao'              => $agendamento->observacao,
+            'profissional_foto'       => $agendamento->agenda->profissional->foto,
+            'profissional'            => $agendamento->agenda->profissional->nome,
+            'data_inicial'            => $data,
+            'data_consulta'           => $data,
+            'cliente'                 => $agendamento->cliente->nome,
+            'agenda_nome'             => $agendamento->agenda->nome,
+            // sem link de reuniao (04/11/2026): template antigo com a variavel nao manda o texto cru
+            'link_atendimento_online' => '',
+            // {{botoes}} so vale no template de confirmacao por e-mail (EmailMontagemService::comBotoes, antes do replace): no resto, some
+            'botoes'                  => '',
+            // pagina de detalhe excluida (09/11/2026)
+            'link_detalhe'            => '',
+            'link_cancelamento'       => "{$escritorio->url_sistema}/cancelar-agendamento-{$agendamento->id}-{$token}",
+            'link_confirmacao'        => "{$escritorio->url_sistema}/confirmar-agendamento-{$agendamento->id}-{$token}",
+            'escritorio'              => $escritorio->nome,
+            'endereco_escritorio'     => $escritorio->endereco_formatado,
+            'telefone_escritorio'     => $escritorio->telefone,
+            'email_escritorio'        => $escritorio->email,
+            'usuario'                 => $agendamento->cliente->usuario,
+            'senha'                   => $agendamento->cliente->senha,
+        ];
     }
 
     public static function replaceAgendamento($agendamento, $content)
     {
-        $token = AgendamentoService::getToken($agendamento->id);
-    
-        $content = str_replace('{$id}', $agendamento->id, $content);
-        $content = str_replace('{$estado}', $agendamento->estado_agenda->nome, $content);
-        $content = str_replace('{$observacao}', $agendamento->observacao, $content);
-    
-        $content = str_replace('{$profissional_foto}', $agendamento->agenda->profissional->foto, $content);
-        $content = str_replace('{$profissional}', $agendamento->agenda->profissional->nome, $content);
-        $content = str_replace('{$data_inicial}', date('d/m/Y H:i', strtotime($agendamento->dt_inicial)), $content);
-        $content = str_replace('{$data_consulta}', date('d/m/Y H:i', strtotime($agendamento->dt_inicial)), $content);
-    
-        $content = str_replace('{$cliente}', $agendamento->cliente->nome, $content);
-        $content = str_replace('{$agenda_nome}', $agendamento->agenda->nome, $content);
-    
-        // sem link de reuniao (04/11/2026): template antigo com a variavel nao manda o texto cru
-        $content = str_replace('{$link_atendimento_online}', '', $content);
-        // {$botoes} so vale no template de confirmacao por e-mail (EmailMontagemService::comBotoes, antes do replace): no resto, some
-        $content = str_replace('{$botoes}', '', $content);
-    
+        $content = self::normalizarVariaveis((string) $content);
+
         // pagina de detalhe excluida (09/11/2026): template antigo perde o link inteiro (sem botao sem destino) e a variavel
-        $content = preg_replace('#<a\b[^>]*?\bhref\s*=\s*(["\'])\s*\{\$link_detalhe\}\s*\1[^>]*>.*?</a>#is', '', $content);
-        $content = str_replace('{$link_detalhe}', '', $content);
-        $content = str_replace('{$link_cancelamento}', "{$agendamento->agenda->escritorio->url_sistema}/cancelar-agendamento-{$agendamento->id}-{$token}", $content);
-        $content = str_replace('{$link_confirmacao}', "{$agendamento->agenda->escritorio->url_sistema}/confirmar-agendamento-{$agendamento->id}-{$token}", $content);
-    
-    
-        $content = str_replace('{$escritorio}', $agendamento->agenda->escritorio->nome, $content);
-        $content = str_replace('{$endereco_escritorio}', $agendamento->agenda->escritorio->endereco_formatado, $content);
-        $content = str_replace('{$telefone_escritorio}', $agendamento->agenda->escritorio->telefone, $content);
-        $content = str_replace('{$email_escritorio}', $agendamento->agenda->escritorio->email, $content);
-    
-    
-        $content = str_replace('{$usuario}', $agendamento->cliente->usuario , $content);
-        $content = str_replace('{$senha}', $agendamento->cliente->senha , $content);
-    
-        return $content;
+        $content = preg_replace('#<a\b[^>]*?\bhref\s*=\s*(["\'])\s*\{\{link_detalhe\}\}\s*\1[^>]*>.*?</a>#is', '', $content);
+
+        return self::trocar($content, self::valoresAgendamento($agendamento));
     }
                                                 
 }

@@ -424,7 +424,7 @@ try {
     TTransaction::open('escritorio');
     $agOnline = Agendamento::find($agLink);
     igual('online: variavel antiga nao vai crua na mensagem', 'Acesse: ', TemplateEscritorio::replace($agOnline, 'Acesse: {$link_atendimento_online}'));
-    ok('online: a variavel saiu da lista', !isset(MensagemService::variaveis()['{$link_atendimento_online}']));
+    ok('online: a variavel saiu da lista', !isset(MensagemService::variaveis()['{{link_atendimento_online}}']));
     $agOnline->online = 'T';
     ok('online: continua marcando o agendamento online', $agOnline->is_online === true);
     $agOnline->online = 'F';

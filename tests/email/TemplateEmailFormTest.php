@@ -36,7 +36,7 @@ try
     $anexosDe = fn(int $id) => array_map('intval', array_column($c->query("SELECT email_anexo_id FROM template_escritorio_anexo WHERE template_escritorio_id = {$id} ORDER BY ordem, id")->fetchAll(PDO::FETCH_ASSOC), 'email_anexo_id'));
 
     // ---------- assinatura ----------
-    $t = $novoTemplate('EMAIL', 'CONFIRMACAO', '<p>Olá {$cliente}</p>');
+    $t = $novoTemplate('EMAIL', 'CONFIRMACAO', '<p>Olá {{cliente}}</p>');
     TemplateEmailService::salvarExtras($t, ['assinatura_modo' => 'OUTRA', 'assinatura_arquivo' => $enviado('outra.png', base64_decode(PNG_1X1))]);
     ok('salvar com OUTRA + arquivo grava assinatura_id', (int) TemplateEscritorio::find($t->id)->assinatura_id > 0);
     igual('modo OUTRA gravado', 'OUTRA', TemplateEscritorio::find($t->id)->assinatura_modo);
@@ -97,11 +97,11 @@ try
     ok('template WhatsApp nao guarda assinatura, anexos nem botoes', $gw->assinatura_id === null && $gw->assinatura_modo === 'PADRAO' && $anexosDe((int) $w->id) === [] && $gw->botao_confirmar_texto === null);
 
     // ---------- previa ----------
-    $base = ['tipo_template' => 'EMAIL', 'categoria' => 'CONFIRMACAO', 'titulo' => 'Confirme {$cliente}', 'template' => '<p>Olá {$cliente}</p><p>{$botoes}</p>',
+    $base = ['tipo_template' => 'EMAIL', 'categoria' => 'CONFIRMACAO', 'titulo' => 'Confirme {{cliente}}', 'template' => '<p>Olá {{cliente}}</p><p>{{botoes}}</p>',
              'botao_confirmar_texto' => 'Vou sim', 'botao_confirmar_cor' => '#2e7d32', 'botao_cancelar_texto' => 'Não vou', 'botao_cancelar_cor' => '#c62828',
              'assinatura_modo' => 'NENHUMA', 'id' => $t->id];
     $p = TemplateEmailService::previa($base);
-    ok('previa: variavel destacada', preg_match('#<span[^>]*>\{\$cliente\}</span>#', $p) === 1, $p);
+    ok('previa: variavel destacada', preg_match('#<span[^>]*>\{\{cliente\}\}</span>#', $p) === 1, $p);
     ok('previa: botoes', strpos($p, 'Vou sim') !== false && strpos($p, 'Não vou') !== false);
     ok('previa: botoes sem link de verdade', strpos($p, 'href="#"') !== false && strpos($p, '{$link_') === false, $p);
     ok('previa: variavel nao destacada dentro de atributo', strpos($p, 'href="<span') === false);
@@ -130,18 +130,18 @@ try
     ok('previa lista anexo novo', strpos($pa, 'novo.pdf') !== false, $pa);
 
     // link feito no editor (ou template antigo): vira o botao estilizado, sem aviso
-    $antigo = ['template' => '<p><a href="{$link_confirmacao}">Confirmar</a></p>'] + $base;
+    $antigo = ['template' => '<p><a href="{{link_confirmacao}}">Confirmar</a></p>'] + $base;
     $pl = TemplateEmailService::previa($antigo);
     ok('previa: link do editor vira o botao de confirmar', strpos($pl, 'Vou sim') !== false && strpos($pl, 'Não vou') === false, $pl);
     ok('previa: sem o aviso antigo dos links no texto', strpos($pl, 'links no texto') === false, $pl);
 
     // um por um, sem destaque amarelo em volta das variaveis dos botoes
-    $um = TemplateEmailService::previa(['template' => '<p>Cancelar: {$link_cancelamento}</p>'] + $base);
-    ok('previa: {$link_cancelamento} sozinho vira o botao de cancelar', strpos($um, 'Não vou') !== false && strpos($um, 'Vou sim') === false, $um);
-    ok('previa: variavel do botao nao fica destacada', strpos($um, '>{$link_cancelamento}</span>') === false, $um);
+    $um = TemplateEmailService::previa(['template' => '<p>Cancelar: {{link_cancelamento}}</p>'] + $base);
+    ok('previa: {{link_cancelamento}} sozinho vira o botao de cancelar', strpos($um, 'Não vou') !== false && strpos($um, 'Vou sim') === false, $um);
+    ok('previa: variavel do botao nao fica destacada', strpos($um, '>{{link_cancelamento}}</span>') === false, $um);
 
     // confirmacao por e-mail sem nenhum botao: avisa (o cliente nao teria como responder)
-    $sem = TemplateEmailService::previa(['template' => '<p>Olá {$cliente}</p>'] + $base);
+    $sem = TemplateEmailService::previa(['template' => '<p>Olá {{cliente}}</p>'] + $base);
     ok('previa: confirmacao sem botoes avisa', strpos($sem, 'não tem os botões') !== false, $sem);
     ok('previa: confirmacao sem botoes nao inventa botao', strpos($sem, 'Vou sim') === false, $sem);
     $lemb = TemplateEmailService::previa(['categoria' => 'LEMBRETE', 'template' => '<p>Olá</p>'] + $base);

@@ -321,6 +321,10 @@ class EnviarMensagemForm extends TPage
                 $data->content_whatsapp = $partes['texto'];
                 $data->content_email = $partes['texto'];
                 $this->preview->add(self::previewHtml($agendamento, $padrao));
+                if ($padrao->ehMeta())
+                {
+                    TScript::create('$(function () { ' . self::scriptManualMeta($padrao) . ' });');
+                }
             }
 
             if ($tipo === TemplateEscritorio::EMAIL)
@@ -383,6 +387,7 @@ class EnviarMensagemForm extends TPage
                 if ($('[name=content_email]').length) { $('[name=content_email]').summernote('code', {$texto}); }
                 if (window.curciolAutoAltura) { window.curciolAutoAltura(); }
                 if ($('#mensagem_visualizacao').is(':visible')) { window.curciolVisualizarAtualizar(); }
+                " . self::scriptManualMeta($template) . "
                 " . ($template ? '' : "$('[name=manual]').prop('checked', true); window.curciolManual();"));
         }
         catch (Exception $e)
@@ -511,6 +516,13 @@ class EnviarMensagemForm extends TPage
             TTransaction::rollback();
             new TMessage('error', $e->getMessage());
         }
+    }
+
+    /** Template da Meta (17/11/2026): sai o texto aprovado na Meta, entao Manual fica desligado. */
+    private static function scriptManualMeta(?TemplateEscritorio $template): string
+    {
+        $meta = $template && $template->ehMeta();
+        return "$('[name=manual]').prop('disabled', " . ($meta ? 'true' : 'false') . ")" . ($meta ? ".prop('checked', false)" : '') . "; if (window.curciolManual) { window.curciolManual(); }";
     }
 
     /** Template escolhido, so entre os que a tela oferece neste canal (null = nenhum). */

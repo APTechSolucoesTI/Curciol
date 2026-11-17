@@ -34,6 +34,10 @@ class TemplateEscritorioHeaderList extends TPage
         $tipo_template = new TCombo('tipo_template');
         $descricao = new TEntry('descricao');
         $habilitado = new TCombo('habilitado');
+        $origem = new TCombo('origem');
+        $origem->addItems(TemplateEscritorio::ORIGENS);
+        $origem->setSize('100%');
+        $origem->setChangeAction(new TAction([$this, 'onSearch'], ['static'=>'1', 'target_container' => $param['target_container'] ?? null]));
 
         $descricao->exitOnEnter();
 
@@ -72,6 +76,9 @@ class TemplateEscritorioHeaderList extends TPage
         $column_categoria->setTransformer(function($value) { return TemplateEscritorio::CATEGORIAS[$value] ?? $value; });
         $column_tipo_template = new TDataGridColumn('tipo_template', "Tipo", 'center' , '100px');
         $column_descricao = new TDataGridColumn('descricao', "Descrição", 'left');
+        // origem (17/11/2026): criado na Curciol ou importado da Meta (com a situacao la)
+        $column_origem = new TDataGridColumn('origem', "Origem", 'center' , '150px');
+        $column_origem->setTransformer(function($value, $object) { return self::rotuloOrigem($object); });
         $column_vinculo = new TDataGridColumn('id', "Respostas", 'left');
         $column_vinculo->setTransformer(function($value, $object) { return TemplateRespostaService::colunaDaLista($object); });
         $column_habilitado_transformed = new TDataGridColumn('habilitado', "Habilitar", 'center' , '100px');
@@ -97,6 +104,7 @@ class TemplateEscritorioHeaderList extends TPage
 
         $this->datagrid->addColumn($column_categoria);
         $this->datagrid->addColumn($column_tipo_template);
+        $this->datagrid->addColumn($column_origem);
         $this->datagrid->addColumn($column_descricao);
         $this->datagrid->addColumn($column_vinculo);
         $this->datagrid->addColumn($column_habilitado_transformed);
@@ -138,6 +146,7 @@ class TemplateEscritorioHeaderList extends TPage
         $tr->add(TElement::tag('td', $categoria));
         $td_tipo_template = TElement::tag('td', $tipo_template);
         $tr->add($td_tipo_template);
+        $tr->add(TElement::tag('td', $origem));
         $td_descricao = TElement::tag('td', $descricao);
         $tr->add($td_descricao);
         $tr->add(TElement::tag('td', ''));
@@ -146,6 +155,7 @@ class TemplateEscritorioHeaderList extends TPage
 
         $this->datagrid_form->addField($categoria);
         $this->datagrid_form->addField($tipo_template);
+        $this->datagrid_form->addField($origem);
         $this->datagrid_form->addField($descricao);
         $this->datagrid_form->addField($habilitado);
 
@@ -203,6 +213,14 @@ class TemplateEscritorioHeaderList extends TPage
         $head_left_actions->add($button_novo);
         $head_left_actions->add($button_atualizar);
         $head_left_actions->add($button_limpar_filtros);
+
+        // templates da Meta (17/11/2026): le a lista da conta WhatsApp Business do canal oficial da integracao do Escritorio
+        $button_importar = new TButton('button_button_importar_meta');
+        $button_importar->setAction(new TAction(['TemplateEscritorioHeaderList', 'onImportarMeta']), "Importar da Meta");
+        $button_importar->addStyleClass('btn-default');
+        $button_importar->setImage('fab:whatsapp #25D366');
+        $this->datagrid_form->addField($button_importar);
+        $head_left_actions->add($button_importar);
 
         $this->datagrid_form->add($this->datagrid);
 
@@ -271,6 +289,52 @@ class TemplateEscritorioHeaderList extends TPage
             new TMessage('error', $e->getMessage());    
         }
     }
+    /** Etiqueta da origem: Curciol, ou Meta com a situacao do template la. */
+    public static function rotuloOrigem($object): string
+    {
+        if (($object->origem ?? '') !== TemplateEscritorio::ORIGEM_META)
+        {
+            return '<span class="label label-default" title="Criado na Curciol: vale para qualquer canal">Curciol</span>';
+        }
+        $status = (string) $object->meta_status;
+        $cor = $status === ApchatWabaService::APROVADO ? 'success' : (in_array($status, ['PENDING', 'IN_APPEAL'], true) ? 'warning' : 'danger');
+        $titulo = htmlspecialchars('Meta: ' . $object->meta_nome . ' (' . $object->meta_idioma . ')', ENT_QUOTES, 'UTF-8');
+        return "<span class=\"label label-info\" title=\"{$titulo}\"><i class=\"fab fa-whatsapp\"></i> Meta</span> "
+             . "<span class=\"label label-{$cor}\">" . htmlspecialchars(ApchatWabaService::situacao($status), ENT_QUOTES, 'UTF-8') . '</span>';
+    }
+
+    /** Importar da Meta: cria ou atualiza os templates da conta do canal oficial (o texto vem da Meta). */
+    public function onImportarMeta($param = null)
+    {
+        try
+        {
+            TTransaction::open(self::$database);
+            $escritorio = Escritorio::findByUnitId(TSession::getValue('userunitid'));
+            if (!$escritorio)
+            {
+                throw new Exception('Escritório não encontrado para a unidade.');
+            }
+            $r = ApchatWabaService::importar((int) $escritorio->id);
+            TTransaction::close();
+
+            $this->onReload([]);
+            $msg = "Templates da Meta: {$r['novos']} novo(s), {$r['atualizados']} atualizado(s)" . ($r['removidos'] ? ", {$r['removidos']} não existe(m) mais na Meta (desabilitado(s))" : '') . '.';
+            if ($r['avisos'])
+            {
+                new TMessage('warning', htmlspecialchars($msg, ENT_QUOTES, 'UTF-8') . '<br><br>Ficaram desabilitados:<br>' . implode('<br>', array_map(function ($a) { return '&bull; ' . htmlspecialchars($a, ENT_QUOTES, 'UTF-8'); }, $r['avisos'])));
+            }
+            else
+            {
+                TToast::show('success', $msg, 'topRight', 'far:check-circle');
+            }
+        }
+        catch (Exception $e)
+        {
+            TTransaction::rollback();
+            new TMessage('error', $e->getMessage());
+        }
+    }
+
     public static function canDelete($object)
     {
         try 
@@ -320,6 +384,11 @@ class TemplateEscritorioHeaderList extends TPage
         {
 
             $filters[] = new TFilter('tipo_template', '=', $data->tipo_template);// create the filter 
+        }
+
+        if (!empty($data->origem))
+        {
+            $filters[] = new TFilter('origem', '=', $data->origem);
         }
 
         if (!empty($data->categoria))
