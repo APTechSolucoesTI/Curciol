@@ -34,7 +34,7 @@ $falso = new class($canal) {
 
 $componentesConfirmacao = [
     ['type' => 'HEADER', 'format' => 'TEXT', 'text' => 'Confirmação de Agendamento'],
-    ['type' => 'BODY', 'text' => "Olá {{\$cliente}}!\n\nTemos agendado para a data {{\$data_inicial}}, com {{\$profissional}}.\n\nResponda *SIM* ou *NÃO*."],
+    ['type' => 'BODY', 'text' => "Olá {{cliente}}!\n\nTemos agendado para a data {{data_inicial}}, com {{profissional}}.\n\nResponda *SIM* ou *NÃO*."],
     ['type' => 'FOOTER', 'text' => 'Curciol Sociedade de Advogados.'],
     ['type' => 'BUTTONS', 'buttons' => [['type' => 'QUICK_REPLY', 'text' => 'Sim'], ['type' => 'QUICK_REPLY', 'text' => 'Não']]],
 ];
@@ -46,6 +46,9 @@ $meta = [
      'components' => [['type' => 'BODY', 'text' => 'Olá {{1}}']]],
     ['id' => '904', 'name' => 'desconhecida', 'status' => 'APPROVED', 'language' => 'pt_BR', 'category' => 'UTILITY', 'parameter_format' => 'NAMED',
      'components' => [['type' => 'BODY', 'text' => 'Olá {{apelido}}']]],
+    // {{$cliente}}: a Meta aprova como texto fixo (teste real no app1, 17/11/2026: #132000 ao mandar os parametros)
+    ['id' => '905', 'name' => 'com_cifrao', 'status' => 'APPROVED', 'language' => 'pt_BR', 'category' => 'UTILITY', 'parameter_format' => 'NAMED',
+     'components' => [['type' => 'BODY', 'text' => 'Olá {{$cliente}}, dia {{$data_inicial}}']]],
 ];
 $metaChamadas = [];
 ApchatWabaService::usarTransporte(function ($url, $token) use (&$meta, &$metaChamadas) {
@@ -73,10 +76,10 @@ try
 
     // ---------- importacao ----------
     $r = ApchatWabaService::importar($eid);
-    igual('importar: 4 novos', [4, 0, 0], [$r['novos'], $r['atualizados'], $r['removidos']]);
+    igual('importar: 5 novos', [5, 0, 0], [$r['novos'], $r['atualizados'], $r['removidos']]);
     igual('importar: integracao da URL do Escritorio', [INTEGRACAO], array_unique($falso->ids));
     ok('importar: le na Meta a conta do canal, com o token do canal', strpos($metaChamadas[0]['url'], 'https://graph.facebook.com/v25.0/1234567890/message_templates?') === 0 && $metaChamadas[0]['token'] === 'TOKEN-META-FALSO', json_encode($metaChamadas[0]));
-    igual('importar: avisos do posicional e da variavel desconhecida', 2, count($r['avisos']));
+    igual('importar: avisos do posicional, da variavel desconhecida e do {{$nome}}', 3, count($r['avisos']));
 
     $t = TemplateEscritorio::where('escritorio_id', '=', $eid)->where('meta_nome', '=', 'confirmacao_agendamento')->first();
     igual('confirmacao: origem Meta, WhatsApp, aprovada, habilitada', ['META', 'WHATSAPP', 'APPROVED', 'T'], [$t->origem, $t->tipo_template, $t->meta_status, $t->habilitado]);
@@ -89,6 +92,11 @@ try
     $pos = TemplateEscritorio::where('escritorio_id', '=', $eid)->where('meta_nome', '=', 'posicional')->first();
     ok('posicional: desabilitado, com o motivo', $pos->habilitado === 'F' && strpos((string) ApchatWabaService::problemaDoTemplate($pos), 'posição') !== false);
     $desc = TemplateEscritorio::where('escritorio_id', '=', $eid)->where('meta_nome', '=', 'desconhecida')->first();
+    $cif = TemplateEscritorio::where('escritorio_id', '=', $eid)->where('meta_nome', '=', 'com_cifrao')->first();
+    $probCif = (string) ApchatWabaService::problemaDoTemplate($cif);
+    ok('{{$cliente}} na Meta (texto fixo): desabilitado, pedindo {{cliente}}', $cif->habilitado === 'F' && strpos($probCif, 'texto fixo') !== false
+        && strpos($probCif, 'Recrie o template na Meta com {{cliente}}, {{data_inicial}}') !== false, $probCif);
+    lanca('{{$cliente}} na Meta: nao envia', fn() => ApchatWabaService::exigirEnvio($cif), 'texto fixo');
     ok('variavel desconhecida: desabilitado, com o nome', $desc->habilitado === 'F' && strpos((string) ApchatWabaService::problemaDoTemplate($desc), '{{apelido}}') !== false);
 
     // reimportar: o que o usuario mudou fica; a situacao vem da Meta; aprovado agora = habilitado; sumiu = desabilitado
@@ -99,14 +107,14 @@ try
     unset($meta[3]);
     $meta = array_values($meta);
     $r = ApchatWabaService::importar($eid);
-    igual('reimportar: 3 atualizados, 1 que sumiu', [0, 3, 1], [$r['novos'], $r['atualizados'], $r['removidos']]);
+    igual('reimportar: 4 atualizados, 1 que sumiu', [0, 4, 1], [$r['novos'], $r['atualizados'], $r['removidos']]);
     $t = new TemplateEscritorio($t->id);
     igual('reimportar: descricao e resposta do usuario ficam', ['MINHA CONFIRMACAO', 'Confirmo'], [$t->descricao, $t->respostas_confirmar]);
     $l = new TemplateEscritorio($l->id);
     igual('reimportar: aprovado agora = habilitado', ['APPROVED', 'T'], [$l->meta_status, $l->habilitado]);
     $desc = new TemplateEscritorio($desc->id);
     igual('reimportar: sumiu da Meta = desabilitado', [ApchatWabaService::REMOVIDO, 'F'], [$desc->meta_status, $desc->habilitado]);
-    igual('reimportar: um registro por template', 4, (int) $c->query("SELECT count(*) FROM template_escritorio WHERE escritorio_id = {$eid} AND origem = 'META'")->fetchColumn());
+    igual('reimportar: um registro por template', 5, (int) $c->query("SELECT count(*) FROM template_escritorio WHERE escritorio_id = {$eid} AND origem = 'META'")->fetchColumn());
 
     // canal que nao e oficial / Meta recusa
     $falso->canal = ['canal_id' => 113, 'canal' => 'Coexistência', 'tipo' => 'whatsapp', 'waba_id' => null, 'token' => null, 'versao' => ''];
@@ -135,9 +143,9 @@ try
     igual('envio: so para o numero de teste', ['5519971045673', '5519971045673', true], [$api[0]['corpo']['number'], $td['to'] ?? null, $api[0]['corpo']['isClosed']]);
     igual('envio: nome e idioma do template', ['template', 'confirmacao_agendamento', 'pt_BR'], [$td['type'] ?? null, $td['template']['name'] ?? null, $td['template']['language']['code'] ?? null]);
     $params = $td['template']['components'][0]['parameters'] ?? [];
-    igual('envio: corpo com os valores pelo nome da Meta', [['type' => 'text', 'parameter_name' => '$cliente', 'text' => 'TESTE TEMPLATE META'],
-                                                           ['type' => 'text', 'parameter_name' => '$data_inicial', 'text' => $valores['data_inicial']],
-                                                           ['type' => 'text', 'parameter_name' => '$profissional', 'text' => (string) $valores['profissional']]], $params);
+    igual('envio: corpo com os valores pelo nome da Meta', [['type' => 'text', 'parameter_name' => 'cliente', 'text' => 'TESTE TEMPLATE META'],
+                                                           ['type' => 'text', 'parameter_name' => 'data_inicial', 'text' => $valores['data_inicial']],
+                                                           ['type' => 'text', 'parameter_name' => 'profissional', 'text' => (string) $valores['profissional']]], $params);
     igual('envio: so o corpo tem variaveis', ['body'], array_column($td['template']['components'], 'type'));
     $reg = $c->query("SELECT template, titulo, template_escritorio_id, apchat_ticket_id FROM mensagem WHERE id = {$m->id}")->fetch(PDO::FETCH_ASSOC);
     ok('historico: o texto que o cliente recebe (cabecalho, corpo, rodape, botoes)', strpos($reg['template'], '*Confirmação de Agendamento*') === 0 && strpos($reg['template'], 'Olá TESTE TEMPLATE META!') !== false

@@ -304,12 +304,36 @@ class ApchatWabaService
         {
             return 'variáveis por posição ({{1}}, {{2}}...). Recrie o template na Meta com variáveis por nome, como {{cliente}}.';
         }
+        // 17/11/2026 (teste no app1): {{$cliente}} nao e variavel para a Meta (nome so com minusculas, numeros e _): ela aprova como
+        // TEXTO FIXO, recusa qualquer parametro (#132000) e, sem parametros, o cliente receberia "{{$cliente}}" escrito
+        $invalidas = self::variaveisInvalidasNaMeta($t);
+        if ($invalidas)
+        {
+            return 'na Meta, ' . implode(', ', $invalidas) . ' não é variável (nome só com letras minúsculas, números e _): a Meta aprovou como texto fixo. '
+                 . 'Recrie o template na Meta com ' . implode(', ', array_map(function ($v) { return TemplateEscritorio::normalizarVariaveis($v); }, $invalidas)) . '.';
+        }
         $desconhecidas = self::variaveisDesconhecidas($t);
         if ($desconhecidas)
         {
             return 'variáveis que a Curciol não conhece: ' . implode(', ', array_map(function ($v) { return '{{' . $v . '}}'; }, $desconhecidas)) . '.';
         }
         return null;
+    }
+
+    /** Marcacoes {{...}} do texto da Meta que nao sao variavel valida (ex.: {{$cliente}}), como estao la. */
+    public static function variaveisInvalidasNaMeta(TemplateEscritorio $t): array
+    {
+        $r = [];
+        foreach (self::componentes($t) as $c)
+        {
+            if (!in_array(strtoupper((string) ($c['type'] ?? '')), ['HEADER', 'BODY'], true)) { continue; }
+            preg_match_all('/\{\{\s*([^{}]*?)\s*\}\}/', (string) ($c['text'] ?? ''), $m);
+            foreach ($m[1] as $i => $nome)
+            {
+                if (!preg_match('/^(?:[a-z][a-z0-9_]*|\d+)$/', $nome)) { $r[$m[0][$i]] = $m[0][$i]; }
+            }
+        }
+        return array_values($r);
     }
 
     private static function temVariavelPorPosicao(array $componentes): bool
