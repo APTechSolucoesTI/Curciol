@@ -68,6 +68,8 @@ class TemplateEscritorioHeaderList extends TPage
 
         $filterVar = TSession::getValue("userunitid");
         $this->filter_criteria->add(new TFilter('escritorio_id', 'in', "(SELECT id FROM escritorio WHERE system_unit_id = '{$filterVar}')"));
+        // excluido na Meta e ja usado em mensagem: fica so para o historico, fora da lista (17/11/2026)
+        $this->filter_criteria->add(ApchatWabaService::filtroSemRemovidos());
 
         $this->datagrid->style = 'width: 100%';
         $this->datagrid->setHeight(320);
@@ -318,7 +320,7 @@ class TemplateEscritorioHeaderList extends TPage
             TTransaction::close();
 
             $this->onReload([]);
-            $msg = "Templates da Meta: {$r['novos']} novo(s), {$r['atualizados']} atualizado(s)" . ($r['removidos'] ? ", {$r['removidos']} não existe(m) mais na Meta (desabilitado(s))" : '') . '.';
+            $msg = "Templates da Meta: {$r['novos']} novo(s), {$r['atualizados']} atualizado(s)" . ($r['removidos'] ? ", {$r['removidos']} excluído(s) na Meta e retirado(s) da lista" : '') . '.';
             if ($r['avisos'])
             {
                 new TMessage('warning', htmlspecialchars($msg, ENT_QUOTES, 'UTF-8') . '<br><br>Ficaram desabilitados:<br>' . implode('<br>', array_map(function ($a) { return '&bull; ' . htmlspecialchars($a, ENT_QUOTES, 'UTF-8'); }, $r['avisos'])));

@@ -99,7 +99,7 @@ try
     lanca('{{$cliente}} na Meta: nao envia', fn() => ApchatWabaService::exigirEnvio($cif), 'texto fixo');
     ok('variavel desconhecida: desabilitado, com o nome', $desc->habilitado === 'F' && strpos((string) ApchatWabaService::problemaDoTemplate($desc), '{{apelido}}') !== false);
 
-    // reimportar: o que o usuario mudou fica; a situacao vem da Meta; aprovado agora = habilitado; sumiu = desabilitado
+    // reimportar: o que o usuario mudou fica; a situacao vem da Meta; aprovado agora = habilitado; sumiu sem uso = excluido
     $t->descricao = 'MINHA CONFIRMACAO';
     $t->respostas_confirmar = 'Confirmo';
     $t->store();
@@ -112,9 +112,8 @@ try
     igual('reimportar: descricao e resposta do usuario ficam', ['MINHA CONFIRMACAO', 'Confirmo'], [$t->descricao, $t->respostas_confirmar]);
     $l = new TemplateEscritorio($l->id);
     igual('reimportar: aprovado agora = habilitado', ['APPROVED', 'T'], [$l->meta_status, $l->habilitado]);
-    $desc = new TemplateEscritorio($desc->id);
-    igual('reimportar: sumiu da Meta = desabilitado', [ApchatWabaService::REMOVIDO, 'F'], [$desc->meta_status, $desc->habilitado]);
-    igual('reimportar: um registro por template', 5, (int) $c->query("SELECT count(*) FROM template_escritorio WHERE escritorio_id = {$eid} AND origem = 'META'")->fetchColumn());
+    igual('reimportar: excluido na Meta e sem uso = sai da Curciol', 0, (int) $c->query("SELECT count(*) FROM template_escritorio WHERE id = " . (int) $desc->id)->fetchColumn());
+    igual('reimportar: um registro por template', 4, (int) $c->query("SELECT count(*) FROM template_escritorio WHERE escritorio_id = {$eid} AND origem = 'META'")->fetchColumn());
 
     // canal que nao e oficial / Meta recusa
     $falso->canal = ['canal_id' => 113, 'canal' => 'Coexistência', 'tipo' => 'whatsapp', 'waba_id' => null, 'token' => null, 'versao' => ''];
@@ -164,6 +163,19 @@ try
     // template da Curciol continua com o texto da Curciol
     MensagemService::enviarWhatsapp($ag, null, 'Olá {$cliente} / {{cliente}}', null, '');
     igual('template da Curciol: texto, formas antiga e nova trocadas', 'Olá TESTE TEMPLATE META / TESTE TEMPLATE META', $api[0]['corpo']['body'] ?? null);
+
+    // excluido na Meta depois de usado: fica so para o historico (desabilitado, fora da lista); os outros seguem
+    $meta = array_values(array_filter($meta, fn($x) => $x['name'] !== 'confirmacao_agendamento'));
+    ApchatWabaService::usarTransporte(function ($url, $token) use (&$meta) { return ['status' => 200, 'corpo' => json_encode(['data' => $meta]), 'erro' => '']; });
+    $r = ApchatWabaService::importar($eid);
+    igual('excluido na Meta e ja usado: conta como retirado', [0, 3, 1], [$r['novos'], $r['atualizados'], $r['removidos']]);
+    $t = new TemplateEscritorio($t->id);
+    igual('excluido na Meta e ja usado: guardado desabilitado', [ApchatWabaService::REMOVIDO, 'F'], [$t->meta_status, $t->habilitado]);
+    $crit = new TCriteria; $crit->add(new TFilter('escritorio_id', '=', $eid)); $crit->add(new TFilter('origem', '=', 'META')); $crit->add(ApchatWabaService::filtroSemRemovidos());
+    $naLista = array_map(fn($o) => $o->meta_nome, TemplateEscritorio::getObjects($crit) ?: []);
+    sort($naLista);
+    igual('lista de templates: so os que existem na Meta', ['com_cifrao', 'lembrete_agendamento', 'posicional'], $naLista);
+    igual('historico: a mensagem continua com o template', (int) $t->id, (int) $c->query("SELECT template_escritorio_id FROM mensagem WHERE id = {$m->id}")->fetchColumn());
 }
 finally
 {

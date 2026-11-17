@@ -226,23 +226,44 @@ class ApchatWabaService
             }
         }
 
-        // os desta conta que nao vieram mais: nao existem na Meta
+        // os desta conta que nao vieram mais (excluidos na Meta): saem da Curciol; o que ja foi usado em mensagem fica so para o
+        // historico (desabilitado, fora da lista de templates)
         $sumidos = TemplateEscritorio::where('escritorio_id', '=', $escritorioId)->where('origem', '=', TemplateEscritorio::ORIGEM_META)
                                      ->where('meta_waba_id', '=', $waba);
         if ($vistos) { $sumidos->where('id', 'not in', $vistos); }
         foreach ($sumidos->load() ?: [] as $obj)
         {
-            if ($obj->meta_status !== self::REMOVIDO)
+            if (self::usadoEmMensagem((int) $obj->id))
             {
-                $obj->meta_status = self::REMOVIDO;
-                $obj->habilitado = 'F';
-                $obj->meta_sincronizado_em = $agora;
-                $obj->store();
-                $resumo['removidos']++;
+                if ($obj->meta_status !== self::REMOVIDO)
+                {
+                    $obj->meta_status = self::REMOVIDO;
+                    $obj->habilitado = 'F';
+                    $obj->meta_sincronizado_em = $agora;
+                    $obj->store();
+                    $resumo['removidos']++;
+                }
+                continue;
             }
+            TemplateAcao::where('template_escritorio_id', '=', $obj->id)->delete();
+            $obj->delete();
+            $resumo['removidos']++;
         }
 
         return $resumo;
+    }
+
+    /** Template ja usado em mensagem enviada ou agendada (o historico aponta para ele). */
+    public static function usadoEmMensagem(int $id): bool
+    {
+        return Mensagem::where('template_escritorio_id', '=', $id)->count() > 0
+            || MensagemAgendada::where('template_escritorio_id', '=', $id)->count() > 0;
+    }
+
+    /** Filtro da lista de templates: esconde os da Meta que nao existem mais la (guardados so pelo historico). */
+    public static function filtroSemRemovidos(): TFilter
+    {
+        return new TFilter('id', 'not in', "(SELECT id FROM template_escritorio WHERE origem = '" . TemplateEscritorio::ORIGEM_META . "' AND meta_status = '" . self::REMOVIDO . "')");
     }
 
     /** Categoria da Curciol pelo nome do template na Meta (o usuario pode trocar). */
