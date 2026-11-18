@@ -636,7 +636,6 @@ class TemplateEscritorioForm extends TPage
                 var email = f.find('[name=tipo_template]').val() === '" . TemplateEscritorio::EMAIL . "';
                 var confirmacao = email && f.find('[name=categoria]').val() === '" . TemplateEscritorio::CONFIRMACAO . "';
                 f.find('#botoes_titulo, [name=botao_confirmar_texto]').closest('.tformrow').toggle(confirmacao && window.curciolTemBotoes(f));
-                // anexos so no e-mail (o WhatsApp nunca leva anexo): a linha pelo campo escondido, que sempre existe
                 f.find('[name=assinatura_modo], [name=anexos_manter_enviado], [name^=anexos_novos]').closest('.tformrow').toggle(email);
                 f.find('[name=rodape], #botoes_whatsapp_aviso, [name=botao1]').closest('.tformrow').toggle(!email);
                 f.find('.curciol-rotulo-previa').text(email ? 'Prévia do e-mail (como o cliente vê):' : 'Prévia do WhatsApp (como o cliente vê):');

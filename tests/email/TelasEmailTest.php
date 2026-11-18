@@ -29,6 +29,9 @@ ok('template: campo Nome e a Descricao livre', strpos($t, '>Nome:') !== false &&
 ok('template: rodape e 3 botoes do WhatsApp', strpos($t, 'name="rodape"') !== false && strpos($t, 'name="botao1"') !== false && strpos($t, 'name="botao3"') !== false && strpos($t, 'name="botao4"') === false);
 ok('template: botoes com ate 20 caracteres e rodape com ate 60', (bool) preg_match('/name="botao1"[^>]*maxlength="20"|maxlength="20"[^>]*name="botao1"/', $t) && (bool) preg_match('/name="rodape"[^>]*maxlength="60"|maxlength="60"[^>]*name="rodape"/', $t));
 ok('template: previa vale para o WhatsApp tambem', strpos($t, 'Prévia do WhatsApp') !== false);
+// o TScript junta o script numa linha so: um comentario "//" apaga o resto (18/11/2026: escondia anexos e quebrava a previa)
+preg_match_all('~<script[^>]*>(.*?)</script>~s', $t, $scriptsTpl);
+ok('template: sem comentario de linha nos scripts', !preg_grep('~(^|\s)//\s~m', $scriptsTpl[1]));
 $titulo = tag($t, 'titulo', 'input');
 ok('template: assunto sem maiusculas forcadas (variaveis como {$cliente} continuam valendo)', $titulo !== '' && stripos($titulo, 'uppercase') === false, $titulo);
 ok('template: texto do e-mail com altura automatica', strpos(tag($t, 'template'), 'data-autoaltura') !== false, tag($t, 'template'));
