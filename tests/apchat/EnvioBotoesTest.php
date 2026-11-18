@@ -15,6 +15,7 @@ igual('sem corpo: nao ha mensagem (nem so o titulo)', '', MensagemService::monta
 $tpl = new TemplateEscritorio();
 $tpl->tipo_template = TemplateEscritorio::WHATSAPP;
 $tpl->origem = TemplateEscritorio::ORIGEM_CURCIOL;
+$tpl->categoria = TemplateEscritorio::CONFIRMACAO;
 $tpl->titulo = 'Confirmação';
 $tpl->template = 'Olá {$cliente}';
 $tpl->rodape = 'Curciol';
@@ -36,7 +37,7 @@ $hm = TemplateWhatsappPreviaService::balao('Cabeçalho', 'Corpo', 'Rodapé', ['S
 ok('previa da Meta: cabecalho, corpo e rodape cinza separados', strpos($hm, 'font-weight:700') !== false && strpos($hm, '#8696a0;font-size:13px') !== false && strpos($hm, 'Rodapé') !== false);
 
 // ---------- validacao ----------
-$v = function (array $campos) { $t = new TemplateEscritorio(); $t->tipo_template = 'WHATSAPP'; $t->origem = 'CURCIOL'; $t->template = 'Texto'; $t->categoria = 'OUTROS'; foreach ($campos as $k => $x) { $t->$k = $x; } TemplateRespostaService::validarBotoes($t); return $t; };
+$v = function (array $campos) { $t = new TemplateEscritorio(); $t->tipo_template = 'WHATSAPP'; $t->origem = 'CURCIOL'; $t->template = 'Texto'; $t->categoria = 'CONFIRMACAO'; foreach ($campos as $k => $x) { $t->$k = $x; } TemplateRespostaService::validarBotoes($t); return $t; };
 lanca('3 botoes: nao (so 2, usuario 18/11)', fn() => $v(['botoes' => "a\nb\nc"]), 'no máximo 2');
 lanca('botao com 21 caracteres: nao', fn() => $v(['botoes' => str_repeat('x', 21)]), 'passa de 20');
 lanca('rodape com 61 caracteres: nao', fn() => $v(['rodape' => str_repeat('x', 61)]), 'até 60');
@@ -44,6 +45,17 @@ lanca('botao repetido (sem maiusculas e acentos): nao', fn() => $v(['botoes' => 
 igual('botoes limpos (linhas vazias saem)', "Sim\nNão", $v(['botoes' => "\n Sim \n\nNão\n"])->botoes);
 $e = $v(['tipo_template' => 'EMAIL', 'botoes' => 'Sim', 'rodape' => 'x']);
 igual('e-mail: sem rodape nem botoes', [null, null], [$e->rodape, $e->botoes]);
+
+// botoes so na categoria Confirma/Cancela Agendamento (usuario, 18/11/2026)
+igual('nomes das categorias na tela', ['Confirma/Cancela Agendamento', 'Confirmado', 'Cancelado'],
+      [TemplateEscritorio::CATEGORIAS['CONFIRMACAO'], TemplateEscritorio::CATEGORIAS['CONFIRMADO'], TemplateEscritorio::CATEGORIAS['CANCELAMENTO']]);
+foreach (['CONFIRMADO', 'CANCELAMENTO', 'LEMBRETE', 'OUTROS'] as $cat)
+{
+    igual("{$cat}: botoes da Curciol nao valem (saem ao salvar)", null, $v(['categoria' => $cat, 'botoes' => "Sim\nNão"])->botoes);
+}
+lanca('Meta com botoes fora da Confirma/Cancela: nao salva', fn() => $v(['categoria' => 'LEMBRETE', 'origem' => 'META', 'botoes' => "Sim\nNão"]), 'só pode ser da categoria Confirma/Cancela Agendamento');
+$outra = clone $tpl; $outra->categoria = TemplateEscritorio::LEMBRETE;
+igual('fora da Confirma/Cancela: a mensagem nao leva botoes', [], MensagemService::textoDoTemplate($outra)['botoes']);
 
 // ---------- banco do APChat e API falsos ----------
 $canalWaba = ['canal_id' => 115, 'canal' => 'Curciol', 'tipo' => 'waba', 'waba_id' => '1234567890', 'token' => 'X', 'versao' => '25.0'];
@@ -90,7 +102,7 @@ try
     // ---------- envio ----------
     $t = new TemplateEscritorio();
     $t->escritorio_id = $eid; $t->chave = 'TESTE_BTN_' . uniqid(); $t->descricao = 'TESTE BOTOES ENVIO'; $t->tipo_template = 'WHATSAPP'; $t->origem = 'CURCIOL';
-    $t->categoria = TemplateEscritorio::OUTROS; $t->habilitado = 'T'; $t->titulo = 'Aviso'; $t->template = 'Olá {{cliente}}'; $t->rodape = 'Curciol'; $t->botoes = "Sim\nNão";
+    $t->categoria = TemplateEscritorio::CONFIRMACAO; $t->habilitado = 'T'; $t->titulo = 'Aviso'; $t->template = 'Olá {{cliente}}'; $t->rodape = 'Curciol'; $t->botoes = "Sim\nNão";
     $t->store();
 
     $p = new Pessoa(); $p->nome = 'TESTE BOTOES'; $p->tipo_pessoa_id = TipoPessoa::FISICA; $p->telefone = '19987650003'; $p->aceita_receber_mensagen_whatsapp = 'T'; $p->store();

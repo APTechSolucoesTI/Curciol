@@ -179,9 +179,9 @@ try {
 
     $agAberto = $agendamento($pfCompleta, (int) EstadoAgenda::AGENDADO, '+5 days');
     $htmlAberto = saida(function () use ($agAberto) { $p = ['agendamento_id' => $agAberto, 'tipo' => 'WHATSAPP']; $pg = new EnviarMensagemForm($p); $pg->onShow($p); $pg->show(); });
-    ok('agendado: sem opcao de agendar', strpos($htmlAberto, 'name="agendar"') === false && strpos($htmlAberto, 'Confirmação - ') !== false);
+    ok('agendado: sem opcao de agendar', strpos($htmlAberto, 'name="agendar"') === false && strpos($htmlAberto, 'Confirma/Cancela Agendamento - ') !== false);
     $htmlLembrete = saida(function () use ($agOk) { $p = ['agendamento_id' => $agOk, 'tipo' => 'WHATSAPP']; $pg = new EnviarMensagemForm($p); $pg->onShow($p); $pg->show(); });
-    ok('confirmado: com a opcao de agendar e so Lembrete no combo', strpos($htmlLembrete, 'name="agendar"') !== false && strpos($htmlLembrete, 'name="enviar_em"') !== false && strpos($htmlLembrete, 'Confirmação - ') === false && strpos($htmlLembrete, 'Lembrete - ') !== false);
+    ok('confirmado: com a opcao de agendar e so Lembrete no combo', strpos($htmlLembrete, 'name="agendar"') !== false && strpos($htmlLembrete, 'name="enviar_em"') !== false && strpos($htmlLembrete, 'Confirma/Cancela Agendamento - ') === false && strpos($htmlLembrete, 'Lembrete - ') !== false);
     ok('sem comentario de linha no script da tela', strpos($htmlLembrete, 'curciolAgendar') !== false);
 
     // ---------- agendar: validacoes ----------

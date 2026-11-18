@@ -138,7 +138,7 @@ try {
 
     // ---------- criar o template de resposta sem sair do formulario ----------
     $janela = saida(function () { TemplateEscritorioForm::onNovaResposta(['ramo' => 'cancelado']); });
-    ok('janela: diz a categoria', strpos($janela, 'Cancelamento') !== false && strpos($janela, 'name="nova_descricao"') !== false && strpos($janela, 'name="nova_texto"') !== false);
+    ok('janela: diz a categoria', strpos($janela, 'Categoria <b>Cancelado</b>') !== false && strpos($janela, 'name="nova_descricao"') !== false && strpos($janela, 'name="nova_texto"') !== false);
     $s = saida(function () { TemplateEscritorioForm::onSalvarNovaResposta(['ramo' => 'cancelado', 'nova_descricao' => '', 'nova_texto' => 'Texto']); });
     ok('janela: descricao obrigatoria', strpos($s, 'Informe a descrição') !== false);
     $s = saida(function () { TemplateEscritorioForm::onSalvarNovaResposta(['ramo' => 'cancelado', 'nova_descricao' => MARCA_RESP . ' JANELA', 'nova_texto' => '  ']); });

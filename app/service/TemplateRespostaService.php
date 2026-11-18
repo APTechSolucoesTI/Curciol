@@ -136,6 +136,16 @@ class TemplateRespostaService
         $template->rodape = trim((string) $template->rodape) !== '' ? trim((string) $template->rodape) : null;
         $todos = array_values(array_filter(array_map('trim', preg_split('/\R/u', (string) $template->botoes)), function ($b) { return $b !== ''; }));
         $template->botoes = $todos ? implode("\n", $todos) : null;
+        // botoes so na categoria Confirma/Cancela Agendamento (usuario, 18/11/2026), como as respostas
+        if ($template->categoria !== TemplateEscritorio::CONFIRMACAO && $todos)
+        {
+            if ($template->ehMeta())
+            {
+                throw new Exception('Este template da Meta tem botões: só pode ser da categoria ' . TemplateEscritorio::CATEGORIAS[TemplateEscritorio::CONFIRMACAO] . '.');
+            }
+            $template->botoes = null; // os campos ficam escondidos fora da categoria: nao valem
+            $todos = [];
+        }
         if ($template->ehMeta())
         {
             return;

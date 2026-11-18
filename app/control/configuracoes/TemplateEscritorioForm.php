@@ -184,13 +184,14 @@ class TemplateEscritorioForm extends TPage
             $b->setProperty('placeholder', $i === 1 ? 'Ex.: Sim' : ($i === 2 ? 'Ex.: Não' : ''));
             $camposBotoes[] = [new TLabel("Botão {$i}:", null, '14px', null, '100%'), $b];
         }
-        // rodape; embaixo o aviso e os 3 botoes (ajuste do usuario, 18/11/2026)
+        // rodape; embaixo o aviso e os botoes (ajuste do usuario, 18/11/2026). Botoes so na categoria Confirma/Cancela Agendamento,
+        // como as respostas (o script curciolRespostasTemplate mostra e esconde os dois juntos)
         $this->form->addFields([new TLabel("Rodapé:", null, '14px', null, '100%'), $rodape])->layout = ['col-sm-12'];
         $avisoBotoes = new TElement('div');
         $avisoBotoes->id = 'botoes_whatsapp_aviso';
         $avisoBotoes->style = 'font-size:12px;color:#666;';
-        $avisoBotoes->add('Até ' . TemplateEscritorio::BOTOES_MAX . ' botões com até ' . TemplateEscritorio::BOTAO_MAX . ' caracteres. Com botões, a mensagem só sai pelo canal oficial do WhatsApp (WABA) e só chega a quem escreveu nas últimas 24 horas. '
-                        . 'Na confirmação, cada botão tem de ser uma das respostas que confirmam ou cancelam.');
+        $avisoBotoes->add('Até ' . TemplateEscritorio::BOTOES_MAX . ' botões com até ' . TemplateEscritorio::BOTAO_MAX . ' caracteres, cada um uma das respostas que confirmam ou cancelam (abaixo). '
+                        . 'Com botões, a mensagem só sai pelo canal oficial do WhatsApp (WABA) e só chega a quem escreveu nas últimas 24 horas.');
         $this->form->addFields([$avisoBotoes])->layout = ['col-sm-12'];
         $rowBotoes = $this->form->addFields(...$camposBotoes);
         $rowBotoes->layout = array_fill(0, TemplateEscritorio::BOTOES_MAX, 'col-sm-' . intdiv(12, TemplateEscritorio::BOTOES_MAX));
@@ -228,8 +229,8 @@ class TemplateEscritorioForm extends TPage
         $rowRespostas->layout = ['col-sm-6', 'col-sm-6'];
         $this->form->addFields([new TLabel("Ignorar maiúsculas, minúsculas e acentos (sim serve para SIM e Sim; não serve para nao e NÃO):", null, '14px', null, '100%'), $ignorar_maiusculas])->layout = ['col-sm-12'];
         $rowRespostas = $this->form->addFields(
-            [new TLabel("Template enviado depois de confirmar (categoria Agendamento confirmado):", '#ff0000', '14px', null, '100%'), $template_confirmado_id, $criarTemplate('confirmado')],
-            [new TLabel("Template enviado depois de cancelar (categoria Cancelamento):", '#ff0000', '14px', null, '100%'), $template_cancelado_id, $criarTemplate('cancelado')]);
+            [new TLabel("Template enviado depois de confirmar (categoria " . TemplateEscritorio::CATEGORIAS[TemplateEscritorio::CONFIRMADO] . "):", '#ff0000', '14px', null, '100%'), $template_confirmado_id, $criarTemplate('confirmado')],
+            [new TLabel("Template enviado depois de cancelar (categoria " . TemplateEscritorio::CATEGORIAS[TemplateEscritorio::CANCELAMENTO] . "):", '#ff0000', '14px', null, '100%'), $template_cancelado_id, $criarTemplate('cancelado')]);
         $rowRespostas->layout = ['col-sm-6', 'col-sm-6'];
 
         // sempre pelo form: os filtros da listagem, atras da cortina, tem os mesmos nomes de campo
@@ -237,7 +238,7 @@ class TemplateEscritorioForm extends TPage
         TScript::create("
             window.curciolRespostasTemplate = function () {
                 var mostra = $('{$form} [name=categoria]').val() === '" . TemplateEscritorio::CONFIRMACAO . "' && $('{$form} [name=tipo_template]').val() === '" . TemplateEscritorio::WHATSAPP . "';
-                $('{$form} #respostas_titulo, {$form} [name=respostas_confirmar], {$form} [name=ignorar_maiusculas], {$form} [name=template_confirmado_id]').closest('.tformrow').toggle(mostra);
+                $('{$form} #respostas_titulo, {$form} [name=respostas_confirmar], {$form} [name=ignorar_maiusculas], {$form} [name=template_confirmado_id], {$form} #botoes_whatsapp_aviso, {$form} [name=botao1]').closest('.tformrow').toggle(mostra);
             };
             $(document).off('change.curciolRespostas').on('change.curciolRespostas', '{$form} [name=categoria], {$form} [name=tipo_template]', window.curciolRespostasTemplate);
             $(function () { window.curciolRespostasTemplate(); });
@@ -637,7 +638,7 @@ class TemplateEscritorioForm extends TPage
                 var confirmacao = email && f.find('[name=categoria]').val() === '" . TemplateEscritorio::CONFIRMACAO . "';
                 f.find('#botoes_titulo, [name=botao_confirmar_texto]').closest('.tformrow').toggle(confirmacao && window.curciolTemBotoes(f));
                 f.find('[name=assinatura_modo], [name=anexos_manter_enviado], [name^=anexos_novos]').closest('.tformrow').toggle(email);
-                f.find('[name=rodape], #botoes_whatsapp_aviso, [name=botao1]').closest('.tformrow').toggle(!email);
+                f.find('[name=rodape]').closest('.tformrow').toggle(!email);
                 f.find('.curciol-rotulo-previa').text(email ? 'Prévia do e-mail (como o cliente vê):' : 'Prévia do WhatsApp (como o cliente vê):');
                 var outra = f.find('[name=assinatura_modo]:checked').val() === '" . TemplateEscritorio::ASSINATURA_OUTRA . "';
                 f.find('[name=assinatura_arquivo]').closest('div[class*=col-sm]').toggle(email && outra);

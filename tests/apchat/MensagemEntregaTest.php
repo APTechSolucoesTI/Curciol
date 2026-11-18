@@ -6,6 +6,7 @@
 //     enviou, o colaborador da agenda e quem criou o agendamento (sem repetir); o agendamento nao muda de estado.
 // API e banco do APChat falsos.
 require __DIR__ . '/../bootstrap.php';
+templatesSemBotoes();
 if (!class_exists('TApplication')) { class TApplication extends AdiantiCoreApplication {} }
 
 const MARCA_ENT = 'TESTE ENTREGA WHATSAPP';

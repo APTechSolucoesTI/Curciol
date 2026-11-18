@@ -28,9 +28,10 @@ class TemplateEscritorio extends TRecord
     const ASSINATURA_NENHUMA = 'NENHUMA';
 
     const CATEGORIAS = [
-        self::CONFIRMACAO  => 'Confirmação',
-        self::CONFIRMADO   => 'Agendamento confirmado',
-        self::CANCELAMENTO => 'Cancelamento',
+        // nomes da tela (usuario, 18/11/2026); os codigos gravados continuam os mesmos
+        self::CONFIRMACAO  => 'Confirma/Cancela Agendamento',
+        self::CONFIRMADO   => 'Confirmado',
+        self::CANCELAMENTO => 'Cancelado',
         self::LEMBRETE     => 'Lembrete',
         self::OUTROS       => 'Outros',
     ];
@@ -124,6 +125,12 @@ class TemplateEscritorio extends TRecord
         parent::addAttribute('rodape');
         parent::addAttribute('botoes');
 
+    }
+
+    /** Botoes que vao na mensagem: so WhatsApp da categoria Confirma/Cancela Agendamento (usuario, 18/11/2026). */
+    public function botoesDaMensagem(): array
+    {
+        return $this->tipo_template === self::WHATSAPP && $this->categoria === self::CONFIRMACAO ? $this->listaBotoes() : [];
     }
 
     /** Botoes de resposta do WhatsApp (18/11/2026): um por linha; da Curciol ate BOTOES_MAX, da Meta os aprovados. */

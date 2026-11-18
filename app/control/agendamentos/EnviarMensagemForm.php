@@ -570,7 +570,7 @@ class EnviarMensagemForm extends TPage
             $p = ApchatWabaService::partes($template);
             return TemplateWhatsappPreviaService::balao(TemplateEscritorio::replace($agendamento, $p['cabecalho']), TemplateEscritorio::replace($agendamento, $p['corpo']), $p['rodape'], $p['botoes']);
         }
-        $botoes = $template && $template->tipo_template === TemplateEscritorio::WHATSAPP ? $template->listaBotoes() : [];
+        $botoes = $template ? $template->botoesDaMensagem() : [];
         return TemplateWhatsappPreviaService::balao('', trim(TemplateEscritorio::replace($agendamento, $texto)), '', $botoes);
     }
 

@@ -78,3 +78,25 @@ function tokenApchatDeTeste(): void
     TConnection::setDatabaseInfo('escritorio', array_merge($original, ['keep' => 0, 'opts' => "options='-c search_path={$schema},public'"]));
     $isolado = true;
 }
+
+/**
+ * Testes do envio de texto (18/11/2026): template da Curciol com botoes sai pelo /sendButtonWABA (EnvioBotoesTest). Tira os
+ * botoes que a homologacao tiver posto nos templates enquanto o teste roda e devolve no fim (mesmo se o teste quebrar).
+ */
+function templatesSemBotoes(): void
+{
+    static $feito = false;
+    if ($feito) { return; }
+    $feito = true;
+    TTransaction::open('escritorio');
+    $antes = TTransaction::get()->query("SELECT id, botoes FROM template_escritorio WHERE origem = 'CURCIOL' AND botoes IS NOT NULL")->fetchAll(PDO::FETCH_ASSOC);
+    TTransaction::get()->exec("UPDATE template_escritorio SET botoes = NULL WHERE origem = 'CURCIOL' AND botoes IS NOT NULL");
+    TTransaction::close();
+    register_shutdown_function(function () use ($antes) {
+        while (TTransaction::get()) { TTransaction::rollback(); }
+        TTransaction::open('escritorio');
+        $st = TTransaction::get()->prepare('UPDATE template_escritorio SET botoes = ? WHERE id = ?');
+        foreach ($antes as $b) { $st->execute([$b['botoes'], $b['id']]); }
+        TTransaction::close();
+    });
+}

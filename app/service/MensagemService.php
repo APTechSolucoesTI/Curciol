@@ -283,7 +283,7 @@ class MensagemService
         {
             return ['titulo' => $titulo, 'texto' => $corpo, 'botoes' => []];
         }
-        return ['titulo' => $titulo, 'texto' => self::montarWhatsapp($titulo, $corpo, (string) $template->rodape), 'botoes' => $template->listaBotoes()];
+        return ['titulo' => $titulo, 'texto' => self::montarWhatsapp($titulo, $corpo, (string) $template->rodape), 'botoes' => $template->botoesDaMensagem()];
     }
 
     /**
@@ -464,7 +464,7 @@ class MensagemService
         }
 
         // template da Curciol com botoes (18/11/2026): so pelo canal oficial, conferido ANTES de qualquer chamada a API
-        $botoes = $template && $template->tipo_template === TemplateEscritorio::WHATSAPP ? $template->listaBotoes() : [];
+        $botoes = $template ? $template->botoesDaMensagem() : [];
         if ($botoes)
         {
             return self::enviarComBotoes($agendamento, $titulo, $texto, $botoes, (int) $template->id, $numero);

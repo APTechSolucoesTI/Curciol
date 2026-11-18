@@ -4,6 +4,7 @@
 // nao envia), inclusive POST montado; cada lembrete no historico e na tela; em producao, destino so do proprio cliente; o cadastro
 // novo volta selecionado na conta. API falsa: nunca fala com o APChat de verdade.
 require __DIR__ . '/../bootstrap.php';
+templatesSemBotoes();
 if (!class_exists('TApplication')) { class TApplication extends AdiantiCoreApplication {} }
 
 const MARCA_ME = 'TESTE MENSAGEM ESTADO';
