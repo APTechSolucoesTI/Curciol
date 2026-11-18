@@ -170,7 +170,7 @@ class TemplateEscritorioForm extends TPage
         $row7 = $this->form->addFields([new TLabel("Corpo:", null, '14px', null, '100%'),$template_whatsapp]);
         $row7->layout = ['col-sm-12'];
 
-        // WhatsApp (18/11/2026): rodape e ate 3 botoes de resposta, no mesmo padrao dos templates da Meta. No template da Curciol o
+        // WhatsApp (18/11/2026): rodape e ate 2 botoes de resposta, no mesmo padrao dos templates da Meta. No template da Curciol o
         // rodape vai em italico no fim do texto e os botoes saem pelo canal oficial (WABA); o clique vale como a resposta digitada
         $rodape = new TEntry('rodape');
         $rodape->setSize('100%');
@@ -193,7 +193,7 @@ class TemplateEscritorioForm extends TPage
                         . 'Na confirmação, cada botão tem de ser uma das respostas que confirmam ou cancelam.');
         $this->form->addFields([$avisoBotoes])->layout = ['col-sm-12'];
         $rowBotoes = $this->form->addFields(...$camposBotoes);
-        $rowBotoes->layout = ['col-sm-4', 'col-sm-4', 'col-sm-4'];
+        $rowBotoes->layout = array_fill(0, TemplateEscritorio::BOTOES_MAX, 'col-sm-' . intdiv(12, TemplateEscritorio::BOTOES_MAX));
 
         $this->montarExtrasDoEmail();
 

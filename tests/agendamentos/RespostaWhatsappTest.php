@@ -66,6 +66,11 @@ ApchatApiService::usarTransporte(function ($url, $corpo, $token) use (&$enviadas
 AmbienteService::forcarProducao(false);
 TSession::setValue('userid', 1);
 
+// templates da Curciol com botoes saem pelo /sendButtonWABA (EnvioBotoesTest): aqui o envio de texto, sem os botoes que a
+// homologacao tiver posto nos templates (voltam no fim)
+$botoesAntes = q("SELECT id, botoes FROM template_escritorio WHERE origem = 'CURCIOL' AND botoes IS NOT NULL");
+x("UPDATE template_escritorio SET botoes = NULL WHERE origem = 'CURCIOL' AND botoes IS NOT NULL");
+
 $agendaId = (int) q('SELECT id FROM agenda ORDER BY id LIMIT 1')[0]['id'];
 $confirmacaoId = (int) (q("SELECT t.id FROM template_escritorio t JOIN agenda a ON a.escritorio_id = t.escritorio_id WHERE a.id = {$agendaId} AND t.chave = 'WHATSAPP_CONFIRMACAO_AGENDAMENTO' ORDER BY t.id LIMIT 1")[0]['id'] ?? 0);
 
@@ -634,6 +639,7 @@ try {
     igual('sem template e sem Manual: nao envia', 0, count($enviadas));
     AmbienteService::forcarProducao(false);
 } finally {
+    foreach ($botoesAntes as $b) { TTransaction::open('escritorio'); TTransaction::get()->prepare('UPDATE template_escritorio SET botoes = ? WHERE id = ?')->execute([$b['botoes'], $b['id']]); TTransaction::close(); }
     ApchatBancoService::usarFalso(null);
     ApchatApiService::usarTransporte(null);
     AmbienteService::forcarProducao(null);

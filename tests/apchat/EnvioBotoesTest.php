@@ -19,7 +19,7 @@ $tpl->titulo = 'Confirmação';
 $tpl->template = 'Olá {$cliente}';
 $tpl->rodape = 'Curciol';
 $tpl->botoes = "Sim\n\n Não \nTalvez\nQuarto";
-igual('textoDoTemplate: texto final e ate 3 botoes', ['*Confirmação*' . "\n\nOlá {{cliente}}\n\n_Curciol_", ['Sim', 'Não', 'Talvez']], array_values(array_intersect_key(MensagemService::textoDoTemplate($tpl), ['texto' => 1, 'botoes' => 1])));
+igual('textoDoTemplate: texto final e ate 2 botoes', ['*Confirmação*' . "\n\nOlá {{cliente}}\n\n_Curciol_", ['Sim', 'Não']], array_values(array_intersect_key(MensagemService::textoDoTemplate($tpl), ['texto' => 1, 'botoes' => 1])));
 $email = clone $tpl; $email->tipo_template = TemplateEscritorio::EMAIL;
 igual('e-mail: texto como esta, sem botoes', ['Olá {{cliente}}', []], [MensagemService::textoDoTemplate($email)['texto'], MensagemService::textoDoTemplate($email)['botoes']]);
 
@@ -37,7 +37,7 @@ ok('previa da Meta: cabecalho, corpo e rodape cinza separados', strpos($hm, 'fon
 
 // ---------- validacao ----------
 $v = function (array $campos) { $t = new TemplateEscritorio(); $t->tipo_template = 'WHATSAPP'; $t->origem = 'CURCIOL'; $t->template = 'Texto'; $t->categoria = 'OUTROS'; foreach ($campos as $k => $x) { $t->$k = $x; } TemplateRespostaService::validarBotoes($t); return $t; };
-lanca('4 botoes: nao', fn() => $v(['botoes' => "a\nb\nc\nd"]), 'no máximo 3');
+lanca('3 botoes: nao (so 2, usuario 18/11)', fn() => $v(['botoes' => "a\nb\nc"]), 'no máximo 2');
 lanca('botao com 21 caracteres: nao', fn() => $v(['botoes' => str_repeat('x', 21)]), 'passa de 20');
 lanca('rodape com 61 caracteres: nao', fn() => $v(['rodape' => str_repeat('x', 61)]), 'até 60');
 lanca('botao repetido (sem maiusculas e acentos): nao', fn() => $v(['botoes' => "Não\nnao"]), 'repetido');

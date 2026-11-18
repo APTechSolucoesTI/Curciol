@@ -13,7 +13,7 @@ ALTER TABLE template_escritorio ADD COLUMN IF NOT EXISTS botoes text;
 COMMENT ON COLUMN template_escritorio.descricao IS 'Nome do template (lista, combos e envios)';
 COMMENT ON COLUMN template_escritorio.observacao IS 'Descricao livre do template (descritivo)';
 COMMENT ON COLUMN template_escritorio.rodape IS 'WhatsApp: rodape da mensagem (Curciol: em italico no fim do texto; Meta: o FOOTER aprovado)';
-COMMENT ON COLUMN template_escritorio.botoes IS 'WhatsApp: botoes de resposta, um por linha, ate 3 com ate 20 caracteres (Curciol: /sendButtonWABA, so canal oficial)';
+COMMENT ON COLUMN template_escritorio.botoes IS 'WhatsApp: botoes de resposta, um por linha, ate 2 com ate 20 caracteres (Curciol: /sendButtonWABA, so canal oficial)';
 
 ALTER TABLE template_escritorio ALTER COLUMN categoria DROP NOT NULL;
 

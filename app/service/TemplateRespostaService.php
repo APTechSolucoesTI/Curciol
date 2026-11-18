@@ -122,7 +122,7 @@ class TemplateRespostaService
     }
 
     /**
-     * Rodape e botoes do WhatsApp (18/11/2026). E-mail nao tem nenhum dos dois. Template da Curciol: ate 3 botoes com ate 20
+     * Rodape e botoes do WhatsApp (18/11/2026). E-mail nao tem nenhum dos dois. Template da Curciol: ate 2 botoes com ate 20
      * caracteres (limite da Meta) e rodape com ate 60; o da Meta vem aprovado (copia dos componentes).
      */
     public static function validarBotoes(TemplateEscritorio $template): void
