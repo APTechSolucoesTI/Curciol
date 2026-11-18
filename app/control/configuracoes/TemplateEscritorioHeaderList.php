@@ -75,9 +75,10 @@ class TemplateEscritorioHeaderList extends TPage
         $this->datagrid->setHeight(320);
 
         $column_categoria = new TDataGridColumn('categoria', "Categoria", 'left' , '180px');
-        $column_categoria->setTransformer(function($value) { return TemplateEscritorio::CATEGORIAS[$value] ?? $value; });
+        // sem categoria: template da Meta importado sem botoes, ate o usuario escolher (18/11/2026)
+        $column_categoria->setTransformer(function($value) { return (string) $value === '' ? '<span style="color:#c62828">Sem categoria</span>' : (TemplateEscritorio::CATEGORIAS[$value] ?? $value); });
         $column_tipo_template = new TDataGridColumn('tipo_template', "Tipo", 'center' , '100px');
-        $column_descricao = new TDataGridColumn('descricao', "Descrição", 'left');
+        $column_descricao = new TDataGridColumn('descricao', "Nome", 'left');
         // origem (17/11/2026): criado na Curciol ou importado da Meta (com a situacao la)
         $column_origem = new TDataGridColumn('origem', "Origem", 'center' , '150px');
         $column_origem->setTransformer(function($value, $object) { return self::rotuloOrigem($object); });

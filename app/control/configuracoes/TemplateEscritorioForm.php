@@ -98,7 +98,8 @@ class TemplateEscritorioForm extends TPage
         $data_modificacao->setDatabaseMask('yyyy-mm-dd hh:ii');
 
         $categoria->addItems(TemplateEscritorio::CATEGORIAS);
-        $categoria->setDefaultOption(false);
+        // vazia: template da Meta importado sem botoes, ate o usuario escolher (18/11/2026)
+        $categoria->setDefaultOption('');
         $categoria->setValue(TemplateEscritorio::CONFIRMACAO);
         $categoria->setSize('100%');
         // o titulo e o assunto do e-mail (09/11/2026): sem maiusculas forcadas, que estragavam as variaveis ({{cliente}})
@@ -127,16 +128,22 @@ class TemplateEscritorioForm extends TPage
         $template_acao_template_escritorio_label->setSize('100%');
 
 
-        $row1 = $this->form->addFields([new TLabel("Categoria:", '#ff0000', '14px', null, '100%'),$escritorio_id,$id,$chave,$categoria],[new TLabel("Descrição (nome do template na lista):", '#ff0000', '14px', null, '100%'),$descricao],[new TLabel("Tipo:", '#FF0000', '14px', null),$tipo_template]);
+        // 18/11/2026: Categoria, Nome (coluna descricao, o nome da lista e dos envios), Tipo; embaixo a Descricao livre (observacao)
+        $row1 = $this->form->addFields([new TLabel("Categoria:", '#ff0000', '14px', null, '100%'),$escritorio_id,$id,$chave,$categoria],[new TLabel("Nome:", '#ff0000', '14px', null, '100%'),$descricao],[new TLabel("Tipo:", '#FF0000', '14px', null),$tipo_template]);
         $row1->layout = [' col-sm-3','col-sm-6',' col-sm-3'];
+
+        $observacao = new TText('observacao');
+        $observacao->setSize('100%', 60);
+        $observacao->setProperty('data-autoaltura', '1');
+        $observacao->setProperty('placeholder', 'Para que serve este template');
+
+        // de que confirmacao este template e a resposta automatica (preenchido no onEdit), logo abaixo da Descricao
+        $this->usadoEm = new TElement('div');
+        $this->form->addFields([new TLabel("Descrição:", null, '14px', null, '100%'), $observacao, $this->usadoEm])->layout = ['col-sm-12'];
 
         // template da Meta (17/11/2026): de onde veio e a situacao (preenchido no onEdit)
         $this->metaInfo = new TElement('div');
         $this->form->addFields([$this->metaInfo])->layout = ['col-sm-12'];
-
-        // de que confirmacao este template e a resposta automatica (preenchido no onEdit)
-        $this->usadoEm = new TElement('div');
-        $this->form->addFields([$this->usadoEm])->layout = ['col-sm-12'];
 
         $bcontainer_62e034c1eb8f6 = new BContainer('bcontainer_62e034c1eb8f6');
         $this->bcontainer_62e034c1eb8f6 = $bcontainer_62e034c1eb8f6;
@@ -160,8 +167,31 @@ class TemplateEscritorioForm extends TPage
         $row6 = $this->form->addFields([new TLabel("Template:", null, '14px', null, '100%'),$template]);
         $row6->layout = ['col-sm-12'];
 
-        $row7 = $this->form->addFields([new TLabel("Template:", null, '14px', null, '100%'),$template_whatsapp]);
+        $row7 = $this->form->addFields([new TLabel("Corpo:", null, '14px', null, '100%'),$template_whatsapp]);
         $row7->layout = ['col-sm-12'];
+
+        // WhatsApp (18/11/2026): rodape e ate 3 botoes de resposta, no mesmo padrao dos templates da Meta. No template da Curciol o
+        // rodape vai em italico no fim do texto e os botoes saem pelo canal oficial (WABA); o clique vale como a resposta digitada
+        $rodape = new TEntry('rodape');
+        $rodape->setSize('100%');
+        $rodape->setMaxLength(TemplateEscritorio::RODAPE_MAX);
+        $camposBotoes = [];
+        for ($i = 1; $i <= TemplateEscritorio::BOTOES_MAX; $i++)
+        {
+            $b = new TEntry('botao' . $i);
+            $b->setSize('100%');
+            $b->setMaxLength(TemplateEscritorio::BOTAO_MAX);
+            $b->setProperty('placeholder', $i === 1 ? 'Ex.: Sim' : ($i === 2 ? 'Ex.: Não' : ''));
+            $camposBotoes[] = [new TLabel("Botão {$i}:", null, '14px', null, '100%'), $b];
+        }
+        $rowRodape = $this->form->addFields([new TLabel("Rodapé:", null, '14px', null, '100%'), $rodape], ...$camposBotoes);
+        $rowRodape->layout = ['col-sm-6', 'col-sm-2', 'col-sm-2', 'col-sm-2'];
+        $avisoBotoes = new TElement('div');
+        $avisoBotoes->id = 'botoes_whatsapp_aviso';
+        $avisoBotoes->style = 'font-size:12px;color:#666;margin-top:-6px;';
+        $avisoBotoes->add('Até ' . TemplateEscritorio::BOTOES_MAX . ' botões com até ' . TemplateEscritorio::BOTAO_MAX . ' caracteres. Com botões, a mensagem só sai pelo canal oficial do WhatsApp (WABA) e só chega a quem escreveu nas últimas 24 horas. '
+                        . 'Na confirmação, cada botão tem de ser uma das respostas que confirmam ou cancelam.');
+        $this->form->addFields([$avisoBotoes])->layout = ['col-sm-12'];
 
         $this->montarExtrasDoEmail();
 
@@ -316,6 +346,14 @@ class TemplateEscritorioForm extends TPage
             {
                 $object->template = $data->template_whatsapp;
             }
+            // botoes do WhatsApp (18/11/2026): um campo por botao, gravados um por linha
+            $botoes = [];
+            for ($i = 1; $i <= TemplateEscritorio::BOTOES_MAX; $i++)
+            {
+                $botoes[] = (string) ($data->{'botao' . $i} ?? '');
+            }
+            $object->botoes = implode("\n", $botoes);
+            $object->observacao = trim((string) ($data->observacao ?? '')) !== '' ? trim((string) $data->observacao) : null;
 
             if ($gravado && $gravado->ehMeta())
             {
@@ -324,6 +362,8 @@ class TemplateEscritorioForm extends TPage
                 $object->tipo_template = TemplateEscritorio::WHATSAPP;
                 $object->template = $gravado->template;
                 $object->titulo = $gravado->titulo;
+                $object->rodape = $gravado->rodape;
+                $object->botoes = $gravado->botoes;
                 if ($object->habilitado === 'T' && $gravado->meta_status !== ApchatWabaService::APROVADO)
                 {
                     throw new Exception('Este template ainda não está aprovado na Meta (' . ApchatWabaService::situacao($gravado->meta_status) . '): só dá para habilitar depois da aprovação. Use Importar da Meta para atualizar a situação.');
@@ -437,6 +477,10 @@ class TemplateEscritorioForm extends TPage
                 else
                 {
                     $object->template_whatsapp = $object->template;
+                    foreach ($object->listaBotoes() as $i => $botao)
+                    {
+                        $object->{'botao' . ($i + 1)} = $botao;
+                    }
                     TScript::create("$('[name=template]').closest('.tformrow').hide();");
                     TScript::create("$('[name=fieldList_acoes]').closest('.tformrow').hide().prev().hide();");
                 }
@@ -571,7 +615,7 @@ class TemplateEscritorioForm extends TPage
         $previa->id = 'template_previa';
         $previa->style = 'display:none;margin-top:8px;background:#f4f4f4;border-radius:6px;padding:10px;';
 
-        $this->form->addFields([new TLabel('Prévia do e-mail (como o cliente vê):', null, '14px', null, '100%'), $botoesPrevia, $previa])->layout = ['col-sm-12'];
+        $this->form->addFields([new TLabel("<span class='curciol-rotulo-previa'>Prévia do e-mail (como o cliente vê):</span>", null, '14px', null, '100%'), $botoesPrevia, $previa])->layout = ['col-sm-12'];
 
         // sempre pelo form: os filtros da listagem, atras da cortina, tem os mesmos nomes de campo
         // "Botoes do cliente" so com {{botoes}}, {{link_confirmacao}} ou {{link_cancelamento}} no texto (mesma regra do
@@ -590,7 +634,9 @@ class TemplateEscritorioForm extends TPage
                 var email = f.find('[name=tipo_template]').val() === '" . TemplateEscritorio::EMAIL . "';
                 var confirmacao = email && f.find('[name=categoria]').val() === '" . TemplateEscritorio::CONFIRMACAO . "';
                 f.find('#botoes_titulo, [name=botao_confirmar_texto]').closest('.tformrow').toggle(confirmacao && window.curciolTemBotoes(f));
-                f.find('[name=assinatura_modo], [name^=anexos_novos], #template_previa').closest('.tformrow').toggle(email);
+                f.find('[name=assinatura_modo], [name^=anexos_novos]').closest('.tformrow').toggle(email);
+                f.find('[name=rodape], #botoes_whatsapp_aviso').closest('.tformrow').toggle(!email);
+                f.find('.curciol-rotulo-previa').text(email ? 'Prévia do e-mail (como o cliente vê):' : 'Prévia do WhatsApp (como o cliente vê):');
                 var outra = f.find('[name=assinatura_modo]:checked').val() === '" . TemplateEscritorio::ASSINATURA_OUTRA . "';
                 f.find('[name=assinatura_arquivo]').closest('div[class*=col-sm]').toggle(email && outra);
                 f.find('.curciol-rotulo-titulo').text(email ? 'Assunto do e-mail:' : 'Título:');
@@ -599,7 +645,6 @@ class TemplateEscritorioForm extends TPage
                 var f = $('{$form}');
                 var t = f.find('textarea[name=template]');
                 if (t.length && t.next('.note-editor').length) { t.val(t.summernote('code')); }
-                if (f.find('[name=tipo_template]').val() !== '" . TemplateEscritorio::EMAIL . "') { f.find('#template_previa').empty(); return; }
                 $.post('engine.php?class=TemplateEscritorioForm&method=onPrevia&static=1', f.serialize(), function (r) { f.find('#template_previa').html(r); });
             };
             window.curciolPreviaAlternar = function () {
@@ -652,7 +697,8 @@ class TemplateEscritorioForm extends TPage
         try
         {
             TTransaction::open(self::$database);
-            echo TemplateEmailService::previa((array) $param);
+            // WhatsApp (18/11/2026): o balao como na conversa, com os botoes
+            echo ($param['tipo_template'] ?? '') === TemplateEscritorio::WHATSAPP ? TemplateWhatsappPreviaService::previa((array) $param) : TemplateEmailService::previa((array) $param);
             TTransaction::close();
         }
         catch (Exception $e)
@@ -668,19 +714,23 @@ class TemplateEscritorioForm extends TPage
         $e = function ($v) { return htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8'); };
         $partes = ApchatWabaService::partes($t);
         $problema = ApchatWabaService::problemaDoTemplate($t);
-        $aprovado = $t->meta_status === ApchatWabaService::APROVADO;
 
+        // 18/11/2026: so os detalhes do template; titulo, corpo, rodape e botoes estao nos campos (so leitura) e na previa
+        $situacao = ApchatWabaService::situacaoAtual($t);
+        $aprovado = $situacao === ApchatWabaService::APROVADO;
         $this->metaInfo->style = 'background:#eefaf1;border-left:3px solid #25D366;padding:8px 10px;font-size:13px;margin-bottom:6px;';
-        $this->metaInfo->add('<b><i class="fab fa-whatsapp" style="color:#25D366"></i> Template da Meta</b> (importado da conta do canal oficial; o texto é o aprovado na Meta e só é enviado pelo canal oficial)<br>'
+        $this->metaInfo->add('<i class="fab fa-whatsapp" style="color:#25D366"></i> '
             . 'Nome na Meta: <b>' . $e($t->meta_nome) . '</b> &middot; Idioma: ' . $e($t->meta_idioma) . ' &middot; Categoria na Meta: ' . $e($t->meta_categoria)
-            . ' &middot; Situação: <b style="color:' . ($aprovado ? '#2e7d32' : '#c62828') . '">' . $e(ApchatWabaService::situacao($t->meta_status)) . '</b>'
+            . ' &middot; Situação: <b style="color:' . ($aprovado ? '#2e7d32' : '#c62828') . '">' . $e(ApchatWabaService::situacao($situacao)) . '</b>'
             . ($t->meta_sincronizado_em ? ' &middot; Importado em ' . $e(date('d/m/Y H:i', strtotime($t->meta_sincronizado_em))) : '')
-            . ($partes['botoes'] ? '<br>Botões: ' . implode(' ', array_map(function ($b) use ($e) { return '<span class="label label-default">' . $e($b) . '</span>'; }, $partes['botoes'])) : '')
-            . ($problema !== null ? '<br><b style="color:#c62828">Não pode ser enviado:</b> ' . $e($problema) : '')
-            . '<br>Para mudar o texto, edite o template na Meta (ou na tela de templates do APChat) e use <b>Importar da Meta</b>.');
+            . ' &middot; Botões: ' . ($partes['botoes'] ? 'Sim' : 'Não')
+            . ($problema !== null ? '<br><b style="color:#c62828">Não pode ser enviado:</b> ' . $e($problema) : ''));
 
         TCombo::disableField(self::$formName, 'tipo_template');
-        TEntry::disableField(self::$formName, 'titulo');
+        foreach (array_merge(['titulo', 'rodape'], array_map(function ($i) { return 'botao' . $i; }, range(1, TemplateEscritorio::BOTOES_MAX))) as $campo)
+        {
+            TEntry::disableField(self::$formName, $campo);
+        }
         TScript::create("$('form[name=" . self::$formName . "] [name=template_whatsapp]').prop('readonly', true).css('background', '#f5f5f5');");
     }
 

@@ -24,7 +24,11 @@ $t = saida(function () { $f = new TemplateEscritorioForm([]); $f->onShow([]); $f
 ok('template: monta', strpos($t, 'form_TemplateClinicaForm') !== false, substr($t, 0, 300));
 ok('template: sem {$link_detalhe}', strpos($t, 'link_detalhe') === false);
 ok('template: campo chamado Assunto do e-mail', strpos($t, 'Assunto do e-mail') !== false);
-ok('template: descricao diz que e o nome na lista', strpos($t, 'nome do template na lista') !== false);
+// 18/11/2026: Categoria, Nome, Tipo; embaixo a Descricao livre; WhatsApp com rodape e ate 3 botoes
+ok('template: campo Nome e a Descricao livre', strpos($t, '>Nome:') !== false && strpos($t, 'name="observacao"') !== false && strpos($t, 'nome do template na lista') === false);
+ok('template: rodape e 3 botoes do WhatsApp', strpos($t, 'name="rodape"') !== false && strpos($t, 'name="botao1"') !== false && strpos($t, 'name="botao3"') !== false && strpos($t, 'name="botao4"') === false);
+ok('template: botoes com ate 20 caracteres e rodape com ate 60', (bool) preg_match('/name="botao1"[^>]*maxlength="20"|maxlength="20"[^>]*name="botao1"/', $t) && (bool) preg_match('/name="rodape"[^>]*maxlength="60"|maxlength="60"[^>]*name="rodape"/', $t));
+ok('template: previa vale para o WhatsApp tambem', strpos($t, 'Prévia do WhatsApp') !== false);
 $titulo = tag($t, 'titulo', 'input');
 ok('template: assunto sem maiusculas forcadas (variaveis como {$cliente} continuam valendo)', $titulo !== '' && stripos($titulo, 'uppercase') === false, $titulo);
 ok('template: texto do e-mail com altura automatica', strpos(tag($t, 'template'), 'data-autoaltura') !== false, tag($t, 'template'));

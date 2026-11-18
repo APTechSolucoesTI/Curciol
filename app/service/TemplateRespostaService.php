@@ -52,6 +52,8 @@ class TemplateRespostaService
             throw new Exception('Escreva a mensagem do template de WhatsApp.');
         }
 
+        self::validarBotoes($template);
+
         if (!self::ehConfirmacaoWhatsapp($template))
         {
             $template->respostas_confirmar = null;
@@ -102,6 +104,63 @@ class TemplateRespostaService
             {
                 throw new Exception("O template enviado depois da resposta \"{$resposta}\" precisa ter uma mensagem.");
             }
+        }
+
+        // botoes da confirmacao (18/11/2026): cada um tem de confirmar ou cancelar, senao o clique nao faz nada
+        $respostas = [];
+        foreach (self::RAMOS as $ramo)
+        {
+            $respostas = array_merge($respostas, ApchatRespostaService::respostasDaLista($template->{$ramo['resposta']}, true));
+        }
+        foreach ($template->listaBotoes() as $botao)
+        {
+            if (!in_array(ApchatRespostaService::respostaComparavel($botao, true), $respostas, true))
+            {
+                throw new Exception("O botão \"{$botao}\" não é uma das respostas que confirmam ou cancelam: inclua o texto dele em uma das respostas do cliente, senão o clique não faz nada.");
+            }
+        }
+    }
+
+    /**
+     * Rodape e botoes do WhatsApp (18/11/2026). E-mail nao tem nenhum dos dois. Template da Curciol: ate 3 botoes com ate 20
+     * caracteres (limite da Meta) e rodape com ate 60; o da Meta vem aprovado (copia dos componentes).
+     */
+    public static function validarBotoes(TemplateEscritorio $template): void
+    {
+        if ($template->tipo_template !== TemplateEscritorio::WHATSAPP)
+        {
+            $template->rodape = null;
+            $template->botoes = null;
+            return;
+        }
+        $template->rodape = trim((string) $template->rodape) !== '' ? trim((string) $template->rodape) : null;
+        $todos = array_values(array_filter(array_map('trim', preg_split('/\R/u', (string) $template->botoes)), function ($b) { return $b !== ''; }));
+        $template->botoes = $todos ? implode("\n", $todos) : null;
+        if ($template->ehMeta())
+        {
+            return;
+        }
+        if (mb_strlen((string) $template->rodape) > TemplateEscritorio::RODAPE_MAX)
+        {
+            throw new Exception('O rodapé tem até ' . TemplateEscritorio::RODAPE_MAX . ' caracteres.');
+        }
+        if (count($todos) > TemplateEscritorio::BOTOES_MAX)
+        {
+            throw new Exception('São no máximo ' . TemplateEscritorio::BOTOES_MAX . ' botões.');
+        }
+        $vistos = [];
+        foreach ($todos as $botao)
+        {
+            if (mb_strlen($botao) > TemplateEscritorio::BOTAO_MAX)
+            {
+                throw new Exception("O botão \"{$botao}\" passa de " . TemplateEscritorio::BOTAO_MAX . ' caracteres (limite do WhatsApp).');
+            }
+            $chave = ApchatRespostaService::respostaComparavel($botao, true);
+            if (isset($vistos[$chave]))
+            {
+                throw new Exception("O botão \"{$botao}\" está repetido.");
+            }
+            $vistos[$chave] = true;
         }
     }
 

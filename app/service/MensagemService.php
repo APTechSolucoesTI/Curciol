@@ -276,9 +276,29 @@ class MensagemService
             $p = ApchatWabaService::partes($template);
             $texto = trim(($p['cabecalho'] !== '' ? '*' . $p['cabecalho'] . "*\n\n" : '') . $p['texto']
                         . ($p['botoes'] ? "\n\n" . implode('  ', array_map(function ($b) { return "[{$b}]"; }, $p['botoes'])) : ''));
-            return ['titulo' => $titulo, 'texto' => $texto];
+            return ['titulo' => $titulo, 'texto' => $texto, 'botoes' => $p['botoes']];
         }
-        return ['titulo' => $titulo, 'texto' => TemplateEscritorio::normalizarVariaveis((string) $template->template)];
+        $corpo = TemplateEscritorio::normalizarVariaveis((string) $template->template);
+        if ($template->tipo_template !== TemplateEscritorio::WHATSAPP)
+        {
+            return ['titulo' => $titulo, 'texto' => $corpo, 'botoes' => []];
+        }
+        return ['titulo' => $titulo, 'texto' => self::montarWhatsapp($titulo, $corpo, (string) $template->rodape), 'botoes' => $template->listaBotoes()];
+    }
+
+    /**
+     * Texto final do WhatsApp da Curciol (18/11/2026): o APChat nao envia titulo nem rodape fora do template da Meta, entao o
+     * titulo vai em negrito na primeira linha e o rodape em italico na ultima, separados do corpo por uma linha em branco.
+     */
+    public static function montarWhatsapp(?string $titulo, ?string $corpo, ?string $rodape): string
+    {
+        // sem corpo nao ha mensagem (template legado vazio nao envia so o titulo)
+        if (trim((string) $corpo) === '') { return ''; }
+        $partes = [];
+        if (trim((string) $titulo) !== '') { $partes[] = '*' . trim((string) $titulo) . '*'; }
+        if (trim((string) $corpo) !== '')  { $partes[] = trim((string) $corpo); }
+        if (trim((string) $rodape) !== '') { $partes[] = '_' . trim((string) $rodape) . '_'; }
+        return implode("\n\n", $partes);
     }
     
     /**
@@ -442,9 +462,16 @@ class MensagemService
         {
             throw new Exception('Escreva a mensagem.');
         }
-        
+
+        // template da Curciol com botoes (18/11/2026): so pelo canal oficial, conferido ANTES de qualquer chamada a API
+        $botoes = $template && $template->tipo_template === TemplateEscritorio::WHATSAPP ? $template->listaBotoes() : [];
+        if ($botoes)
+        {
+            return self::enviarComBotoes($agendamento, $titulo, $texto, $botoes, (int) $template->id, $numero);
+        }
+
         $mensagem = self::registrar($agendamento, TemplateEscritorio::WHATSAPP, $titulo, $texto, $template_escritorio_id, $numero);
-        
+
         $mensagem->retorno = ApchatApiService::enviarMensagem($numero, $texto, 'curciol-mensagem-' . $mensagem->id);
         // entrega (10/11/2026): aguardando os 2 tiques no APChat (MensagemEntregaService, no cron)
         $mensagem->entrega = 'A';
@@ -455,6 +482,34 @@ class MensagemService
         return $mensagem;
     }
         
+    /**
+     * Mensagem com botoes (18/11/2026), sem template da Meta: canal oficial conferido, atendimento do numero (o APChat exige)
+     * e POST /sendButtonWABA. O historico guarda o texto e os botoes como o cliente recebe. Sem conversa no canal = fora da
+     * janela de 24 h: nao envia.
+     */
+    private static function enviarComBotoes(Agendamento $agendamento, ?string $titulo, string $texto, array $botoes, int $templateId, string $numero): Mensagem
+    {
+        $canal = ApchatWabaService::canalParaBotoes();
+        $ticketId = ApchatBancoService::ultimoTicket(APChatContactService::variantes($numero), (int) $canal['canal_id']);
+        if (!$ticketId)
+        {
+            throw new Exception('Este cliente ainda não tem conversa no canal oficial: mensagem com botões só é entregue a quem escreveu nas últimas 24 horas. Nada foi enviado.');
+        }
+
+        $historico = $texto . "\n\n" . implode('  ', array_map(function ($b) { return "[{$b}]"; }, $botoes));
+        $mensagem = self::registrar($agendamento, TemplateEscritorio::WHATSAPP, $titulo, $historico, $templateId, $numero);
+
+        $mensagem->retorno = ApchatApiService::enviarBotoes($numero, $texto, $botoes, $ticketId, 'curciol-mensagem-' . $mensagem->id);
+        $mensagem->entrega = 'A';
+        // a resposta traz so o id da Meta (wamid), que e o messageId da mensagem no APChat
+        $wamid = json_decode((string) $mensagem->retorno, true)['data']['messages'][0]['id'] ?? null;
+        $mensagem->apchat_mensagem_id = is_string($wamid) && $wamid !== '' ? mb_substr($wamid, 0, 255) : MensagemEntregaService::idDaResposta((string) $mensagem->retorno);
+        $mensagem->apchat_ticket_id = MensagemEntregaService::ticketDaResposta((string) $mensagem->retorno) ?: $ticketId;
+        $mensagem->store();
+
+        return $mensagem;
+    }
+
     /** Template aprovado na Meta pelo canal oficial do APChat; o historico guarda o texto como o cliente recebe. */
     private static function enviarTemplateMeta(Agendamento $agendamento, TemplateEscritorio $template, string $numero): Mensagem
     {

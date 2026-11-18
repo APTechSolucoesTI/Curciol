@@ -642,6 +642,21 @@ class ApchatBancoService
         return $l ?: null;
     }
 
+    /**
+     * Ultimo atendimento do numero no canal (18/11/2026): o envio com botoes (/sendButtonWABA) exige o ticketId. Fechado serve.
+     * @return int|null null = o numero nunca teve conversa neste canal
+     */
+    public static function ultimoTicket(array $numeros, int $canalId): ?int
+    {
+        if (self::$falso) { return method_exists(self::$falso, 'ultimoTicket') ? self::$falso->ultimoTicket($numeros, $canalId) : null; }
+        $st = self::conn()->prepare('WITH c AS (SELECT id FROM curciol.f_contatos(NULL, ?::varchar[]))
+                                     SELECT id FROM curciol.f_tickets(NULL, COALESCE((SELECT array_agg(id) FROM c), \'{}\'))
+                                      WHERE "whatsappId" = ? ORDER BY arquivado, "updatedAt" DESC, id DESC LIMIT 1');
+        $st->execute([self::arrayPg($numeros), $canalId]);
+        $id = $st->fetchColumn();
+        return $id ? (int) $id : null;
+    }
+
     /** Configuracoes da empresa no APChat que mudam quem ve o que (texto como o APChat guarda: enabled/disabled). */
     public static function configuracoes(): array
     {

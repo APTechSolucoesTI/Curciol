@@ -39,6 +39,11 @@ class TemplateEscritorio extends TRecord
     const ORIGEM_CURCIOL = 'CURCIOL';
     const ORIGEM_META    = 'META';
 
+    // WhatsApp (18/11/2026): limites da Meta para botoes de resposta e rodape
+    const BOTOES_MAX = 3;
+    const BOTAO_MAX  = 20;
+    const RODAPE_MAX = 60;
+
     const ORIGENS = [
         self::ORIGEM_CURCIOL => 'Curciol',
         self::ORIGEM_META    => 'Meta',
@@ -115,7 +120,17 @@ class TemplateEscritorio extends TRecord
         parent::addAttribute('meta_formato');
         parent::addAttribute('meta_componentes');
         parent::addAttribute('meta_sincronizado_em');
+        parent::addAttribute('observacao');
+        parent::addAttribute('rodape');
+        parent::addAttribute('botoes');
 
+    }
+
+    /** Botoes de resposta do WhatsApp (18/11/2026): um por linha, ate BOTOES_MAX. */
+    public function listaBotoes(): array
+    {
+        $lista = array_values(array_filter(array_map('trim', preg_split('/\R/u', (string) $this->botoes)), function ($b) { return $b !== ''; }));
+        return array_slice($lista, 0, self::BOTOES_MAX);
     }
 
     /**

@@ -142,6 +142,38 @@ class ApchatWabaService
         return $canal;
     }
 
+    /**
+     * Canal para mensagem com botoes (regra do usuario, 18/11/2026): so o oficial (WABA). Confere ANTES de qualquer requisicao
+     * a API; canal que nao e o oficial, sem canal ou sem dar para conferir = excecao e nada sai.
+     * @return array {canal_id, canal, tipo, ...}
+     */
+    public static function canalParaBotoes(): array
+    {
+        $aviso = 'Template com botões só é enviado pelo canal oficial do WhatsApp (WABA)';
+        if (!ApchatApiService::configurada())
+        {
+            throw new Exception('APChat não configurado: informe a URL e o token em Configurações do escritório.');
+        }
+        $config = IntegracaoAcessoService::configuracaoApchat();
+        if ($config !== 'ok')
+        {
+            throw new Exception($aviso . ': ' . IntegracaoAcessoService::motivoApchat($config));
+        }
+        try
+        {
+            $canal = ApchatBancoService::wabaDaIntegracao(self::idDaIntegracao());
+        }
+        catch (Throwable $e)
+        {
+            throw new Exception($aviso . ' e não foi possível conferir o canal da integração agora. Nada foi enviado; tente de novo.');
+        }
+        if (!$canal || ($canal['tipo'] ?? '') !== 'waba' || (int) ($canal['canal_id'] ?? 0) <= 0)
+        {
+            throw new Exception($aviso . ($canal ? ' e o canal da integração (' . ($canal['canal'] ?? '?') . ') não é o oficial' : ' e a integração não tem canal no APChat') . '. Nada foi enviado.');
+        }
+        return $canal;
+    }
+
     /** Templates da conta WhatsApp Business do canal, lidos na Meta (todas as paginas). */
     public static function templatesDaMeta(array $canal): array
     {
@@ -223,8 +255,6 @@ class ApchatWabaService
                 $obj->origem = TemplateEscritorio::ORIGEM_META;
                 $obj->chave = 'META_' . strtoupper(uniqid());
                 $obj->tipo_template = TemplateEscritorio::WHATSAPP;
-                $obj->categoria = self::categoriaPeloNome($nome);
-                $obj->descricao = mb_strtoupper(trim(str_replace('_', ' ', $nome)) . ($idioma !== '' && $idioma !== 'pt_BR' ? " ({$idioma})" : ''));
                 $obj->ignorar_maiusculas = 'T';
             }
 
@@ -239,8 +269,20 @@ class ApchatWabaService
             $obj->meta_sincronizado_em = $agora;
 
             $partes = self::partes($obj);
-            $obj->titulo = $partes['cabecalho'] !== '' ? $partes['cabecalho'] : $obj->descricao;
-            $obj->template = $partes['texto'];
+            if ($novo)
+            {
+                // 18/11/2026: nome = titulo (cabecalho) do template, senao o nome na Meta; com botoes ja vem Confirmacao, sem botoes
+                // fica sem categoria para o usuario escolher. Depois, nome, descricao e categoria sao do usuario.
+                $cabecalho = trim(preg_replace('/\{\{[^}]*\}\}/u', '', $partes['cabecalho']));
+                $obj->descricao = mb_strtoupper($cabecalho !== '' ? $cabecalho : trim(str_replace('_', ' ', $nome)))
+                                . ($idioma !== '' && $idioma !== 'pt_BR' ? " ({$idioma})" : '');
+                $obj->categoria = $partes['botoes'] ? TemplateEscritorio::CONFIRMACAO : null;
+            }
+            // titulo, corpo, rodape e botoes: os aprovados na Meta (so leitura na Curciol)
+            $obj->titulo = $partes['cabecalho'];
+            $obj->template = $partes['corpo'];
+            $obj->rodape = $partes['rodape'] !== '' ? mb_substr($partes['rodape'], 0, TemplateEscritorio::RODAPE_MAX) : null;
+            $obj->botoes = $partes['botoes'] ? implode("\n", $partes['botoes']) : null;
 
             $problema = self::problemaDoTemplate($obj);
             if ($status !== self::APROVADO || $problema !== null)

@@ -93,8 +93,8 @@ class EnviarMensagemForm extends TPage
         // ---------- mensagem pronta (sem Manual) ----------
         $this->preview = new TElement('div');
         $this->preview->id = 'mensagem_preview';
-        $this->preview->style = 'border:1px solid #ddd;border-radius:6px;padding:12px;background:#f7f7f7;min-height:80px;'
-                              . ($ehEmail ? '' : 'white-space:pre-wrap;');
+        // WhatsApp (18/11/2026): o balao da conversa ja tem o proprio fundo
+        $this->preview->style = $ehEmail ? 'border:1px solid #ddd;border-radius:6px;padding:12px;background:#f7f7f7;min-height:80px;' : 'min-height:80px;';
 
         $row = $this->form->addFields([new TLabel('Mensagem que será enviada:', null, '14px', null, '100%'), $this->preview]);
         $row->layout = ['col-sm-12'];
@@ -416,11 +416,11 @@ class EnviarMensagemForm extends TPage
             // e-mail (09/11/2026): o mesmo corpo do envio, com botoes, assinatura e anexos escolhidos
             $html = $ehEmail
                 ? EnvioEmailService::previa($agendamento, self::templateDoEnvio($param, $agendamento), true, (string) ($param['titulo'] ?? ''), $texto, (array) $param)
-                : self::mensagemHtml($agendamento, false, (string) ($param['titulo'] ?? ''), $texto);
+                : self::balaoWhatsapp($agendamento, self::templateDoEnvio($param, $agendamento), $texto);
 
             TTransaction::close();
 
-            TScript::create("$('#mensagem_visualizacao').html(" . json_encode('<div style="border:1px solid #ddd;border-radius:6px;padding:12px;background:#f7f7f7;">' . $html . '</div>') . ");");
+            TScript::create("$('#mensagem_visualizacao').html(" . json_encode($ehEmail ? '<div style="border:1px solid #ddd;border-radius:6px;padding:12px;background:#f7f7f7;">' . $html . '</div>' : '<div style="white-space:normal">' . $html . '</div>') . ");");
         }
         catch (Exception $e)
         {
@@ -556,20 +556,22 @@ class EnviarMensagemForm extends TPage
             return EnvioEmailService::previa($agendamento, $template, false, $partes['titulo'], $partes['texto'], []);
         }
 
-        return self::mensagemHtml($agendamento, $template->tipo_template == TemplateEscritorio::EMAIL, $partes['titulo'], $partes['texto']);
+        return self::balaoWhatsapp($agendamento, $template, $partes['texto']);
     }
 
-    private static function mensagemHtml(Agendamento $agendamento, bool $ehEmail, string $titulo, string $texto): string
+    /**
+     * WhatsApp como o cliente ve (18/11/2026): o balao da conversa com os botoes do template (TemplateWhatsappPreviaService),
+     * variaveis trocadas. Template da Meta: cabecalho, corpo e rodape aprovados; o texto digitado nao vale.
+     */
+    private static function balaoWhatsapp(Agendamento $agendamento, ?TemplateEscritorio $template, string $texto): string
     {
-        $texto = TemplateEscritorio::replace($agendamento, $texto);
-
-        if ($ehEmail)
+        if ($template && $template->ehMeta())
         {
-            $titulo = htmlspecialchars(TemplateEscritorio::replace($agendamento, $titulo));
-            return "<div style=\"margin-bottom:8px\"><b>Assunto:</b> {$titulo}</div><hr style=\"margin:8px 0\">{$texto}";
+            $p = ApchatWabaService::partes($template);
+            return TemplateWhatsappPreviaService::balao(TemplateEscritorio::replace($agendamento, $p['cabecalho']), TemplateEscritorio::replace($agendamento, $p['corpo']), $p['rodape'], $p['botoes']);
         }
-
-        return htmlspecialchars(trim($texto));
+        $botoes = $template && $template->tipo_template === TemplateEscritorio::WHATSAPP ? $template->listaBotoes() : [];
+        return TemplateWhatsappPreviaService::balao('', trim(TemplateEscritorio::replace($agendamento, $texto)), '', $botoes);
     }
 
     public static function getFormName()

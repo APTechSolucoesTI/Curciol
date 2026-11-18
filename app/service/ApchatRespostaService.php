@@ -5,15 +5,15 @@
  * Tarefa agendada a cada minuto (cmd.php "class=ApchatRespostaService&method=vigiar"): fica rodando e olha a cada 5 segundos.
  * Para cada confirmacao enviada que ainda espera resposta, le no banco do APChat a conversa do numero depois do envio.
  * As respostas sao do template de confirmacao (Configuracoes > Template, 04/11/2026): a que confirma e a que cancela,
- * ignorando maiusculas, minusculas e acentos ou nao, e a mensagem de cada caso. Contam ate 3 mensagens SEGUIDAS do cliente e todas
- * tem de ser a mesma decisao; espaco, pontuacao e emoji em volta da resposta nao importam. Botao de resposta rapida (WABA,
- * 16/11/2026) vale pelo texto do botao, sempre ignorando maiusculas e acentos.
+ * ignorando maiusculas, minusculas e acentos ou nao, e a mensagem de cada caso. Vale a PRIMEIRA resposta valida (regra do
+ * usuario, 18/11/2026), digitada ou por botao: espaco, pontuacao e emoji em volta da resposta nao importam; mensagem que nao e
+ * resposta valida (frase, saudacao, "ok") e ignorada e a Curciol continua esperando; o que vem depois da primeira valida (o
+ * outro botao, por exemplo) nao conta. Botao de resposta rapida (WABA, 16/11/2026) vale pelo texto do botao, sempre ignorando
+ * maiusculas e acentos.
  *   - resposta que confirma: agendamento Confirmado (com o atendimento, como o Confirmar da equipe) e a mensagem do fluxo;
  *   - resposta que cancela: agendamento Cancelado e a mensagem do fluxo;
- *   - frase, saudacao (ate automatica) ou mistura, mesmo com SIM/NAO depois: nada automatico, o agendamento fica em
- *     aberto, a equipe resolve no APChat e o que vier depois nao conta;
- *   - atendente escreveu na conversa antes de completar as 3: tambem nada automatico. E atendente toda mensagem nossa
- *     que nao seja um texto enviado pela Curciol (a API e a copia no canal oficial trazem esse texto).
+ *   - atendente escreveu na conversa antes da resposta valida: nada automatico, agendamento em aberto. E atendente toda
+ *     mensagem nossa que nao seja um envio da Curciol (texto, template da Meta ou mensagem com botoes).
  * So vale enquanto o agendamento esta Agendado e a data nao passou. Com mais de uma confirmacao para o mesmo numero,
  * vale a ultima enviada (as anteriores ficam "substituidas"). A resposta automatica vai para o mesmo numero da
  * confirmacao (na homologacao, o numero de teste digitado).
@@ -234,8 +234,12 @@ class ApchatRespostaService
             $conversa = ApchatBancoService::conversaDepois(APChatContactService::variantes((string) $p['destino']), (string) $p['enviado_em']);
             $daCurciol = self::textosDaCurciol((string) $p['destino'], (string) $p['enviado_em']);
 
+            // vale a PRIMEIRA resposta valida (18/11/2026), digitada ou por botao: o que nao e resposta valida antes dela e ignorado
+            // e o que vem depois (o outro botao, por exemplo) tambem; atendente que escreve antes dela = nada automatico
             $respostas = [];
             $atendente = false;
+            $tipo = null;
+            $decisiva = null;
             foreach ($conversa as $m)
             {
                 if ($m['fromMe'] === true || $m['fromMe'] === 't')
@@ -244,10 +248,17 @@ class ApchatRespostaService
                     continue;
                 }
                 $respostas[] = $m;
-                if (count($respostas) === self::RESPOSTAS_SEGUIDAS) { break; }
+                $classe = self::classificar($m['body'] ?? '', (string) $p['respostas_confirmar'], (string) $p['respostas_cancelar'],
+                    self::ehBotao($m) || $p['ignorar_maiusculas'] !== 'F');
+                if ($classe === self::SIM || $classe === self::NAO)
+                {
+                    $tipo = $classe;
+                    $decisiva = $m;
+                    break;
+                }
             }
 
-            if (!$respostas && !$atendente)
+            if (!$tipo && !$atendente)
             {
                 TTransaction::close();
                 return null;
@@ -270,18 +281,12 @@ class ApchatRespostaService
             TSession::setValue('userid', (int) $p['system_user_id']);
             TSession::setValue('userunitid', (int) $agendamento->agenda->escritorio->system_unit_id);
 
-            // todas as mensagens seguidas tem de ser so a mesma palavra; o botao vale pelo texto dele, sempre ignorando
-            // maiusculas e acentos (o cliente nao digita o rotulo: "Sim" do botao e o "sim" da lista sao a mesma resposta)
-            $tipos = array_unique(array_map(function ($r) use ($p) {
-                return self::classificar($r['body'] ?? '', (string) $p['respostas_confirmar'], (string) $p['respostas_cancelar'],
-                    self::ehBotao($r) || $p['ignorar_maiusculas'] !== 'F');
-            }, $respostas));
-            $tipo = count($tipos) === 1 ? reset($tipos) : self::OUTRA;
+            // o botao vale pelo texto dele, sempre ignorando maiusculas e acentos ("Sim" do botao e o "sim" da lista sao a mesma)
             $mensagem->resposta = $tipo;
-            $mensagem->resposta_texto = $todas;
-            $mensagem->respondido_em = date('Y-m-d H:i:s', strtotime((string) end($respostas)['createdAt']));
+            $mensagem->resposta_texto = mb_substr(self::textoDaResposta($decisiva), 0, 2000);
+            $mensagem->respondido_em = date('Y-m-d H:i:s', strtotime((string) $decisiva['createdAt']));
 
-            $quem = PessoaContatoService::formatarTelefone($p['destino']) . ' respondeu "' . self::semAssinatura($todas) . '"';
+            $quem = PessoaContatoService::formatarTelefone($p['destino']) . ' respondeu "' . self::semAssinatura(self::textoDaResposta($decisiva)) . '"';
 
             $templateResposta = 0;
             if ($tipo === self::SIM)
@@ -302,10 +307,6 @@ class ApchatRespostaService
                     $mensagem->resposta_obs = 'Agendamento cancelado pelo cliente (WhatsApp).';
                     $templateResposta = (int) $p['template_cancelado_id'];
                 }
-            }
-            else
-            {
-                $mensagem->resposta_obs = 'Resposta fora das respostas válidas: nada automático, agendamento em aberto.';
             }
 
             $mensagem->store();
@@ -331,6 +332,9 @@ class ApchatRespostaService
         foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $l)
         {
             $textos[] = self::textoComparavel($l['template']);
+            // mensagem com botoes (18/11/2026): o historico termina com "[Sim]  [Não]"; no APChat fica so o texto
+            $semBotoes = preg_replace('/(?:\s*\[[^\]\n]{1,20}\])+\s*$/u', '', (string) $l['template']);
+            if ($semBotoes !== (string) $l['template']) { $textos[] = self::textoComparavel($semBotoes); }
             if (($l['origem'] ?? '') === TemplateEscritorio::ORIGEM_META)
             {
                 $corpo = self::corpoDoTemplate((string) $l['meta_componentes']);
@@ -346,7 +350,18 @@ class ApchatRespostaService
      */
     private static function textoNosso(array $m): string
     {
-        return ($m['mediaType'] ?? '') === 'templates' ? (self::corpoDoTemplate((string) ($m['body'] ?? '')) ?? 'TEMPLATE-SEM-CORPO') : self::textoComparavel($m['body'] ?? '');
+        $tipo = (string) ($m['mediaType'] ?? '');
+        if ($tipo === 'templates') { return self::corpoDoTemplate((string) ($m['body'] ?? '')) ?? 'TEMPLATE-SEM-CORPO'; }
+        // mensagem com botoes (18/11/2026): o APChat grava "Body: <texto>, Btn1: Sim, Btn2: Não"; vale o texto
+        if ($tipo === 'button') { return self::textoComparavel(self::textoDosBotoes((string) ($m['body'] ?? ''))); }
+        return self::textoComparavel($m['body'] ?? '');
+    }
+
+    /** Texto de uma mensagem com botoes como o APChat grava ("Body: <texto>, Btn1: ..., Btn2: ..."). */
+    public static function textoDosBotoes(string $body): string
+    {
+        $t = preg_replace('/^\s*Body:\s*/u', '', $body);
+        return (string) preg_replace('/,\s*Btn1:.*$/us', '', (string) $t);
     }
 
     /** Corpo (BODY) dos componentes de um template da Meta, sem as variaveis: igual no que a Curciol guardou e no que o APChat grava. */
@@ -390,7 +405,9 @@ class ApchatRespostaService
                 {
                     throw new Exception('Template de resposta indisponível.');
                 }
-                MensagemService::enviarWhatsapp($agendamento, $template->titulo, (string) $template->template, $template->id, (string) $confirmacao->destino);
+                // texto final (titulo em negrito e rodape em italico, 18/11/2026); botoes do template vao junto
+                $partes = MensagemService::textoDoTemplate($template);
+                MensagemService::enviarWhatsapp($agendamento, $partes['titulo'], $partes['texto'], $template->id, (string) $confirmacao->destino);
             }
             TTransaction::close();
             return $tipo;

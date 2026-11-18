@@ -20,7 +20,6 @@ $limpar();
 $semConfig = sys_get_temp_dir() . '/apmail-sem-config-' . getmypid() . '.php';
 ApmailSincronizacaoService::usarConfig($semConfig);
 ApmailHistoricoService::usarCaixas(['00000000-0000-4000-8000-00000000cca1']);
-LinkApp::forcar('apmail', true);
 TSession::setValue('userid', 1);
 // 16/11/2026: o botao "Abrir no APMail" confere o APMail (IntegracaoAcessoService) - APMail falso respondendo, token garantido
 $apmailResposta = ['status' => 200, 'retry_after' => null, 'erro' => '', 'corpo' => json_encode(['success' => true, 'data' => ['unread' => 0, 'pending' => 0, 'mailboxes' => []]])];
@@ -104,7 +103,6 @@ finally
     while (TTransaction::get()) { TTransaction::rollback(); }
     ApmailSincronizacaoService::usarConfig(null);
     ApmailHistoricoService::usarCaixas(null);
-    LinkApp::forcar('apmail', null);
     foreach ($tokensApmail as $e) { TTransaction::open('escritorio'); TTransaction::get()->prepare('UPDATE escritorio SET token_apmail = ? WHERE id = ?')->execute([$e['token_apmail'], $e['id']]); TTransaction::close(); }
     ApmailApiService::usarTransporte(function () { throw new LogicException('Teste sem transporte falso do APMail.'); });
     ApmailEnvelopeService::limparCache();

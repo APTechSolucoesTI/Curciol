@@ -83,12 +83,14 @@ try
 
     $t = TemplateEscritorio::where('escritorio_id', '=', $eid)->where('meta_nome', '=', 'confirmacao_agendamento')->first();
     igual('confirmacao: origem Meta, WhatsApp, aprovada, habilitada', ['META', 'WHATSAPP', 'APPROVED', 'T'], [$t->origem, $t->tipo_template, $t->meta_status, $t->habilitado]);
-    igual('confirmacao: categoria pelo nome', TemplateEscritorio::CONFIRMACAO, $t->categoria);
+    igual('confirmacao: com botoes ja vem Confirmacao (18/11/2026)', TemplateEscritorio::CONFIRMACAO, $t->categoria);
+    igual('confirmacao: nome = titulo do template', 'CONFIRMAÇÃO DE AGENDAMENTO', $t->descricao);
     igual('confirmacao: titulo = cabecalho', 'Confirmação de Agendamento', $t->titulo);
-    ok('confirmacao: texto com as variaveis no padrao {{nome}} e o rodape', strpos($t->template, 'Olá {{cliente}}!') === 0 && strpos($t->template, '{{profissional}}') !== false && substr($t->template, -31) === 'Curciol Sociedade de Advogados.', $t->template);
+    ok('confirmacao: corpo com as variaveis no padrao {{nome}}, sem o rodape', strpos($t->template, 'Olá {{cliente}}!') === 0 && strpos($t->template, '{{profissional}}') !== false && strpos($t->template, 'Curciol Sociedade') === false, $t->template);
+    igual('confirmacao: rodape e botoes separados', ['Curciol Sociedade de Advogados.', "Sim\nNão"], [$t->rodape, $t->botoes]);
     igual('confirmacao: respostas = textos dos botoes', ['Sim', 'Não'], [$t->respostas_confirmar, $t->respostas_cancelar]);
     $l = TemplateEscritorio::where('escritorio_id', '=', $eid)->where('meta_nome', '=', 'lembrete_agendamento')->first();
-    igual('lembrete em analise: desabilitado', ['PENDING', 'F', TemplateEscritorio::LEMBRETE], [$l->meta_status, $l->habilitado, $l->categoria]);
+    igual('lembrete em analise, sem botoes: desabilitado e sem categoria', ['PENDING', 'F', null, 'LEMBRETE AGENDAMENTO'], [$l->meta_status, $l->habilitado, $l->categoria, $l->descricao]);
     $pos = TemplateEscritorio::where('escritorio_id', '=', $eid)->where('meta_nome', '=', 'posicional')->first();
     ok('posicional: desabilitado, com o motivo', $pos->habilitado === 'F' && strpos((string) ApchatWabaService::problemaDoTemplate($pos), 'posição') !== false);
     $desc = TemplateEscritorio::where('escritorio_id', '=', $eid)->where('meta_nome', '=', 'desconhecida')->first();

@@ -156,38 +156,58 @@ try {
     igual('botao Não: cancelado', [EstadoAgenda::CANCELADO, 'NAO'], [$estado($agBotaoNao), $resposta($mBotaoNao)['resposta']]);
     igual('botao: as duas mensagens automaticas', 2, count($enviadas));
 
-    // ---------- frase, saudacao ou mistura, mesmo com SIM/NAO depois: nao confirma nem cancela (usuario, 04/11/2026) ----------
-    $semDecisao = [
-        'frase' => ['Sim, mas posso mudar o horário?'],
-        'saudacao automatica e Sim' => ['Olá! Agradecemos o contato.', 'Sim'],
-        'frase, saudacao e sIm!' => ['Quero saber o horário', 'Olá! Agradecemos o contato.', 'sIm!'],
-        'Bom dia e NAO' => ['Bom dia', 'NÃO'],
-        'sim e nao' => ['sim', 'não'],
-        'Sim e frase' => ['Sim', 'mas prefiro à tarde'],
+    // ---------- vale a PRIMEIRA resposta valida (usuario, 18/11/2026): o que nao e resposta e ignorado, o que vem depois tambem ----------
+    $primeiraValida = [
+        'saudacao automatica e Sim' => [['Olá! Agradecemos o contato.', 'Sim'], 'SIM', 'Sim'],
+        'frase, saudacao e sIm!' => [['Quero saber o horário', 'Olá! Agradecemos o contato.', 'sIm!'], 'SIM', 'sIm!'],
+        'Bom dia e NAO' => [['Bom dia', 'NÃO'], 'NAO', 'NÃO'],
+        'sim e nao: vale o sim' => [['sim', 'não'], 'SIM', 'sim'],
+        'nao e sim: vale o nao' => [['não', 'sim'], 'NAO', 'não'],
+        'Sim e frase' => [['Sim', 'mas prefiro à tarde'], 'SIM', 'Sim'],
+        '3 vezes SIM' => [['sim', 'Sim!', 'SIM'], 'SIM', 'sim'],
     ];
     $final = 1000;
-    foreach ($semDecisao as $caso => $textos) {
+    foreach ($primeiraValida as $caso => [$textos, $esperado, $decisiva]) {
         $numero = '551991234' . ($final++);
         [$ag, $m] = $novo('ABERTO ' . $final, $numero);
         foreach ($textos as $t) { $responde($numero, $t); }
         $enviadas = [];
         $rodar();
-        igual("{$caso}: agendamento continua Agendado", EstadoAgenda::AGENDADO, $estado($ag));
-        igual("{$caso}: registrado sem decisao", ['resposta' => 'OUTRA', 'resposta_texto' => implode(' / ', $textos)], $resposta($m));
-        igual("{$caso}: nenhuma mensagem automatica", 0, count($enviadas));
-        $responde($numero, 'sim');
+        igual("{$caso}: decide pela primeira valida", [$esperado === 'SIM' ? EstadoAgenda::CONFIRMADO : EstadoAgenda::CANCELADO, $esperado, $decisiva],
+              [$estado($ag), $resposta($m)['resposta'], $resposta($m)['resposta_texto']]);
+        igual("{$caso}: uma mensagem automatica", 1, count($enviadas));
+        $responde($numero, $esperado === 'SIM' ? 'não' : 'sim');
+        $enviadas = [];
         $rodar();
-        igual("{$caso}: SIM depois nao conta", EstadoAgenda::AGENDADO, $estado($ag));
-        igual("{$caso}: nada enviado depois", 0, count($enviadas));
+        igual("{$caso}: a resposta contraria depois nao muda nada", [$esperado === 'SIM' ? EstadoAgenda::CONFIRMADO : EstadoAgenda::CANCELADO, 0], [$estado($ag), count($enviadas)]);
     }
 
-    // ---------- ate 3 seguidas, so a mesma palavra ----------
-    [$agTres, $mTres] = $novo('TRES', '5519912340007');
-    foreach (['sim', 'Sim!', 'SIM'] as $t) { $responde('5519912340007', $t); }
+    // frase sozinha: nada automatico e continua esperando; o SIM depois confirma
+    [$agFrase, $mFrase] = $novo('FRASE', '5519912340007');
+    $responde('5519912340007', 'Sim, mas posso mudar o horário?');
     $enviadas = [];
     $rodar();
-    igual('3 vezes SIM: confirma', EstadoAgenda::CONFIRMADO, $estado($agTres));
-    igual('3 vezes SIM: uma mensagem automatica', 1, count($enviadas));
+    igual('frase: continua esperando, nada enviado', [EstadoAgenda::AGENDADO, null, 0], [$estado($agFrase), $resposta($mFrase)['resposta'], count($enviadas)]);
+    $responde('5519912340007', 'sim');
+    $rodar();
+    igual('frase e depois sim: confirma', [EstadoAgenda::CONFIRMADO, 'SIM', 'sim'], [$estado($agFrase), $resposta($mFrase)['resposta'], $resposta($mFrase)['resposta_texto']]);
+
+    // os dois botoes clicados antes de a tarefa ler: vale o primeiro
+    [$agDois, $mDois] = $novo('DOIS BOTOES', '5519912340015');
+    $botao('5519912340015', 'Não', 'interactive');
+    $botao('5519912340015', 'Sim', 'interactive');
+    $enviadas = [];
+    $rodar();
+    igual('dois botoes: vale o primeiro (Não)', [EstadoAgenda::CANCELADO, 'NAO', 'Não', 1], [$estado($agDois), $resposta($mDois)['resposta'], $resposta($mDois)['resposta_texto'], count($enviadas)]);
+
+    // nossa mensagem com botoes na conversa (/sendButtonWABA): o APChat grava "Body: <texto>, Btn1: ..., Btn2: ..."; nao e atendente
+    [$agBtn, $mBtn] = $novo('COM BOTOES', '5519912340016');
+    x("UPDATE mensagem SET template = E'*Confirmação*\\n\\nResponda SIM ou NÃO\\n\\n_Curciol_\\n\\n[Sim]  [Não]' WHERE id = {$mBtn}");
+    $banco->respostas['5519912340016'][] = ['id' => 5, 'body' => 'Body: *Confirmação*  Responda SIM ou NÃO  _Curciol_, Btn1: Sim, Btn2: Não', 'mediaType' => 'button', 'fromMe' => true, 'createdAt' => date('Y-m-d H:i:s')];
+    $botao('5519912340016', 'Sim', 'interactive');
+    $rodar();
+    igual('mensagem com botoes da Curciol: nao e atendente, o clique confirma', [EstadoAgenda::CONFIRMADO, 'SIM'], [$estado($agBtn), $resposta($mBtn)['resposta']]);
+    igual('texto da mensagem com botoes como o APChat grava', '*Confirmação*  Responda SIM ou NÃO  _Curciol_', ApchatRespostaService::textoDosBotoes('Body: *Confirmação*  Responda SIM ou NÃO  _Curciol_, Btn1: Sim, Btn2: Não'));
 
     // ---------- a copia do texto da Curciol no canal oficial nao e atendente ----------
     [$agCopia, $mCopia] = $novo('COPIA', '5519912340003');
@@ -253,18 +273,25 @@ try {
     $responde('5519912340010', 'sim');
     $nossa('5519912340010', '*Kleber*: tudo certo?');
     $rodar();
-    igual('atendente antes de a tarefa ler o SIM: nao confirma', EstadoAgenda::AGENDADO, $estado($agMeio));
-    igual('atendente antes de a tarefa ler o SIM: registrado', ['resposta' => 'ATENDENTE', 'resposta_texto' => 'sim'], $resposta($mMeio));
+    igual('atendente depois do SIM (mesmo antes de a tarefa ler): vale o SIM', [EstadoAgenda::CONFIRMADO, 'SIM'], [$estado($agMeio), $resposta($mMeio)['resposta']]);
+
+    [$agAntes, $mAntes] = $novo('ANTES', '5519912340017');
+    $responde('5519912340017', 'Bom dia');
+    $nossa('5519912340017', '*Kleber*: bom dia, pode confirmar?');
+    $responde('5519912340017', 'sim');
+    $rodar();
+    igual('atendente antes da resposta valida: nada automatico', [EstadoAgenda::AGENDADO, 'ATENDENTE', 'Bom dia'], [$estado($agAntes), $resposta($mAntes)['resposta'], $resposta($mAntes)['resposta_texto']]);
 
     [$agDepois, $mDepois] = $novo('DEPOIS', '5519912340011');
     foreach (['não', 'NAO', 'Não!'] as $t) { $responde('5519912340011', $t); }
     $nossa('5519912340011', '*Kleber*: certo');
     $rodar();
-    igual('atendente depois das 3 mensagens: vale o que o cliente respondeu', EstadoAgenda::CANCELADO, $estado($agDepois));
+    igual('atendente depois da resposta: vale o que o cliente respondeu', EstadoAgenda::CANCELADO, $estado($agDepois));
 
     // telas: uma com a resposta registrada e outra esperando
     [$agTela, $mTela] = $novo('TELA', '5519912340012');
-    $responde('5519912340012', 'Sim, mas prefiro à tarde');
+    $responde('5519912340012', 'Bom dia, prefiro à tarde');
+    $responde('5519912340012', 'Não');
     $rodar();
     [$agEspera, $mEspera] = $novo('ESPERA', '5519912340008');
 
@@ -307,7 +334,7 @@ try {
     ob_start();
     (new AgendamentoFormView(['key' => $agTela]))->show();
     $html = ob_get_clean();
-    ok('tela: mostra as respostas do cliente', strpos($html, 'respondeu') !== false && strpos($html, 'prefiro à tarde') !== false);
+    ok('tela: mostra a resposta do cliente', strpos($html, 'respondeu') !== false && strpos($html, 'Não') !== false);
     ob_start();
     (new AgendamentoFormView(['key' => $agEspera]))->show();
     $html = ob_get_clean();
@@ -502,7 +529,8 @@ try {
         $enviadas = [];
         $rodar();
         igual('fluxo: confirma pela resposta do usuario', EstadoAgenda::CONFIRMADO, $estado($agFluxo));
-        ok('fluxo: manda a mensagem escolhida', strpos($enviadas[0]['body'] ?? '', 'Fechado, ' . MARCA_RESP) === 0, $enviadas[0]['body'] ?? '');
+        // 18/11/2026: o titulo do template vai em negrito na primeira linha
+        ok('fluxo: manda a mensagem escolhida, com o titulo', strpos($enviadas[0]['body'] ?? '', "*T*\n\nFechado, " . MARCA_RESP) === 0, $enviadas[0]['body'] ?? '');
         [$agFluxo2, $mFluxo2] = $novo('FLUXO2', '5519912340041');
         x("UPDATE mensagem SET template_escritorio_id = {$tFluxo} WHERE id = {$mFluxo2}");
         $responde('5519912340041', 'confirmo');
@@ -518,7 +546,7 @@ try {
         x("UPDATE mensagem SET template_escritorio_id = {$tFluxo} WHERE id = {$mFluxoBotao2}");
         $botao('5519912340044', 'Sim');
         $rodar();
-        igual('fluxo: botao com texto fora da lista nao decide', [EstadoAgenda::AGENDADO, 'OUTRA'], [$estado($agFluxoBotao2), $resposta($mFluxoBotao2)['resposta']]);
+        igual('fluxo: botao com texto fora da lista nao decide (continua esperando)', [EstadoAgenda::AGENDADO, null], [$estado($agFluxoBotao2), $resposta($mFluxoBotao2)['resposta']]);
         x("UPDATE template_escritorio SET template = '   ' WHERE id = {$tOk}");
         [$agVazio, $mVazio] = $novo('FLUXO VAZIO', '5519912340042');
         x("UPDATE mensagem SET template_escritorio_id = {$tFluxo} WHERE id = {$mVazio}");

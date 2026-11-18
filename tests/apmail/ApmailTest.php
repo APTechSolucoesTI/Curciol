@@ -5,7 +5,6 @@
 // Cache de 30 s por e-mail; 404 = e-mail fora da integracao; 401/403/5xx = integracao indisponivel (60 s sem tentar);
 // 429 = espera o Retry-After. API falsa; dados gravados dentro de transacao desfeita.
 require __DIR__ . '/../bootstrap.php';
-LinkApp::forcar('apmail', false); // links pelo app instalado tem teste proprio (LinkAppTest)
 if (!class_exists('TApplication')) { class TApplication extends AdiantiCoreApplication {} }
 function saida(callable $f): string { ob_start(); try { $f(); } finally { $s = ob_get_clean(); } return $s; }
 
@@ -168,20 +167,16 @@ try
     TTransaction::open('escritorio');
     $inicioApmail = ApmailApiService::url(ApmailApiService::escritorio());
     TTransaction::close();
-    ok('envelope: icone abre a tela inicial do APMail', strpos($mail, LinkExterno::onclick($inicioApmail, 'apmail')) !== false, $mail);
+    ok('envelope: icone abre a tela inicial do APMail', strpos($mail, LinkApp::apmailInicio()) !== false && $inicioApmail !== '', $mail);
     ok('envelope: caixa confere antes de abrir', strpos($mail, LinkApp::notificacao('caixa', 'a2')) !== false && strpos($mail, '/mail/a2') === false, $mail);
-    LinkApp::forcar('apmail', false);
+    // regra de 17/11/2026: so pelo app instalado, nunca em aba
     TTransaction::open('escritorio');
-    $d = TopoAbrir::decidir(['tipo' => 'caixa', 'id' => 'a2'], $u1);
-    ok('clique: caixa liberada abre na caixa (aba do APMail)', ($d['ok'] ?? false) === true && ($d['url'] ?? '') === 'https://app.apmail.com.br/mail/a2?assigned=any' && ($d['janela'] ?? '') === 'apmail', json_encode($d));
-    LinkApp::forcar('apmail', true);
     $mailApp = saida(function () { (new MailList(['theme' => 'theme-builder']))->show(); });
     ok('envelope com app instalado: ícone aponta para o início e a caixa só leva o id',
        strpos($mailApp, 'web+apmail://abrir?caminho=%2F') !== false
        && strpos($mailApp, LinkApp::notificacao('caixa', 'a2')) !== false
        && strpos($mailApp, '/mail/a2') === false && strpos($mailApp, '%2Fmail%2Fa2') === false);
     igual('clique pelo app: a caixa', 'web+apmail://abrir?caminho=' . rawurlencode('/mail/a2?assigned=any'), TopoAbrir::decidir(['tipo' => 'caixa', 'id' => 'a2'], $u1)['link'] ?? null);
-    LinkApp::forcar('apmail', false);
     $respostas['cadastro.um@teste.local'] = $ok('cadastro.um@teste.local', [['id' => 'a2', 'name' => 'Financeiro', 'url' => '//outro-site.invalid/mail/a2']]);
     $d = TopoAbrir::decidir(['tipo' => 'caixa', 'id' => 'a2'], $u1);
     ok('clique: caixa sem endereco valido nao abre a tela inicial', ($d['ok'] ?? true) === false && !isset($d['url']) && !isset($d['link']));
@@ -191,9 +186,7 @@ try
     ok('clique: confere no APMail na hora (sem cache)', count($chamadas) === $chamadasAntes + 1, (string) count($chamadas));
     // perdeu o acesso a caixa no APMail: o balao ainda mostra (cache), mas o clique nao abre nem redireciona
     $respostas['cadastro.um@teste.local'] = $ok('cadastro.um@teste.local', [['id' => 'b9', 'name' => 'Outra', 'email' => 'outra@x.com', 'unread' => 0, 'pending' => 1, 'url' => '/mail/b9']]);
-    LinkApp::forcar('apmail', true);
     $d = TopoAbrir::decidir(['tipo' => 'caixa', 'id' => 'a2'], $u1);
-    LinkApp::forcar('apmail', false);
     ok('clique: caixa que ele nao acessa mais nao abre, com aviso', ($d['ok'] ?? true) === false && !isset($d['url']) && !isset($d['link']) && strpos($d['mensagem'] ?? '', 'não tem mais acesso') !== false, json_encode($d));
     TTransaction::close();
     $mail2 = saida(function () { (new MailList(['theme' => 'theme-builder']))->show(); });
@@ -208,7 +201,6 @@ try
     TTransaction::close();
     ApmailEnvelopeService::limparCache();
     $respostas['cadastro.um@teste.local'] = $ok('cadastro.um@teste.local', [['id' => 'a2', 'name' => 'Financeiro', 'email' => 'financeiro@x.com', 'unread' => 3, 'pending' => 2, 'url' => '/mail/a2?assigned=any']]);
-    LinkApp::forcar('apmail', false);
     ok('envelope: sem texto ao parar o mouse no icone', preg_match('/class="button-circle"[^>]*title=/', $mail) === 0);
     ok('envelope: fica aberto ao atravessar ate a lista', strpos((string) file_get_contents('app/templates/theme-builder/application.css'), '.fast-drop.apmail-aberto > .topo-notificacoes-painel') !== false);
     TSession::setValue('userid', $u2);

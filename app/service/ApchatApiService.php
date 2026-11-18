@@ -262,6 +262,46 @@ class ApchatApiService
         return $resposta['corpo'];
     }
 
+    /**
+     * Mensagem com botoes de resposta sem template da Meta (18/11/2026): POST .../sendButtonWABA {number, message, button1..3,
+     * ticketId}. So canal oficial (WABA) e so dentro da janela de 24 h; quem chama ja conferiu o canal
+     * (ApchatWabaService::canalParaBotoes) - aqui nao se descobre canal. O APChat exige o atendimento (ticketId; fechado serve e
+     * continua fechado) e nao envia titulo nem rodape: vao no proprio texto. O clique chega como mediaType "interactive".
+     *
+     * @return string resposta do APChat (fica registrada na mensagem)
+     */
+    public static function enviarBotoes(string $numero, string $texto, array $botoes, int $ticketId, string $chave): string
+    {
+        $escritorio = self::escritorio();
+        $token = $escritorio ? trim((string) $escritorio->token_apchat) : '';
+        $url = self::url($escritorio);
+
+        if ($token === '' || $url === '')
+        {
+            throw new Exception('APChat não configurado: informe a URL e o token em Configurações do escritório.');
+        }
+        $botoes = array_values(array_slice(array_filter(array_map('trim', $botoes), 'strlen'), 0, TemplateEscritorio::BOTOES_MAX));
+        if (!$botoes || $ticketId <= 0)
+        {
+            throw new Exception('Mensagem com botões sem botões ou sem atendimento.');
+        }
+
+        $corpo = ['number' => $numero, 'message' => $texto, 'ticketId' => $ticketId, 'externalKey' => $chave, 'isClosed' => true];
+        foreach ($botoes as $i => $botao)
+        {
+            $corpo['button' . ($i + 1)] = $botao;
+        }
+
+        $resposta = self::chamar($url . '/sendButtonWABA', $corpo, $token, true);
+
+        if ($resposta['status'] < 200 || $resposta['status'] >= 300)
+        {
+            throw new Exception('O APChat não enviou a mensagem com botões: ' . self::motivoTemplate($resposta));
+        }
+
+        return $resposta['corpo'];
+    }
+
     /** Motivo da recusa do template: a mensagem da Meta quando vier (ERR_WABA_SEND_FAILED com metaCode). */
     public static function motivoTemplate(array $resposta): string
     {
