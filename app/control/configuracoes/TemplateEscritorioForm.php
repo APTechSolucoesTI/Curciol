@@ -184,14 +184,16 @@ class TemplateEscritorioForm extends TPage
             $b->setProperty('placeholder', $i === 1 ? 'Ex.: Sim' : ($i === 2 ? 'Ex.: Não' : ''));
             $camposBotoes[] = [new TLabel("Botão {$i}:", null, '14px', null, '100%'), $b];
         }
-        $rowRodape = $this->form->addFields([new TLabel("Rodapé:", null, '14px', null, '100%'), $rodape], ...$camposBotoes);
-        $rowRodape->layout = ['col-sm-6', 'col-sm-2', 'col-sm-2', 'col-sm-2'];
+        // rodape; embaixo o aviso e os 3 botoes (ajuste do usuario, 18/11/2026)
+        $this->form->addFields([new TLabel("Rodapé:", null, '14px', null, '100%'), $rodape])->layout = ['col-sm-12'];
         $avisoBotoes = new TElement('div');
         $avisoBotoes->id = 'botoes_whatsapp_aviso';
-        $avisoBotoes->style = 'font-size:12px;color:#666;margin-top:-6px;';
+        $avisoBotoes->style = 'font-size:12px;color:#666;';
         $avisoBotoes->add('Até ' . TemplateEscritorio::BOTOES_MAX . ' botões com até ' . TemplateEscritorio::BOTAO_MAX . ' caracteres. Com botões, a mensagem só sai pelo canal oficial do WhatsApp (WABA) e só chega a quem escreveu nas últimas 24 horas. '
                         . 'Na confirmação, cada botão tem de ser uma das respostas que confirmam ou cancelam.');
         $this->form->addFields([$avisoBotoes])->layout = ['col-sm-12'];
+        $rowBotoes = $this->form->addFields(...$camposBotoes);
+        $rowBotoes->layout = ['col-sm-4', 'col-sm-4', 'col-sm-4'];
 
         $this->montarExtrasDoEmail();
 
@@ -634,8 +636,9 @@ class TemplateEscritorioForm extends TPage
                 var email = f.find('[name=tipo_template]').val() === '" . TemplateEscritorio::EMAIL . "';
                 var confirmacao = email && f.find('[name=categoria]').val() === '" . TemplateEscritorio::CONFIRMACAO . "';
                 f.find('#botoes_titulo, [name=botao_confirmar_texto]').closest('.tformrow').toggle(confirmacao && window.curciolTemBotoes(f));
-                f.find('[name=assinatura_modo], [name^=anexos_novos]').closest('.tformrow').toggle(email);
-                f.find('[name=rodape], #botoes_whatsapp_aviso').closest('.tformrow').toggle(!email);
+                // anexos so no e-mail (o WhatsApp nunca leva anexo): a linha pelo campo escondido, que sempre existe
+                f.find('[name=assinatura_modo], [name=anexos_manter_enviado], [name^=anexos_novos]').closest('.tformrow').toggle(email);
+                f.find('[name=rodape], #botoes_whatsapp_aviso, [name=botao1]').closest('.tformrow').toggle(!email);
                 f.find('.curciol-rotulo-previa').text(email ? 'Prévia do e-mail (como o cliente vê):' : 'Prévia do WhatsApp (como o cliente vê):');
                 var outra = f.find('[name=assinatura_modo]:checked').val() === '" . TemplateEscritorio::ASSINATURA_OUTRA . "';
                 f.find('[name=assinatura_arquivo]').closest('div[class*=col-sm]').toggle(email && outra);
@@ -739,7 +742,7 @@ class TemplateEscritorioForm extends TPage
     {
         if ($usos)
         {
-            $this->usadoEm->style = 'background:#eef5fb;border-left:3px solid #1a73e8;padding:8px 10px;font-size:13px;';
+            $this->usadoEm->style = 'background:#eef5fb;border-left:3px solid #1a73e8;padding:8px 10px;font-size:13px;margin-top:10px;';
             $this->usadoEm->add(implode('<br>', $usos));
         }
     }
