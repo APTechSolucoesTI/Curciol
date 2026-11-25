@@ -70,6 +70,7 @@ class BuilderCNPJService
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_HTTPHEADER => ['Accept: application/json'],
+            CURLOPT_USERAGENT => 'Curciol/1.0 (consulta de CNPJ)',
             CURLOPT_CONNECTTIMEOUT => 5,
             CURLOPT_TIMEOUT => self::TIMEOUT,
             CURLOPT_PROTOCOLS => CURLPROTO_HTTPS,
