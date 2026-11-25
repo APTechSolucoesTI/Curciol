@@ -60,67 +60,61 @@ class ModalBuscarCNPJ extends TWindow
 
     }
 
-    public static function onBuscar($param = null) 
+    public static function onBuscar($param = null)
     {
-        try{
-
+        try
+        {
+            $form = $param['form'] ?? '';
+            if (!in_array($form, ['form_Pessoa', 'form_Parceiro'], true))
+            {
+                throw new Exception('Abra a busca de CNPJ pelo formulário de cadastro de pessoa.');
+            }
             TTransaction::open('escritorio');
-            $dados = CNPJService::get($param['cnpj_buscar']);
-            $dadosFull = CNPJService::getFull($param['cnpj_buscar']);
-
-            if(!$dados)
-            {
-                throw new Exception('CNPJ não encontrado');
-            }
-
-            if(!$dadosFull)
-            {
-                throw new Exception('CNPJ Full não encontrado');
-            }
-
-            // iremos recarregar a combo de estado, pois pode ser que o estado encontrado para aquele CNPJ
-            // ainda não foi cadastrado no sistema
-            TCombo::reload(self::$formName, 'pessoa_endereco_pessoa_cidade_estado_id', Estado::getIndexedArray('id', 'nome'), true);
-
+            $dados = CNPJService::get($param['cnpj_buscar'] ?? '');
+            $object = self::dadosFormulario($dados);
             TTransaction::close();
 
-            $object = new stdClass();
-
-            //Dados principais
-            $object->nome = $dados->razao_social;
-            $object->telefone = $dados->ddd_telefone_1 ?? NULL;
-            $object->email = $dadosFull->estabelecimento->email ?? NULL;
-
-            $data = $dadosFull->estabelecimento->data_inicio_atividade;
-            $data = date('d/m/Y',strtotime($data));
-
-            //Documentos
-            $object->cpf_cnpj = $dados->cnpj;
-            $object->dt_nascimento_abertura = $data ?? NULL;
-            $object->rg_ie = $dadosFull->estabelecimento->inscricoes_estaduais[0]->inscricao_estadual ?? NULL;
-
-            //Endereço
-            $object->pessoa_endereco_pessoa_cep = $dados->cep;
-            $object->pessoa_endereco_pessoa_rua = $dados->logradouro;
-            $object->pessoa_endereco_pessoa_bairro = $dados->bairro;
-            $object->pessoa_endereco_pessoa_numero = $dados->numero;
-            $object->pessoa_endereco_pessoa_complemento = $dados->complemento ?? NULL;
-            $object->pessoa_endereco_pessoa_cidade_estado_id = $dados->estado_id ?? NULL;
-            $object->pessoa_endereco_pessoa_cidade_id = $dados->cidade_id ?? null;
-
-            if (!empty($param['form']))
-            {
-                TScript::create("$(\"[page_name='ModalBuscarCNPJ']\").remove()");
-                TToast::show("show", "Sucesso ao buscar!", "topRight", "fas:check-circle");
-                return TForm::sendData($param['form'], $object);
-            }else{
-                throw new Exception('Não foi possível carregar os dados, tente novamente!');
-            }
-
-        }catch (Exception $e) 
-        {
-            new TMessage('error', $e->getMessage());    
+            TForm::sendData($form, $object);
+            TWindow::closeWindowByName(__CLASS__);
+            TToast::show('success', 'Dados do CNPJ preenchidos. Confira antes de salvar.', 'topRight', 'fas:check-circle');
         }
+        catch (Exception $e)
+        {
+            TTransaction::rollback();
+            new TMessage('error', $e->getMessage());
+        }
+    }
+
+    /** Preenche os dados disponíveis. Inscrição estadual e contatos ausentes ficam para conferência manual. */
+    public static function dadosFormulario(stdClass $dados): stdClass
+    {
+        $object = new stdClass;
+        $object->nome = trim((string) $dados->razao_social);
+        $object->cpf_cnpj = $dados->cnpj;
+        foreach (['ddd_telefone_1', 'ddd_telefone_2'] as $campo)
+        {
+            $telefone = PessoaContatoService::telefoneValido($dados->$campo ?? '');
+            if ($telefone !== null)
+            {
+                $object->telefone = $telefone;
+                break;
+            }
+        }
+        $email = mb_strtolower(trim((string) ($dados->email ?? '')));
+        if (filter_var($email, FILTER_VALIDATE_EMAIL)) { $object->email = $email; }
+        $data = (string) ($dados->data_inicio_atividade ?? '');
+        $abertura = DateTimeImmutable::createFromFormat('!Y-m-d', $data);
+        if ($abertura && $abertura->format('Y-m-d') === $data)
+        {
+            $object->dt_nascimento_abertura = $abertura->format('d/m/Y');
+        }
+        $object->pessoa_endereco_pessoa_cep = preg_replace('/\D/', '', (string) ($dados->cep ?? ''));
+        foreach (['logradouro' => 'rua', 'bairro' => 'bairro', 'numero' => 'numero', 'complemento' => 'complemento'] as $origem => $destino)
+        {
+            $object->{'pessoa_endereco_pessoa_' . $destino} = trim((string) ($dados->$origem ?? ''));
+        }
+        $object->pessoa_endereco_pessoa_cidade_id = $dados->cidade_id ?? null;
+        return $object;
     }
 
     public function onShow($param = null)
